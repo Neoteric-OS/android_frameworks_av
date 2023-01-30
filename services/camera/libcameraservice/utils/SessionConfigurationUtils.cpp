@@ -527,7 +527,7 @@ binder::Status createConfiguredSurface(
                            GraphicBuffer::USAGE_HW_TEXTURE |
                            GraphicBuffer::USAGE_HW_COMPOSER;
 // QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
-    bool flexibleConsumer = (consumerUsage & disallowedFlags) == 0 &&
+    bool flexibleConsumer = !isPriviledgedClient && (consumerUsage & disallowedFlags) == 0 &&
 // QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
             (consumerUsage & allowedFlags) != 0;
 
