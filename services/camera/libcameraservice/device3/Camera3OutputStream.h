@@ -194,10 +194,18 @@ class Camera3OutputStream :
             virtual void onBuffersDiscarded(const std::vector<sp<GraphicBuffer>>& buffers);
             virtual void onBufferDetached(int /*slot*/) override {};
 
-        private:
+        protected:
             wp<Camera3OutputStream> mParent;
             bool mNeedsReleaseNotify;
     };
+
+    // MIUI ADD: START
+    class BufferProducerDetachListener : public BufferProducerListener {
+        public:
+            BufferProducerDetachListener(wp<Camera3OutputStream> parent, bool needsReleaseNotify) : BufferProducerListener(parent, needsReleaseNotify) {}
+            virtual void onBufferDetached(int buffer);
+    };
+    // MIUI ADD: END
 
     virtual status_t detachBuffer(sp<GraphicBuffer>* buffer, int* fenceFd);
 
