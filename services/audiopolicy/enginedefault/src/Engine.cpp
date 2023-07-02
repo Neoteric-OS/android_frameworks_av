@@ -274,6 +274,8 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
         break;
 
     case STRATEGY_PHONE: {
+        // TODO(b/243670205): remove this logic that gives preference to last removable devices
+        // once a UX decision has been made
         if (getDpConnAndAllowedForVoice() && isInCall()) {
             devices = availableOutputDevices.getDevicesFromType(AUDIO_DEVICE_OUT_AUX_DIGITAL);
             if (!devices.isEmpty()) break;
