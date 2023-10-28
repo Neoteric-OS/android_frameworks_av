@@ -359,7 +359,7 @@ void CCodecBufferChannel::setComponent(
     mComponentName = component->getName() + StringPrintf("#%d", int(uintptr_t(component.get()) % 997));
     mName = mComponentName.c_str();
 // QTI_BEGIN: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
-    std::regex pattern{"c2\\.qti\\..*\\.decoder.*"};
+    std::regex pattern{"c2\\.(mtk|qti)\\..*\\.decoder.*"};
     mIsHWDecoder = std::regex_match(mComponentName, pattern);
 // QTI_END: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
 }
