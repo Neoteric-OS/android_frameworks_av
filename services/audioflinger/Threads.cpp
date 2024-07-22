@@ -7259,6 +7259,7 @@ void DirectOutputThread::flushHw_l()
 {
     PlaybackThread::flushHw_l();
     mOutput->flush();
+    mHwPaused = false;
     mFlushPending = false;
     mFramesWritten = 0;
     mFramesWrittenAtStandby = 0;
@@ -7266,10 +7267,6 @@ void DirectOutputThread::flushHw_l()
     mTimestampVerifier.discontinuity(discontinuityForStandbyOrFlush());
     mTimestamp.clear();
     mMonotonicFrameCounter.onFlush();
-    // We do not reset mHwPaused which is hidden from the Track client.
-    // Note: the client track in Tracks.cpp and AudioTrack.cpp
-    // has a FLUSHED state but the DirectOutputThread does not;
-    // those tracks will continue to show isStopped().
 }
 
 status_t DirectOutputThread::getTimestamp_l(AudioTimestamp& timestamp)
@@ -8790,6 +8787,9 @@ reacquire_wakelock:
 
         // loop over each active track
         for (size_t i = 0; i < size; i++) {
+            if (activeTrack) {  // ensure track release is outside lock.
+                oldActiveTracks.emplace_back(std::move(activeTrack));
+            }
             activeTrack = activeTracks[i];
 
             // skip fast tracks, as those are handled directly by FastCapture
