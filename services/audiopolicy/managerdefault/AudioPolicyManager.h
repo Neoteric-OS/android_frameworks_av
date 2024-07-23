@@ -346,8 +346,7 @@ public:
         virtual status_t startAudioSource(const struct audio_port_config *source,
                                           const audio_attributes_t *attributes,
                                           audio_port_handle_t *portId,
-                                          uid_t uid,
-                                          bool internal = false);
+                                          uid_t uid);
         virtual status_t stopAudioSource(audio_port_handle_t portId);
 
         virtual status_t setMasterMono(bool mono);
@@ -592,6 +591,8 @@ protected:
          * @param index index to match in the volume curves for the calculation
          * @param deviceTypes devices that should be considered in the volume curves for the
          *        calculation
+         * @param adjustAttenuation boolean indicating whether we should adjust the value to
+         *        avoid double attenuation when controlling an avrcp device
          * @param computeInternalInteraction boolean indicating whether recursive volume computation
          *        should continue within the volume computation. Defaults to {@code true} so the
          *        volume interactions can be computed. Calls within the method should always set the
@@ -600,6 +601,7 @@ protected:
          */
         virtual float computeVolume(IVolumeCurves &curves, VolumeSource volumeSource,
                                int index, const DeviceTypeSet& deviceTypes,
+                               bool adjustAttenuation = true,
                                bool computeInternalInteraction = true);
 
         // rescale volume index from srcStream within range of dstStream
@@ -705,14 +707,6 @@ protected:
          */
         void updateCallAndOutputRouting(bool forceVolumeReeval = true, uint32_t delayMs = 0,
                 bool skipDelays = false);
-
-        bool isCallRxAudioSource(const sp<SourceClientDescriptor> &source) {
-            return mCallRxSourceClient != nullptr && source == mCallRxSourceClient;
-        }
-
-        bool isCallTxAudioSource(const sp<SourceClientDescriptor> &source) {
-            return mCallTxSourceClient != nullptr && source == mCallTxSourceClient;
-        }
 
         void connectTelephonyRxAudioSource();
 
@@ -979,6 +973,12 @@ protected:
         void checkLeBroadcastRoutes(bool wasUnicastActive,
                 sp<SwAudioOutputDescriptor> ignoredOutput, uint32_t delayMs);
 
+        status_t startAudioSourceInternal(const struct audio_port_config *source,
+                                          const audio_attributes_t *attributes,
+                                          audio_port_handle_t *portId,
+                                          uid_t uid,
+                                          bool internal,
+                                          bool isCallRx);
         const uid_t mUidCached;                         // AID_AUDIOSERVER
         sp<const AudioPolicyConfig> mConfig;
         EngineInstance mEngine;                         // Audio Policy Engine instance

@@ -4677,7 +4677,11 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
 
         // FIXME Note that the above .clear() is no longer necessary since effectChains
         // is now local to this block, but will keep it for now (at least until merge done).
+
+        mThreadloopExecutor.process();
     }
+    mThreadloopExecutor.process(); // process any remaining deferred actions.
+    // deferred actions after this point are ignored.
 
     threadLoop_exit();
 
@@ -7259,6 +7263,7 @@ void DirectOutputThread::flushHw_l()
 {
     PlaybackThread::flushHw_l();
     mOutput->flush();
+    mHwPaused = false;
     mFlushPending = false;
     mFramesWritten = 0;
     mFramesWrittenAtStandby = 0;
@@ -7266,10 +7271,6 @@ void DirectOutputThread::flushHw_l()
     mTimestampVerifier.discontinuity(discontinuityForStandbyOrFlush());
     mTimestamp.clear();
     mMonotonicFrameCounter.onFlush();
-    // We do not reset mHwPaused which is hidden from the Track client.
-    // Note: the client track in Tracks.cpp and AudioTrack.cpp
-    // has a FLUSHED state but the DirectOutputThread does not;
-    // those tracks will continue to show isStopped().
 }
 
 status_t DirectOutputThread::getTimestamp_l(AudioTimestamp& timestamp)
@@ -8790,6 +8791,9 @@ reacquire_wakelock:
 
         // loop over each active track
         for (size_t i = 0; i < size; i++) {
+            if (activeTrack) {  // ensure track release is outside lock.
+                oldActiveTracks.emplace_back(std::move(activeTrack));
+            }
             activeTrack = activeTracks[i];
 
             // skip fast tracks, as those are handled directly by FastCapture
@@ -8933,11 +8937,14 @@ unlock:
             mIoJitterMs.add(jitterMs);
             mProcessTimeMs.add(processMs);
         }
+       mThreadloopExecutor.process();
         // update timing info.
         mLastIoBeginNs = lastIoBeginNs;
         mLastIoEndNs = lastIoEndNs;
         lastLoopCountRead = loopCount;
     }
+    mThreadloopExecutor.process(); // process any remaining deferred actions.
+    // deferred actions after this point are ignored.
 
     standbyIfNotAlreadyInStandby();
 
@@ -10727,7 +10734,10 @@ bool MmapThread::threadLoop()
         unlockEffectChains(effectChains);
         // Effect chains will be actually deleted here if they were removed from
         // mEffectChains list during mixing or effects processing
+        mThreadloopExecutor.process();
     }
+    mThreadloopExecutor.process(); // process any remaining deferred actions.
+    // deferred actions after this point are ignored.
 
     threadLoop_exit();
 
