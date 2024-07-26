@@ -5128,7 +5128,6 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
         // mPipeSink below
         // mNormalSink below
 {
-    setMasterBalance(afThreadCallback->getMasterBalance_l());
     ALOGV("MixerThread() id=%d type=%d", id, type);
     ALOGV("mSampleRate=%u, mChannelMask=%#x, mChannelCount=%u, mFormat=%#x, mFrameSize=%zu, "
             "mFrameCount=%zu, mNormalFrameCount=%zu",
@@ -5140,6 +5139,8 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
         // The Duplicating thread uses the AudioMixer and delivers data to OutputTracks
         // (downstream MixerThreads) in DuplicatingThread::threadLoop_write().
         // Do not create or use mFastMixer, mOutputSink, mPipeSink, or mNormalSink.
+        // Balance is *not* set in the DuplicatingThread here (or from AudioFlinger),
+        // as the downstream MixerThreads implement it.
         return;
     }
     // create an NBAIO sink for the HAL output stream, and negotiate
@@ -5301,6 +5302,9 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
     }
 
     mIdleTimeOffsetUs = 0;
+    // setMasterBalance needs to be called after the FastMixer
+    // (if any) is set up, in order to deliver the balance settings to it.
+    setMasterBalance(afThreadCallback->getMasterBalance_l());
 }
 
 MixerThread::~MixerThread()
