@@ -7066,9 +7066,9 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                                               (audio_input_flags_t) inProfile->getFlags(),
                                               &input);
             if (status != NO_ERROR) {
-                ALOGW("Cannot open input stream for device %s for profile %s on hw module %s",
-                      availProfileDevices.toString().c_str(), inProfile->getTagName().c_str(),
-                      hwModule->getName());
+                ALOGW("%s: Cannot open input stream for device %s for profile %s on hw module %s",
+                        __func__, availProfileDevices.toString().c_str(),
+                        inProfile->getTagName().c_str(), hwModule->getName());
                 continue;
             }
             for (const auto &device : availProfileDevices) {
@@ -7176,8 +7176,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 sp<IOProfile> profile = hwModule->getOutputProfiles()[j];
                 if (profile->supportsDevice(device)) {
                     profiles.add(profile);
-                    ALOGV("checkOutputsForDevice(): adding profile %s from module %s",
-                          profile->getTagName().c_str(), hwModule->getName());
+                    ALOGV("%s(): adding profile %s from module %s",
+                            __func__, profile->getTagName().c_str(), hwModule->getName());
                 }
             }
         }
@@ -7275,9 +7275,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 if (!profile->supportsDevice(device)) {
                     continue;
                 }
-                ALOGV("checkOutputsForDevice(): "
-                        "clearing direct output profile %s on module %s",
-                        profile->getTagName().c_str(), hwModule->getName());
+                ALOGV("%s(): clearing direct output profile %s on module %s",
+                        __func__, profile->getTagName().c_str(), hwModule->getName());
                 profile->clearAudioProfiles();
                 if (!profile->hasDynamicAudioProfile()) {
                     continue;
