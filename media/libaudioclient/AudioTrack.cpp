@@ -323,15 +323,8 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect,
         float maxRequiredSpeed)
-    : mStatus(NO_INIT),
-      mState(STATE_STOPPED),
-      mPreviousPriority(ANDROID_PRIORITY_NORMAL),
-      mPreviousSchedulingGroup(SP_DEFAULT),
-      mPausedPosition(0),
-      mSelectedDeviceId(AUDIO_PORT_HANDLE_NONE),
-      mPauseTimeRealUs(0),
-      mTrackOffloaded(false),
-      mAudioTrackCallback(new AudioTrackCallback())
+    :  mPauseTimeRealUs(0),
+      mTrackOffloaded(false)
 {
     mAttributes = AUDIO_ATTRIBUTES_INITIALIZER;
 
