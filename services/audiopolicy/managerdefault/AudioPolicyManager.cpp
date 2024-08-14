@@ -854,7 +854,7 @@ status_t AudioPolicyManager::updateCallRoutingInternal(
         }
         muteWaitMs = setOutputDevices(__func__, mPrimaryOutput, rxDevices, true, delayMs);
     } else { // create RX path audio patch
-        connectTelephonyRxAudioSource();
+        connectTelephonyRxAudioSource(delayMs);
         // If the TX device is on the primary HW module but RX device is
         // on other HW module, SinkMetaData of telephony input should handle it
         // assuming the device uses audio HAL V5.0 and above
@@ -891,7 +891,7 @@ bool AudioPolicyManager::isDeviceOfModule(
     return false;
 }
 
-void AudioPolicyManager::connectTelephonyRxAudioSource()
+void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
 {
     const auto aa = mEngine->getAttributesForStreamType(AUDIO_STREAM_VOICE_CALL);
 
@@ -919,7 +919,7 @@ void AudioPolicyManager::connectTelephonyRxAudioSource()
     audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
 
     status_t status = startAudioSourceInternal(&source, &aa, &portId, 0 /*uid*/,
-                                       true /*internal*/, true /*isCallRx*/);
+                                       true /*internal*/, true /*isCallRx*/, delayMs);
     ALOGE_IF(status != OK, "%s: failed to start audio source (%d)", __func__, status);
     mCallRxSourceClient = mAudioSources.valueFor(portId);
     ALOGV("%s portdID %d between source %s and sink %s", __func__, portId,
@@ -2381,8 +2381,7 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
     // matching criteria values in priority order for best matching output so far
     std::vector<uint32_t> bestMatchCriteria(8, 0);
 
-    const bool hasOrphanHaptic =
-            mEffects.hasOrphanEffectsForSessionAndType(sessionId, FX_IID_HAPTICGENERATOR);
+    const bool hasOrphanHaptic = mEffects.hasOrphansForSession(sessionId, FX_IID_HAPTICGENERATOR);
     const uint32_t channelCount = audio_channel_count_from_out_mask(channelMask);
     const uint32_t hapticChannelCount = audio_channel_count_from_out_mask(
         channelMask & AUDIO_CHANNEL_HAPTIC_ALL);
@@ -3715,6 +3714,11 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
                                                             bool enabled,
                                                             audio_stream_type_t streamToDriveAbs)
 {
+    if (!enabled) {
+        mAbsoluteVolumeDrivingStreams.erase(deviceType);
+        return NO_ERROR;
+    }
+
     audio_attributes_t attributesToDriveAbs = mEngine->getAttributesForStreamType(streamToDriveAbs);
     if (attributesToDriveAbs == AUDIO_ATTRIBUTES_INITIALIZER) {
         ALOGW("%s: no attributes for stream %s, bailing out", __func__,
@@ -3722,12 +3726,7 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
         return BAD_VALUE;
     }
 
-    if (enabled) {
-        mAbsoluteVolumeDrivingStreams[deviceType] = attributesToDriveAbs;
-    } else {
-        mAbsoluteVolumeDrivingStreams.erase(deviceType);
-    }
-
+    mAbsoluteVolumeDrivingStreams[deviceType] = attributesToDriveAbs;
     return NO_ERROR;
 }
 
@@ -6174,13 +6173,14 @@ status_t AudioPolicyManager::startAudioSource(const struct audio_port_config *so
                                               audio_port_handle_t *portId,
                                               uid_t uid) {
     return startAudioSourceInternal(source, attributes, portId, uid,
-                                    false /*internal*/, false /*isCallRx*/);
+                                    false /*internal*/, false /*isCallRx*/, 0 /*delayMs*/);
 }
 
 status_t AudioPolicyManager::startAudioSourceInternal(const struct audio_port_config *source,
                                               const audio_attributes_t *attributes,
                                               audio_port_handle_t *portId,
-                                              uid_t uid, bool internal, bool isCallRx)
+                                              uid_t uid, bool internal, bool isCallRx,
+                                              uint32_t delayMs)
 {
     ALOGV("%s", __FUNCTION__);
     *portId = AUDIO_PORT_HANDLE_NONE;
@@ -6215,14 +6215,15 @@ status_t AudioPolicyManager::startAudioSourceInternal(const struct audio_port_co
                                    mEngine->getProductStrategyForAttributes(*attributes),
                                    toVolumeSource(*attributes), internal, isCallRx, false);
 
-    status_t status = connectAudioSource(sourceDesc);
+    status_t status = connectAudioSource(sourceDesc, delayMs);
     if (status == NO_ERROR) {
         mAudioSources.add(*portId, sourceDesc);
     }
     return status;
 }
 
-status_t AudioPolicyManager::connectAudioSource(const sp<SourceClientDescriptor>& sourceDesc)
+status_t AudioPolicyManager::connectAudioSource(const sp<SourceClientDescriptor>& sourceDesc,
+                                                uint32_t delayMs)
 {
     ALOGV("%s handle %d", __FUNCTION__, sourceDesc->portId());
 
@@ -6248,7 +6249,7 @@ status_t AudioPolicyManager::connectAudioSource(const sp<SourceClientDescriptor>
     audio_patch_handle_t handle = AUDIO_PATCH_HANDLE_NONE;
 
     return connectAudioSourceToSink(
-                sourceDesc, sinkDevice, patchBuilder.patch(), handle, mUidCached, 0 /*delayMs*/);
+                sourceDesc, sinkDevice, patchBuilder.patch(), handle, mUidCached, delayMs);
 }
 
 status_t AudioPolicyManager::stopAudioSource(audio_port_handle_t portId)
@@ -6687,7 +6688,7 @@ bool AudioPolicyManager::checkHapticCompatibilityOnSpatializerOutput(
         // means haptic use cases (either the client channelmask includes haptic bits, or created a
         // HapticGenerator effect for this session) are not supported.
         return clientHapticChannel == 0 &&
-               !mEffects.hasOrphanEffectsForSessionAndType(sessionId, FX_IID_HAPTICGENERATOR);
+               !mEffects.hasOrphansForSession(sessionId, FX_IID_HAPTICGENERATOR);
     }
 }
 
@@ -7064,9 +7065,9 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                                               (audio_input_flags_t) inProfile->getFlags(),
                                               &input);
             if (status != NO_ERROR) {
-                ALOGW("Cannot open input stream for device %s for profile %s on hw module %s",
-                      availProfileDevices.toString().c_str(), inProfile->getTagName().c_str(),
-                      hwModule->getName());
+                ALOGW("%s: Cannot open input stream for device %s for profile %s on hw module %s",
+                        __func__, availProfileDevices.toString().c_str(),
+                        inProfile->getTagName().c_str(), hwModule->getName());
                 continue;
             }
             for (const auto &device : availProfileDevices) {
@@ -7174,8 +7175,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 sp<IOProfile> profile = hwModule->getOutputProfiles()[j];
                 if (profile->supportsDevice(device)) {
                     profiles.add(profile);
-                    ALOGV("checkOutputsForDevice(): adding profile %s from module %s",
-                          profile->getTagName().c_str(), hwModule->getName());
+                    ALOGV("%s(): adding profile %s from module %s",
+                            __func__, profile->getTagName().c_str(), hwModule->getName());
                 }
             }
         }
@@ -7273,9 +7274,8 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 if (!profile->supportsDevice(device)) {
                     continue;
                 }
-                ALOGV("checkOutputsForDevice(): "
-                        "clearing direct output profile %s on module %s",
-                        profile->getTagName().c_str(), hwModule->getName());
+                ALOGV("%s(): clearing direct output profile %s on module %s",
+                        __func__, profile->getTagName().c_str(), hwModule->getName());
                 profile->clearAudioProfiles();
                 if (!profile->hasDynamicAudioProfile()) {
                     continue;
@@ -7626,7 +7626,7 @@ void AudioPolicyManager::checkAudioSourceForAttributes(const audio_attributes_t 
         if (sourceDesc != nullptr && followsSameRouting(attr, sourceDesc->attributes())
                 && sourceDesc->getPatchHandle() == AUDIO_PATCH_HANDLE_NONE
                 && !sourceDesc->isCallRx() && !sourceDesc->isInternal()) {
-            connectAudioSource(sourceDesc);
+            connectAudioSource(sourceDesc, 0 /*delayMs*/);
         }
     }
 }
@@ -7753,7 +7753,7 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
             }
             sp<SourceClientDescriptor> source = getSourceForAttributesOnOutput(srcOut, attr);
             if (source != nullptr && !source->isCallRx() && !source->isInternal()) {
-                connectAudioSource(source);
+                connectAudioSource(source, 0 /*delayMs*/);
             }
         }
 
@@ -8559,7 +8559,7 @@ float AudioPolicyManager::adjustDeviceAttenuationForAbsVolume(IVolumeCurves &cur
             VolumeSource vsToDriveAbs = toVolumeSource(groupToDriveAbs);
             if (vsToDriveAbs == volumeSource) {
                 // attenuation is applied by the abs volume controller
-                return volumeDbMax;
+                return (index != 0) ? volumeDbMax : volumeDb;
             } else {
                 IVolumeCurves &curvesAbs = getVolumeCurves(vsToDriveAbs);
                 int indexAbs = curvesAbs.getVolumeIndex({volumeDevice});
