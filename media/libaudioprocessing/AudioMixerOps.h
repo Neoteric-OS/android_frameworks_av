@@ -21,6 +21,19 @@
 #include <audio_utils/primitives.h>
 #include <system/audio.h>
 
+#if defined(__aarch64__) || defined(__ARM_NEON__)
+#ifndef USE_NEON
+#define USE_NEON (true)
+#endif
+#else
+#define USE_NEON (false)
+#endif
+#if USE_NEON
+#include <arm_neon.h>
+#endif
+
+#include "AudioNeonCal.h"
+
 namespace android {
 
 // Hack to make static_assert work in a constexpr
@@ -373,6 +386,98 @@ void stereoVolumeHelper(TO*& out, const TI*& in, const TV *vol, F f) {
 }
 
 /*
+ * Applies stereo volume to the audio data based on proper left right channel affinity
+ * (templated channel MASK parameter).
+ * but use neon cal
+ */
+template <int MIXTYPE, audio_channel_mask_t MASK,
+        typename TO, typename TI, typename TV>
+void stereoVolumeHelperWithChannelMaskNeon(TO*& out, const TI*& in, const TV *vol) {
+    //Align the original MIXTTYPE==MIXTYPE.MULI_STEREOVOL condition and perform addition operation
+    bool isAdd = (MIXTYPE == MIXTYPE_MULTI_STEREOVOL);
+
+    std::decay_t<TV> center;
+    constexpr bool USES_CENTER_CHANNEL = usesCenterChannel(MASK);
+    if constexpr (USES_CENTER_CHANNEL) {
+        if constexpr (std::is_floating_point_v<TV>) {
+            center = (vol[0] + vol[1]) * 0.5;       // do not use divide
+        } else {
+            center = (vol[0] >> 1) + (vol[1] >> 1); // rounds to 0.
+        }
+    }
+
+    using namespace audio_utils::channels;
+
+    // if LFE and LFE2 are both present, they take left and right volume respectively.
+    constexpr unsigned LFE_LFE2 = \
+             AUDIO_CHANNEL_OUT_LOW_FREQUENCY | AUDIO_CHANNEL_OUT_LOW_FREQUENCY_2;
+    constexpr bool has_LFE_LFE2 = (MASK & LFE_LFE2) == LFE_LFE2;
+
+#pragma push_macro("DO_CHANNEL_POSITION")
+#undef DO_CHANNEL_POSITION
+#define DO_CHANNEL_POSITION(BIT_INDEX) \
+    if constexpr ((MASK & (1 << BIT_INDEX)) != 0) { \
+        constexpr auto side = kSideFromChannelIdx[BIT_INDEX]; \
+        if constexpr (side == AUDIO_GEOMETRY_SIDE_LEFT || \
+               has_LFE_LFE2 && (1 << BIT_INDEX) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY) { \
+            mixCalNeon(out, in, vol[0], isAdd);/* use neon */ \
+        } else if constexpr (side == AUDIO_GEOMETRY_SIDE_RIGHT || \
+               has_LFE_LFE2 && (1 << BIT_INDEX) == AUDIO_CHANNEL_OUT_LOW_FREQUENCY_2) { \
+            mixCalNeon(out, in, vol[1], isAdd);/* use neon */\
+        } else /* constexpr */ { \
+            mixCalNeon(out, in, center, isAdd);/* use neon */\
+        } \
+    }
+
+    DO_CHANNEL_POSITION(0);
+    DO_CHANNEL_POSITION(1);
+    DO_CHANNEL_POSITION(2);
+    DO_CHANNEL_POSITION(3);
+    DO_CHANNEL_POSITION(4);
+    DO_CHANNEL_POSITION(5);
+    DO_CHANNEL_POSITION(6);
+    DO_CHANNEL_POSITION(7);
+
+    DO_CHANNEL_POSITION(8);
+    DO_CHANNEL_POSITION(9);
+    DO_CHANNEL_POSITION(10);
+    DO_CHANNEL_POSITION(11);
+    DO_CHANNEL_POSITION(12);
+    DO_CHANNEL_POSITION(13);
+    DO_CHANNEL_POSITION(14);
+    DO_CHANNEL_POSITION(15);
+
+    DO_CHANNEL_POSITION(16);
+    DO_CHANNEL_POSITION(17);
+    DO_CHANNEL_POSITION(18);
+    DO_CHANNEL_POSITION(19);
+    DO_CHANNEL_POSITION(20);
+    DO_CHANNEL_POSITION(21);
+    DO_CHANNEL_POSITION(22);
+    DO_CHANNEL_POSITION(23);
+    DO_CHANNEL_POSITION(24);
+    DO_CHANNEL_POSITION(25);
+    static_assert(FCC_LIMIT <= FCC_26); // Note: this may need to change.
+#pragma pop_macro("DO_CHANNEL_POSITION")
+}
+
+template <int MIXTYPE, int NCHAN,
+        typename TO, typename TI, typename TV>
+void stereoVolumeHelperNeon(TO*& out, const TI*& in, const TV *vol) {
+    static_assert(NCHAN > 0 && NCHAN <= FCC_LIMIT);
+    static_assert(MIXTYPE == MIXTYPE_MULTI_STEREOVOL
+            || MIXTYPE == MIXTYPE_MULTI_SAVEONLY_STEREOVOL
+            || MIXTYPE == MIXTYPE_STEREOEXPAND
+            || MIXTYPE == MIXTYPE_MONOEXPAND);
+    constexpr audio_channel_mask_t MASK{canonicalChannelMaskFromCount(NCHAN)};
+    if constexpr (MASK == AUDIO_CHANNEL_NONE) {
+        ALOGE("%s: Invalid position count %d", __func__, NCHAN);
+        return; // not a valid system mask, ignore.
+    }
+    stereoVolumeHelperWithChannelMaskNeon<MIXTYPE, MASK, TO, TI, TV>(out, in, vol);
+}
+
+/*
  * The volumeRampMulti and volumeRamp functions take a MIXTYPE
  * which indicates the per-frame mixing and accumulation strategy.
  *
@@ -592,15 +697,42 @@ inline void volumeMulti(TO* out, size_t frameCount,
                     || MIXTYPE == MIXTYPE_MULTI_SAVEONLY_STEREOVOL
                     || MIXTYPE == MIXTYPE_MONOEXPAND
                     || MIXTYPE == MIXTYPE_STEREOEXPAND) {
-                stereoVolumeHelper<MIXTYPE, NCHAN>(out, in, vol, [] (auto &a, const auto &b) {
-                    return MixMul<TO, TI, TV>(a, b);
-                });
-                if constexpr (MIXTYPE == MIXTYPE_MONOEXPAND) in += 1;
-                if constexpr (MIXTYPE == MIXTYPE_STEREOEXPAND) in += 2;
+                /* 
+                 * Neon processes 4 frames at a time, so it is only called when frameCount>=4.
+                 *
+                 * The original loop always processes -1, and originally processed one frame once, 
+                 * now it processes 4 frames at a time, so a total of frameCount-4 is required.
+                 */                 
+                #ifdef USE_NEON
+                    if(frameCount >= 4 && (MIXTYPE == MIXTYPE_MULTI_SAVEONLY_STEREOVOL||MIXTYPE == MIXTYPE_MULTI_STEREOVOL)){
+                        stereoVolumeHelperNeon<MIXTYPE, NCHAN>(out, in, vol);
+                        frameCount -= 4;
+                        continue;
+                    }
+                    else{
+                        //MIXTYPE = MIXTYPE_MONOEXPAND | MIXTYPE = MIXTYPE_STEREOEXPAND | frameCount<4
+                        //Use the original plan
+                        //END AudioFlinger
+                        stereoVolumeHelper<MIXTYPE, NCHAN>(out, in, vol, [] (auto &a, const auto &b) {
+                            return MixMul<TO, TI, TV>(a, b);
+                        });
+                        if constexpr (MIXTYPE == MIXTYPE_MONOEXPAND) in += 1;
+                        if constexpr (MIXTYPE == MIXTYPE_STEREOEXPAND) in += 2;
+                    }
+                #else
+                    //If devices are not supported __aarch64__ or __ARM_NEON
+                    //Use the original plan
+                    stereoVolumeHelper<MIXTYPE, NCHAN>(out, in, vol, [] (auto &a, const auto &b) {
+                            return MixMul<TO, TI, TV>(a, b);
+                        });
+                        if constexpr (MIXTYPE == MIXTYPE_MONOEXPAND) in += 1;
+                        if constexpr (MIXTYPE == MIXTYPE_STEREOEXPAND) in += 2;
+                #endif
             } else /* constexpr */ {
                 static_assert(dependent_false<MIXTYPE>, "invalid mixtype");
             }
-        } while (--frameCount);
+            frameCount--;
+        } while (frameCount>0);
     }
 }
 

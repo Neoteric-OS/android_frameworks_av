@@ -92,6 +92,10 @@ cc_library_static {
         "AudioResamplerSinc.cpp",
     ],
 
+    export_include_dirs: [
+        ".",
+    ],
+
     arch: {
         arm: {
             instruction_set: "arm",

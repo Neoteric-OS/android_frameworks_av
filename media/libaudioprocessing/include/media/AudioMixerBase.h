@@ -30,6 +30,8 @@
 #include <system/audio.h>
 #include <utils/Compat.h>
 
+#include "AudioNeonCal.h"
+
 // This must match frameworks/av/services/audioflinger/Configuration.h
 // when used with the Audio Framework.
 #define FLOAT_AUX
@@ -50,6 +52,13 @@ public:
 
     static const uint16_t UNITY_GAIN_INT = 0x1000;
     static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;
+
+    //ID of the neon type used
+    static const int FLOAT_FLOAT_FLOAT_MTYPE_IDS = 333;
+    static const int INT_INT16_INT16_MTYPE_IDS = 122;
+    static const int INT16_FLOAT_FLOAT_MTYPE_IDS = 233;
+    static const int FLOAT_INT16_INT16_MTYPE_IDS = 322;
+    static const int INT16_INT16_INT16_MTYPE_IDS = 222;
 
     enum { // names
         // setParameter targets

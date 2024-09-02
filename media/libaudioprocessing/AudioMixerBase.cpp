@@ -29,6 +29,8 @@
 
 #include "AudioMixerOps.h"
 
+#include "AudioNeonCal.h"
+
 // The FCC_2 macro refers to the Fixed Channel Count of 2 for the legacy integer mixer.
 #ifndef FCC_2
 #define FCC_2 2
@@ -1632,9 +1634,20 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_RESAMPLE:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            /* 
+             * If mtypeIds is not equal to FLOAT_FLOAT_FLOAT_MTYPE_IDS,
+             * recalculate the ids corresponding to the type
+             * The same applies to the following case
+             */
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_MULTI, float /*TO*/, float /*TI*/, TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_MULTI, int32_t /*TO*/, int16_t /*TI*/, TYPE_AUX>;
         default:
@@ -1645,10 +1658,16 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_RESAMPLESTEREO:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_MULTI_STEREOVOL, float /*TO*/, float /*TI*/,
                     TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_MULTI_STEREOVOL, int32_t /*TO*/, int16_t /*TI*/,
                     TYPE_AUX>;
@@ -1662,10 +1681,16 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_RESAMPLEMONO:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_STEREOEXPAND, float /*TO*/, float /*TI*/,
                     TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__Resample<
                     MIXTYPE_STEREOEXPAND, int32_t /*TO*/, int16_t /*TI*/,
                     TYPE_AUX>;
@@ -1677,9 +1702,15 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_NORESAMPLEMONO:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                             MIXTYPE_MONOEXPAND, float /*TO*/, float /*TI*/, TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                             MIXTYPE_MONOEXPAND, int32_t /*TO*/, int16_t /*TI*/, TYPE_AUX>;
         default:
@@ -1690,9 +1721,15 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_NORESAMPLE:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                     MIXTYPE_MULTI, float /*TO*/, float /*TI*/, TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                     MIXTYPE_MULTI, int32_t /*TO*/, int16_t /*TI*/, TYPE_AUX>;
         default:
@@ -1703,10 +1740,16 @@ AudioMixerBase::hook_t AudioMixerBase::TrackBase::getTrackHook(int trackType, ui
     case TRACKTYPE_NORESAMPLESTEREO:
         switch (mixerInFormat) {
         case AUDIO_FORMAT_PCM_FLOAT:
+            if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                checkTypeIds<float, float, float>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                     MIXTYPE_MULTI_STEREOVOL, float /*TO*/, float /*TI*/,
                     TYPE_AUX>;
         case AUDIO_FORMAT_PCM_16_BIT:
+            if(mtypeIds != AudioMixerBase::INT_INT16_INT16_MTYPE_IDS){
+                checkTypeIds<int32_t, int16_t, int16_t>();
+            }
             return (AudioMixerBase::hook_t) &TrackBase::track__NoResample<
                     MIXTYPE_MULTI_STEREOVOL, int32_t /*TO*/, int16_t /*TI*/,
                     TYPE_AUX>;
@@ -1749,10 +1792,16 @@ AudioMixerBase::process_hook_t AudioMixerBase::getProcessHook(
         case AUDIO_FORMAT_PCM_FLOAT:
             switch (mixerOutFormat) {
             case AUDIO_FORMAT_PCM_FLOAT:
+                if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                    checkTypeIds<float, float, float>();
+                }
                 return &AudioMixerBase::process__noResampleOneTrack<
                         MIXTYPE_MULTI_SAVEONLY_STEREOVOL, float /*TO*/,
                         float /*TI*/, TYPE_AUX>;
             case AUDIO_FORMAT_PCM_16_BIT:
+                if(mtypeIds != AudioMixerBase::INT16_FLOAT_FLOAT_MTYPE_IDS){
+                    checkTypeIds<int16_t, float, float>();
+                }
                 return &AudioMixerBase::process__noResampleOneTrack<
                         MIXTYPE_MULTI_SAVEONLY_STEREOVOL, int16_t /*TO*/,
                         float /*TI*/, TYPE_AUX>;
@@ -1764,10 +1813,16 @@ AudioMixerBase::process_hook_t AudioMixerBase::getProcessHook(
         case AUDIO_FORMAT_PCM_16_BIT:
             switch (mixerOutFormat) {
             case AUDIO_FORMAT_PCM_FLOAT:
+                if(mtypeIds != AudioMixerBase::FLOAT_INT16_INT16_MTYPE_IDS){
+                    checkTypeIds<float, int16_t, int16_t>();
+                }
                 return &AudioMixerBase::process__noResampleOneTrack<
                         MIXTYPE_MULTI_SAVEONLY_STEREOVOL, float /*TO*/,
                         int16_t /*TI*/, TYPE_AUX>;
             case AUDIO_FORMAT_PCM_16_BIT:
+                if(mtypeIds != AudioMixerBase::INT16_INT16_INT16_MTYPE_IDS){
+                    checkTypeIds<int16_t, int16_t, int16_t>();
+                }
                 return &AudioMixerBase::process__noResampleOneTrack<
                         MIXTYPE_MULTI_SAVEONLY_STEREOVOL, int16_t /*TO*/,
                         int16_t /*TI*/, TYPE_AUX>;
@@ -1785,10 +1840,16 @@ AudioMixerBase::process_hook_t AudioMixerBase::getProcessHook(
           case AUDIO_FORMAT_PCM_FLOAT:
               switch (mixerOutFormat) {
               case AUDIO_FORMAT_PCM_FLOAT:
+                  if(mtypeIds != AudioMixerBase::FLOAT_FLOAT_FLOAT_MTYPE_IDS){
+                      checkTypeIds<float, float, float>();
+                  }
                   return &AudioMixerBase::process__noResampleOneTrack<
                           MIXTYPE_MULTI_SAVEONLY, float /*TO*/,
                           float /*TI*/, TYPE_AUX>;
               case AUDIO_FORMAT_PCM_16_BIT:
+                  if(mtypeIds != AudioMixerBase::INT16_FLOAT_FLOAT_MTYPE_IDS){
+                      checkTypeIds<int16_t, float, float>();
+                  }
                   return &AudioMixerBase::process__noResampleOneTrack<
                           MIXTYPE_MULTI_SAVEONLY, int16_t /*TO*/,
                           float /*TI*/, TYPE_AUX>;
@@ -1800,10 +1861,16 @@ AudioMixerBase::process_hook_t AudioMixerBase::getProcessHook(
           case AUDIO_FORMAT_PCM_16_BIT:
               switch (mixerOutFormat) {
               case AUDIO_FORMAT_PCM_FLOAT:
+                  if(mtypeIds != AudioMixerBase::FLOAT_INT16_INT16_MTYPE_IDS){
+                      checkTypeIds<float, int16_t, int16_t>();
+                  }
                   return &AudioMixerBase::process__noResampleOneTrack<
                           MIXTYPE_MULTI_SAVEONLY, float /*TO*/,
                           int16_t /*TI*/, TYPE_AUX>;
               case AUDIO_FORMAT_PCM_16_BIT:
+                  if(mtypeIds != AudioMixerBase::INT16_INT16_INT16_MTYPE_IDS){
+                      checkTypeIds<int16_t, int16_t, int16_t>();
+                  }
                   return &AudioMixerBase::process__noResampleOneTrack<
                           MIXTYPE_MULTI_SAVEONLY, int16_t /*TO*/,
                           int16_t /*TI*/, TYPE_AUX>;
