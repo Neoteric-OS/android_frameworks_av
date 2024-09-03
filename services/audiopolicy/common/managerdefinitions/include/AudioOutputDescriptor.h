@@ -498,13 +498,6 @@ public:
 
     virtual std::string info() const override;
 
-    /**
-     * Finds all ports matching the given volume source.
-     * @param vs to be considered
-     * @return vector of ports following the given volume source.
-     */
-    std::vector<audio_port_handle_t> getPortsForVolumeSource(const VolumeSource& vs);
-
     const sp<IOProfile> mProfile;          // I/O profile this output derives from
     uint32_t mLatency;                  //
     using AudioOutputDescriptor::mFlags;
