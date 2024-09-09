@@ -165,6 +165,9 @@ static const int kRecordThreadSleepUs = 5000;
 
 // maximum time to wait in sendConfigEvent_l() for a status to be received
 static const nsecs_t kConfigEventTimeoutNs = seconds(2);
+// longer timeout for create audio patch to account for specific scenarii
+// with Bluetooth devices
+static const nsecs_t kCreatePatchEventTimeoutNs = seconds(4);
 
 // minimum sleep time for the mixer thread loop when tracks are active but in underrun
 static const uint32_t kMinThreadSleepTimeUs = 5000;
@@ -734,9 +737,11 @@ NO_THREAD_SAFETY_ANALYSIS  // condition variable
     mutex().unlock();
     {
         audio_utils::unique_lock _l(event->mutex());
+        nsecs_t timeoutNs = event->mType == CFG_EVENT_CREATE_AUDIO_PATCH ?
+              kCreatePatchEventTimeoutNs : kConfigEventTimeoutNs;
         while (event->mWaitStatus) {
             if (event->mCondition.wait_for(
-                    _l, std::chrono::nanoseconds(kConfigEventTimeoutNs), getTid())
+                    _l, std::chrono::nanoseconds(timeoutNs), getTid())
                             == std::cv_status::timeout) {
                 event->mStatus = TIMED_OUT;
                 event->mWaitStatus = false;
@@ -5239,7 +5244,7 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
                                                     // audio to FastMixer
         fastTrack->mFormat = mFormat; // mPipeSink format for audio to FastMixer
         fastTrack->mHapticPlaybackEnabled = mHapticChannelMask != AUDIO_CHANNEL_NONE;
-        fastTrack->mHapticScale = {/*level=*/os::HapticLevel::NONE };
+        fastTrack->mHapticScale = os::HapticScale::none();
         fastTrack->mHapticMaxAmplitude = NAN;
         fastTrack->mGeneration++;
         state->mFastTracksGen++;
@@ -7218,7 +7223,7 @@ bool DirectOutputThread::checkForNewParameter_l(const String8& keyValuePair,
 uint32_t DirectOutputThread::activeSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_has_proportional_frames(mFormat)) {
+    if (audio_has_proportional_frames(mFormat) && mType != OFFLOAD) {
         time = PlaybackThread::activeSleepTimeUs();
     } else {
         time = kDirectMinSleepTimeUs;
@@ -7229,7 +7234,7 @@ uint32_t DirectOutputThread::activeSleepTimeUs() const
 uint32_t DirectOutputThread::idleSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_has_proportional_frames(mFormat)) {
+    if (audio_has_proportional_frames(mFormat) && mType != OFFLOAD) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000) / 2;
     } else {
         time = kDirectMinSleepTimeUs;
@@ -7240,7 +7245,7 @@ uint32_t DirectOutputThread::idleSleepTimeUs() const
 uint32_t DirectOutputThread::suspendSleepTimeUs() const
 {
     uint32_t time;
-    if (audio_has_proportional_frames(mFormat)) {
+    if (audio_has_proportional_frames(mFormat) && mType != OFFLOAD) {
         time = (uint32_t)(((mFrameCount * 1000) / mSampleRate) * 1000);
     } else {
         time = kDirectMinSleepTimeUs;
@@ -7257,7 +7262,7 @@ void DirectOutputThread::cacheParameters_l()
     // no delay on outputs with HW A/V sync
     if (usesHwAvSync()) {
         mStandbyDelayNs = 0;
-    } else if ((mType == OFFLOAD) && !audio_has_proportional_frames(mFormat)) {
+    } else if (mType == OFFLOAD) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
     } else if (mType == DIRECT) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
