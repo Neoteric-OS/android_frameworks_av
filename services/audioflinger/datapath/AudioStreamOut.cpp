@@ -102,7 +102,8 @@ status_t AudioStreamOut::open(
         audio_io_handle_t handle,
         audio_devices_t deviceType,
         struct audio_config *config,
-        const char *address)
+        const char *address,
+        const std::vector<playback_track_metadata_v7_t>& sourceMetadata)
 {
     sp<StreamOutHalInterface> outStream;
 
@@ -116,7 +117,8 @@ status_t AudioStreamOut::open(
             customFlags,
             config,
             address,
-            &outStream);
+            &outStream,
+            sourceMetadata);
     ALOGV("AudioStreamOut::open(), HAL returned stream %p, sampleRate %d, format %#x,"
             " channelMask %#x, status %d", outStream.get(), config->sample_rate, config->format,
             config->channel_mask, status);
@@ -133,7 +135,8 @@ status_t AudioStreamOut::open(
                 customFlags,
                 &customConfig,
                 address,
-                &outStream);
+                &outStream,
+                sourceMetadata);
         ALOGV("AudioStreamOut::open(), treat IEC61937 as PCM, status = %d", status);
     }
 

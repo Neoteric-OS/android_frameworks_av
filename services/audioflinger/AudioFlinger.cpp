@@ -2993,7 +2993,8 @@ sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,
                                                         audio_config_base_t *mixerConfig,
                                                         audio_devices_t deviceType,
                                                         const String8& address,
-                                                        audio_output_flags_t flags)
+                                                        audio_output_flags_t flags,
+                                                        const audio_attributes_t attributes)
 {
     AudioHwDevice *outHwDev = findSuitableHwDev_l(module, deviceType);
     if (outHwDev == NULL) {
@@ -3011,13 +3012,18 @@ sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
     AudioStreamOut *outputStream = NULL;
+
+    playback_track_metadata_v7_t trackMetadata;
+    trackMetadata.base.usage = attributes.usage;
+
     status_t status = outHwDev->openOutputStream(
             &outputStream,
             *output,
             deviceType,
             flags,
             halConfig,
-            address.c_str());
+            address.c_str(),
+            {trackMetadata});
 
     mHardwareStatus = AUDIO_HW_IDLE;
 
@@ -3086,6 +3092,8 @@ status_t AudioFlinger::openOutput(const media::OpenOutputRequest& request,
             aidl2legacy_DeviceDescriptorBase(request.device));
     audio_output_flags_t flags = VALUE_OR_RETURN_STATUS(
             aidl2legacy_int32_t_audio_output_flags_t_mask(request.flags));
+    audio_attributes_t attributes = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioAttributes_audio_attributes_t(request.attributes));
 
     audio_io_handle_t output;
 
@@ -3108,7 +3116,7 @@ status_t AudioFlinger::openOutput(const media::OpenOutputRequest& request,
     audio_utils::lock_guard _l(mutex());
 
     const sp<IAfThreadBase> thread = openOutput_l(module, &output, &halConfig,
-            &mixerConfig, deviceType, address, flags);
+            &mixerConfig, deviceType, address, flags, attributes);
     if (thread != 0) {
         uint32_t latencyMs = 0;
         if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) == 0) {
