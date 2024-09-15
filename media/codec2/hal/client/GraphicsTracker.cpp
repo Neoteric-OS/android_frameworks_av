@@ -900,7 +900,10 @@ void GraphicsTracker::commitRender(const std::shared_ptr<BufferCache> &cache,
         cache->unblockSlot(buffer->mSlot);
         if (oldBuffer) {
             // migrated, register the new buffer to the cache.
-            cache->mBuffers.emplace(buffer->mSlot, buffer);
+            auto ret = cache->mBuffers.emplace(buffer->mSlot, buffer);
+            if (!ret.second) {
+                ret.first->second = buffer;
+            }
         }
     }
     mDeallocating.erase(origBid);
