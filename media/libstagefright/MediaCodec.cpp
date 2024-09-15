@@ -488,7 +488,7 @@ private:
                                     .id = getId(mClient),
                                     .name = mCodecName,
                                     .importance = mImportance};
-        return std::move(clientInfo);
+        return clientInfo;
     }
 
 private:

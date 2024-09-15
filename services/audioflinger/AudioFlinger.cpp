@@ -748,11 +748,9 @@ void AudioFlinger::dumpClients_ll(int fd, const Vector<String16>& args __unused)
 
     result.append("Notification Clients:\n");
     result.append("   pid    uid  name\n");
-    for (size_t i = 0; i < mNotificationClients.size(); ++i) {
-        const pid_t pid = mNotificationClients[i]->getPid();
-        const uid_t uid = mNotificationClients[i]->getUid();
-        const mediautils::UidInfo::Info info = mUidInfo.getInfo(uid);
-        result.appendFormat("%6d %6u  %s\n", pid, uid, info.package.c_str());
+    for (const auto& [ _, client ] : mNotificationClients) {
+        result.appendFormat("%6d %6u  %s\n",
+                client->getPid(), client->getUid(), client->getPackageName().c_str());
     }
 
     result.append("Global session refs:\n");
@@ -2131,24 +2129,23 @@ status_t AudioFlinger::getRenderPosition(uint32_t *halFrames, uint32_t *dspFrame
 
 void AudioFlinger::registerClient(const sp<media::IAudioFlingerClient>& client)
 {
-    audio_utils::lock_guard _l(mutex());
     if (client == 0) {
         return;
     }
-    pid_t pid = IPCThreadState::self()->getCallingPid();
+    const pid_t pid = IPCThreadState::self()->getCallingPid();
     const uid_t uid = IPCThreadState::self()->getCallingUid();
+
+    audio_utils::lock_guard _l(mutex());
     {
         audio_utils::lock_guard _cl(clientMutex());
-        if (mNotificationClients.indexOfKey(pid) < 0) {
-            sp<NotificationClient> notificationClient = new NotificationClient(this,
-                                                                                client,
-                                                                                pid,
-                                                                                uid);
-            ALOGV("registerClient() client %p, pid %d, uid %u",
-                    notificationClient.get(), pid, uid);
+        if (mNotificationClients.count(pid) == 0) {
+            const mediautils::UidInfo::Info info = mUidInfo.getInfo(uid);
+            sp<NotificationClient> notificationClient = sp<NotificationClient>::make(
+                    this, client, pid, uid, info.package);
+            ALOGV("registerClient() pid %d, uid %u, package %s",
+                    pid, uid, info.package.c_str());
 
-            mNotificationClients.add(pid, notificationClient);
-
+            mNotificationClients[pid] = notificationClient;
             sp<IBinder> binder = IInterface::asBinder(client);
             binder->linkToDeath(notificationClient);
         }
@@ -2175,7 +2172,7 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
         audio_utils::lock_guard _l(mutex());
         {
             audio_utils::lock_guard _cl(clientMutex());
-            mNotificationClients.removeItem(pid);
+            mNotificationClients.erase(pid);
         }
 
         ALOGV("%d died, releasing its sessions", pid);
@@ -2216,11 +2213,13 @@ void AudioFlinger::ioConfigChanged_l(audio_io_config_event_t event,
             legacy2aidl_AudioIoDescriptor_AudioIoDescriptor(ioDesc));
 
     audio_utils::lock_guard _l(clientMutex());
-    size_t size = mNotificationClients.size();
-    for (size_t i = 0; i < size; i++) {
-        if ((pid == 0) || (mNotificationClients.keyAt(i) == pid)) {
-            mNotificationClients.valueAt(i)->audioFlingerClient()->ioConfigChanged(eventAidl,
-                                                                                   descAidl);
+    if (pid != 0) {
+        if (auto it = mNotificationClients.find(pid); it != mNotificationClients.end()) {
+            it->second->audioFlingerClient()->ioConfigChanged(eventAidl, descAidl);
+        }
+    } else {
+        for (const auto& [ client_pid, client] : mNotificationClients) {
+            client->audioFlingerClient()->ioConfigChanged(eventAidl, descAidl);
         }
     }
 }
@@ -2234,9 +2233,8 @@ void AudioFlinger::onSupportedLatencyModesChanged(
 
     audio_utils::lock_guard _l(clientMutex());
     size_t size = mNotificationClients.size();
-    for (size_t i = 0; i < size; i++) {
-        mNotificationClients.valueAt(i)->audioFlingerClient()
-                ->onSupportedLatencyModesChanged(outputAidl, modesAidl);
+    for (const auto& [_, client] : mNotificationClients) {
+        client->audioFlingerClient()->onSupportedLatencyModesChanged(outputAidl, modesAidl);
     }
 }
 
@@ -2293,8 +2291,10 @@ sp<IAfThreadBase> AudioFlinger::getEffectThread_l(audio_session_t sessionId,
 AudioFlinger::NotificationClient::NotificationClient(const sp<AudioFlinger>& audioFlinger,
                                                      const sp<media::IAudioFlingerClient>& client,
                                                      pid_t pid,
-                                                     uid_t uid)
-    : mAudioFlinger(audioFlinger), mPid(pid), mUid(uid), mAudioFlingerClient(client)
+        uid_t uid,
+        std::string_view packageName)
+    : mAudioFlinger(audioFlinger), mPid(pid), mUid(uid)
+    , mPackageName(packageName), mAudioFlingerClient(client)
 {
 }
 
@@ -2304,7 +2304,7 @@ AudioFlinger::NotificationClient::~NotificationClient()
 
 void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who __unused)
 {
-    sp<NotificationClient> keep(this);
+    const auto keep = sp<NotificationClient>::fromExisting(this);
     mAudioFlinger->removeNotificationClient(mPid);
 }
 
@@ -2993,7 +2993,8 @@ sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,
                                                         audio_config_base_t *mixerConfig,
                                                         audio_devices_t deviceType,
                                                         const String8& address,
-                                                        audio_output_flags_t flags)
+                                                        audio_output_flags_t flags,
+                                                        const audio_attributes_t attributes)
 {
     AudioHwDevice *outHwDev = findSuitableHwDev_l(module, deviceType);
     if (outHwDev == NULL) {
@@ -3011,13 +3012,18 @@ sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,
 
     mHardwareStatus = AUDIO_HW_OUTPUT_OPEN;
     AudioStreamOut *outputStream = NULL;
+
+    playback_track_metadata_v7_t trackMetadata;
+    trackMetadata.base.usage = attributes.usage;
+
     status_t status = outHwDev->openOutputStream(
             &outputStream,
             *output,
             deviceType,
             flags,
             halConfig,
-            address.c_str());
+            address.c_str(),
+            {trackMetadata});
 
     mHardwareStatus = AUDIO_HW_IDLE;
 
@@ -3086,6 +3092,8 @@ status_t AudioFlinger::openOutput(const media::OpenOutputRequest& request,
             aidl2legacy_DeviceDescriptorBase(request.device));
     audio_output_flags_t flags = VALUE_OR_RETURN_STATUS(
             aidl2legacy_int32_t_audio_output_flags_t_mask(request.flags));
+    audio_attributes_t attributes = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioAttributes_audio_attributes_t(request.attributes));
 
     audio_io_handle_t output;
 
@@ -3108,7 +3116,7 @@ status_t AudioFlinger::openOutput(const media::OpenOutputRequest& request,
     audio_utils::lock_guard _l(mutex());
 
     const sp<IAfThreadBase> thread = openOutput_l(module, &output, &halConfig,
-            &mixerConfig, deviceType, address, flags);
+            &mixerConfig, deviceType, address, flags, attributes);
     if (thread != 0) {
         uint32_t latencyMs = 0;
         if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) == 0) {
@@ -3566,7 +3574,7 @@ void AudioFlinger::acquireAudioSessionId(
         // is likely proxied by mediaserver (e.g CameraService) and releaseAudioSessionId() can be
         // called from a different pid leaving a stale session reference.  Also we don't know how
         // to clear this reference if the client process dies.
-        if (mNotificationClients.indexOfKey(caller) < 0) {
+        if (mNotificationClients.count(caller) == 0) {
             ALOGW("acquireAudioSessionId() unknown client %d for session %d", caller, audioSession);
             return;
         }
@@ -4010,8 +4018,12 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
         // TODO: We could check compatibility of the secondaryThread with the PatchTrack
         // for fast usage: thread has fast mixer, sample rate matches, etc.;
         // for now, we exclude fast tracks by removing the Fast flag.
+        constexpr audio_output_flags_t kIncompatiblePatchTrackFlags =
+                static_cast<audio_output_flags_t>(AUDIO_OUTPUT_FLAG_FAST
+                        | AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+
         const audio_output_flags_t outputFlags =
-                (audio_output_flags_t)(track->getOutputFlags() & ~AUDIO_OUTPUT_FLAG_FAST);
+                (audio_output_flags_t)(track->getOutputFlags() & ~kIncompatiblePatchTrackFlags);
         sp<IAfPatchTrack> patchTrack = IAfPatchTrack::create(secondaryThread,
                                                        track->streamType(),
                                                        track->sampleRate(),
@@ -4572,7 +4584,7 @@ sp<IAfEffectHandle> AudioFlinger::createOrphanEffect_l(
             // TODO(b/184194057): Use the vibrator information from the vibrator that will be used
             // for the HapticGenerator.
             const std::optional<media::AudioVibratorInfo> defaultVibratorInfo =
-                    std::move(getDefaultVibratorInfo_l());
+                    getDefaultVibratorInfo_l();
             if (defaultVibratorInfo) {
                 // Only set the vibrator info when it is a valid one.
                 audio_utils::lock_guard _cl(chain->mutex());

@@ -333,7 +333,8 @@ private:
             audio_config_base_t* mixerConfig,
             audio_devices_t deviceType,
             const String8& address,
-            audio_output_flags_t flags) final REQUIRES(mutex());
+            audio_output_flags_t flags,
+            audio_attributes_t attributes) final REQUIRES(mutex());
     const DefaultKeyedVector<audio_module_handle_t, AudioHwDevice*>&
             getAudioHwDevs_l() const final REQUIRES(mutex(), hardwareMutex()) {
               return mAudioHwDevs;
@@ -478,12 +479,14 @@ private:
                             NotificationClient(const sp<AudioFlinger>& audioFlinger,
                                                 const sp<media::IAudioFlingerClient>& client,
                                                 pid_t pid,
-                                                uid_t uid);
+                uid_t uid,
+                std::string_view packageName);
         virtual             ~NotificationClient();
 
                 sp<media::IAudioFlingerClient> audioFlingerClient() const { return mAudioFlingerClient; }
                 pid_t getPid() const { return mPid; }
                 uid_t getUid() const { return mUid; }
+                const std::string& getPackageName() const { return mPackageName; }
 
                 // IBinder::DeathRecipient
                 virtual     void        binderDied(const wp<IBinder>& who);
@@ -494,6 +497,7 @@ private:
         const sp<AudioFlinger>  mAudioFlinger;
         const pid_t             mPid;
         const uid_t             mUid;
+        const std::string mPackageName;
         const sp<media::IAudioFlingerClient> mAudioFlingerClient;
     };
 
@@ -693,8 +697,7 @@ private:
 
     DefaultKeyedVector<audio_io_handle_t, sp<IAfRecordThread>> mRecordThreads GUARDED_BY(mutex());
 
-    DefaultKeyedVector<pid_t, sp<NotificationClient>> mNotificationClients
-            GUARDED_BY(clientMutex());
+    std::map<pid_t, sp<NotificationClient>> mNotificationClients GUARDED_BY(clientMutex());
 
                 // updated by atomic_fetch_add_explicit
     volatile atomic_uint_fast32_t mNextUniqueIds[AUDIO_UNIQUE_ID_USE_MAX];  // ctor init
