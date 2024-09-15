@@ -16,14 +16,12 @@
 
 #pragma once
 
-#include <system/audio.h>
+#include <com_android_graphics_libgui_flags.h>
 
-namespace android {
+#ifndef USE_NEW_STREAM_SPLITTER
 
-class VolumePortInterface : public virtual RefBase {
-public:
-    virtual void setPortVolume(float volume) = 0;
-    virtual float getPortVolume() const = 0;
-};
+#define USE_NEW_STREAM_SPLITTER                              \
+    COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_STREAM_SPLITTER) && \
+            COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_PLATFORM_API_IMPROVEMENTS)
 
-}  // namespace android
+#endif  // USE_NEW_STREAM_SPLITTER
