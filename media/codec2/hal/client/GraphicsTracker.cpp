@@ -824,6 +824,10 @@ c2_status_t GraphicsTracker::deallocate(uint64_t bid, const sp<Fence> &fence) {
     std::shared_ptr<BufferCache> cache;
     int slotId;
     sp<Fence> rFence;
+    if (mStopped.load() == true) {
+        ALOGE("cannot deallocate due to being stopped");
+        return C2_BAD_STATE;
+    }
     c2_status_t res = requestDeallocate(bid, fence, &completed, &updateDequeue,
                                         &cache, &slotId, &rFence);
     if (res != C2_OK) {
