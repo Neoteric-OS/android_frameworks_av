@@ -719,6 +719,8 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "avc1";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
             return "hvc1";
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
+            return "hvc1";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
             return "av01";
         }
@@ -2344,6 +2346,7 @@ MPEG4Writer::Track::Track(
     mMeta->findCString(kKeyMIMEType, &mime);
     mIsAvc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC);
     mIsHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
+    mIsMvHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MVHEVC);
     mIsAv1 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1);
     mIsDovi = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
     mIsAudio = !strncasecmp(mime, "audio/", 6);
@@ -3860,7 +3863,7 @@ status_t MPEG4Writer::Track::threadEntry() {
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
                             buffer->range_length());
-                } else if (mIsHevc || mIsHeic) {
+                } else if (mIsHevc || mIsHeic || mIsMvHevc) {
                     err = makeHEVCCodecSpecificData(
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
@@ -4646,6 +4649,7 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC, mime) ||
@@ -4818,6 +4822,8 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime)) {
         writeAvccBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
+        writeHvccBox();
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
         writeHvccBox();
         if (mIsMvHevc) {
             writeLhvcBox();
