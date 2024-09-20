@@ -1118,8 +1118,8 @@ protected:
         // It can give a chance to HAL implementer to retrieve dynamic capabilities associated
         // to this device for example.
         // TODO avoid opening stream to retrieve capabilities of a profile.
-        status_t broadcastDeviceConnectionState(const sp<DeviceDescriptor> &device,
-                                                media::DeviceConnectedState state);
+        void broadcastDeviceConnectionState(const sp<DeviceDescriptor> &device,
+                                            media::DeviceConnectedState state);
 
         // updates device caching and output for streams that can influence the
         //    routing of notifications
