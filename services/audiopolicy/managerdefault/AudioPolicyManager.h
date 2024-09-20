@@ -128,7 +128,8 @@ public:
                                   std::vector<audio_io_handle_t> *secondaryOutputs,
                                   output_type_t *outputType,
                                   bool *isSpatialized,
-                                  bool *isBitPerfect) override;
+                                  bool *isBitPerfect,
+                                  float *volume) override;
         virtual status_t startOutput(audio_port_handle_t portId);
         virtual status_t stopOutput(audio_port_handle_t portId);
         virtual bool releaseOutput(audio_port_handle_t portId);
@@ -1117,8 +1118,8 @@ protected:
         // It can give a chance to HAL implementer to retrieve dynamic capabilities associated
         // to this device for example.
         // TODO avoid opening stream to retrieve capabilities of a profile.
-        void broadcastDeviceConnectionState(const sp<DeviceDescriptor> &device,
-                                            media::DeviceConnectedState state);
+        status_t broadcastDeviceConnectionState(const sp<DeviceDescriptor> &device,
+                                                media::DeviceConnectedState state);
 
         // updates device caching and output for streams that can influence the
         //    routing of notifications
