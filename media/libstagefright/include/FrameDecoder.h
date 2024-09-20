@@ -18,13 +18,16 @@
 #define FRAME_DECODER_H_
 
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <vector>
 
-#include <media/stagefright/foundation/AString.h>
-#include <media/stagefright/foundation/ABase.h>
 #include <media/stagefright/foundation/Mutexed.h>
-#include <media/stagefright/MediaSource.h>
 #include <media/openmax/OMX_Video.h>
+#include <media/stagefright/MediaSource.h>
+#include <media/stagefright/foundation/ABase.h>
+#include <media/stagefright/foundation/AHandler.h>
+#include <media/stagefright/foundation/AString.h>
 #include <ui/GraphicTypes.h>
 #include <utils/threads.h>
 
@@ -36,9 +39,21 @@ class IMediaSource;
 class MediaCodecBuffer;
 class Surface;
 class VideoFrame;
+struct AsyncCodecHandler;
 
 struct FrameRect {
     int32_t left, top, right, bottom;
+};
+
+struct InputBufferIndexQueue {
+public:
+    void enqueue(int32_t index);
+    bool dequeue(int32_t* index, int32_t timeOutUs);
+
+private:
+    std::queue<int32_t> mQueue;
+    std::mutex mMutex;
+    std::condition_variable mCondition;
 };
 
 struct FrameDecoder : public RefBase {
@@ -55,7 +70,19 @@ struct FrameDecoder : public RefBase {
             const sp<MetaData> &trackMeta, int colorFormat,
             bool thumbnail = false, uint32_t bitDepth = 0);
 
+    status_t handleInputBufferAsync(int32_t index);
+    status_t handleOutputBufferAsync(int32_t index, int64_t timeUs);
+    status_t handleOutputFormatChangeAsync(sp<AMessage> format);
+
+    enum {
+        kWhatCallbackNotify,
+    };
+
 protected:
+    AString mComponentName;
+    sp<AMessage> mOutputFormat;
+    bool mUseBlockModel;
+
     virtual ~FrameDecoder();
 
     virtual sp<AMessage> onGetFormatAndSeekOptions(
@@ -66,14 +93,12 @@ protected:
 
     virtual status_t onExtractRect(FrameRect *rect) = 0;
 
-    virtual status_t onInputReceived(
-            const sp<MediaCodecBuffer> &codecBuffer,
-            MetaDataBase &sampleMeta,
-            bool firstSample,
-            uint32_t *flags) = 0;
+    virtual status_t onInputReceived(uint8_t* data, size_t size, MetaDataBase& sampleMeta,
+                                     bool firstSample, uint32_t* flags) = 0;
 
     virtual status_t onOutputReceived(
-            const sp<MediaCodecBuffer> &videoFrameBuffer,
+            uint8_t* data,
+            sp<ABuffer> imgObj,
             const sp<AMessage> &outputFormat,
             int64_t timeUs,
             bool *done) = 0;
@@ -96,20 +121,35 @@ protected:
     MediaSource::ReadOptions mReadOptions;
     sp<IMediaSource> mSource;
     sp<MediaCodec> mDecoder;
-    sp<AMessage> mOutputFormat;
     sp<Surface> mSurface;
 
 private:
-    AString mComponentName;
     sp<MetaData> mTrackMeta;
     OMX_COLOR_FORMATTYPE mDstFormat;
     ui::PixelFormat mCaptureFormat;
     int32_t mDstBpp;
     sp<IMemory> mFrameMemory;
+    sp<AsyncCodecHandler> mHandler;
+    sp<ALooper> mAsyncLooper;
+    bool mHandleOutputBufferAsyncDone;
+    std::mutex mMutex;
+    std::condition_variable mOutputFramePending;
+    InputBufferIndexQueue mInputBufferIndexQueue;
+
+    status_t extractInternalUsingBlockModel();
 
     DISALLOW_EVIL_CONSTRUCTORS(FrameDecoder);
 };
 struct FrameCaptureLayer;
+
+struct AsyncCodecHandler : public AHandler {
+public:
+    explicit AsyncCodecHandler(const wp<FrameDecoder>& frameDecoder);
+    virtual void onMessageReceived(const sp<AMessage>& msg);
+
+private:
+    wp<FrameDecoder> mFrameDecoder;
+};
 
 struct VideoFrameDecoder : public FrameDecoder {
     VideoFrameDecoder(
@@ -129,14 +169,12 @@ protected:
         return (rect == NULL) ? OK : ERROR_UNSUPPORTED;
     }
 
-    virtual status_t onInputReceived(
-            const sp<MediaCodecBuffer> &codecBuffer,
-            MetaDataBase &sampleMeta,
-            bool firstSample,
-            uint32_t *flags) override;
+    virtual status_t onInputReceived(uint8_t* data, size_t size, MetaDataBase& sampleMeta,
+                                     bool firstSample, uint32_t* flags) override;
 
     virtual status_t onOutputReceived(
-            const sp<MediaCodecBuffer> &videoFrameBuffer,
+            uint8_t* data,
+            sp<ABuffer> imgObj,
             const sp<AMessage> &outputFormat,
             int64_t timeUs,
             bool *done) override;
@@ -176,14 +214,13 @@ protected:
 
     virtual status_t onExtractRect(FrameRect *rect) override;
 
-    virtual status_t onInputReceived(
-            const sp<MediaCodecBuffer> &codecBuffer __unused,
-            MetaDataBase &sampleMeta __unused,
-            bool firstSample __unused,
-            uint32_t *flags __unused) override { return OK; }
+    virtual status_t onInputReceived(uint8_t* __unused, size_t __unused,
+                                     MetaDataBase& sampleMeta __unused, bool firstSample __unused,
+                                     uint32_t* flags __unused) override { return OK; }
 
     virtual status_t onOutputReceived(
-            const sp<MediaCodecBuffer> &videoFrameBuffer,
+            uint8_t* data,
+            sp<ABuffer> imgObj,
             const sp<AMessage> &outputFormat,
             int64_t timeUs,
             bool *done) override;
