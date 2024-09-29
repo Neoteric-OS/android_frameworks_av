@@ -215,8 +215,9 @@ std::shared_ptr<MultiAccessUnitInterface> ComponentStore::tryCreateMultiAccessUn
     if (MultiAccessUnitHelper::isEnabledOnPlatform()) {
         c2_status_t err = C2_OK;
         C2ComponentDomainSetting domain;
+        std::vector<std::unique_ptr<C2Param>> heapParams;
         C2ApiFeaturesSetting features = (C2Config::api_feature_t)0;
-        err = c2interface->query_vb({&domain, &features}, {}, C2_MAY_BLOCK, nullptr);
+        err = c2interface->query_vb({&domain, &features}, {}, C2_MAY_BLOCK, &heapParams);
         if (err == C2_OK
                 && (domain.value == C2Component::DOMAIN_AUDIO)
                 && ((features.value & C2Config::api_feature_t::API_SAME_INPUT_BUFFER) != 0)) {
