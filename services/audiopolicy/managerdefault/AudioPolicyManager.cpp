@@ -1290,15 +1290,12 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream)
 
     SortedVector<audio_io_handle_t> outputs = getOutputsForDevices(devices, mOutputs);
 
-    audio_io_handle_t output;
-    if (stream == AUDIO_STREAM_MUSIC  &&
-            property_get_bool("audio.deep_buffer.media", false /* default_value */)) {
+    audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE;
+    if (stream == AUDIO_STREAM_MUSIC && mConfig->useDeepBufferForMedia()) {
         // use DEEP_BUFFER as default output for music stream type
-         output = selectOutput(outputs, AUDIO_OUTPUT_FLAG_DEEP_BUFFER, AUDIO_FORMAT_INVALID);
+        flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
-    else{
-          output = selectOutput(outputs);
-    }
+    const audio_io_handle_t output = selectOutput(outputs, flags);
 
     ALOGV("getOutput() stream %d selected devices %s, output %d", stream,
           devices.toString().c_str(), output);
@@ -1699,10 +1696,16 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
         return NAME_NOT_FOUND;
     }
 
-    // Do not allow offloading or direct if one non offloadable effect is enabled or
-    // MasterMono is enabled. This prevents creating an offloaded or direct track
-    // and tearing it down immediately after start when audioflinger detects there
-    // is an active non offloadable effect.
+    // Reject flag combinations that do not make sense. Note that the requested flags might not
+    // have the 'DIRECT' flag set, however once a direct-capable profile is found, it will
+    // combine the requested flags with its own flags, yielding an unsupported combination.
+    if ((flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
+        return NAME_NOT_FOUND;
+    }
+
+    // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
+    // This prevents creating an offloaded track and tearing it down immediately after start
+    // when audioflinger detects there is an active non offloadable effect.
     // FIXME: We should check the audio session here but we do not have it in this context.
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
@@ -1911,7 +1914,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
         *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE || *flags == AUDIO_OUTPUT_FLAG_DIRECT ||
                 (*flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) && !isInCall() &&
-                property_get_bool("audio.deep_buffer.media", true /* default_value */)) {
+                *flags == AUDIO_OUTPUT_FLAG_NONE && mConfig->useDeepBufferForMedia()) {
         // use DEEP_BUFFER as default output for music stream type
         forceDeepBuffer = true;
     }

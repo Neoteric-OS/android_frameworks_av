@@ -124,16 +124,6 @@ flag {
 
 flag {
     namespace: "camera_platform"
-    name: "single_thread_executor"
-    description: "Ensure device logic is run within one thread."
-    bug: "305857746"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
-    namespace: "camera_platform"
     name: "single_thread_executor_naming"
     description: "Set the device executor thread name."
     bug: "359709863"
