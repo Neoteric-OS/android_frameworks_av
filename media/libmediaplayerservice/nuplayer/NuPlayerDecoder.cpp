@@ -45,6 +45,12 @@
 #include <mpeg2ts/ATSParser.h>
 #include <gui/Surface.h>
 
+#define ATRACE_TAG ATRACE_TAG_AUDIO
+#include <utils/Trace.h>
+
+#include <android-base/stringprintf.h>
+using ::android::base::StringPrintf;
+
 namespace android {
 
 static float kDisplayRefreshingRate = 60.f; // TODO: get this from the display
@@ -160,7 +166,10 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
                     int32_t index;
                     CHECK(msg->findInt32("index", &index));
 
+                    ATRACE_BEGIN(StringPrintf("Nuplayer::handleAnInputBuffer [%s]",
+                                              mIsAudio ? "audio" : "video").c_str());
                     handleAnInputBuffer(index);
+                    ATRACE_END();
                     break;
                 }
 
@@ -178,7 +187,10 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
                     CHECK(msg->findInt64("timeUs", &timeUs));
                     CHECK(msg->findInt32("flags", &flags));
 
+                    ATRACE_BEGIN(StringPrintf("Nuplayer::handleAnOutputBuffer [%s]",
+                                              mIsAudio ? "audio" : "video").c_str());
                     handleAnOutputBuffer(index, offset, size, timeUs, flags);
+                    ATRACE_END();
                     break;
                 }
 
@@ -187,7 +199,10 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
                     sp<AMessage> format;
                     CHECK(msg->findMessage("format", &format));
 
+                    ATRACE_BEGIN(StringPrintf("Nuplayer::handleOutputFormatChange [%s]",
+                                              mIsAudio ? "audio" : "video").c_str());
                     handleOutputFormatChange(format);
+                    ATRACE_END();
                     break;
                 }
 
@@ -208,15 +223,16 @@ void NuPlayer::Decoder::onMessageReceived(const sp<AMessage> &msg) {
                     break;
                 }
             }
-
             break;
         }
 
         case kWhatRenderBuffer:
         {
+            ATRACE_BEGIN("Nuplayer::onRenderBuffer");
             if (!isStaleReply(msg)) {
                 onRenderBuffer(msg);
             }
+            ATRACE_END();
             break;
         }
 
