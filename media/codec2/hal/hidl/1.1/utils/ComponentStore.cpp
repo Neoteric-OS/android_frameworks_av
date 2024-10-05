@@ -149,6 +149,14 @@ ComponentStore::ComponentStore(const std::shared_ptr<C2ComponentStore>& store)
     }
 #endif
 
+    // MultiAccessUnit reflector helper is allocated once per store.
+    // All components in this store can reuse this reflector helper.
+    if (MultiAccessUnitHelper::isEnabledOnPlatform()) {
+        std::shared_ptr<C2ReflectorHelper> helper = std::make_shared<C2ReflectorHelper>();
+        mParamReflectors.push_back(helper);
+        mMultiAccessUnitReflector = helper;
+    }
+
     // Retrieve supported parameters from store
     using namespace std::placeholders;
     mInit = mConfigurable->init(mParameterCache);
@@ -215,8 +223,9 @@ std::shared_ptr<MultiAccessUnitInterface> ComponentStore::tryCreateMultiAccessUn
     if (MultiAccessUnitHelper::isEnabledOnPlatform()) {
         c2_status_t err = C2_OK;
         C2ComponentDomainSetting domain;
+        std::vector<std::unique_ptr<C2Param>> heapParams;
         C2ApiFeaturesSetting features = (C2Config::api_feature_t)0;
-        err = c2interface->query_vb({&domain, &features}, {}, C2_MAY_BLOCK, nullptr);
+        err = c2interface->query_vb({&domain, &features}, {}, C2_MAY_BLOCK, &heapParams);
         if (err == C2_OK
                 && (domain.value == C2Component::DOMAIN_AUDIO)
                 && ((features.value & C2Config::api_feature_t::API_SAME_INPUT_BUFFER) != 0)) {
@@ -229,13 +238,10 @@ std::shared_ptr<MultiAccessUnitInterface> ComponentStore::tryCreateMultiAccessUn
                     break;
                 }
             }
-
             if (!isComponentSupportsLargeAudioFrame) {
-                std::shared_ptr<C2ReflectorHelper> multiAccessReflector(new C2ReflectorHelper());
                 multiAccessUnitIntf = std::make_shared<MultiAccessUnitInterface>(
                         c2interface,
-                        multiAccessReflector);
-                mParamReflectors.push_back(multiAccessReflector);
+                        mMultiAccessUnitReflector);
             }
         }
     }

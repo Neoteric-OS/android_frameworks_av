@@ -61,6 +61,10 @@ static const nsecs_t kAudioCommandTimeoutNs = seconds(3); // 3 seconds
 
 static const String16 sManageAudioPolicyPermission("android.permission.MANAGE_AUDIO_POLICY");
 
+namespace {
+constexpr auto PERMISSION_GRANTED = permission::PermissionChecker::PERMISSION_GRANTED;
+}
+
 // Creates an association between Binder code to name for IAudioPolicyService.
 #define IAUDIOPOLICYSERVICE_BINDER_METHOD_MACRO_LIST \
 BINDER_METHOD_ENTRY(onNewAudioModulesAvailable) \
@@ -193,9 +197,7 @@ static AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface
     media::AudioPolicyConfig apmConfig;
     if (status_t status = clientInterface->getAudioPolicyConfig(&apmConfig); status == OK) {
         auto config = AudioPolicyConfig::loadFromApmAidlConfigWithFallback(apmConfig);
-        LOG_ALWAYS_FATAL_IF(config->getEngineLibraryNameSuffix() !=
-                AudioPolicyConfig::kDefaultEngineLibraryNameSuffix,
-                "Only default engine is currently supported with the AIDL HAL");
+        ALOGD("%s loading APM engine %s", __func__, config->getEngineLibraryNameSuffix().c_str());
         apm = new AudioPolicyManager(config,
                 loadApmEngineLibraryAndCreateEngine(
                         config->getEngineLibraryNameSuffix(), apmConfig.engineConfig),
@@ -1218,9 +1220,10 @@ void AudioPolicyService::setAppState_l(sp<AudioRecordClient> client, app_state_t
                 } else {
                     std::stringstream msg;
                     msg << "Audio recording un-silenced on session " << client->session;
-                    if (!startRecording(client->attributionSource, client->virtualDeviceId,
-                                        String16(msg.str().c_str()), client->attributes.source)) {
-                        silenced = true;
+                    if (startRecording(client->attributionSource, client->virtualDeviceId,
+                                String16(msg.str().c_str()), client->attributes.source)
+                                != PERMISSION_GRANTED) {
+                        return;
                     }
                 }
             }
