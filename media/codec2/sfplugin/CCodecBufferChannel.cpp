@@ -2736,8 +2736,6 @@ void CCodecBufferChannel::sendOutputBuffers() {
         switch (action) {
         case OutputBuffers::SKIP:
             return;
-        case OutputBuffers::DISCARD:
-            break;
         case OutputBuffers::NOTIFY_CLIENT:
         {
             // TRICKY: we want popped buffers reported in order, so sending
@@ -2764,13 +2762,16 @@ void CCodecBufferChannel::sendOutputBuffers() {
                     outBuffer->meta()->setObject("accessUnitInfo", obj);
                 }
             }
+            mCallback->onOutputBufferAvailable(index, outBuffer);
+            [[fallthrough]];
+        }
+        case OutputBuffers::DISCARD: {
             if (mHasInputSurface && android::media::codec::provider_->input_surface_throttle()) {
                 Mutexed<InputSurface>::Locked inputSurface(mInputSurface);
                 --inputSurface->numProcessingBuffersBalance;
-                ALOGV("[%s] onOutputBufferAvailable: numProcessingBuffersBalance = %lld",
-                      mName, static_cast<long long>(inputSurface->numProcessingBuffersBalance));
+                ALOGV("[%s] onWorkDone: numProcessingBuffersBalance = %lld",
+                        mName, static_cast<long long>(inputSurface->numProcessingBuffersBalance));
             }
-            mCallback->onOutputBufferAvailable(index, outBuffer);
             break;
         }
         case OutputBuffers::REALLOCATE:
