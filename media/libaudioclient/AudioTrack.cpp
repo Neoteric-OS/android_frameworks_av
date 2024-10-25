@@ -1973,11 +1973,6 @@ status_t AudioTrack::createTrack_l()
             input.clientInfo.clientTid = mAudioTrackThread->getTid();
         }
     }
-    // Set offload_info to defaults if track not already offloaded but can be offloaded
-    if (audio_is_linear_pcm(mFormat) &&
-        isAudioPlaybackRateEqual(mPlaybackRate, AUDIO_PLAYBACK_RATE_DEFAULT)) {
-        input.config.offload_info = AUDIO_INFO_INITIALIZER;
-    }
 
     // enable the deep buffer flag, whenever mPlaybackRate is not equal to
     // default
