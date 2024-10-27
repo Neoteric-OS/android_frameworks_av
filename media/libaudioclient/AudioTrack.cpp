@@ -2314,11 +2314,10 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
         {   // start of lock scope
             AutoMutex lock(mLock);
 
-            uint32_t newSequence = mSequence;
             // did previous obtainBuffer() fail due to media server death or voluntary invalidation?
             if (status == DEAD_OBJECT) {
                 // re-create track, unless someone else has already done so
-                if (newSequence == oldSequence) {
+                if (mSequence == oldSequence) {
                     status = restoreTrack_l("obtainBuffer");
                     if (status != NO_ERROR) {
                         buffer.mFrameCount = 0;
@@ -2328,7 +2327,7 @@ status_t AudioTrack::obtainBuffer(Buffer* audioBuffer, const struct timespec *re
                     }
                 }
             }
-            oldSequence = newSequence;
+            oldSequence = mSequence;
 
             if (status == NOT_ENOUGH_DATA) {
                 restartIfDisabled();
