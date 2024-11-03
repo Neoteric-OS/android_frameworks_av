@@ -62,6 +62,7 @@
 #include <media/stagefright/PersistentSurface.h>
 #include <media/MediaProfiles.h>
 #include <camera/CameraParameters.h>
+#include <gui/Flags.h>
 
 #include <utils/Errors.h>
 #include <sys/types.h>
@@ -1972,17 +1973,32 @@ status_t StagefrightRecorder::setupCameraSource(
             return BAD_VALUE;
         }
 
+#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        sp<Surface> surface = new Surface(mPreviewSurface);
+        mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
+                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
+                videoSize, mFrameRate, surface,
+                std::llround(1e6 / mCaptureFps));
+#else
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate, mPreviewSurface,
                 std::llround(1e6 / mCaptureFps));
+#endif
         *cameraSource = mCameraSourceTimeLapse;
     } else {
-        mCameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
+#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        sp<Surface> surface = new Surface(mPreviewSurface);
+        *cameraSource = CameraSource::CreateFromCamera(
+                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
+                videoSize, mFrameRate,
+                surface);
+#else
+        *cameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate,
                 mPreviewSurface);
-        *cameraSource = mCameraSource;
+#endif
     }
     AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
     mCamera.clear();
