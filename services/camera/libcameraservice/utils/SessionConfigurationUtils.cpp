@@ -640,7 +640,6 @@ binder::Status createSurfaceFromGbp(
         streamInfo.dynamicRangeProfile = dynamicRangeProfile;
         streamInfo.streamUseCase = streamUseCase;
         streamInfo.timestampBase = timestampBase;
-        streamInfo.mirrorMode = mirrorMode;
         streamInfo.colorSpace = colorSpace;
         return binder::Status::ok();
     }
@@ -886,7 +885,6 @@ convertToHALStreamCombination(
 
         int64_t streamUseCase = it.getStreamUseCase();
         int timestampBase = it.getTimestampBase();
-        int mirrorMode = it.getMirrorMode();
         // If the configuration is a deferred consumer, or a not yet completed
         // configuration with no buffer producers attached.
         if (deferredConsumer || (!isConfigurationComplete && numBufferProducers == 0)) {
@@ -946,6 +944,7 @@ convertToHALStreamCombination(
         }
 
         for (auto& bufferProducer : bufferProducers) {
+            int mirrorMode = it.getMirrorMode(bufferProducer);
             sp<Surface> surface;
             res = createSurfaceFromGbp(streamInfo, isStreamInfoValid, surface, bufferProducer,
                     logicalCameraId, metadataChosen, sensorPixelModesUsed, dynamicRangeProfile,
