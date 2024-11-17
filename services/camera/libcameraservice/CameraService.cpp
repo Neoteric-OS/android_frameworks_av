@@ -4112,7 +4112,7 @@ CameraService::BasicClient::BasicClient(
         mAppOpsManager = std::make_unique<AppOpsManager>();
     }
 
-    mUidIsTrusted = isTrustedCallingUid(getClientUid());
+    mUidIsTrusted = isTrustedCallingUid(mClientAttribution.uid);
 }
 
 CameraService::BasicClient::~BasicClient() {

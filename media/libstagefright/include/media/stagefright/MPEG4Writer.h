@@ -202,6 +202,9 @@ protected:
         bool isImage() const {
             return !strcmp("hvc1", itemType) || !strcmp("av01", itemType) || isGrid();
         }
+        bool isGainmapMeta() const {
+            return !strcmp("tmap", itemType);
+        }
         const char *itemType;
         uint16_t itemId;
         bool isPrimary;
@@ -229,6 +232,11 @@ protected:
         int32_t width;
         int32_t height;
         int32_t rotation;
+        int32_t colorPrimaries;
+        int32_t colorTransfer;
+        int32_t colorMatrix;
+        bool colorRange;
+        Vector<uint8_t> bitsPerChannel;
         sp<ABuffer> data;
     } ItemProperty;
 
@@ -350,6 +358,7 @@ protected:
     void writeIdatBox();
     void writeIrefBox();
     void writePitmBox();
+    void writeGrplBox(const Vector<uint16_t> &items);
     void writeFileLevelMetaBox();
 
     void sendSessionSummary();

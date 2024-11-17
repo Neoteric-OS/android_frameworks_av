@@ -1360,7 +1360,7 @@ status_t AudioPolicyManager::getOutputForAttrInt(
         uid_t uid,
         audio_config_t *config,
         audio_output_flags_t *flags,
-        audio_port_handle_t *selectedDeviceId,
+        DeviceIdVector *selectedDeviceIds,
         bool *isRequestedDeviceForExclusiveUse,
         std::vector<sp<AudioPolicyMix>> *secondaryMixes,
         output_type_t *outputType,
@@ -1368,7 +1368,8 @@ status_t AudioPolicyManager::getOutputForAttrInt(
         bool *isBitPerfect)
 {
     DeviceVector outputDevices;
-    const audio_port_handle_t requestedPortId = *selectedDeviceId;
+    audio_port_handle_t requestedPortId = getFirstDeviceId(*selectedDeviceIds);
+    selectedDeviceIds->clear();
     DeviceVector msdDevices = getMsdAudioOutDevices();
     const sp<DeviceDescriptor> requestedDevice =
         mAvailableOutputDevices.getDeviceFromId(requestedPortId);
@@ -1445,8 +1446,9 @@ status_t AudioPolicyManager::getOutputForAttrInt(
         if (policyDesc != nullptr) {
             policyDesc->mPolicyMix = primaryMix;
             *output = policyDesc->mIoHandle;
-            *selectedDeviceId = policyMixDevice != nullptr ? policyMixDevice->getId()
-                                                           : AUDIO_PORT_HANDLE_NONE;
+            if (policyMixDevice != nullptr) {
+                selectedDeviceIds->push_back(policyMixDevice->getId());
+            }
             if ((policyDesc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != AUDIO_OUTPUT_FLAG_DIRECT) {
                 // Remove direct flag as it is not on a direct output.
                 *flags = (audio_output_flags_t) (*flags & ~AUDIO_OUTPUT_FLAG_DIRECT);
@@ -1583,11 +1585,13 @@ status_t AudioPolicyManager::getOutputForAttrInt(
         return INVALID_OPERATION;
     }
 
-    *selectedDeviceId = getFirstDeviceId(outputDevices);
     for (auto &outputDevice : outputDevices) {
-        if (outputDevice->getId() == mConfig->getDefaultOutputDevice()->getId()) {
-            *selectedDeviceId = outputDevice->getId();
-            break;
+        if (std::find(selectedDeviceIds->begin(), selectedDeviceIds->end(),
+                      outputDevice->getId()) == selectedDeviceIds->end()) {
+            selectedDeviceIds->push_back(outputDevice->getId());
+            if (outputDevice->getId() == mConfig->getDefaultOutputDevice()->getId()) {
+                std::swap(selectedDeviceIds->front(), selectedDeviceIds->back());
+            }
         }
     }
 
@@ -1597,7 +1601,8 @@ status_t AudioPolicyManager::getOutputForAttrInt(
         *outputType = API_OUTPUT_LEGACY;
     }
 
-    ALOGV("%s returns output %d selectedDeviceId %d", __func__, *output, *selectedDeviceId);
+    ALOGV("%s returns output %d selectedDeviceIds %s", __func__, *output,
+            toString(*selectedDeviceIds).c_str());
 
     return NO_ERROR;
 }
@@ -1633,7 +1638,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                               const AttributionSourceState& attributionSource,
                                               audio_config_t *config,
                                               audio_output_flags_t *flags,
-                                              audio_port_handle_t *selectedDeviceId,
+                                              DeviceIdVector *selectedDeviceIds,
                                               audio_port_handle_t *portId,
                                               std::vector<audio_io_handle_t> *secondaryOutputs,
                                               output_type_t *outputType,
@@ -1648,23 +1653,25 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     }
     const uid_t uid = VALUE_OR_RETURN_STATUS(
         aidl2legacy_int32_t_uid_t(attributionSource.uid));
-    const audio_port_handle_t requestedPortId = *selectedDeviceId;
     audio_attributes_t resultAttr;
     bool isRequestedDeviceForExclusiveUse = false;
     std::vector<sp<AudioPolicyMix>> secondaryMixes;
-    const sp<DeviceDescriptor> requestedDevice =
-      mAvailableOutputDevices.getDeviceFromId(requestedPortId);
+    DeviceIdVector requestedDeviceIds = *selectedDeviceIds;
 
     // Prevent from storing invalid requested device id in clients
-    const audio_port_handle_t sanitizedRequestedPortId =
-      requestedDevice != nullptr ? requestedPortId : AUDIO_PORT_HANDLE_NONE;
-    *selectedDeviceId = sanitizedRequestedPortId;
+    DeviceIdVector sanitizedRequestedPortIds;
+    for (auto deviceId : *selectedDeviceIds) {
+        if (mAvailableOutputDevices.getDeviceFromId(deviceId) != nullptr) {
+            sanitizedRequestedPortIds.push_back(deviceId);
+        }
+    }
+    *selectedDeviceIds = sanitizedRequestedPortIds;
 
     audio_config_t directConfig = *config;
     checkAndUpdateOffloadInfoForDirectTracks(attr, stream, &directConfig, flags);
 
     status_t status = getOutputForAttrInt(&resultAttr, output, session, attr, stream, uid,
-            &directConfig, flags, selectedDeviceId, &isRequestedDeviceForExclusiveUse,
+            &directConfig, flags, selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
             secondaryOutputs != nullptr ? &secondaryMixes : nullptr, outputType, isSpatialized,
             isBitPerfect);
     if (status != NO_ERROR) {
@@ -1689,9 +1696,10 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     *portId = PolicyAudioPort::getNextUniqueId();
 
     sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueFor(*output);
+    // TODO(b/367816690): Add device id sets to TrackClientDescriptor
     sp<TrackClientDescriptor> clientDesc =
         new TrackClientDescriptor(*portId, uid, session, resultAttr, clientConfig,
-                                  sanitizedRequestedPortId, *stream,
+                                  getFirstDeviceId(sanitizedRequestedPortIds), *stream,
                                   mEngine->getProductStrategyForAttributes(resultAttr),
                                   toVolumeSource(resultAttr),
                                   *flags, isRequestedDeviceForExclusiveUse,
@@ -1702,8 +1710,9 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     *volume = Volume::DbToAmpl(outputDesc->getCurVolume(toVolumeSource(resultAttr)));
     *muted = outputDesc->isMutedByGroup(toVolumeSource(resultAttr));
 
-    ALOGV("%s() returns output %d requestedPortId %d selectedDeviceId %d for port ID %d", __func__,
-          *output, requestedPortId, *selectedDeviceId, *portId);
+    ALOGV("%s() returns output %d requestedPortIds %s selectedDeviceIds %s for port ID %d",
+          __func__, *output, toString(requestedDeviceIds).c_str(),
+          toString(*selectedDeviceIds).c_str(), *portId);
 
     return NO_ERROR;
 }
@@ -3987,7 +3996,7 @@ status_t AudioPolicyManager::setVolumeIndexForAttributes(const audio_attributes_
         if (isVolumeConsistentForCalls(vs, {mCallRxSourceClient->sinkDevice()->type()},
                 isVoiceVolSrc, isBtScoVolSrc, __func__)
                 && (isVoiceVolSrc || isBtScoVolSrc)) {
-            bool voiceVolumeManagedByHost = isVoiceVolSrc &&
+            bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
                     !audio_is_ble_out_device(mCallRxSourceClient->sinkDevice()->type());
             setVoiceVolume(index, curves, voiceVolumeManagedByHost, 0);
         }
@@ -5875,14 +5884,14 @@ status_t AudioPolicyManager::createAudioPatchInternal(const struct audio_patch *
                                     : audio_channel_mask_in_to_out(sourceMask);
                     config.format = sourceDesc->config().format;
                     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE;
-                    audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE;
+                    DeviceIdVector selectedDeviceIds;
                     bool isRequestedDeviceForExclusiveUse = false;
                     output_type_t outputType;
                     bool isSpatialized;
                     bool isBitPerfect;
                     getOutputForAttrInt(&resultAttr, &output, AUDIO_SESSION_NONE, &attributes,
                                         &stream, sourceDesc->uid(), &config, &flags,
-                                        &selectedDeviceId, &isRequestedDeviceForExclusiveUse,
+                                        &selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
                                         nullptr, &outputType, &isSpatialized, &isBitPerfect);
                     if (output == AUDIO_IO_HANDLE_NONE) {
                         ALOGV("%s no output for device %s",
@@ -8888,7 +8897,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
             deviceTypes, delayMs, force, isVoiceVolSrc);
 
     if (outputDesc == mPrimaryOutput && (isVoiceVolSrc || isBtScoVolSrc)) {
-        bool voiceVolumeManagedByHost = isVoiceVolSrc &&
+        bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
                 !isSingleDeviceType(deviceTypes, audio_is_ble_out_device);
         setVoiceVolume(index, curves, voiceVolumeManagedByHost, delayMs);
     }
@@ -9023,8 +9032,12 @@ void AudioPolicyManager::setVolumeSourceMutedInternally(VolumeSource volumeSourc
 
 bool AudioPolicyManager::isValidAttributes(const audio_attributes_t *paa)
 {
+    if ((paa->flags & AUDIO_FLAG_SCO) != 0) {
+        ALOGW("%s: deprecated use of AUDIO_FLAG_SCO in attributes flags %d", __func__, paa->flags);
+    }
+
     // has flags that map to a stream type?
-    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_SCO | AUDIO_FLAG_BEACON)) != 0) {
+    if ((paa->flags & (AUDIO_FLAG_AUDIBILITY_ENFORCED | AUDIO_FLAG_BEACON)) != 0) {
         return true;
     }
 
