@@ -24,7 +24,6 @@
 #include <media/audiohal/StreamHalInterface.h>
 #include <system/audio.h>
 #include <utils/Log.h>
-#include <cutils/properties.h>
 
 #include "AudioHwDevice.h"
 
@@ -34,7 +33,6 @@ namespace android {
 AudioStreamOut::AudioStreamOut(AudioHwDevice *dev)
         : audioHwDev(dev)
 {
-    mAidlHalEnabled = property_get_bool("vendor.audio.hal.aidl.enabled", false);
 }
 
 // This must be defined here together with the HAL includes above and
@@ -77,18 +75,7 @@ status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timesp
 
     if (mHalFormatHasProportionalFrames &&
             (flags & AUDIO_OUTPUT_FLAG_DIRECT) == AUDIO_OUTPUT_FLAG_DIRECT) {
-         // For DirectTrack reset position to 0 on standby/flush.
-         const uint64_t adjustedPosition = (halPosition <= mFramesWrittenAtStandby) ?
-                0 : (halPosition - mFramesWrittenAtStandby);
-
-         //From HAL expectation is always non-retrograde and framework should take care to retrogade
-         //But HIDL hals send retrogated frames and AIDL sends non-retrogaded
-         if (mAidlHalEnabled) {
-             *frames = adjustedPosition / mRateMultiplier;
-         } else {
-             *frames = halPosition / mRateMultiplier;
-         }
-
+        *frames = halPosition / mRateMultiplier;
     } else {
         // For offloaded MP3 and other compressed formats, and linear PCM.
         *frames = halPosition;
@@ -167,16 +154,12 @@ audio_config_base_t AudioStreamOut::getAudioProperties() const
 
 int AudioStreamOut::flush()
 {
-    //save mFramesWritten before resetting
-    mFramesWrittenAtStandby = mFramesWritten;
-    mFramesWritten = 0;
     status_t result = stream->flush();
     return result != INVALID_OPERATION ? result : NO_ERROR;
 }
 
 int AudioStreamOut::standby()
 {
-    mFramesWrittenAtStandby = mFramesWritten;
     return stream->standby();
 }
 
@@ -188,9 +171,6 @@ ssize_t AudioStreamOut::write(const void *buffer, size_t numBytes)
 {
     size_t bytesWritten;
     status_t result = stream->write(buffer, numBytes, &bytesWritten);
-    if (result == OK && bytesWritten > 0 && mHalFrameSize > 0) {
-        mFramesWritten += bytesWritten / mHalFrameSize;
-    }
     return result == OK ? bytesWritten : result;
 }
 
