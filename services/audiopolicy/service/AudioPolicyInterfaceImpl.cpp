@@ -24,6 +24,7 @@
 
 #include <android/content/AttributionSourceState.h>
 #include <android_media_audiopolicy.h>
+#include <android_media_audio.h>
 #include <com_android_media_audio.h>
 #include <cutils/properties.h>
 #include <error/expected_utils.h>
@@ -57,6 +58,7 @@ namespace android {
 namespace audiopolicy_flags = android::media::audiopolicy;
 using binder::Status;
 using aidl_utils::binderStatusFromStatusT;
+using android::media::audio::concurrent_audio_record_bypass_permission;
 using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::NativePermissionController;
 using com::android::media::permission::PermissionEnum::ACCESS_ULTRASOUND;
@@ -72,6 +74,7 @@ using com::android::media::permission::PermissionEnum::MODIFY_DEFAULT_AUDIO_EFFE
 using com::android::media::permission::PermissionEnum::MODIFY_PHONE_STATE;
 using com::android::media::permission::PermissionEnum::RECORD_AUDIO;
 using com::android::media::permission::PermissionEnum::WRITE_SECURE_SETTINGS;
+using com::android::media::permission::PermissionEnum::BYPASS_CONCURRENT_RECORD_AUDIO_RESTRICTION;
 using content::AttributionSourceState;
 using media::audio::common::AudioConfig;
 using media::audio::common::AudioConfigBase;
@@ -744,6 +747,17 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
     bool canCaptureOutput = audioserver_permissions() ?
                         CHECK_PERM(CAPTURE_AUDIO_OUTPUT, attributionSource.uid)
                         : captureAudioOutputAllowed(attributionSource);
+
+    //TODO(b/374751406): remove forcing canBypassConcurrentPolicy to canCaptureOutput
+    // once all system apps using CAPTURE_AUDIO_OUTPUT to capture during calls
+    // are updated to use the new CONCURRENT_AUDIO_RECORD_BYPASS permission.
+    bool canBypassConcurrentPolicy = canCaptureOutput;
+    if (concurrent_audio_record_bypass_permission()) {
+        canBypassConcurrentPolicy = audioserver_permissions() ?
+                            CHECK_PERM(BYPASS_CONCURRENT_RECORD_AUDIO_RESTRICTION,
+                                       attributionSource.uid)
+                            : bypassConcurrentPolicyAllowed(attributionSource);
+    }
     bool canInterceptCallAudio = audioserver_permissions() ?
                         CHECK_PERM(CALL_AUDIO_INTERCEPTION, attributionSource.uid)
                         : callAudioInterceptionAllowed(attributionSource);
@@ -894,7 +908,8 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
         sp<AudioRecordClient> client = new AudioRecordClient(attr, input, session, portId,
                                                              selectedDeviceIds, attributionSource,
                                                              virtualDeviceId,
-                                                             canCaptureOutput, canCaptureHotword,
+                                                             canBypassConcurrentPolicy,
+                                                             canCaptureHotword,
                                                              mOutputCommandThread);
         mAudioRecordClients.add(portId, client);
     }
