@@ -21,7 +21,9 @@
 #include <utils/Trace.h>
 
 #include <codec2/aidl/GraphicBufferAllocator.h>
+#include <codec2/common/HalSelection.h>
 #include <codec2/hidl/client.h>
+
 #include <C2Debug.h>
 #include <C2BufferPriv.h>
 #include <C2Config.h> // for C2StreamUsageTuning
@@ -1836,9 +1838,7 @@ std::vector<C2Component::Traits> const& Codec2Client::ListComponents() {
 
 std::shared_ptr<Codec2Client::InputSurface> Codec2Client::CreateInputSurface(
         char const* serviceName) {
-    int32_t inputSurfaceSetting = ::android::base::GetIntProperty(
-            "debug.stagefright.c2inputsurface", int32_t(0));
-    if (inputSurfaceSetting <= 0) {
+    if (!IsCodec2AidlInputSurfaceSelected()) {
         return nullptr;
     }
     size_t index = GetServiceNames().size();
