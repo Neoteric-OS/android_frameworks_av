@@ -26,6 +26,7 @@
 #include <sys/syscall.h>
 
 #include <aaudio/AAudio.h>
+#include <android-base/strings.h>
 
 #include "AudioStreamBuilder.h"
 #include "AudioStream.h"
@@ -116,6 +117,8 @@ aaudio_result_t AudioStream::open(const AudioStreamBuilder& builder)
     mErrorCallbackProc = builder.getErrorCallbackProc();
     mDataCallbackUserData = builder.getDataCallbackUserData();
     mErrorCallbackUserData = builder.getErrorCallbackUserData();
+    setPresentationEndCallbackUserData(builder.getPresentationEndCallbackUserData());
+    setPresentationEndCallbackProc(builder.getPresentationEndCallbackProc());
 
     return AAUDIO_OK;
 }
@@ -285,6 +288,10 @@ aaudio_result_t AudioStream::safeFlush() {
 
 aaudio_result_t AudioStream::systemStopInternal() {
     std::lock_guard<std::mutex> lock(mStreamLock);
+    return systemStopInternal_l();
+}
+
+aaudio_result_t AudioStream::systemStopInternal_l() {
     aaudio_result_t result = safeStop_l();
     if (result == AAUDIO_OK) {
         // We only call this for logging in "dumpsys audio". So ignore return code.
@@ -651,6 +658,10 @@ aaudio_stream_state_t AudioStream::getStateExternal() const {
         return AAUDIO_STREAM_STATE_DISCONNECTED;
     }
     return getState();
+}
+
+std::string AudioStream::getTagsAsString() const {
+    return android::base::Join(mTags, AUDIO_ATTRIBUTES_TAGS_SEPARATOR);
 }
 
 void AudioStream::MyPlayerBase::registerWithAudioManager(const android::sp<AudioStream>& parent) {
