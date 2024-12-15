@@ -16,6 +16,8 @@
 
 
 #define LOG_TAG "AAudioStreamParameters"
+
+#include <android-base/strings.h>
 #include <utils/Log.h>
 #include <system/audio.h>
 #include <system/aaudio/AAudio.h>
@@ -58,6 +60,13 @@ static aaudio_result_t isFormatValid(audio_format_t format) {
         case AUDIO_FORMAT_PCM_24_BIT_PACKED:
         case AUDIO_FORMAT_PCM_8_24_BIT:
         case AUDIO_FORMAT_IEC61937:
+        case AUDIO_FORMAT_MP3:
+        case AUDIO_FORMAT_AAC_LC:
+        case AUDIO_FORMAT_AAC_HE_V1:
+        case AUDIO_FORMAT_AAC_HE_V2:
+        case AUDIO_FORMAT_AAC_ELD:
+        case AUDIO_FORMAT_AAC_XHE:
+        case AUDIO_FORMAT_OPUS:
             break; // valid
         default:
             ALOGD("audioFormat not valid, audio_format_t = 0x%08x", format);
@@ -205,7 +214,7 @@ aaudio_result_t AAudioStreamParameters::validate() const {
             // break;
     }
 
-    if (mTags.has_value() && mTags->size() >= AAUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
+    if (getTagsAsString().size() >= AUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
         return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
     }
 
@@ -299,6 +308,10 @@ aaudio_result_t AAudioStreamParameters::validateChannelMask() const {
     }
 }
 
+std::string AAudioStreamParameters::getTagsAsString() const {
+    return android::base::Join(mTags, AUDIO_ATTRIBUTES_TAGS_SEPARATOR);
+}
+
 void AAudioStreamParameters::dump() const {
     ALOGD("mDeviceIds            = %s",  android::toString(mDeviceIds).c_str());
     ALOGD("mSessionId            = %6d", mSessionId);
@@ -311,7 +324,7 @@ void AAudioStreamParameters::dump() const {
     ALOGD("mBufferCapacity       = %6d", mBufferCapacity);
     ALOGD("mUsage                = %6d", mUsage);
     ALOGD("mContentType          = %6d", mContentType);
-    ALOGD("mTags                 = %s",  mTags.has_value() ? mTags.value().c_str() : "");
+    ALOGD("mTags                 = %s",  getTagsAsString().c_str());
     ALOGD("mSpatializationBehavior = %6d", mSpatializationBehavior);
     ALOGD("mIsContentSpatialized = %s", mIsContentSpatialized ? "true" : "false");
     ALOGD("mInputPreset          = %6d", mInputPreset);

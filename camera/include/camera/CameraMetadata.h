@@ -288,6 +288,38 @@ class CameraMetadata: public Parcelable {
      */
     status_t getVendorId(metadata_vendor_id_t* tagId) const;
 
+   // Needed for auto-generated code if CameraMetadata is used in
+   // parcelables in .aidl files.
+   inline bool operator == (const CameraMetadata& rhs) const {
+        return mBuffer == rhs.mBuffer;
+    }
+
+    inline bool operator < (const CameraMetadata& rhs) const {
+        return mBuffer < rhs.mBuffer;
+    }
+
+    inline bool operator != (const CameraMetadata& rhs) const {
+        return !(*this == rhs);
+    }
+
+    inline bool operator > (const CameraMetadata& rhs) const {
+        return rhs < *this;
+    }
+
+    inline bool operator >= (const CameraMetadata& rhs) const {
+        return !(*this < rhs);
+    }
+
+    inline bool operator <= (const CameraMetadata& rhs) const {
+        return !(rhs < *this);
+    }
+
+  inline std::string toString() const {
+        std::string descStr = "CameraMetadata";
+        return descStr;
+  }
+
+
   private:
     camera_metadata_t *mBuffer;
     mutable bool       mLocked;
@@ -306,7 +338,6 @@ class CameraMetadata: public Parcelable {
      * Resize metadata buffer if needed by reallocating it and copying it over.
      */
     status_t resizeIfNeeded(size_t extraEntries, size_t extraData);
-
 };
 
 namespace hardware {

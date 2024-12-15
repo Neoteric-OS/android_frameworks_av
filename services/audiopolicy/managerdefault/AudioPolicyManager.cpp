@@ -776,7 +776,7 @@ DeviceVector AudioPolicyManager::selectBestRxSinkDevicesForCall(bool fromCache)
         // RX Telephony and Rx sink devices are declared by Primary Audio HAL
         if (isPrimaryModule(telephonyRxModule) && (telephonyRxModule->getHalVersionMajor() >= 3) &&
                 telephonyRxModule->supportsPatch(rxSourceDevice, rxSinkDevice)) {
-            ALOGW("%s() device %s using HW Bridge", __func__, rxSinkDevice->toString().c_str());
+            ALOGI("%s() device %s using HW Bridge", __func__, rxSinkDevice->toString().c_str());
             return DeviceVector(rxSinkDevice);
         }
     }
@@ -942,8 +942,8 @@ void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
                                        true /*internal*/, true /*isCallRx*/, delayMs);
     ALOGE_IF(status != OK, "%s: failed to start audio source (%d)", __func__, status);
     mCallRxSourceClient = mAudioSources.valueFor(portId);
-    ALOGV("%s portdID %d between source %s and sink %s", __func__, portId,
-        mCallRxSourceClient->srcDevice()->toString().c_str(),
+    ALOGV_IF(mCallRxSourceClient != nullptr, "%s portdID %d between source %s and sink %s",
+        __func__, portId, mCallRxSourceClient->srcDevice()->toString().c_str(),
         mCallRxSourceClient->sinkDevice()->toString().c_str());
     ALOGE_IF(mCallRxSourceClient == nullptr,
              "%s failed to start Telephony Rx AudioSource", __func__);
@@ -1684,7 +1684,8 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
         for (auto &secondaryMix : secondaryMixes) {
             sp<SwAudioOutputDescriptor> outputDesc = secondaryMix->getOutput();
             if (outputDesc != nullptr &&
-                outputDesc->mIoHandle != AUDIO_IO_HANDLE_NONE) {
+                outputDesc->mIoHandle != AUDIO_IO_HANDLE_NONE &&
+                outputDesc->mIoHandle != *output) {
                 secondaryOutputs->push_back(outputDesc->mIoHandle);
                 weakSecondaryOutputDescs.push_back(outputDesc);
             }
@@ -3128,8 +3129,7 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
                                      audio_input_flags_t flags,
                                      audio_unique_id_t riid,
                                      audio_session_t session,
-                                     const AttributionSourceState& attributionSource,
-                                     input_type_t *inputType)
+                                     const AttributionSourceState& attributionSource)
 {
     ALOGV("%s() source %d, sampling rate %d, format %#x, channel mask %#x, session %d, "
           "flags %#x attributes=%s requested device ID %d",
@@ -3149,6 +3149,17 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
     if (attributes.source == AUDIO_SOURCE_DEFAULT) {
         attributes.source = AUDIO_SOURCE_MIC;
     }
+
+    using PermissionReqs = AudioPolicyClientInterface::PermissionReqs;
+    using MixType = AudioPolicyClientInterface::MixType;
+    PermissionReqs permReq {
+        .source =  legacy2aidl_audio_source_t_AudioSource(attributes.source).value(),
+        .mixType = MixType::NONE, // can be modified
+        .virtualDeviceId = 0, // can be modified
+        .isHotword = (flags & (AUDIO_INPUT_FLAG_HW_HOTWORD | AUDIO_INPUT_FLAG_HOTWORD_TAP |
+                               AUDIO_INPUT_FLAG_HW_LOOKBACK)) != 0,
+        .isCallRedir = (attributes.flags & AUDIO_FLAG_CALL_REDIRECTION) != 0,
+    };
 
     // Explicit routing?
     sp<DeviceDescriptor> explicitRoutingDevice =
@@ -3193,13 +3204,21 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
                 }
             }
         }
-        *inputType = API_INPUT_LEGACY;
         device = inputDesc->getDevice();
         ALOGV("%s reusing MMAP input %d for session %d", __FUNCTION__, requestedInput, session);
-        // TODO perm check
+        auto permRes = mpClientInterface->checkPermissionForInput(attributionSource, permReq);
+        if (!permRes.has_value()) return base::unexpected {permRes.error()};
+        if (!permRes.value()) {
+            return base::unexpected{Status::fromExceptionCode(
+                    EX_SECURITY, String8::format("%s: %s missing perms for source %d mix %d vdi %d"
+                        "hotword? %d callredir? %d", __func__, attributionSource.toString().c_str(),
+                                                 static_cast<int>(permReq.source),
+                                                 static_cast<int>(permReq.mixType),
+                                                 permReq.virtualDeviceId,
+                                                 permReq.isHotword,
+                                                 permReq.isCallRedir))};
+        }
     } else {
-        *inputType = API_INPUT_INVALID;
-
         if (attributes.source == AUDIO_SOURCE_REMOTE_SUBMIX &&
                 extractAddressFromAudioAttributes(attributes).has_value()) {
             status_t status = mPolicyMixes.getInputMixForAttr(attributes, &policyMix);
@@ -3220,12 +3239,12 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
             }
 
             if (is_mix_loopback_render(policyMix->mRouteFlags)) {
-                *inputType = API_INPUT_MIX_PUBLIC_CAPTURE_PLAYBACK;
+                permReq.mixType = MixType::PUBLIC_CAPTURE_PLAYBACK;
             } else {
-                *inputType = API_INPUT_MIX_EXT_POLICY_REROUTE;
+                permReq.mixType = MixType::EXT_POLICY_REROUTE;
             }
             // TODO is this correct?
-            vdi = policyMix->mVirtualDeviceId;
+            permReq.virtualDeviceId = policyMix->mVirtualDeviceId;
         } else {
             if (explicitRoutingDevice != nullptr) {
                 device = explicitRoutingDevice;
@@ -3243,24 +3262,35 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
                                         attributes.source))};
             }
             if (device->type() == AUDIO_DEVICE_IN_ECHO_REFERENCE) {
-                *inputType = API_INPUT_MIX_CAPTURE;
+                permReq.mixType = MixType::CAPTURE;
             } else if (policyMix) {
                 ALOG_ASSERT(policyMix->mMixType == MIX_TYPE_RECORDERS, "Invalid Mix Type");
                 // there is an external policy, but this input is attached to a mix of recorders,
                 // meaning it receives audio injected into the framework, so the recorder doesn't
                 // know about it and is therefore considered "legacy"
-                *inputType = API_INPUT_LEGACY;
-                vdi = policyMix->mVirtualDeviceId;
+                permReq.mixType = MixType::NONE;
+                permReq.virtualDeviceId = policyMix->mVirtualDeviceId;
             } else if (audio_is_remote_submix_device(device->type())) {
-                *inputType = API_INPUT_MIX_CAPTURE;
+                permReq.mixType = MixType::CAPTURE;
             } else if (device->type() == AUDIO_DEVICE_IN_TELEPHONY_RX) {
-                *inputType = API_INPUT_TELEPHONY_RX;
+                permReq.mixType = MixType::TELEPHONY_RX_CAPTURE;
             } else {
-                *inputType = API_INPUT_LEGACY;
+                permReq.mixType = MixType::NONE;
             }
         }
 
-        // TODO perm check
+        auto permRes = mpClientInterface->checkPermissionForInput(attributionSource, permReq);
+        if (!permRes.has_value()) return base::unexpected {permRes.error()};
+        if (!permRes.value()) {
+            return base::unexpected{Status::fromExceptionCode(
+                    EX_SECURITY, String8::format("%s: %s missing perms for source %d mix %d vdi %d"
+                        "hotword? %d callredir? %d", __func__, attributionSource.toString().c_str(),
+                                                 static_cast<int>(permReq.source),
+                                                 static_cast<int>(permReq.mixType),
+                                                 permReq.virtualDeviceId,
+                                                 permReq.isHotword,
+                                                 permReq.isCallRedir))};
+        }
 
         input = getInputForDevice(device, session, attributes, config, flags, policyMix);
         if (input == AUDIO_IO_HANDLE_NONE) {
@@ -3301,14 +3331,14 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes,
     mEffects.moveEffectsForIo(session, input, &mInputs, mpClientInterface);
     inputDesc->addClient(clientDesc);
 
-    ALOGV("getInputForAttr() returns input %d type %d selectedDeviceId %d for port ID %d",
-            input, *inputType, selectedDeviceId, allocatedPortId);
+    ALOGV("getInputForAttr() returns input %d selectedDeviceId %d vdi %d for port ID %d",
+            input, selectedDeviceId, permReq.virtualDeviceId, allocatedPortId);
 
     auto ret = media::GetInputForAttrResponse {};
     ret.input = input;
     ret.selectedDeviceId = selectedDeviceId;
     ret.portId = allocatedPortId;
-    ret.virtualDeviceId = vdi;
+    ret.virtualDeviceId = permReq.virtualDeviceId;
     ret.config = legacy2aidl_audio_config_base_t_AudioConfigBase(config, true /*isInput*/).value();
     return ret;
 }
@@ -3980,19 +4010,21 @@ status_t AudioPolicyManager::setVolumeIndexForAttributes(const audio_attributes_
         }
     }
 
-    // update voice volume if the an active call route exists
-    if (mCallRxSourceClient != nullptr && mCallRxSourceClient->isConnected()
-            && (curSrcDevices.find(
-                Volume::getDeviceForVolume({mCallRxSourceClient->sinkDevice()->type()}))
-                != curSrcDevices.end())) {
-        bool isVoiceVolSrc;
-        bool isBtScoVolSrc;
-        if (isVolumeConsistentForCalls(vs, {mCallRxSourceClient->sinkDevice()->type()},
-                isVoiceVolSrc, isBtScoVolSrc, __func__)
-                && (isVoiceVolSrc || isBtScoVolSrc)) {
-            bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
-                    !audio_is_ble_out_device(mCallRxSourceClient->sinkDevice()->type());
-            setVoiceVolume(index, curves, voiceVolumeManagedByHost, 0);
+    // update voice volume if the an active call route exists and target device is same as current
+    if (mCallRxSourceClient != nullptr && mCallRxSourceClient->isConnected()) {
+        audio_devices_t rxSinkDevice = mCallRxSourceClient->sinkDevice()->type();
+        audio_devices_t curVoiceDevice = Volume::getDeviceForVolume({rxSinkDevice});
+        if (curVoiceDevice == device
+                && curSrcDevices.find(curVoiceDevice) != curSrcDevices.end()) {
+            bool isVoiceVolSrc;
+            bool isBtScoVolSrc;
+            if (isVolumeConsistentForCalls(vs, {rxSinkDevice},
+                    isVoiceVolSrc, isBtScoVolSrc, __func__)
+                    && (isVoiceVolSrc || isBtScoVolSrc)) {
+                bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
+                        !audio_is_ble_out_device(rxSinkDevice);
+                setVoiceVolume(index, curves, voiceVolumeManagedByHost, 0);
+            }
         }
     }
 
@@ -7917,7 +7949,8 @@ void AudioPolicyManager::checkSecondaryOutputs() {
             for (auto &secondaryMix : secondaryMixes) {
                 sp<SwAudioOutputDescriptor> outputDesc = secondaryMix->getOutput();
                 if (outputDesc != nullptr &&
-                    outputDesc->mIoHandle != AUDIO_IO_HANDLE_NONE) {
+                    outputDesc->mIoHandle != AUDIO_IO_HANDLE_NONE &&
+                    outputDesc != outputDescriptor) {
                     secondaryDescs.push_back(outputDesc);
                 }
             }
