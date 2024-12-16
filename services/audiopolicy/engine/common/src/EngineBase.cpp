@@ -131,7 +131,7 @@ std::string EngineBase::getProductStrategyName(product_strategy_t id) const {
 }
 
 engineConfig::ParsingResult EngineBase::loadAudioPolicyEngineConfig(
-        const media::audio::common::AudioHalEngineConfig& aidlConfig)
+        const media::audio::common::AudioHalEngineConfig& aidlConfig, bool)
 {
     engineConfig::ParsingResult result = engineConfig::convert(aidlConfig);
     if (result.parsedConfig == nullptr) {
@@ -146,7 +146,8 @@ engineConfig::ParsingResult EngineBase::loadAudioPolicyEngineConfig(
     return processParsingResult(std::move(result));
 }
 
-engineConfig::ParsingResult EngineBase::loadAudioPolicyEngineConfig(const std::string& xmlFilePath)
+engineConfig::ParsingResult EngineBase::loadAudioPolicyEngineConfig(
+        const std::string& xmlFilePath, bool isConfigurable)
 {
     auto fileExists = [](const char* path) {
         struct stat fileStat;
@@ -155,7 +156,7 @@ engineConfig::ParsingResult EngineBase::loadAudioPolicyEngineConfig(const std::s
     const std::string filePath = xmlFilePath.empty() ? engineConfig::DEFAULT_PATH : xmlFilePath;
     engineConfig::ParsingResult result =
             fileExists(filePath.c_str()) ?
-            engineConfig::parse(filePath.c_str()) : engineConfig::ParsingResult{};
+            engineConfig::parse(filePath.c_str(), isConfigurable) : engineConfig::ParsingResult{};
     if (result.parsedConfig == nullptr) {
         ALOGD("%s: No configuration found, using default matching phone experience.", __FUNCTION__);
         engineConfig::Config config = gDefaultEngineConfig;
