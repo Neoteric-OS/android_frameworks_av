@@ -341,28 +341,32 @@ std::string IAfThreadBase::formatToString(audio_format_t format) {
 // under  #ifdef __cplusplus #endif
 static std::string patchSinksToString(const struct audio_patch *patch)
 {
-    std::stringstream ss;
+    std::string s;
     for (size_t i = 0; i < patch->num_sinks; ++i) {
-        if (i > 0) {
-            ss << "|";
+        if (i > 0) s.append("|");
+        if (patch->sinks[i].ext.device.address[0]) {
+            s.append("(").append(toString(patch->sinks[i].ext.device.type))
+                    .append(", ").append(patch->sinks[i].ext.device.address).append(")");
+        } else {
+            s.append(toString(patch->sinks[i].ext.device.type));
         }
-        ss << "(" << toString(patch->sinks[i].ext.device.type)
-            << ", " << patch->sinks[i].ext.device.address << ")";
     }
-    return ss.str();
+    return s;
 }
 
 static std::string patchSourcesToString(const struct audio_patch *patch)
 {
-    std::stringstream ss;
+    std::string s;
     for (size_t i = 0; i < patch->num_sources; ++i) {
-        if (i > 0) {
-            ss << "|";
+        if (i > 0) s.append("|");
+        if (patch->sources[i].ext.device.address[0]) {
+            s.append("(").append(toString(patch->sources[i].ext.device.type))
+                    .append(", ").append(patch->sources[i].ext.device.address).append(")");
+        } else {
+            s.append(toString(patch->sources[i].ext.device.type));
         }
-        ss << "(" << toString(patch->sources[i].ext.device.type)
-            << ", " << patch->sources[i].ext.device.address << ")";
     }
-    return ss.str();
+    return s;
 }
 
 static std::string toString(audio_latency_mode_t mode) {
@@ -3586,26 +3590,8 @@ void PlaybackThread::threadLoop_removeTracks(
 
 void PlaybackThread::checkSilentMode_l()
 {
-    if (!mMasterMute) {
-        char value[PROPERTY_VALUE_MAX];
-        if (mOutDeviceTypeAddrs.empty()) {
-            ALOGD("ro.audio.silent is ignored since no output device is set");
-            return;
-        }
-        if (isSingleDeviceType(outDeviceTypes_l(), AUDIO_DEVICE_OUT_REMOTE_SUBMIX)) {
-            ALOGD("ro.audio.silent will be ignored for threads on AUDIO_DEVICE_OUT_REMOTE_SUBMIX");
-            return;
-        }
-        if (property_get("ro.audio.silent", value, "0") > 0) {
-            char *endptr;
-            unsigned long ul = strtoul(value, &endptr, 0);
-            if (*endptr == '\0' && ul != 0) {
-                ALOGW("%s: mute from ro.audio.silent. Silence is golden", __func__);
-                // The setprop command will not allow a property to be changed after
-                // the first time it is set, so we don't have to worry about un-muting.
-                setMasterMute_l(true);
-            }
-        }
+    if (property_get_bool("ro.audio.silent", false)) {
+        ALOGW("ro.audio.silent is now ignored");
     }
 }
 
@@ -7992,6 +7978,7 @@ void DuplicatingThread::threadLoop_sleepTime()
 
 ssize_t DuplicatingThread::threadLoop_write()
 {
+    ATRACE_BEGIN("write");
     for (size_t i = 0; i < outputTracks.size(); i++) {
         const ssize_t actualWritten = outputTracks[i]->write(mSinkBuffer, writeFrames);
 
@@ -8010,6 +7997,7 @@ ssize_t DuplicatingThread::threadLoop_write()
 
         // TODO: Report correction for the other output tracks and show in the dump.
     }
+    ATRACE_END();
     if (mStandby) {
         mThreadMetrics.logBeginInterval();
         mThreadSnapshot.onBegin();
@@ -10533,13 +10521,13 @@ void MmapThread::configure_l(const audio_attributes_t* attr,
                                                 audio_stream_type_t streamType __unused,
                                                 audio_session_t sessionId,
                                                 const sp<MmapStreamCallback>& callback,
-                                                audio_port_handle_t deviceId,
+                                                const DeviceIdVector& deviceIds,
                                                 audio_port_handle_t portId)
 {
     mAttr = *attr;
     mSessionId = sessionId;
     mCallback = callback;
-    mDeviceId = deviceId;
+    mDeviceIds = deviceIds;
     mPortId = portId;
 }
 
@@ -10632,7 +10620,7 @@ status_t MmapThread::start(const AudioClient& client,
         audio_stream_type_t stream = streamType_l();
         audio_output_flags_t flags =
                 (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
-        audio_port_handle_t deviceId = mDeviceId;
+        DeviceIdVector deviceIds = mDeviceIds;
         std::vector<audio_io_handle_t> secondaryOutputs;
         bool isSpatialized;
         bool isBitPerfect;
@@ -10643,7 +10631,7 @@ status_t MmapThread::start(const AudioClient& client,
                                             adjAttributionSource,
                                             &config,
                                             flags,
-                                            &deviceId,
+                                            &deviceIds,
                                             &portId,
                                             &secondaryOutputs,
                                             &isSpatialized,
@@ -10659,7 +10647,7 @@ status_t MmapThread::start(const AudioClient& client,
         config.sample_rate = mSampleRate;
         config.channel_mask = mChannelMask;
         config.format = mFormat;
-        audio_port_handle_t deviceId = mDeviceId;
+        audio_port_handle_t deviceId = getFirstDeviceId(mDeviceIds);
         mutex().unlock();
         ret = AudioSystem::getInputForAttr(&localAttr, &io,
                                               RECORD_RIID_INVALID,
@@ -11012,7 +11000,7 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
 
     // store new device and send to effects
     audio_devices_t type = AUDIO_DEVICE_NONE;
-    audio_port_handle_t deviceId;
+    DeviceIdVector deviceIds;
     AudioDeviceTypeAddrVector sinkDeviceTypeAddrs;
     AudioDeviceTypeAddr sourceDeviceTypeAddr;
     uint32_t numDevices = 0;
@@ -11026,12 +11014,12 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
             type = static_cast<audio_devices_t>(type | patch->sinks[i].ext.device.type);
             sinkDeviceTypeAddrs.emplace_back(patch->sinks[i].ext.device.type,
                     patch->sinks[i].ext.device.address);
+            deviceIds.push_back(patch->sinks[i].id);
         }
-        deviceId = patch->sinks[0].id;
         numDevices = mPatch.num_sinks;
     } else {
         type = patch->sources[0].ext.device.type;
-        deviceId = patch->sources[0].id;
+        deviceIds.push_back(patch->sources[0].id);
         numDevices = mPatch.num_sources;
         sourceDeviceTypeAddr.mType = patch->sources[0].ext.device.type;
         sourceDeviceTypeAddr.setAddress(patch->sources[0].ext.device.address);
@@ -11061,11 +11049,11 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
 
     // For mmap streams, once the routing has changed, they will be disconnected. It should be
     // okay to notify the client earlier before the new patch creation.
-    if (mDeviceId != deviceId) {
+    if (!areDeviceIdsEqual(deviceIds, mDeviceIds)) {
         if (const sp<MmapStreamCallback> callback = mCallback.promote()) {
             // The aaudioservice handle the routing changed event asynchronously. In that case,
             // it is safe to hold the lock here.
-            callback->onRoutingChanged(deviceId);
+            callback->onRoutingChanged(deviceIds);
         }
     }
 
@@ -11085,7 +11073,7 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
 
-    if (numDevices == 0 || mDeviceId != deviceId) {
+    if (numDevices == 0 || (!areDeviceIdsEqual(deviceIds, mDeviceIds))) {
         if (isOutput()) {
             sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
             mOutDeviceTypeAddrs = sinkDeviceTypeAddrs;
@@ -11095,7 +11083,7 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
             mInDeviceTypeAddr = sourceDeviceTypeAddr;
         }
         mPatch = *patch;
-        mDeviceId = deviceId;
+        mDeviceIds = deviceIds;
     }
 
     return status;
@@ -11248,7 +11236,7 @@ void MmapThread::checkInvalidTracks_l()
             if (const sp<MmapStreamCallback> callback = mCallback.promote()) {
                 // The aaudioservice handle the routing changed event asynchronously. In that case,
                 // it is safe to hold the lock here.
-                callback->onRoutingChanged(AUDIO_PORT_HANDLE_NONE);
+                callback->onRoutingChanged({});
             } else if (mNoCallbackWarningCount < kMaxNoCallbackWarnings) {
                 ALOGW("Could not notify MMAP stream tear down: no onRoutingChanged callback!");
                 mNoCallbackWarningCount++;
@@ -11340,11 +11328,11 @@ void MmapPlaybackThread::configure(const audio_attributes_t* attr,
                                                 audio_stream_type_t streamType,
                                                 audio_session_t sessionId,
                                                 const sp<MmapStreamCallback>& callback,
-                                                audio_port_handle_t deviceId,
+                                                const DeviceIdVector& deviceIds,
                                                 audio_port_handle_t portId)
 {
     audio_utils::lock_guard l(mutex());
-    MmapThread::configure_l(attr, streamType, sessionId, callback, deviceId, portId);
+    MmapThread::configure_l(attr, streamType, sessionId, callback, deviceIds, portId);
     mStreamType = streamType;
 }
 
@@ -11564,18 +11552,8 @@ ThreadBase::MetadataUpdate MmapPlaybackThread::updateMetadata_l()
 
 void MmapPlaybackThread::checkSilentMode_l()
 {
-    if (!mMasterMute) {
-        char value[PROPERTY_VALUE_MAX];
-        if (property_get("ro.audio.silent", value, "0") > 0) {
-            char *endptr;
-            unsigned long ul = strtoul(value, &endptr, 0);
-            if (*endptr == '\0' && ul != 0) {
-                ALOGW("%s: mute from ro.audio.silent. Silence is golden", __func__);
-                // The setprop command will not allow a property to be changed after
-                // the first time it is set, so we don't have to worry about un-muting.
-                setMasterMute_l(true);
-            }
-        }
+    if (property_get_bool("ro.audio.silent", false)) {
+        ALOGW("ro.audio.silent is now ignored");
     }
 }
 

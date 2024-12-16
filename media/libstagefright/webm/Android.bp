@@ -11,8 +11,8 @@ cc_library_static {
     name: "libstagefright_webm",
 
     cflags: [
-        "-Werror",
         "-Wall",
+        "-Werror",
     ],
 
     sanitize: {
@@ -46,12 +46,13 @@ cc_library_static {
     ],
 
     shared_libs: [
+        "framework-permission-aidl-cpp",
+        "libaudiofoundation",
         "libdatasource",
+        "liblog",
         "libstagefright_foundation",
         "libutils",
-        "liblog",
         "libhidlbase",
-        "liblog",
         "libui",
         "libgui",
         "libmediadrm",
@@ -60,7 +61,6 @@ cc_library_static {
         "android.hardware.media.omx@1.0",
         "libhidlmemory",
         "libcamera_client",
-        "framework-permission-aidl-cpp",
     ],
 
     header_libs: [
@@ -68,7 +68,6 @@ cc_library_static {
         "libmedia_headers",
     ],
 }
-
 
 cc_library_headers {
     name: "libstagefright_webm_headers",

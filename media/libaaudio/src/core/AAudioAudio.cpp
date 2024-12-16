@@ -25,6 +25,7 @@
 
 #include <aaudio/AAudio.h>
 #include <aaudio/AAudioTesting.h>
+#include <system/aaudio/AAudio.h>
 #include "AudioClock.h"
 #include "AudioGlobal.h"
 #include "AudioStreamBuilder.h"
@@ -94,7 +95,11 @@ AAUDIO_API void AAudioStreamBuilder_setDeviceId(AAudioStreamBuilder* builder,
                                                 int32_t deviceId)
 {
     AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
-    streamBuilder->setDeviceId(deviceId);
+    android::DeviceIdVector deviceIds;
+    if (deviceId != AAUDIO_UNSPECIFIED) {
+        deviceIds.push_back(deviceId);
+    }
+    streamBuilder->setDeviceIds(deviceIds);
 }
 
 AAUDIO_API void AAudioStreamBuilder_setPackageName(AAudioStreamBuilder* builder,
@@ -175,6 +180,17 @@ AAUDIO_API void AAudioStreamBuilder_setContentType(AAudioStreamBuilder* builder,
                                                    aaudio_content_type_t contentType) {
     AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
     streamBuilder->setContentType(contentType);
+}
+
+AAUDIO_API aaudio_result_t AAudioStreamBuilder_setTags(AAudioStreamBuilder* builder,
+                                                       const char* tags) {
+    if (tags == nullptr || strlen(tags) >= AAUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+    AudioStreamBuilder *streamBuilder = convertAAudioBuilderToStreamBuilder(builder);
+    std::optional<std::string> optionalTags = std::string(tags);
+    streamBuilder->setTags(optionalTags);
+    return AAUDIO_OK;
 }
 
 AAUDIO_API void AAudioStreamBuilder_setSpatializationBehavior(AAudioStreamBuilder* builder,
@@ -525,7 +541,33 @@ AAUDIO_API aaudio_performance_mode_t AAudioStream_getPerformanceMode(AAudioStrea
 AAUDIO_API int32_t AAudioStream_getDeviceId(AAudioStream* stream)
 {
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
-    return audioStream->getDeviceId();
+    auto deviceIds = audioStream->getDeviceIds();
+    if (deviceIds.empty()) {
+        return AAUDIO_UNSPECIFIED;
+    }
+    return deviceIds[0];
+}
+
+AAUDIO_API aaudio_result_t AAudioStream_getDeviceIds(AAudioStream* stream, int32_t* ids,
+                                                     int32_t* numIds)
+{
+    if (numIds == nullptr) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
+    auto deviceIds = audioStream->getDeviceIds();
+    if (*numIds < deviceIds.size()) {
+        *numIds = deviceIds.size();
+        return AAUDIO_ERROR_OUT_OF_RANGE;
+    }
+    if (ids == nullptr) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+    for (int i = 0; i < deviceIds.size(); i++) {
+        ids[i] = deviceIds[i];
+    }
+    *numIds = deviceIds.size();
+    return AAUDIO_OK;
 }
 
 AAUDIO_API aaudio_sharing_mode_t AAudioStream_getSharingMode(AAudioStream* stream)
@@ -544,6 +586,22 @@ AAUDIO_API aaudio_content_type_t AAudioStream_getContentType(AAudioStream* strea
 {
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
     return audioStream->getContentType();
+}
+
+AAUDIO_API aaudio_result_t AAudioStream_getTags(AAudioStream* stream, char* tags)
+{
+    if (tags == nullptr) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
+    std::optional<std::string> optTags = audioStream->getTags();
+    if (optTags.has_value() && !optTags->empty()) {
+        strncpy(tags, optTags.value().c_str(), AAUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
+        tags[AAUDIO_ATTRIBUTES_TAGS_MAX_SIZE-1] = '\0';
+    } else {
+        tags[0] = '\0';
+    }
+    return AAUDIO_OK;
 }
 
 AAUDIO_API aaudio_spatialization_behavior_t AAudioStream_getSpatializationBehavior(

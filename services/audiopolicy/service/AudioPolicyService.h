@@ -117,7 +117,7 @@ public:
                                     int32_t session,
                                     const AttributionSourceState &attributionSource,
                                     const AudioConfig& config,
-                                    int32_t flags, int32_t selectedDeviceId,
+                                    int32_t flags, const std::vector<int32_t>& selectedDeviceIds,
                                     media::GetOutputForAttrResponse* _aidl_return) override;
     binder::Status startOutput(int32_t portId) override;
     binder::Status stopOutput(int32_t portId) override;
@@ -475,6 +475,8 @@ private:
 
     std::string getDeviceTypeStrForPortId(audio_port_handle_t portId);
 
+    std::string getDeviceTypeStrForPortIds(DeviceIdVector portIds);
+
     status_t getAudioPolicyEffects(sp<AudioPolicyEffects>& audioPolicyEffects);
 
     app_state_t apmStatFromAmState(int amState);
@@ -502,6 +504,14 @@ private:
                             const audio_config_base_t& config,
                             const audio_output_flags_t flags);
     status_t unregisterOutput(audio_io_handle_t output);
+
+    error::BinderResult<bool> evaluatePermsForSource(const AttributionSourceState& attrSource,
+                                                     AudioSource source, bool isHotword);
+
+    error::BinderResult<bool> evaluatePermsForDevice(const AttributionSourceState& attrSource,
+                                                     AudioSource source,
+                                                     AudioPolicyInterface::input_type_t inputType,
+                                                     uint32_t vdi, bool isCallRedir);
 
     // If recording we need to make sure the UID is allowed to do that. If the UID is idle
     // then it cannot record and gets buffers with zeros - silence. As soon as the UID
@@ -1023,10 +1033,10 @@ private:
                             const audio_io_handle_t io,
                             const AttributionSourceState& attributionSource,
                             const audio_session_t session,  audio_port_handle_t portId,
-                            const audio_port_handle_t deviceId) :
+                            const DeviceIdVector deviceIds) :
                                 attributes(attributes), io(io), attributionSource(
                                 attributionSource), session(session), portId(portId),
-                                deviceId(deviceId), active(false) {}
+                                deviceIds(deviceIds), active(false) {}
                 ~AudioClient() override = default;
 
 
@@ -1035,7 +1045,7 @@ private:
         const AttributionSourceState attributionSource; //client attributionsource
         const audio_session_t session;       // audio session ID
         const audio_port_handle_t portId;
-        const audio_port_handle_t deviceId;  // selected input device port ID
+        const DeviceIdVector deviceIds;  // selected input device port IDs
               bool active;                   // Playback/Capture is active or inactive
     };
     private:
@@ -1050,10 +1060,10 @@ private:
                 AudioPlaybackClient(const audio_attributes_t attributes,
                       const audio_io_handle_t io, AttributionSourceState attributionSource,
                             const audio_session_t session, audio_port_handle_t portId,
-                            audio_port_handle_t deviceId, audio_stream_type_t stream,
+                            DeviceIdVector deviceIds, audio_stream_type_t stream,
                             bool isSpatialized, audio_channel_mask_t channelMask) :
                     AudioClient(attributes, io, attributionSource, session, portId,
-                        deviceId), stream(stream), isSpatialized(isSpatialized),
+                        deviceIds), stream(stream), isSpatialized(isSpatialized),
                         channelMask(channelMask) {}
                 ~AudioPlaybackClient() override = default;
 

@@ -27,6 +27,7 @@
 #include <utils/StrongPointer.h>
 
 #include <aaudio/AAudio.h>
+#include <media/AudioContainers.h>
 #include <media/AudioSystem.h>
 #include <media/PlayerBase.h>
 #include <media/VolumeShaper.h>
@@ -268,8 +269,8 @@ public:
         mPerformanceMode = performanceMode;
     }
 
-    int32_t getDeviceId() const {
-        return mDeviceId;
+    android::DeviceIdVector getDeviceIds() const {
+        return mDeviceIds;
     }
 
     aaudio_sharing_mode_t getSharingMode() const {
@@ -288,6 +289,10 @@ public:
 
     aaudio_content_type_t getContentType() const {
         return mContentType;
+    }
+
+    const std::optional<std::string> getTags() const {
+        return mTags;
     }
 
     aaudio_spatialization_behavior_t getSpatializationBehavior() const {
@@ -407,7 +412,7 @@ public:
 
     // Implement AudioDeviceCallback
     void onAudioDeviceUpdate(audio_io_handle_t audioIo,
-            audio_port_handle_t deviceId) override {};
+            const android::DeviceIdVector& deviceIds) override {};
 
     // ============== I/O ===========================
     // A Stream will only implement read() or write() depending on its direction.
@@ -628,8 +633,8 @@ protected:
     }
     void setDisconnected();
 
-    void setDeviceId(int32_t deviceId) {
-        mDeviceId = deviceId;
+    void setDeviceIds(const android::DeviceIdVector& deviceIds) {
+        mDeviceIds = deviceIds;
     }
 
     // This should not be called after the open() call.
@@ -685,6 +690,13 @@ protected:
      */
     void setContentType(aaudio_content_type_t contentType) {
         mContentType = contentType;
+    }
+
+    /**
+     * This should not be called after the open() call.
+     */
+    void setTags(const std::optional<std::string> &tags) {
+        mTags = tags;
     }
 
     void setSpatializationBehavior(aaudio_spatialization_behavior_t spatializationBehavior) {
@@ -763,7 +775,7 @@ private:
     int32_t                     mSampleRate = AAUDIO_UNSPECIFIED;
     int32_t                     mDeviceSampleRate = AAUDIO_UNSPECIFIED;
     int32_t                     mHardwareSampleRate = AAUDIO_UNSPECIFIED;
-    int32_t                     mDeviceId = AAUDIO_UNSPECIFIED;
+    android::DeviceIdVector     mDeviceIds;
     aaudio_sharing_mode_t       mSharingMode = AAUDIO_SHARING_MODE_SHARED;
     bool                        mSharingModeMatchRequired = false; // must match sharing mode requested
     audio_format_t              mFormat = AUDIO_FORMAT_DEFAULT;
@@ -776,6 +788,7 @@ private:
 
     aaudio_usage_t              mUsage           = AAUDIO_UNSPECIFIED;
     aaudio_content_type_t       mContentType     = AAUDIO_UNSPECIFIED;
+    std::optional<std::string>  mTags            = {};
     aaudio_spatialization_behavior_t mSpatializationBehavior = AAUDIO_UNSPECIFIED;
     bool                        mIsContentSpatialized = false;
     aaudio_input_preset_t       mInputPreset     = AAUDIO_UNSPECIFIED;

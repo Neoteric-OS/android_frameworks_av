@@ -79,7 +79,7 @@ aaudio_result_t AudioStream::open(const AudioStreamBuilder& builder)
     mSamplesPerFrame = builder.getSamplesPerFrame();
     mChannelMask = builder.getChannelMask();
     mSampleRate = builder.getSampleRate();
-    mDeviceId = builder.getDeviceId();
+    mDeviceIds = builder.getDeviceIds();
     mFormat = builder.getFormat();
     mSharingMode = builder.getSharingMode();
     mSharingModeMatchRequired = builder.isSharingModeMatchRequired();
@@ -93,6 +93,7 @@ aaudio_result_t AudioStream::open(const AudioStreamBuilder& builder)
     if (mContentType == AAUDIO_UNSPECIFIED) {
         mContentType = AAUDIO_CONTENT_TYPE_MUSIC;
     }
+    mTags = builder.getTags();
     mSpatializationBehavior = builder.getSpatializationBehavior();
     // for consistency with other properties, note UNSPECIFIED is the same as AUTO
     if (mSpatializationBehavior == AAUDIO_UNSPECIFIED) {
@@ -203,7 +204,7 @@ aaudio_result_t AudioStream::systemStart() {
     aaudio_result_t result = requestStart_l();
     if (result == AAUDIO_OK) {
         // We only call this for logging in "dumpsys audio". So ignore return code.
-        (void) mPlayerBase->startWithStatus(getDeviceId());
+        (void) mPlayerBase->startWithStatus(getDeviceIds());
     }
     return result;
 }

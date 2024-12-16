@@ -18,6 +18,7 @@
 #define LOG_TAG "AAudioStreamParameters"
 #include <utils/Log.h>
 #include <system/audio.h>
+#include <system/aaudio/AAudio.h>
 
 #include "AAudioStreamParameters.h"
 
@@ -26,7 +27,7 @@ using namespace aaudio;
 void AAudioStreamParameters::copyFrom(const AAudioStreamParameters &other) {
     mSamplesPerFrame      = other.mSamplesPerFrame;
     mSampleRate           = other.mSampleRate;
-    mDeviceId             = other.mDeviceId;
+    mDeviceIds            = other.mDeviceIds;
     mSessionId            = other.mSessionId;
     mSharingMode          = other.mSharingMode;
     mAudioFormat          = other.mAudioFormat;
@@ -34,6 +35,7 @@ void AAudioStreamParameters::copyFrom(const AAudioStreamParameters &other) {
     mBufferCapacity       = other.mBufferCapacity;
     mUsage                = other.mUsage;
     mContentType          = other.mContentType;
+    mTags                 = other.mTags;
     mSpatializationBehavior = other.mSpatializationBehavior;
     mIsContentSpatialized = other.mIsContentSpatialized;
     mInputPreset          = other.mInputPreset;
@@ -72,9 +74,13 @@ aaudio_result_t AAudioStreamParameters::validate() const {
         return AAUDIO_ERROR_OUT_OF_RANGE;
     }
 
-    if (mDeviceId < 0) {
-        ALOGD("deviceId out of range = %d", mDeviceId);
-        return AAUDIO_ERROR_OUT_OF_RANGE;
+    // TODO(b/379139078): Query AudioSystem::listAudioPorts
+    for (auto deviceId : mDeviceIds) {
+        if (deviceId < 0) {
+            ALOGE("deviceId out of range = %d, deviceIds = %s", deviceId,
+                      android::toString(mDeviceIds).c_str());
+            return AAUDIO_ERROR_OUT_OF_RANGE;
+        }
     }
 
     // All Session ID values are legal.
@@ -199,6 +205,10 @@ aaudio_result_t AAudioStreamParameters::validate() const {
             // break;
     }
 
+    if (mTags.has_value() && mTags->size() >= AAUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+
     return validateChannelMask();
 }
 
@@ -290,7 +300,7 @@ aaudio_result_t AAudioStreamParameters::validateChannelMask() const {
 }
 
 void AAudioStreamParameters::dump() const {
-    ALOGD("mDeviceId             = %6d", mDeviceId);
+    ALOGD("mDeviceIds            = %s",  android::toString(mDeviceIds).c_str());
     ALOGD("mSessionId            = %6d", mSessionId);
     ALOGD("mSampleRate           = %6d", mSampleRate);
     ALOGD("mSamplesPerFrame      = %6d", mSamplesPerFrame);
@@ -301,6 +311,7 @@ void AAudioStreamParameters::dump() const {
     ALOGD("mBufferCapacity       = %6d", mBufferCapacity);
     ALOGD("mUsage                = %6d", mUsage);
     ALOGD("mContentType          = %6d", mContentType);
+    ALOGD("mTags                 = %s",  mTags.has_value() ? mTags.value().c_str() : "");
     ALOGD("mSpatializationBehavior = %6d", mSpatializationBehavior);
     ALOGD("mIsContentSpatialized = %s", mIsContentSpatialized ? "true" : "false");
     ALOGD("mInputPreset          = %6d", mInputPreset);

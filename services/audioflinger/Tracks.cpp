@@ -1090,7 +1090,7 @@ void Track::appendDump(String8& result, bool active) const
     result.appendFormat("%7s %7u/%7u %7u %7u %2s 0x%03X "
                         "%08X %08X %6u "
                         "%2u %3x %2x "
-                        "%5.2g %5.2g %5.2g %5.2g%c %11.2g %12s"
+                        "%5.2g %5.2g %5.2g %5.2g%c %11.2g %10s "
                         "%08X %6zu%c %6zu %c %9u%c %7u %10s %12s",
             active ? "yes" : "no",
             mClient ? mClient->pid() : getpid() ,
@@ -1327,7 +1327,8 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
 
         // states to reset position info for pcm tracks
         if (audio_is_linear_pcm(mFormat)
-                && (state == IDLE || state == STOPPED || state == FLUSHED)) {
+                && (state == IDLE || state == STOPPED || state == FLUSHED
+                        || state == PAUSED)) {
             mFrameMap.reset();
 
             if (!isFastTrack()) {

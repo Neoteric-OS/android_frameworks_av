@@ -54,7 +54,8 @@ protected:
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
             const AttributionSourceState& clientAttribution, int callingPid,
             bool systemNativeClient, const std::string& cameraId, int api1CameraId,
-            int cameraFacing, int sensorOrientation, int servicePid, int rotationOverride);
+            int cameraFacing, int sensorOrientation, int servicePid, int rotationOverride,
+            bool sharedMode);
 
     sp<hardware::camera2::ICameraDeviceCallbacks> mRemoteCallback;
 };
@@ -168,6 +169,8 @@ public:
             /*out*/
             sp<hardware::camera2::ICameraOfflineSession>* session) override;
 
+    virtual binder::Status isPrimaryClient(/*out*/bool* isPrimary) override;
+
     /**
      * Interface used by CameraService
      */
@@ -179,7 +182,7 @@ public:
                        const AttributionSourceState& clientAttribution, int callingPid,
                        bool clientPackageOverride, const std::string& cameraId, int cameraFacing,
                        int sensorOrientation, int servicePid, bool overrideForPerfClass,
-                       int rotationOverride, const std::string& originalCameraId);
+                       int rotationOverride, const std::string& originalCameraId, bool sharedMode);
     virtual ~CameraDeviceClient();
 
     virtual status_t      initialize(sp<CameraProviderManager> manager,
@@ -222,6 +225,7 @@ public:
     virtual void notifyPrepared(int streamId);
     virtual void notifyRequestQueueEmpty();
     virtual void notifyRepeatingRequestError(long lastFrameNumber);
+    virtual void notifyClientSharedAccessPriorityChanged(bool primaryClient);
 
     void setImageDumpMask(int mask) { if (mDevice != nullptr) mDevice->setImageDumpMask(mask); }
     /**
@@ -231,9 +235,6 @@ protected:
     /** FilteredListener implementation **/
     virtual void          onResultAvailable(const CaptureResult& result);
     virtual void          detachDevice();
-
-    // Calculate the ANativeWindow transform from android.sensor.orientation
-    status_t              getRotationTransformLocked(int mirrorMode, /*out*/int32_t* transform);
 
     bool supportsUltraHighResolutionCapture(const std::string &cameraId);
 
@@ -290,10 +291,6 @@ private:
             const hardware::camera2::params::OutputConfiguration &outputConfiguration,
             bool isShared,
             int* newStreamId = NULL);
-
-    // Set the stream transform flags to automatically rotate the camera stream for preview use
-    // cases.
-    binder::Status setStreamTransformLocked(int streamId, int mirrorMode);
 
     // Utility method to insert the surface into SurfaceMap
     binder::Status insertGbpLocked(const sp<IGraphicBufferProducer>& gbp,

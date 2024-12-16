@@ -136,9 +136,7 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
           notificationFrames, (uint)frameCount);
 
     // Don't call mAudioTrack->setDeviceId() because it will be overwritten by set()!
-    audio_port_handle_t selectedDeviceId = (getDeviceId() == AAUDIO_UNSPECIFIED)
-                                           ? AUDIO_PORT_HANDLE_NONE
-                                           : getDeviceId();
+    audio_port_handle_t selectedDeviceId = getFirstDeviceId(getDeviceIds());
 
     const audio_content_type_t contentType =
             AAudioConvert_contentTypeToInternal(builder.getContentType());
@@ -150,14 +148,14 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
                                                             builder.isContentSpatialized(),
                                                             flags);
 
-    const audio_attributes_t attributes = {
-            .content_type = contentType,
-            .usage = usage,
-            .source = AUDIO_SOURCE_DEFAULT, // only used for recording
-            .flags = attributesFlags,
-            .tags = ""
-    };
-
+    const std::optional<std::string> tags = builder.getTags();
+    audio_attributes_t attributes = AUDIO_ATTRIBUTES_INITIALIZER;
+    attributes.content_type = contentType;
+    attributes.usage = usage;
+    attributes.flags = attributesFlags;
+    if (tags.has_value() && !tags.value().empty()) {
+        strcpy(attributes.tags, tags.value().c_str());
+    }
     mAudioTrack = new AudioTrack();
     // TODO b/182392769: use attribution source util
     mAudioTrack->set(
@@ -201,7 +199,8 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
                  AudioGlobal_convertPerformanceModeToText(builder.getPerformanceMode()))
             .set(AMEDIAMETRICS_PROP_SHARINGMODE,
                  AudioGlobal_convertSharingModeToText(builder.getSharingMode()))
-            .set(AMEDIAMETRICS_PROP_ENCODINGCLIENT, toString(getFormat()).c_str()).record();
+            .set(AMEDIAMETRICS_PROP_ENCODINGCLIENT,
+                 android::toString(getFormat()).c_str()).record();
 
     doSetVolume();
 
@@ -237,7 +236,7 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
         mBlockAdapter = nullptr;
     }
 
-    setDeviceId(mAudioTrack->getRoutedDeviceId());
+    setDeviceIds(mAudioTrack->getRoutedDeviceIds());
 
     aaudio_session_id_t actualSessionId =
             (requestedSessionId == AAUDIO_SESSION_ID_NONE)
@@ -321,7 +320,7 @@ void AudioStreamTrack::onNewIAudioTrack() {
     if (mAudioTrack->channelCount() != getSamplesPerFrame()
           || mAudioTrack->format() != getFormat()
           || mAudioTrack->getSampleRate() != getSampleRate()
-          || mAudioTrack->getRoutedDeviceId() != getDeviceId()
+          || !areDeviceIdsEqual(mAudioTrack->getRoutedDeviceIds(), getDeviceIds())
           || getBufferCapacityFromDevice() != getBufferCapacity()
           || getFramesPerBurstFromDevice() != getFramesPerBurst()) {
         AudioStreamLegacy::onNewIAudioTrack();

@@ -22,16 +22,19 @@
 
 #include <camera/camera2/OutputConfiguration.h>
 #include <camera/StringUtils.h>
+#include <com_android_internal_camera_flags.h>
 #include <binder/Parcel.h>
 #include <gui/view/Surface.h>
 #include <system/camera_metadata.h>
 #include <system/graphics.h>
 #include <utils/String8.h>
 
+namespace flags = com::android::internal::camera::flags;
 
 namespace android {
 
 const int OutputConfiguration::INVALID_ROTATION = -1;
+const int OutputConfiguration::ROTATION_0 = 0;
 const int OutputConfiguration::INVALID_SET_ID = -1;
 
 const std::vector<sp<IGraphicBufferProducer>>&
@@ -99,6 +102,30 @@ int OutputConfiguration::getMirrorMode() const {
     return mMirrorMode;
 }
 
+int OutputConfiguration::getMirrorMode(sp<IGraphicBufferProducer> surface) const {
+    if (!flags::mirror_mode_shared_surfaces()) {
+        return mMirrorMode;
+    }
+
+    if (mGbps.size() != mMirrorModeForProducers.size()) {
+        ALOGE("%s: mGbps size doesn't match mMirrorModeForProducers: %zu vs %zu",
+                __FUNCTION__, mGbps.size(), mMirrorModeForProducers.size());
+        return mMirrorMode;
+    }
+
+    // Use per-producer mirror mode if available.
+    for (size_t i = 0; i < mGbps.size(); i++) {
+        if (mGbps[i] == surface) {
+            return mMirrorModeForProducers[i];
+        }
+    }
+
+    // For surface that doesn't belong to this output configuration, use
+    // mMirrorMode as default.
+    ALOGW("%s: Surface doesn't belong to this OutputConfiguration!", __FUNCTION__);
+    return mMirrorMode;
+}
+
 bool OutputConfiguration::useReadoutTimestamp() const {
     return mUseReadoutTimestamp;
 }
@@ -140,6 +167,29 @@ OutputConfiguration::OutputConfiguration() :
         mFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
         mDataspace(0),
         mUsage(0) {
+}
+
+OutputConfiguration::OutputConfiguration(int surfaceType, int width, int height, int format,
+        int32_t colorSpace, int mirrorMode, bool useReadoutTimestamp, int timestampBase,
+        int dataspace, int64_t usage, int64_t streamusecase, std::string physicalCamId):
+        mRotation(ROTATION_0),
+        mSurfaceSetID(INVALID_SET_ID),
+        mSurfaceType(surfaceType),
+        mWidth(width),
+        mHeight(height),
+        mIsDeferred(false),
+        mIsShared(false),
+        mPhysicalCameraId(physicalCamId),
+        mIsMultiResolution(false),
+        mDynamicRangeProfile(ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD),
+        mColorSpace(colorSpace),
+        mStreamUseCase(streamusecase),
+        mTimestampBase(timestampBase),
+        mMirrorMode(mirrorMode),
+        mUseReadoutTimestamp(useReadoutTimestamp),
+        mFormat(format),
+        mDataspace(dataspace),
+        mUsage(usage){
 }
 
 OutputConfiguration::OutputConfiguration(const android::Parcel& parcel) :
@@ -251,6 +301,12 @@ status_t OutputConfiguration::readFromParcel(const android::Parcel* parcel) {
         return err;
     }
 
+    std::vector<int> mirrorModeForProducers;
+    if ((err = parcel->readInt32Vector(&mirrorModeForProducers)) != OK) {
+        ALOGE("%s: Failed to read mirroring mode for surfaces from parcel", __FUNCTION__);
+        return err;
+    }
+
     int useReadoutTimestamp = 0;
     if ((err = parcel->readInt32(&useReadoutTimestamp)) != OK) {
         ALOGE("%s: Failed to read useReadoutTimestamp flag from parcel", __FUNCTION__);
@@ -286,6 +342,7 @@ status_t OutputConfiguration::readFromParcel(const android::Parcel* parcel) {
     mStreamUseCase = streamUseCase;
     mTimestampBase = timestampBase;
     mMirrorMode = mirrorMode;
+    mMirrorModeForProducers = std::move(mirrorModeForProducers);
     mUseReadoutTimestamp = useReadoutTimestamp != 0;
     for (auto& surface : surfaceShims) {
         ALOGV("%s: OutputConfiguration: %p, name %s", __FUNCTION__,
@@ -327,6 +384,7 @@ OutputConfiguration::OutputConfiguration(sp<IGraphicBufferProducer>& gbp, int ro
     mStreamUseCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT;
     mTimestampBase = TIMESTAMP_BASE_DEFAULT;
     mMirrorMode = MIRROR_MODE_AUTO;
+    mMirrorModeForProducers.push_back(mMirrorMode);
     mUseReadoutTimestamp = false;
     mFormat = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     mDataspace = 0;
@@ -344,9 +402,9 @@ OutputConfiguration::OutputConfiguration(
     mColorSpace(ANDROID_REQUEST_AVAILABLE_COLOR_SPACE_PROFILES_MAP_UNSPECIFIED),
     mStreamUseCase(ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT),
     mTimestampBase(TIMESTAMP_BASE_DEFAULT),
-    mMirrorMode(MIRROR_MODE_AUTO), mUseReadoutTimestamp(false),
-    mFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED), mDataspace(0),
-    mUsage(0) { }
+    mMirrorMode(MIRROR_MODE_AUTO), mMirrorModeForProducers(gbps.size(), mMirrorMode),
+    mUseReadoutTimestamp(false), mFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED),
+    mDataspace(0), mUsage(0) { }
 
 status_t OutputConfiguration::writeToParcel(android::Parcel* parcel) const {
 
@@ -409,6 +467,9 @@ status_t OutputConfiguration::writeToParcel(android::Parcel* parcel) const {
     err = parcel->writeInt32(mMirrorMode);
     if (err != OK) return err;
 
+    err = parcel->writeInt32Vector(mMirrorModeForProducers);
+    if (err != OK) return err;
+
     err = parcel->writeInt32(mUseReadoutTimestamp ? 1 : 0);
     if (err != OK) return err;
 
@@ -438,6 +499,20 @@ static bool simpleVectorsEqual(T first, T second) {
     return true;
 }
 
+template <typename T>
+static bool simpleVectorsLessThan(T first, T second) {
+    if (first.size() != second.size()) {
+        return first.size() < second.size();
+    }
+
+    for (size_t i = 0; i < first.size(); i++) {
+        if (first[i] != second[i]) {
+            return first[i] < second[i];
+        }
+    }
+    return false;
+}
+
 bool OutputConfiguration::gbpsEqual(const OutputConfiguration& other) const {
     const std::vector<sp<IGraphicBufferProducer> >& otherGbps =
             other.getGraphicBufferProducers();
@@ -449,20 +524,20 @@ bool OutputConfiguration::sensorPixelModesUsedEqual(const OutputConfiguration& o
     return simpleVectorsEqual(othersensorPixelModesUsed, mSensorPixelModesUsed);
 }
 
+bool OutputConfiguration::mirrorModesEqual(const OutputConfiguration& other) const {
+    const std::vector<int>& otherMirrorModes = other.getMirrorModes();
+    return simpleVectorsEqual(otherMirrorModes, mMirrorModeForProducers);
+
+}
+
 bool OutputConfiguration::sensorPixelModesUsedLessThan(const OutputConfiguration& other) const {
     const std::vector<int32_t>& spms = other.getSensorPixelModesUsed();
+    return simpleVectorsLessThan(mSensorPixelModesUsed, spms);
+}
 
-    if (mSensorPixelModesUsed.size() !=  spms.size()) {
-        return mSensorPixelModesUsed.size() < spms.size();
-    }
-
-    for (size_t i = 0; i < spms.size(); i++) {
-        if (mSensorPixelModesUsed[i] != spms[i]) {
-            return mSensorPixelModesUsed[i] < spms[i];
-        }
-    }
-
-    return false;
+bool OutputConfiguration::mirrorModesLessThan(const OutputConfiguration& other) const {
+    const std::vector<int>& otherMirrorModes = other.getMirrorModes();
+    return simpleVectorsLessThan(mMirrorModeForProducers, otherMirrorModes);
 }
 
 bool OutputConfiguration::gbpsLessThan(const OutputConfiguration& other) const {
