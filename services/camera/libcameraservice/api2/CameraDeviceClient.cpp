@@ -1026,12 +1026,9 @@ binder::Status CameraDeviceClient::createStream(
 
         int mirrorMode = outputConfiguration.getMirrorMode(surface);
         sp<Surface> outSurface;
-        res = SessionConfigurationUtils::createSurfaceFromGbp(streamInfo,
-                isStreamInfoValid, outSurface, surface
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-                .graphicBufferProducer
-#endif
-                , mCameraIdStr,
+        res = SessionConfigurationUtils::createConfiguredSurface(streamInfo,
+                isStreamInfoValid, outSurface,
+                flagtools::convertParcelableSurfaceTypeToSurface(surface), mCameraIdStr,
                 mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
                 streamUseCase,
                 timestampBase,
@@ -1422,14 +1419,9 @@ binder::Status CameraDeviceClient::updateOutputConfiguration(int streamId,
         OutputStreamInfo outInfo;
         sp<Surface> outSurface;
         int mirrorMode = outputConfiguration.getMirrorMode(newOutputsMap.valueAt(i));
-        res = SessionConfigurationUtils::createSurfaceFromGbp(outInfo,
+        res = SessionConfigurationUtils::createConfiguredSurface(outInfo,
                 /*isStreamInfoValid*/ false, outSurface, 
-                newOutputsMap
-                        .valueAt(i)
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-                        .graphicBufferProducer
-#endif
-                ,
+                flagtools::convertParcelableSurfaceTypeToSurface(newOutputsMap.valueAt(i)),
                 mCameraIdStr,
                 mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
                 streamUseCase,
@@ -1832,15 +1824,11 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
 
         sp<Surface> outSurface;
         int mirrorMode = outputConfiguration.getMirrorMode(surface);
-        res = SessionConfigurationUtils::createSurfaceFromGbp(
+        res = SessionConfigurationUtils::createConfiguredSurface(
                 mStreamInfoMap[streamId], 
                 true /*isStreamInfoValid*/, 
                 outSurface,
-                surface
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-                .graphicBufferProducer
-#endif
-                , 
+                flagtools::convertParcelableSurfaceTypeToSurface(surface),
                 mCameraIdStr, 
                 mDevice->infoPhysical(physicalId),
                 sensorPixelModesUsed, 

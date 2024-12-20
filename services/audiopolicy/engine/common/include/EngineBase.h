@@ -185,6 +185,8 @@ public:
 
     void updateDeviceSelectionCache() override;
 
+    void setDefaultConfiguration();
+
 protected:
     DeviceVector getPreferredAvailableDevicesForProductStrategy(
         const DeviceVector& availableOutputDevices, product_strategy_t strategy) const;
