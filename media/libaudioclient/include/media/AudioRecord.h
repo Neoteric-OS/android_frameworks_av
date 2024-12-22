@@ -591,7 +591,7 @@ public:
     /* Get the flags */
             audio_input_flags_t getFlags() const { AutoMutex _l(mLock); return mFlags; }
 
-    /* Set parameters - Must be used with direct input */
+    /* Set parameters */
             status_t    setParameters(const String8& keyValuePairs);
 
     /* Get parameters */
