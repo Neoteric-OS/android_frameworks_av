@@ -4805,6 +4805,7 @@ status_t AudioPolicyManager::setDevicesRoleForCapturePreset(
 
     if (status == NO_ERROR) {
         updateInputRouting();
+        updateCallRouting(false /*fromCache*/);
     }
     return status;
 }
@@ -4822,7 +4823,10 @@ status_t AudioPolicyManager::addDevicesRoleForCapturePreset(
             "Engine could not add preferred devices %s for audio source %d role %d",
             dumpAudioDeviceTypeAddrVector(devices).c_str(), audioSource, role);
 
-    updateInputRouting();
+    if (status == NO_ERROR) {
+        updateInputRouting();
+        updateCallRouting(false /*fromCache*/);
+    }
     return status;
 }
 
@@ -4843,6 +4847,7 @@ status_t AudioPolicyManager::removeDevicesRoleForCapturePreset(
             "Engine could not remove devices role (%d) for capture preset %d", role, audioSource);
     if (status == NO_ERROR) {
         updateInputRouting();
+        updateCallRouting(false /*fromCache*/);
     }
     return status;
 }
@@ -4856,6 +4861,7 @@ status_t AudioPolicyManager::clearDevicesRoleForCapturePreset(audio_source_t aud
             "Engine could not clear devices role (%d) for capture preset %d", role, audioSource);
     if (status == NO_ERROR) {
         updateInputRouting();
+        updateCallRouting(false /*fromCache*/);
     }
     return status;
 }
