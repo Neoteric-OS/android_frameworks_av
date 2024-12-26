@@ -4111,6 +4111,7 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
         audio_io_handle_t outputSpatializer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputDeepBuffer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputPrimary = AUDIO_IO_HANDLE_NONE;
+        audio_io_handle_t outputDirect = AUDIO_IO_HANDLE_NONE;
 
         for (audio_io_handle_t outputLoop : outputs) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(outputLoop);
@@ -4128,7 +4129,7 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
                 }
             }
             if ((desc->mFlags == AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
-                outputSpatializer = output;
+                outputDirect = outputLoop;
             }
             if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
                 outputDeepBuffer = outputLoop;
@@ -4141,6 +4142,8 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
             output = outputOffloaded;
         } else if (outputSpatializer != AUDIO_IO_HANDLE_NONE) {
             output = outputSpatializer;
+        } else if (outputDirect != AUDIO_IO_HANDLE_NONE) {
+             output = outputDirect;
         } else if (outputDeepBuffer != AUDIO_IO_HANDLE_NONE) {
             output = outputDeepBuffer;
         } else if (outputPrimary != AUDIO_IO_HANDLE_NONE) {
