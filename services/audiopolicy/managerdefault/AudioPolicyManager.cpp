@@ -1891,18 +1891,6 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
             ? static_cast<audio_channel_mask_t>(config->channel_mask & ~AUDIO_CHANNEL_HAPTIC_ALL)
             : config->channel_mask;
 
-
-    String8 value;
-    String8 reply =  mpClientInterface->getParameters(AUDIO_IO_HANDLE_NONE,
-                                          String8("vr_audio_mode_on"));
-    AudioParameter repliedParameter(reply);
-    if (repliedParameter.get(String8("vr_audio_mode_on"), value) == NO_ERROR &&
-        value.contains("true")) {
-        ALOGI("%s VR mode is on, switch to primary output requested flags 0x%X",__func__, *flags);
-        *flags = (audio_output_flags_t)(*flags &
-                    (~(AUDIO_OUTPUT_FLAG_FAST|AUDIO_OUTPUT_FLAG_RAW)));
-    }
-
     audio_stream_type_t stream = mEngine->getStreamTypeForAttributes(*attr);
 
     /*
@@ -1961,7 +1949,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
         *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE || *flags == AUDIO_OUTPUT_FLAG_DIRECT ||
                 (*flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) && !isInCall() &&
-                *flags == AUDIO_OUTPUT_FLAG_NONE && mConfig->useDeepBufferForMedia()) {
+                mConfig->useDeepBufferForMedia()) {
         // use DEEP_BUFFER as default output for music stream type
         forceDeepBuffer = true;
     }
@@ -4123,6 +4111,7 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
         audio_io_handle_t outputSpatializer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputDeepBuffer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputPrimary = AUDIO_IO_HANDLE_NONE;
+        audio_io_handle_t outputDirect = AUDIO_IO_HANDLE_NONE;
 
         for (audio_io_handle_t outputLoop : outputs) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(outputLoop);
@@ -4140,7 +4129,7 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
                 }
             }
             if ((desc->mFlags == AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
-                outputSpatializer = output;
+                outputDirect = outputLoop;
             }
             if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
                 outputDeepBuffer = outputLoop;
@@ -4153,6 +4142,8 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
             output = outputOffloaded;
         } else if (outputSpatializer != AUDIO_IO_HANDLE_NONE) {
             output = outputSpatializer;
+        } else if (outputDirect != AUDIO_IO_HANDLE_NONE) {
+             output = outputDirect;
         } else if (outputDeepBuffer != AUDIO_IO_HANDLE_NONE) {
             output = outputDeepBuffer;
         } else if (outputPrimary != AUDIO_IO_HANDLE_NONE) {
