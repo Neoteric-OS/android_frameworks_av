@@ -30,9 +30,7 @@
 
 #include <audio_utils/StringUtils.h>
 #include <audio_utils/minifloat.h>
-#include <com_android_media_audio.h>
 #include <media/AudioValidator.h>
-#include <media/AppOpsSession.h>
 #include <media/RecordBufferConverter.h>
 #include <media/nbaio/Pipe.h>
 #include <media/nbaio/PipeReader.h>
@@ -73,10 +71,8 @@ namespace android {
 
 using ::android::aidl_utils::binderStatusFromStatusT;
 using binder::Status;
-using ::com::android::media::audio::hardening_impl;
 using content::AttributionSourceState;
 using media::VolumeShaper;
-
 // ----------------------------------------------------------------------------
 //      TrackBase
 // ----------------------------------------------------------------------------
@@ -429,6 +425,14 @@ void TrackBase::logRefreshInterval(const std::string& devices) {
                 trace.set(AUDIO_TRACE_OBJECT_KEY_EVENT,
                                AUDIO_TRACE_EVENT_REFRESH_INTERVAL)
                         .toTrace().c_str());
+    }
+}
+
+void TrackBase::signal() {
+    const sp<IAfThreadBase> thread = mThread.promote();
+    if (thread != nullptr) {
+        audio_utils::lock_guard _l(thread->mutex());
+        thread->broadcast_l();
     }
 }
 
@@ -928,26 +932,6 @@ Track::Track(
         ALOGE("%s(%d): no more tracks available", __func__, mId);
         releaseCblk(); // this makes the track invalid.
         return;
-    }
-
-    using media::permission::ValidatedAttributionSourceState;
-    using media::permission::Ops;
-
-    if (hardening_impl()) {
-        // Don't bother for non-output tracks and server uids
-        if (!media::permission::skipOpsForUid(attributionSource.uid) && type != TYPE_PATCH) {
-            mOpControlSession.emplace(
-                ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
-                Ops { .attributedOp = AppOpsManager::OP_CONTROL_AUDIO_PARTIAL },
-                [this]
-                (bool isPermitted) {
-                    mHasOpControl.store(isPermitted, std::memory_order_release);
-                    if (isOffloaded()) {
-                        signal();
-                    }
-                }
-            );
-        }
     }
 
     if (sharedBuffer == 0) {
@@ -1517,13 +1501,6 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
         status = BAD_VALUE;
     }
     if (status == NO_ERROR) {
-        // start OP_AUDIO_CONTROL session for track
-        // TODO(b/385417236) once mute logic is centralized, the delivery request session should be
-        // tied to sonifying playback instead of track start->pause
-        if (mOpControlSession) {
-            mHasOpControl.store(mOpControlSession->beginDeliveryRequest(),
-                                std::memory_order_release);
-        }
         // send format to AudioManager for playback activity monitoring
         const sp<IAudioManager> audioManager =
                 thread->afThreadCallback()->getOrCreateAudioManager();
@@ -1585,15 +1562,6 @@ void Track::stop()
         }
         forEachTeePatchTrack_l([](const auto& patchTrack) { patchTrack->stop(); });
     }
-    // TODO(b/385417236)
-    // Due to the complexity of state management for offload we do not call endDeliveryRequest().
-    // For offload tracks, sonification may continue significantly after the STOP
-    // phase begins. Leave the session on-going until the track is eventually
-    // destroyed. We continue to allow appop callbacks during STOPPING and STOPPED state.
-    // This is suboptimal but harmless.
-    if (mOpControlSession && !isOffloaded()) {
-        mOpControlSession->endDeliveryRequest();
-    }
 }
 
 void Track::pause()
@@ -1637,11 +1605,6 @@ void Track::pause()
         }
         // Pausing the TeePatch to avoid a glitch on underrun, at the cost of buffered audio loss.
         forEachTeePatchTrack_l([](const auto& patchTrack) { patchTrack->pause(); });
-    }
-    // When stopping a paused track, there will be two endDeliveryRequests. This is tolerated by
-    // the implementation.
-    if (mOpControlSession) {
-        mOpControlSession->endDeliveryRequest();
     }
 }
 
@@ -2123,16 +2086,6 @@ void Track::signalClientFlag(int32_t flag)
     android_atomic_release_store(0x40000000, &cblk->mFutex);
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) syscall(__NR_futex, &cblk->mFutex, FUTEX_WAKE, INT_MAX);
-}
-
-void Track::signal()
-{
-    const sp<IAfThreadBase> thread = mThread.promote();
-    if (thread != 0) {
-        auto* const t = thread->asIAfPlaybackThread().get();
-        audio_utils::lock_guard _l(t->mutex());
-        t->broadcast_l();
-    }
 }
 
 status_t Track::getDualMonoMode(audio_dual_mono_mode_t* mode) const
