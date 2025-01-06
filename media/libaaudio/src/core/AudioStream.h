@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <mutex>
+#include <set>
 #include <stdint.h>
 
 #include <android-base/thread_annotations.h>
@@ -291,7 +292,7 @@ public:
         return mContentType;
     }
 
-    const std::optional<std::string> getTags() const {
+    const std::set<std::string>& getTags() const {
         return mTags;
     }
 
@@ -332,7 +333,7 @@ public:
      * have been called.
      */
     int32_t getBytesPerFrame() const {
-        return mSamplesPerFrame * getBytesPerSample();
+        return audio_bytes_per_frame(mSamplesPerFrame, mFormat);
     }
 
     /**
@@ -346,7 +347,7 @@ public:
      * This is only valid after setDeviceSamplesPerFrame() and setDeviceFormat() have been called.
      */
     int32_t getBytesPerDeviceFrame() const {
-        return getDeviceSamplesPerFrame() * audio_bytes_per_sample(getDeviceFormat());
+        return audio_bytes_per_frame(getDeviceSamplesPerFrame(), getDeviceFormat());
     }
 
     virtual int64_t getFramesWritten() = 0;
@@ -390,6 +391,24 @@ public:
         mDeviceSamplesPerFrame = deviceSamplesPerFrame;
     }
 
+    virtual aaudio_result_t setOffloadDelayPadding(int32_t delayInFrames, int32_t paddingInFrames) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
+    virtual int32_t getOffloadDelay() {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
+    virtual int32_t getOffloadPadding() {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
+    virtual aaudio_result_t setOffloadEndOfStream() EXCLUDES(mStreamLock) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
+    virtual void setPresentationEndCallbackProc(AAudioStream_presentationEndCallback proc) { }
+    virtual void setPresentationEndCallbackUserData(void* userData) { }
 
     /**
      * @return true if data callback has been specified
@@ -408,7 +427,7 @@ public:
     /**
      * @return true if called from the same thread as the callback
      */
-    bool collidesWithCallback() const;
+    virtual bool collidesWithCallback() const;
 
     // Implement AudioDeviceCallback
     void onAudioDeviceUpdate(audio_io_handle_t audioIo,
@@ -649,6 +668,8 @@ protected:
 
     aaudio_result_t joinThread_l(void **returnArg) REQUIRES(mStreamLock);
 
+    virtual aaudio_result_t systemStopInternal_l() REQUIRES(mStreamLock);
+
     std::atomic<bool>    mCallbackEnabled{false};
 
     float                mDuckAndMuteVolume = 1.0f;
@@ -695,9 +716,11 @@ protected:
     /**
      * This should not be called after the open() call.
      */
-    void setTags(const std::optional<std::string> &tags) {
+    void setTags(const std::set<std::string> &tags) {
         mTags = tags;
     }
+
+    std::string getTagsAsString() const;
 
     void setSpatializationBehavior(aaudio_spatialization_behavior_t spatializationBehavior) {
         mSpatializationBehavior = spatializationBehavior;
@@ -742,6 +765,8 @@ protected:
         mAudioBalance = audioBalance;
     }
 
+    aaudio_result_t safeStop_l() REQUIRES(mStreamLock);
+
     std::string mMetricsId; // set once during open()
 
     std::mutex                 mStreamLock;
@@ -749,8 +774,6 @@ protected:
     const android::sp<MyPlayerBase>   mPlayerBase;
 
 private:
-
-    aaudio_result_t safeStop_l() REQUIRES(mStreamLock);
 
     /**
      * Release then close the stream.
@@ -788,7 +811,7 @@ private:
 
     aaudio_usage_t              mUsage           = AAUDIO_UNSPECIFIED;
     aaudio_content_type_t       mContentType     = AAUDIO_UNSPECIFIED;
-    std::optional<std::string>  mTags            = {};
+    std::set<std::string>       mTags;
     aaudio_spatialization_behavior_t mSpatializationBehavior = AAUDIO_UNSPECIFIED;
     bool                        mIsContentSpatialized = false;
     aaudio_input_preset_t       mInputPreset     = AAUDIO_UNSPECIFIED;

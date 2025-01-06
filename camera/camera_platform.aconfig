@@ -183,6 +183,13 @@ flag {
 
 flag {
     namespace: "camera_platform"
+    name: "depth_jpeg_extensions"
+    description: "Add Depth Jpeg extension output support"
+    bug: "362788689"
+}
+
+flag {
+    namespace: "camera_platform"
     name: "mirror_mode_shared_surfaces"
     is_exported: true
     description: "Support setting and getting mirror mode for shared surfaces"
@@ -255,4 +262,21 @@ flag {
     metadata {
         purpose: PURPOSE_BUGFIX
     }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "fmq_metadata"
+    description: "Allow CameraMetadata transfer for ndk / sdk clients."
+    bug: "362791857"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "desktop_effects"
+    description: "Applies system controlled effects targetting video conferencing"
+    bug: "376797335"
 }
