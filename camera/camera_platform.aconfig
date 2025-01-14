@@ -225,7 +225,7 @@ flag {
     name: "zoom_method"
     is_exported: true
     description: "Gives apps explicit control on reflects zoom via ZOOM_RATIO capture result"
-    bug: "298899993"
+    bug: "350076823"
 }
 
 flag {
@@ -279,4 +279,14 @@ flag {
     name: "desktop_effects"
     description: "Applies system controlled effects targetting video conferencing"
     bug: "376797335"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "metadata_resize_fix"
+    description: "metadata resize during update needs to consider existing entry"
+    bug: "379388099"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
