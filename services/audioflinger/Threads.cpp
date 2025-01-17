@@ -5865,6 +5865,8 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                         volume = masterVolume * track->getPortVolume();
                     }
                 }
+                track->maybeLogPlaybackHardening(
+                        *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
                 handleVoipVolume_l(&volume);
 
                 // cache the combined master volume and stream type volume for fast mixer; this
@@ -6062,6 +6064,8 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 }
             }
             handleVoipVolume_l(&v);
+            track->maybeLogPlaybackHardening(
+                    *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
 
             if (track->isPausing()) {
                 vl = vr = 0;
@@ -6891,6 +6895,9 @@ void DirectOutputThread::processVolume_l(IAfTrack* track, bool lastTrack)
                                track->getPortMute(),
                                track->isPlaybackRestrictedControl()});
     }
+    track->maybeLogPlaybackHardening(
+            *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
+
 
     if (lastTrack) {
         track->setFinalVolume(left, right);
@@ -10634,9 +10641,13 @@ status_t MmapThread::start(const AudioClient& client,
     sp<IAfMmapTrack> track = IAfMmapTrack::create(
             this, attr == nullptr ? mAttr : *attr, mSampleRate, mFormat,
                                         mChannelMask, mSessionId, isOutput(),
-                                        client.attributionSource,
+                                        adjAttributionSource,
                                         IPCThreadState::self()->getCallingPid(), portId,
                                         volume, muted);
+
+    // MMAP tracks are only created when they are started, so mark them as Start for the purposes
+    // of the IAfTrackBase interface
+    track->start();
     if (!isOutput()) {
         track->setSilenced_l(isClientSilenced_l(portId));
     }
@@ -10647,7 +10658,7 @@ status_t MmapThread::start(const AudioClient& client,
     } else if (!track->isSilenced_l()) {
         for (const sp<IAfMmapTrack>& t : mActiveTracks) {
             if (t->isSilenced_l()
-                    && t->uid() != static_cast<uid_t>(client.attributionSource.uid)) {
+                    && t->uid() != static_cast<uid_t>(adjAttributionSource.uid)) {
                 t->invalidate();
             }
         }
@@ -10702,6 +10713,7 @@ status_t MmapThread::stop(audio_port_handle_t handle)
 
     mActiveTracks.remove(track);
     eraseClientSilencedState_l(track->portId());
+    track->stop();
 
     mutex().unlock();
     if (isOutput()) {
@@ -11396,6 +11408,13 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
             }
         }
     }
+
+    bool shouldMutePlaybackHardening = std::all_of(mActiveTracks.begin(), mActiveTracks.end(),
+            [](const auto& x) { return x->isPlaybackRestrictedControl(); });
+    if (shouldMutePlaybackHardening) {
+        volume = 0;
+    }
+
     if (volume != mHalVolFloat) {
         // Convert volumes from float to 8.24
         uint32_t vol = (uint32_t)(volume * (1 << 24));
@@ -11437,7 +11456,8 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
                         false /*muteFromPlaybackRestricted*/,
                         false /*muteFromClientVolume*/,
                         false /*muteFromVolumeShaper*/,
-                        false /*muteFromPortVolume*/});
+                        false /*muteFromPortVolume*/,
+                        shouldMutePlaybackHardening});
             } else {
                 track->processMuteEvent_l(mAfThreadCallback->getOrCreateAudioManager(),
                     /*muteState=*/{mMasterMute,
@@ -11447,8 +11467,12 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
                                    false /*muteFromPlaybackRestricted*/,
                                    false /*muteFromClientVolume*/,
                                    false /*muteFromVolumeShaper*/,
-                                   track->getPortMute()});
-                }
+                                   track->getPortMute(),
+                                   shouldMutePlaybackHardening});
+            }
+            track->maybeLogPlaybackHardening(
+                    *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
+
         }
     }
 }
