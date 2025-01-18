@@ -75,6 +75,8 @@ enum {
     // uint8_t
     kNumViews,
     // uint8_t
+    kVpsMaxSubLayersMinusOne,
+    // uint8_t
     kSpsMaxSubLayersMinusOne,
     // unit8_t
     kSeiLeftViewId,
