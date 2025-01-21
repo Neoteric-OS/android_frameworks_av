@@ -220,6 +220,9 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
     // vps_max_sub_layers_minus1
     uint8_t maxSubLayersMinusOne;
     maxSubLayersMinusOne = reader.getBits(3);
+    // save vps_max_sub_layers_minus1 for further use
+    mParams.add(kVpsMaxSubLayersMinusOne, maxSubLayersMinusOne);
+
     // Skip vps_temporal_id_nesting_flags
     reader.skipBits(1);
     // Skip reserved
@@ -323,16 +326,22 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
 status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
         const uint8_t nuhLayerId) {
     ALOGV("parseSPS, nuh_layer_id : %d", nuhLayerId);
-    // See Rec. ITU-T H.265 v3 (04/2015) Chapter 7.3.2.2 for reference
+    // See Rec. ITU-T H.265 v8 (08/2021) Chapter 7.3.2.2 for reference
     NALBitReader reader(data, size);
     // Skip sps_video_parameter_set_id
     reader.skipBits(4);
-    uint8_t maxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+
+    uint8_t extOrMaxSubLayersMinus1 = 0, maxSubLayersMinus1 = 0;
     if (nuhLayerId == 0) {
-        mParams.add(kSpsMaxSubLayersMinusOne, maxSubLayersMinus1);
+        maxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+    } else {
+        // extOrMaxSubLayersMinus1 is defined in F.7.3.2.2.1
+        extOrMaxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+        maxSubLayersMinus1 = (extOrMaxSubLayersMinus1 == 7)
+            ? mParams.valueFor(kVpsMaxSubLayersMinusOne) : extOrMaxSubLayersMinus1;
     }
-    // extOrMaxSubLayersMinus1 is defined in F.7.3.2.2.1
-    uint8_t extOrMaxSubLayersMinus1 = maxSubLayersMinus1;
+    mParams.add(kSpsMaxSubLayersMinusOne, maxSubLayersMinus1);
+
     const bool MultiLayerExtSpsFlag = nuhLayerId > 0 && extOrMaxSubLayersMinus1 == 7;
     // additonal condition is defined in F.7.3.2.2.1
     if (!MultiLayerExtSpsFlag) {
@@ -619,8 +628,10 @@ status_t HevcParameterSets::parseProfileTierLevel(const bool profilePresentFlag,
     bool subLayerProfilePresentFlag[8];
     bool subLayerLevelPresentFlag[8];
     for (int i = 0; i < maxNumSubLayersMinus1; ++i) {
-        subLayerProfilePresentFlag[i] = reader.getBits(1);
-        subLayerLevelPresentFlag[i] = reader.getBits(1);
+        if (reader.atLeastNumBitsLeft(2)) {
+            subLayerProfilePresentFlag[i] = reader.getBits(1);
+            subLayerLevelPresentFlag[i] = reader.getBits(1);
+        }
     }
     // Skip
     if (maxNumSubLayersMinus1 > 0) {

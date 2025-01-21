@@ -51,6 +51,15 @@ flag {
 }
 
 flag {
+    name: "defer_wear_permission_updates"
+    namespace: "media_audio"
+    description:
+        "defer permission updates to reduce pressure"
+        "on app launch latency on lower core devices."
+    bug: "380347376"
+}
+
+flag {
     name: "disable_prescale_absolute_volume"
     namespace: "media_audio"
     description:
@@ -80,6 +89,14 @@ flag {
     is_exported: true
     namespace: "media_audio"
     description: "Flag for overall implementation of hardening"
+    bug: "376480814"
+}
+
+flag {
+    name: "hardening_partial"
+    is_exported: true
+    namespace: "media_audio"
+    description: "Flag for partial enforcement of hardening"
     bug: "376480814"
 }
 
