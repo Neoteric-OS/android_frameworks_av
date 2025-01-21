@@ -124,6 +124,8 @@ static inline T min(const T& a, const T& b)
     return a < b ? a : b;
 }
 
+using com::android::media::audio::audioserver_permissions;
+using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using com::android::media::permission::ValidatedAttributionSourceState;
 namespace audioserver_flags = com::android::media::audioserver;
 
@@ -3418,49 +3420,37 @@ ThreadBase::MetadataUpdate PlaybackThread::updateMetadata_l()
         return {}; // nothing to do
     }
     StreamOutHalInterface::SourceMetadata metadata;
-    static const bool stereo_spatialization_property =
-            property_get_bool("ro.audio.stereo_spatialization_enabled", false);
-    const bool stereo_spatialization_enabled =
-            stereo_spatialization_property && com_android_media_audio_stereo_spatialization();
-    if (stereo_spatialization_enabled) {
-        std::map<audio_session_t, std::vector<playback_track_metadata_v7_t> >allSessionsMetadata;
-        for (const sp<IAfTrack>& track : mActiveTracks) {
-            std::vector<playback_track_metadata_v7_t>& sessionMetadata =
-                    allSessionsMetadata[track->sessionId()];
-            auto backInserter = std::back_inserter(sessionMetadata);
-            // No track is invalid as this is called after prepareTrack_l in the same
-            // critical section
-            track->copyMetadataTo(backInserter);
+    std::map<audio_session_t, std::vector<playback_track_metadata_v7_t> >allSessionsMetadata;
+    for (const sp<IAfTrack>& track : mActiveTracks) {
+        std::vector<playback_track_metadata_v7_t>& sessionMetadata =
+                allSessionsMetadata[track->sessionId()];
+        auto backInserter = std::back_inserter(sessionMetadata);
+        // No track is invalid as this is called after prepareTrack_l in the same
+        // critical section
+        track->copyMetadataTo(backInserter);
+    }
+    std::vector<playback_track_metadata_v7_t> spatializedTracksMetaData;
+    for (const auto& [session, sessionTrackMetadata] : allSessionsMetadata) {
+        metadata.tracks.insert(metadata.tracks.end(),
+                sessionTrackMetadata.begin(), sessionTrackMetadata.end());
+        if (auto chain = getEffectChain_l(session) ; chain != nullptr) {
+            chain->sendMetadata_l(sessionTrackMetadata, {});
         }
-        std::vector<playback_track_metadata_v7_t> spatializedTracksMetaData;
-        for (const auto& [session, sessionTrackMetadata] : allSessionsMetadata) {
-            metadata.tracks.insert(metadata.tracks.end(),
+        if ((hasAudioSession_l(session) & IAfThreadBase::SPATIALIZED_SESSION) != 0) {
+            spatializedTracksMetaData.insert(spatializedTracksMetaData.end(),
                     sessionTrackMetadata.begin(), sessionTrackMetadata.end());
-            if (auto chain = getEffectChain_l(session) ; chain != nullptr) {
-                chain->sendMetadata_l(sessionTrackMetadata, {});
-            }
-            if ((hasAudioSession_l(session) & IAfThreadBase::SPATIALIZED_SESSION) != 0) {
-                spatializedTracksMetaData.insert(spatializedTracksMetaData.end(),
-                        sessionTrackMetadata.begin(), sessionTrackMetadata.end());
-            }
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, {});
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, spatializedTracksMetaData);
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_DEVICE); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, {});
-        }
-    } else {
-        auto backInserter = std::back_inserter(metadata.tracks);
-        for (const sp<IAfTrack>& track : mActiveTracks) {
-            // No track is invalid as this is called after prepareTrack_l in the same
-            // critical section
-            track->copyMetadataTo(backInserter);
         }
     }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, {});
+    }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, spatializedTracksMetaData);
+    }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_DEVICE); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, {});
+    }
+
     sendMetadataToBackend_l(metadata);
     MetadataUpdate change;
     change.playbackMetadataUpdate = metadata.tracks;
@@ -9260,9 +9250,22 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
     }
 
     if (maxSharedAudioHistoryMs != 0) {
-        if (!captureHotwordAllowed(attributionSource)) {
-            lStatus = PERMISSION_DENIED;
-            goto Exit;
+        if (audioserver_permissions()) {
+            const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
+                    CAPTURE_AUDIO_HOTWORD,
+                    attributionSource.uid);
+            if (!res.ok()) {
+                lStatus = aidl_utils::statusTFromBinderStatus(res.error());
+            }
+            if (!res.value()) {
+                lStatus = PERMISSION_DENIED;
+                goto Exit;
+            }
+        } else {
+            if (!captureHotwordAllowed(attributionSource)) {
+                lStatus = PERMISSION_DENIED;
+                goto Exit;
+            }
         }
         if (maxSharedAudioHistoryMs < 0
                 || maxSharedAudioHistoryMs > kMaxSharedAudioHistoryMs) {
@@ -9383,7 +9386,11 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         if (!mSharedAudioPackageName.empty()
                 && mSharedAudioPackageName == attributionSource.packageName
                 && mSharedAudioSessionId == sessionId
-                && captureHotwordAllowed(attributionSource)) {
+                && (audioserver_permissions() ?
+                      mAfThreadCallback->getPermissionProvider().checkPermission(
+                          CAPTURE_AUDIO_HOTWORD,
+                          attributionSource.uid).value_or(false)
+                    : captureHotwordAllowed(attributionSource))) {
             startFrames = mSharedAudioStartFrames;
         }
 
@@ -10550,8 +10557,11 @@ void MmapThread::disconnect()
             activeTracks.add(t);
         }
         localPortId = mPortId;
+        ALOGD("%s: localPortId = %d", __func__, localPortId);
+        mPortId = AUDIO_PORT_HANDLE_NONE;
     }
     for (const sp<IAfMmapTrack>& t : activeTracks) {
+        ALOGD("%s: t->portId() = %d", __func__, t->portId());
         stop(t->portId());
     }
     // This will decrement references and may cause the destruction of this thread.

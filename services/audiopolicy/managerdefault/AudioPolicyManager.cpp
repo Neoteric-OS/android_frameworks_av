@@ -3380,8 +3380,10 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(const sp<DeviceDescripto
         return input;
     }
 
-    // Reuse an already opened input if a client with the same session ID already exists
-    // on that input
+    // Reuse an already opened input if:
+    //  - a client with the same session ID already exists on that input
+    //  - OR the requested device is a remote submix device with the same adrress
+    //    as the one connected to that input
     for (size_t i = 0; i < mInputs.size(); i++) {
         sp <AudioInputDescriptor> desc = mInputs.valueAt(i);
         if (desc->mProfile != profile) {
@@ -3392,6 +3394,11 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(const sp<DeviceDescripto
             if (session == client->session()) {
                 return desc->mIoHandle;
             }
+        }
+        if (audio_is_remote_submix_device(device->type())
+                && (device->address() != "0")
+                && device->equals(desc->getDevice())) {
+            return desc->mIoHandle;
         }
     }
 
@@ -7818,7 +7825,8 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
         }
 
         for (const sp<TrackClientDescriptor>& client : desc->getClientIterable()) {
-            if (mEngine->getProductStrategyForAttributes(client->attributes()) != psId) {
+            if (mEngine->getProductStrategyForAttributes(client->attributes()) != psId
+                    || client->isInvalid()) {
                 continue;
             }
             if (!desc->supportsAllDevices(newDevices)) {
@@ -7855,6 +7863,9 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
 
             bool invalidate = false;
             for (auto client : desc->clientsList(false /*activeOnly*/)) {
+                if (client->isInvalid()) {
+                    continue;
+                }
                 if (desc->isDuplicated() || !desc->mProfile->isDirectOutput()) {
                     // a client on a non direct outputs has necessarily a linear PCM format
                     // so we can call selectOutput() safely
