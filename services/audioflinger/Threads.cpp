@@ -5903,8 +5903,10 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                         volume = masterVolume * track->getPortVolume();
                     }
                 }
-                track->maybeLogPlaybackHardening(
-                        *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
+                if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                    track->maybeLogPlaybackHardening(*iface);
+                }
+
                 handleVoipVolume_l(&volume);
 
                 // cache the combined master volume and stream type volume for fast mixer; this
@@ -6102,8 +6104,9 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 }
             }
             handleVoipVolume_l(&v);
-            track->maybeLogPlaybackHardening(
-                    *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
+            if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                track->maybeLogPlaybackHardening(*iface);
+            }
 
             if (track->isPausing()) {
                 vl = vr = 0;
@@ -6936,8 +6939,9 @@ void DirectOutputThread::processVolume_l(IAfTrack* track, bool lastTrack)
                                track->getPortMute(),
                                track->isPlaybackRestrictedControl()});
     }
-    track->maybeLogPlaybackHardening(
-            *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
+    if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+        track->maybeLogPlaybackHardening(*iface);
+    }
 
 
     if (lastTrack) {
@@ -11599,9 +11603,9 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
                                    track->getPortMute(),
                                    shouldMutePlaybackHardening});
             }
-            track->maybeLogPlaybackHardening(
-                    *mAfThreadCallback->getOrCreateAudioManager()->getNativeInterface());
-
+            if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                track->maybeLogPlaybackHardening(*iface);
+            }
         }
     }
 }
