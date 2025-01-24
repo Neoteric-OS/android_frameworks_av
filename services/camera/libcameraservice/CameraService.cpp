@@ -4718,7 +4718,6 @@ status_t CameraService::BasicClient::isPrimaryClient(bool* isPrimary) {
     }
 
     if (!mSharedMode) {
-        ALOGW("%s: Invalid operation when camera is not opened in shared mode", __FUNCTION__);
         return INVALID_OPERATION;
     }
     *isPrimary = mIsPrimaryClient;
@@ -4733,7 +4732,6 @@ status_t CameraService::BasicClient::setPrimaryClient(bool isPrimary) {
     }
 
     if (!mSharedMode) {
-        ALOGW("%s:Invalid operation when camera is not opened in shared mode", __FUNCTION__);
         return INVALID_OPERATION;
     }
     mIsPrimaryClient = isPrimary;
