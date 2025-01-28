@@ -118,8 +118,10 @@ public:
 
     virtual void signalBufferReturned(MediaBufferBase* buffer);
 
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     virtual void notifyPerformanceMode() {}
 
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
 protected:
 
     /**

@@ -39,7 +39,9 @@
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/OggWriter.h>
 #include <media/stagefright/Utils.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 namespace flags_camera = com::android::internal::camera::flags;
 
@@ -79,7 +81,9 @@ MediaMuxer::MediaMuxer(int fd, OutputFormat format)
     : mFormat(format),
       mState(UNINITIALIZED) {
     if (isMp4Format(format)) {
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         mWriter = new MPEG4Writer(fd);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     } else if (format == OUTPUT_FORMAT_WEBM) {
         mWriter = new WebmWriter(fd);
     } else if (format == OUTPUT_FORMAT_OGG) {

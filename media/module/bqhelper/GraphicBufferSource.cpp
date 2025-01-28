@@ -17,7 +17,9 @@
 #include <inttypes.h>
 
 #define LOG_TAG "GraphicBufferSource"
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #include <utils/Log.h>
 
 #define STRINGIFY_ENUMS // for asString in HardwareAPI.h/VideoAPI.h
@@ -811,7 +813,9 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
 
     if (mCaptureFps > 0.
             && (mFps > 2 * mCaptureFps
+// QTI_BEGIN: 2018-04-30: Video: libstagefright: Allow HFR-60 in HAL-3 recording
             || mCaptureFps > mFps)) {
+// QTI_END: 2018-04-30: Video: libstagefright: Allow HFR-60 in HAL-3 recording
         // Time lapse or slow motion mode
         if (mPrevCaptureUs < 0LL) {
             // first capture
@@ -1140,7 +1144,9 @@ void GraphicBufferSource::releaseAllAvailableBuffers_l() {
 
 // BufferQueue::ConsumerListener callback
 void GraphicBufferSource::onSidebandStreamChanged() {
+// QTI_BEGIN: 2022-10-06: Graphics: Merge "Revert "GraphicBufferSource: Change Assert to warning Log"" into t-keystone-qcom-dev
     ALOG_ASSERT(false, "GraphicBufferSource can't consume sideband streams");
+// QTI_END: 2022-10-06: Graphics: Merge "Revert "GraphicBufferSource: Change Assert to warning Log"" into t-keystone-qcom-dev
 }
 
 status_t GraphicBufferSource::configure(
@@ -1394,9 +1400,11 @@ status_t GraphicBufferSource::setTimeLapseConfig(double fps, double captureFps) 
     if (captureFps > fps) {
         mSnapTimestamps = 1 == base::GetIntProperty(
                 "debug.stagefright.snap_timestamps", int64_t(0));
+// QTI_BEGIN: 2020-04-30: Video: GraphicBufferSource: Enable timestamp snapping in timelapse mode
     } else if (fps > 2 * captureFps) {
         // Timelapse mode
         mSnapTimestamps = true;
+// QTI_END: 2020-04-30: Video: GraphicBufferSource: Enable timestamp snapping in timelapse mode
     } else {
         mSnapTimestamps = false;
     }

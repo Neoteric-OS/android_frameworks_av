@@ -2957,7 +2957,9 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice, int64_t totalMemory)
 size_t AudioFlinger::getClientSharedHeapSize() const
 {
     size_t heapSizeInBytes = property_get_int32("ro.af.client_heap_size_kbyte", 0) * 1024;
+// QTI_BEGIN: 2018-05-27: Audio: Increase the minimum heap size allocation
     if (heapSizeInBytes > mClientSharedHeapSize) { // read-only property overrides all.
+// QTI_END: 2018-05-27: Audio: Increase the minimum heap size allocation
         return heapSizeInBytes;
     }
     return mClientSharedHeapSize;
@@ -3060,9 +3062,11 @@ status_t AudioFlinger::systemReady()
         return NO_ERROR;
     }
     mSystemReady = true;
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 
     mediautils::TimeCheck::setSystemReady();
 
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         IAfThreadBase* const thread = mPlaybackThreads.valueAt(i).get();
         thread->systemReady();

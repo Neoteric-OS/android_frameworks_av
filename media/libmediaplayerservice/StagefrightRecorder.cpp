@@ -16,16 +16,22 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "StagefrightRecorder"
+// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Trace.h>
+// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #include <inttypes.h>
 // TODO/workaround: including base logging now as it conflicts with ADebug.h
 // and it must be included first.
 #include <android-base/logging.h>
 #include <utils/Log.h>
 
+// QTI_BEGIN: 2018-03-22: Audio: StagefrightRecorder: fix a/v sync issues with QC AAC encoder
 #include <cutils/properties.h>
+// QTI_END: 2018-03-22: Audio: StagefrightRecorder: fix a/v sync issues with QC AAC encoder
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <inttypes.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <webm/WebmWriter.h>
 
 #include "StagefrightRecorder.h"
@@ -57,7 +63,9 @@
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaCodecSource.h>
+// QTI_BEGIN: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
 #include <media/stagefright/MediaCodecConstants.h>
+// QTI_END: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
 #include <media/stagefright/OggWriter.h>
 #include <media/stagefright/PersistentSurface.h>
 #include <media/MediaProfiles.h>
@@ -68,12 +76,16 @@
 #include <sys/types.h>
 #include <ctype.h>
 #include <unistd.h>
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 #include <future>
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 
 #include <system/audio.h>
 
 #include <media/stagefright/rtsp/ARTPWriter.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 #include <com_android_media_editing_flags.h>
 
@@ -81,9 +93,11 @@ namespace android {
 
 static const float kTypicalDisplayRefreshingRate = 60.f;
 // display refresh rate drops on battery saver
+// QTI_BEGIN: 2019-02-12: Video: Change minimum display refreshing rate from 30fps to 60fps.
 // 60 fps refreshing rate is the most common
 // upto 60 fps, it should be no layer encoding.
 static const float kMinTypicalDisplayRefreshingRate = kTypicalDisplayRefreshingRate;
+// QTI_END: 2019-02-12: Video: Change minimum display refreshing rate from 30fps to 60fps.
 static const int kMaxNumVideoTemporalLayers = 8;
 
 // key for media statistics
@@ -117,7 +131,9 @@ static const char *kRecorderDurationMs = "android.media.mediarecorder.durationMs
 static const char *kRecorderPaused = "android.media.mediarecorder.pausedMs";
 static const char *kRecorderNumPauses = "android.media.mediarecorder.NPauses";
 
+// QTI_BEGIN: 2018-10-04: Video: StagefrightRecorder: force 64-bit file-offsets for files > 4GB
 static const int64_t kMax32BitFileSize = 0x00ffffffffLL; // 4GB
+// QTI_END: 2018-10-04: Video: StagefrightRecorder: force 64-bit file-offsets for files > 4GB
 
 // To collect the encoder usage for the battery app
 static void addBatteryData(uint32_t params) {
@@ -562,7 +578,9 @@ status_t StagefrightRecorder::setParamAudioSamplingRate(int32_t sampleRate) {
 
 status_t StagefrightRecorder::setParamAudioNumberOfChannels(int32_t channels) {
     ALOGV("setParamAudioNumberOfChannels: %d", channels);
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     if (channels <= 0 || channels > 6) {
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
         ALOGE("Invalid number of audio channels: %d", channels);
         return BAD_VALUE;
     }
@@ -641,46 +659,64 @@ status_t StagefrightRecorder::setParamVideoRotation(int32_t degrees) {
 }
 
 status_t StagefrightRecorder::setParamMaxFileDurationUs(int64_t timeUs) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("setParamMaxFileDurationUs: %" PRId64 " us", timeUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (timeUs <= 0) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGW("Max file duration is not positive: %" PRId64 " us. Disabling duration limit.", timeUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         timeUs = 0; // Disable the duration limit for zero or negative values.
     } else if (timeUs <= 100000LL) {  // XXX: 100 milli-seconds
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGE("Max file duration is too short: %" PRId64 " us", timeUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         return BAD_VALUE;
     }
 
     if (timeUs <= 15 * 1000000LL) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGW("Target duration (%" PRId64 " us) too short to be respected", timeUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     }
     mMaxFileDurationUs = timeUs;
     return OK;
 }
 
 status_t StagefrightRecorder::setParamMaxFileSizeBytes(int64_t bytes) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("setParamMaxFileSizeBytes: %" PRId64 " bytes", bytes);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     // This is meant for backward compatibility for MediaRecorder.java
     if (bytes <= 0) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGW("Max file size is not positive: %" PRId64 " bytes. "
              "Disabling file size limit.", bytes);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         bytes = 0; // Disable the file size limit for zero or negative values.
     } else if (bytes <= 1024) {  // XXX: 1 kB
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGE("Max file size is too small: %" PRId64 " bytes", bytes);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         return BAD_VALUE;
     }
 
     if (bytes <= 100 * 1024) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGW("Target file size (%" PRId64 " bytes) is too small to be respected", bytes);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     }
 
     mMaxFileSizeBytes = bytes;
+// QTI_BEGIN: 2018-10-04: Video: StagefrightRecorder: force 64-bit file-offsets for files > 4GB
 
     // If requested size is >4GB, force 64-bit offsets
     mUse64BitFileOffset |= (bytes >= kMax32BitFileSize);
 
+// QTI_END: 2018-10-04: Video: StagefrightRecorder: force 64-bit file-offsets for files > 4GB
     return OK;
 }
 
@@ -729,9 +765,13 @@ status_t StagefrightRecorder::setParamVideoCameraId(int32_t cameraId) {
 }
 
 status_t StagefrightRecorder::setParamTrackTimeStatus(int64_t timeDurationUs) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("setParamTrackTimeStatus: %" PRId64 "", timeDurationUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (timeDurationUs < 20000) {  // Infeasible if shorter than 20 ms?
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGE("Tracking time duration too short: %" PRId64 " us", timeDurationUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         return BAD_VALUE;
     }
     mTrackEveryTimeDurationUs = timeDurationUs;
@@ -1222,10 +1262,12 @@ status_t StagefrightRecorder::prepareInternal() {
             break;
 
         default:
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             if (handleCustomRecording() != OK) {
                 ALOGE("Unsupported output file format: %d", mOutputFormat);
                 status = UNKNOWN_ERROR;
             }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
             break;
     }
 
@@ -1309,10 +1351,12 @@ status_t StagefrightRecorder::start() {
 
         default:
         {
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             if (handleCustomOutputFormats() != OK) {
                 ALOGE("Unsupported output file format: %d", mOutputFormat);
                 status = UNKNOWN_ERROR;
             }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
             break;
         }
     }
@@ -1388,7 +1432,9 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
         }
     }
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     sp<AudioSource> audioSource = AVFactory::get()->createAudioSource(
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                 &attr,
                 mAttributionSource,
                 sourceSampleRate,
@@ -1417,12 +1463,16 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
         case AUDIO_ENCODER_AAC:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             format->setInt32("aac-profile", OMX_AUDIO_AACObjectLC);
+// QTI_BEGIN: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             format->setInt32("profile", AACObjectLC);
+// QTI_END: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             break;
         case AUDIO_ENCODER_HE_AAC:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             format->setInt32("aac-profile", OMX_AUDIO_AACObjectHE);
+// QTI_BEGIN: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             format->setInt32("profile", AACObjectHE);
+// QTI_END: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             break;
         case AUDIO_ENCODER_HE_AAC_PS:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
@@ -1431,17 +1481,21 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
         case AUDIO_ENCODER_AAC_ELD:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_AAC);
             format->setInt32("aac-profile", OMX_AUDIO_AACObjectELD);
+// QTI_BEGIN: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             format->setInt32("profile", AACObjectELD);
+// QTI_END: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
             break;
         case AUDIO_ENCODER_OPUS:
             format->setString("mime", MEDIA_MIMETYPE_AUDIO_OPUS);
             break;
 
         default:
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             if (handleCustomAudioSource(format) != OK) {
                 ALOGE("Unknown audio encoder: %d", mAudioEncoder);
                 return NULL;
             }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     }
 
     // log audio mime type for media metrics
@@ -1467,10 +1521,12 @@ sp<MediaCodecSource> StagefrightRecorder::createAudioSource() {
 
     sp<MediaCodecSource> audioEncoder =
             MediaCodecSource::Create(mLooper, format, audioSource);
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     if (audioEncoder == NULL) {
         ALOGE("Failed to create audio encoder");
     } else {
         sp<AudioSystem::AudioDeviceCallback> callback = mAudioDeviceCallback.promote();
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     if (mDeviceCallbackEnabled && callback != 0) {
         audioSource->addAudioDeviceCallback(callback);
     }
@@ -1553,6 +1609,7 @@ status_t StagefrightRecorder::setupRawAudioRecording() {
     }
 
     sp<MediaCodecSource> audioEncoder = createAudioSource();
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     if (audioEncoder != NULL) {
         CHECK(mWriter != 0);
         mWriter->addSource(audioEncoder);
@@ -1567,6 +1624,7 @@ status_t StagefrightRecorder::setupRawAudioRecording() {
         mAudioSourceNode =  reinterpret_cast<AudioSource* > (src.get());
         mWriter->addSource(src);
     } else if (audioEncoder == NULL) {
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
         return UNKNOWN_ERROR;
     }
 
@@ -1644,12 +1702,16 @@ status_t StagefrightRecorder::setupMPEG2TSRecording() {
             return ERROR_UNSUPPORTED;
         }
 
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         status_t err = setupAudioEncoder();
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 
         if (err != OK) {
             return err;
         }
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         writer->addSource(mAudioEncoderSource);
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
@@ -1934,14 +1996,20 @@ void StagefrightRecorder::clipVideoFrameHeight() {
 // Set up the appropriate MediaSource depending on the chosen option
 status_t StagefrightRecorder::setupMediaSource(
                       sp<MediaSource> *mediaSource) {
+// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
+// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     if (mVideoSource == VIDEO_SOURCE_DEFAULT
             || mVideoSource == VIDEO_SOURCE_CAMERA) {
+// QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
         nsecs_t setupStartedTime = systemTime(SYSTEM_TIME_REALTIME);
+// QTI_END: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
         sp<CameraSource> cameraSource;
         status_t err = setupCameraSource(&cameraSource);
+// QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
         nsecs_t setupFinishedTime = systemTime(SYSTEM_TIME_REALTIME);
         ALOGI("Time taken by setupMediaSource : %" PRId64 "ms" , (setupFinishedTime - setupStartedTime)/1000000);
+// QTI_END: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
         if (err != OK) {
             return err;
         }
@@ -1967,7 +2035,9 @@ status_t StagefrightRecorder::setupCameraSource(
     pid_t pid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(mAttributionSource.pid));
     String16 clientName = VALUE_OR_RETURN_STATUS(
         aidl2legacy_string_view_String16(mAttributionSource.packageName.value_or("")));
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
     if (mCaptureFpsEnable && mCaptureFps != mFrameRate ) {
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
         if (!(mCaptureFps > 0.)) {
             ALOGE("Invalid mCaptureFps value: %lf", mCaptureFps);
             return BAD_VALUE;
@@ -1980,7 +2050,9 @@ status_t StagefrightRecorder::setupCameraSource(
                 videoSize, mFrameRate, surface,
                 std::llround(1e6 / mCaptureFps));
 #else
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate, mPreviewSurface,
                 std::llround(1e6 / mCaptureFps));
@@ -2000,7 +2072,9 @@ status_t StagefrightRecorder::setupCameraSource(
                 mPreviewSurface);
 #endif
     }
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     mCamera.clear();
     mCameraProxy.clear();
     if (*cameraSource == NULL) {
@@ -2035,7 +2109,9 @@ status_t StagefrightRecorder::setupCameraSource(
 status_t StagefrightRecorder::setupVideoEncoder(
         const sp<MediaSource> &cameraSource,
         sp<MediaCodecSource> *source) {
+// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
+// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     source->clear();
 
     sp<AMessage> format = new AMessage();
@@ -2069,10 +2145,12 @@ status_t StagefrightRecorder::setupVideoEncoder(
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_AV1);
             break;
 
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         case VIDEO_ENCODER_MVHEVC:
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_MVHEVC);
             break;
 
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         default:
             CHECK(!"Should not be here, unsupported video encoding.");
             break;
@@ -2117,12 +2195,16 @@ status_t StagefrightRecorder::setupVideoEncoder(
             format->setDouble("time-lapse-fps", mCaptureFps);
         }
     }
+// QTI_BEGIN: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
     uid_t uid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_uid_t(mAttributionSource.uid));
     pid_t pid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(mAttributionSource.pid));
     format->setInt32("calling-uid", uid);
     format->setInt32("calling-pid", pid);
+// QTI_END: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     setupCustomVideoEncoderParams(cameraSource, format);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (mOutputFormat == OUTPUT_FORMAT_RTP_AVP) {
         // This indicates that a raw image provided to encoder needs to be rotated.
         format->setInt32("rotation-degrees", mRotationDegrees);
@@ -2132,8 +2214,10 @@ status_t StagefrightRecorder::setupVideoEncoder(
     format->setInt32("bitrate-mode", mVideoBitRateMode);
     format->setInt32("frame-rate", mFrameRate);
     format->setInt32("i-frame-interval", mIFramesIntervalSec);
+// QTI_BEGIN: 2020-02-18: Video: frameworks/av: Add native recording vendor extn
     // In order to customize native recordings
     format->setInt32("vendor.qti-ext-enc-info-native_recording.value", 1);
+// QTI_END: 2020-02-18: Video: frameworks/av: Add native recording vendor extn
 
     if (mVideoTimeScale > 0) {
         format->setInt32("time-scale", mVideoTimeScale);
@@ -2158,7 +2242,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
             preferBFrames = false;
             tsLayers = 2; // use at least two layers as resulting video will likely be sped up
         } else if (mCaptureFps > maxPlaybackFps) { // slow-mo
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
             format->setInt32("high-frame-rate", 1);
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
             maxPlaybackFps = mCaptureFps; // assume video will be played back at full capture speed
             preferBFrames = false;
         }
@@ -2188,8 +2274,10 @@ status_t StagefrightRecorder::setupVideoEncoder(
         }
     }
 
+// QTI_BEGIN: 2018-04-20: Video: StagefrightRecorder: don't enable temporal layers in all Intra case
     // mIFramesIntervalSec == 0 means all Intra frame, can't support P/B layers
     if (tsLayers > 1 && mIFramesIntervalSec != 0) {
+// QTI_END: 2018-04-20: Video: StagefrightRecorder: don't enable temporal layers in all Intra case
         uint32_t bLayers = std::min(2u, tsLayers - 1); // use up-to 2 B-layers
         // TODO(b/341121900): Remove this once B frames are handled correctly in screen recorder
         // use case in case of mic only
@@ -2210,15 +2298,25 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("android._input-metadata-buffer-type", mMetaDataStoredInVideoBuffers);
     }
 
+// QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (mOutputFormat == OUTPUT_FORMAT_MPEG_4) {
+// QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         format->setInt32("feature-nal-length-bitstream", 1);
         format->setInt32("nal-length-in-bytes", 4);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
         format->setInt32("vendor.qti-ext-enc-nal-length-bs.num-bytes", 4);
+// QTI_END: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
+// QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
 
+// QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-12-18: Videp: libmediaplayerservice: Add native recorder key
     // Will send this info to encoder component for custom optimizations
     format->setInt32("isNativeRecorder", 1);
 
+// QTI_END: 2018-12-18: Videp: libmediaplayerservice: Add native recorder key
     uint32_t flags = 0;
     if (cameraSource == NULL) {
         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
@@ -2249,8 +2347,12 @@ status_t StagefrightRecorder::setupVideoEncoder(
     return OK;
 }
 
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 status_t StagefrightRecorder::setupAudioEncoder() {
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
+// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
+// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     status_t status = BAD_VALUE;
     if (OK != (status = checkAudioEncoderCapabilities())) {
         return status;
@@ -2267,10 +2369,12 @@ status_t StagefrightRecorder::setupAudioEncoder() {
             break;
 
         default:
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             if (handleCustomAudioEncoder() != OK) {
                 ALOGE("Unsupported audio encoder: %d", mAudioEncoder);
                 return UNKNOWN_ERROR;
             }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     }
 
     sp<MediaCodecSource> audioEncoder = createAudioSource();
@@ -2284,17 +2388,23 @@ status_t StagefrightRecorder::setupAudioEncoder() {
 status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
     mWriter.clear();
     mTotalBitRate = 0;
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
     sp<MediaCodecSource> videoSource;
     std::future<status_t> futureVal;
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 
     status_t err = OK;
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
     status_t errVideo = OK;
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
     sp<MediaWriter> writer;
     sp<MPEG4Writer> mp4writer;
     if (mOutputFormat == OUTPUT_FORMAT_WEBM) {
         writer = new WebmWriter(mOutputFd);
     } else {
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         writer = mp4writer = new MPEG4Writer(mOutputFd);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
 
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
@@ -2306,8 +2416,10 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
             return err;
         }
 
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         futureVal = std::async(std::launch::async, &StagefrightRecorder::setupVideoEncoder,
                 this, mediaSource, &videoSource);
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
     }
 
     // Audio source is added at the end if it exists.
@@ -2316,19 +2428,30 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
     // disable audio for time lapse recording
     const bool disableAudio = mCaptureFpsEnable && mCaptureFps < mFrameRate;
 
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (!disableAudio && mAudioSource != AUDIO_SOURCE_CNT &&
         isCompressAudioRecordingSupported()) {
         mAudioSourceNode = setCompressAudioRecording();
         if (mAudioSourceNode == nullptr) {
             ALOGE("%s: unable to create compress audio recording", __func__);
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         } else {
             writer->addSource(mAudioSourceNode);
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
             ALOGI("%s:  created compress audio recording", __func__);
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         }
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (!disableAudio && mAudioSource != AUDIO_SOURCE_CNT &&
         !mEnabledCompressAudioRecording) {
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         err = setupAudioEncoder();
     }
     if (mVideoSource < VIDEO_SOURCE_LIST_END) {
@@ -2338,10 +2461,15 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
         mVideoEncoderSource = videoSource;
         mTotalBitRate += mVideoBitRate;
     }
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (!disableAudio && mAudioSource != AUDIO_SOURCE_CNT &&
         !mEnabledCompressAudioRecording) {
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
         if (err != OK) return err;
+// QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         writer->addSource(mAudioEncoderSource);
+// QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
         mTotalBitRate += mAudioBitRate;
     }
 
@@ -2426,12 +2554,18 @@ status_t StagefrightRecorder::pause() {
     if (mAudioEncoderSource != NULL) {
         mAudioEncoderSource->pause();
     }
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
 
     /* compress recording pause*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         mAudioSourceNode->pause();
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (mVideoEncoderSource != NULL) {
         mVideoEncoderSource->pause(meta.get());
     }
@@ -2454,9 +2588,14 @@ status_t StagefrightRecorder::resume() {
 
     int64_t bufferStartTimeUs = 0;
     bool allSourcesStarted = true;
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
 
     /* compress recording resume*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         int64_t timeUs = mAudioSourceNode->getFirstSampleSystemTimeUs();
         if (timeUs < 0) {
             allSourcesStarted = false;
@@ -2466,6 +2605,7 @@ status_t StagefrightRecorder::resume() {
         }
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     for (const auto &source : { mAudioEncoderSource, mVideoEncoderSource }) {
         if (source == nullptr) {
             continue;
@@ -2483,8 +2623,12 @@ status_t StagefrightRecorder::resume() {
         if (mPauseStartTimeUs < bufferStartTimeUs) {
             mPauseStartTimeUs = bufferStartTimeUs;
         }
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
         // 30 ms buffer to avoid timestamp overlap
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
+// QTI_BEGIN: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
         mTotalPausedDurationUs += resumeStartTimeUs - mPauseStartTimeUs - 30000;
+// QTI_END: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
     }
     double timeOffset = -mTotalPausedDurationUs;
     if (mCaptureFpsEnable && (mVideoSource == VIDEO_SOURCE_CAMERA) &&
@@ -2501,10 +2645,16 @@ status_t StagefrightRecorder::resume() {
         source->start(meta.get());
     }
 
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
      /* compress audio recording resume*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         mAudioSourceNode->start(meta.get());
     }
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
 
     // sum info on pause duration
     // (ignore the 30msec of overlap adjustment factored into mTotalPausedDurationUs)
@@ -2536,13 +2686,16 @@ status_t StagefrightRecorder::stop() {
                     (long long)stopTimeUs, source->isVideo() ? "Video" : "Audio");
         }
     }
+// QTI_BEGIN: 2023-02-09: Video: StagefrightRecorder: set stop time for compress audio recording as well
     /* compress recording stop */
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
         if (OK != mAudioSourceNode->setStopTimeUs(stopTimeUs)) {
             ALOGW("Failed to set stopTime %lld us for compress audio source", (long long)stopTimeUs);
         }
     }
+// QTI_END: 2023-02-09: Video: StagefrightRecorder: set stop time for compress audio recording as well
 
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     if (mVideoEncoderSource != NULL) {
         mVideoEncoderSource->notifyPerformanceMode();
     }
@@ -2551,6 +2704,7 @@ status_t StagefrightRecorder::stop() {
         mCameraSource->notifyPerformanceMode();
     }
 
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     if (mWriter != NULL) {
         err = mWriter->stop();
         mLastSeqNo = mWriter->getSequenceNum();
@@ -2637,8 +2791,10 @@ status_t StagefrightRecorder::reset() {
     mAudioBitRate  = 12200;
     mInterleaveDurationUs = 0;
     mIFramesIntervalSec = 1;
+// QTI_BEGIN: 2022-10-19: Audio: media: refactor compress audio recording.
     mEnabledCompressAudioRecording = false;
     mAudioSourceNode.clear();
+// QTI_END: 2022-10-19: Audio: media: refactor compress audio recording.
     mAudioSourceNode = 0;
     mUse64BitFileOffset = false;
     mMovieTimeScale  = -1;
@@ -2669,8 +2825,10 @@ status_t StagefrightRecorder::reset() {
 
     mOutputFd = -1;
 
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     mCameraSource = NULL;
 
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     return OK;
 }
 

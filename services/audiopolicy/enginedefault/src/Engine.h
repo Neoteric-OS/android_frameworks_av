@@ -68,8 +68,10 @@ private:
 
     DeviceVector getDevicesForProductStrategy(product_strategy_t strategy) const override;
 
+// QTI_BEGIN: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
     sp<DeviceDescriptor> getIPDevice(const DeviceVector &availableDevices) const;
 
+// QTI_END: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
 private:
     template<typename T>
     status_t loadWithFallback(const T& configSource);
