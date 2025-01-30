@@ -161,7 +161,9 @@ int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
 bool roundBufferDimensionNearest(int32_t width, int32_t height,
         int32_t format, android_dataspace dataSpace,
         const CameraMetadata& info, bool maxResolution, /*out*/int32_t* outWidth,
+// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
         /*out*/int32_t* outHeight, bool isPriviledgedClient) {
+// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
     const int32_t depthSizesTag =
             getAppropriateModeTag(ANDROID_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS,
                     maxResolution);
@@ -212,6 +214,7 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
         }
     }
 
+// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
     if (isPriviledgedClient == true && bestWidth == -1 &&
         (format == HAL_PIXEL_FORMAT_RAW10 || format == HAL_PIXEL_FORMAT_RAW12 ||
          format == HAL_PIXEL_FORMAT_RAW16 || format == HAL_PIXEL_FORMAT_RAW_OPAQUE)) {
@@ -231,6 +234,8 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
         }
     }
 
+// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
+// QTI_BEGIN: 2021-11-15: Camera: Avoid roundBufferDimensionsNearest for AIDE2 YUV streams
     // Avoid roundBufferDimensionsNearest for privileged client YUV streams to meet the AIDE2
     // requirement. AIDE2 is vendor enhanced feature which requires special resolutions and
     // those are not populated in static capabilities.
@@ -243,6 +248,7 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
         bestHeight = height;
     }
 
+// QTI_END: 2021-11-15: Camera: Avoid roundBufferDimensionsNearest for AIDE2 YUV streams
     if (bestWidth == -1) {
         // Return false if no configurations for this format were listed
         ALOGE("%s: No configurations for format %d width %d, height %d, maxResolution ? %s",
@@ -515,7 +521,9 @@ binder::Status createConfiguredSurface(
     uint64_t allowedFlags = GraphicBuffer::USAGE_SW_READ_MASK |
                            GraphicBuffer::USAGE_HW_TEXTURE |
                            GraphicBuffer::USAGE_HW_COMPOSER;
+// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
     bool flexibleConsumer = (consumerUsage & disallowedFlags) == 0 &&
+// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
             (consumerUsage & allowedFlags) != 0;
 
     out_surface = new Surface(flagtools::surfaceTypeToIGBP(surface), useAsync);
@@ -592,7 +600,9 @@ binder::Status createConfiguredSurface(
     if (flexibleConsumer && isPublicFormat(format) && !respectSurfaceSize &&
             !SessionConfigurationUtils::roundBufferDimensionNearest(width, height,
             format, dataSpace, physicalCameraMetadata, foundInMaxRes, /*out*/&width,
+// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
             /*out*/&height, isPriviledgedClient)) {
+// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
         std::string msg = fmt::sprintf("Camera %s: No supported stream configurations with "
                 "format %#x defined, failed to create output stream",
                 logicalCameraId.c_str(), format);

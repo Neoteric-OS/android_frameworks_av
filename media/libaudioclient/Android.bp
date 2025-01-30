@@ -186,7 +186,9 @@ cc_library {
         // for memory heap analysis
         "libc_malloc_debug_backtrace",
         "shared-file-region-aidl-cpp",
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         "libavmediaextentions",
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     ],
     cflags: [
         "-Wall",

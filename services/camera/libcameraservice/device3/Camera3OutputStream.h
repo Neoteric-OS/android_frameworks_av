@@ -443,7 +443,9 @@ class Camera3OutputStream :
     static constexpr nsecs_t kTimelineThresholdNs = 1000000LL; // 1 millisecond
     static constexpr float kMaxIntervalRatioDeviation = 0.05f;
     static constexpr int kMaxTimelines = 2;
+// QTI_BEGIN: 2023-07-25: Camera: Revert "Merge "Camera: Handle release fence when syncing preview to display" into udc-dev"
     nsecs_t syncTimestampToDisplayLocked(nsecs_t t);
+// QTI_END: 2023-07-25: Camera: Revert "Merge "Camera: Handle release fence when syncing preview to display" into udc-dev"
 
     // Re-space frames by delaying queueBuffer so that frame delivery has
     // the same cadence as capture. Default is on for SurfaceTexture bound

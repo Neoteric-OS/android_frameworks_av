@@ -1,3 +1,4 @@
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
  * Copyright (c) 2013 - 2018, The Linux Foundation. All rights reserved.
  *
@@ -32,8 +33,10 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <media/stagefright/rtsp/ARTPConnection.h>
 #include <media/stagefright/rtsp/ARTSPConnection.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 #include "MediaRecorderClient.h"
 #include "MediaPlayerService.h"
@@ -44,8 +47,10 @@
 
 namespace android {
 StagefrightRecorder *AVMediaServiceFactory::createStagefrightRecorder(
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         const AttributionSourceState& attributionSourcce) {
     return new StagefrightRecorder(attributionSourcce);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 
 sp<ARTSPConnection> AVMediaServiceFactory::createARTSPConnection(
@@ -70,3 +75,4 @@ AVMediaServiceFactory *AVMediaServiceFactory::sInst =
 
 } //namespace android
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

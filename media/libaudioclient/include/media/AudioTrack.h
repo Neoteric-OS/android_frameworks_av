@@ -804,7 +804,9 @@ public:
      */
             static const char * convertTransferToText(transfer_type transferType);
 
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
 public:
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     /* Returns a handle on the audio output used by this AudioTrack.
      *
      * Parameters:
@@ -1267,7 +1269,9 @@ public:
             /* Sets the Audio Description Mix level in dB. */
             status_t setAudioDescriptionMixLevel_l(float leveldB);
 
+// QTI_BEGIN: 2022-10-06: Audio: av: Added dummy track support for Bluetooth BLE
             void     createDummyAudioSessionForBluetooth();
+// QTI_END: 2022-10-06: Audio: av: Added dummy track support for Bluetooth BLE
 
     // Next 4 fields may be changed if IAudioTrack is re-created, but always != 0
     sp<media::IAudioTrack>  mAudioTrack;
@@ -1491,8 +1495,10 @@ public:
 
     sp<media::VolumeHandler>       mVolumeHandler;
 
+// QTI_BEGIN: 2018-07-10: Audio: Create dummy track to avoid a2dp suspend
     int64_t                mPauseTimeRealUs;
 
+// QTI_END: 2018-07-10: Audio: Create dummy track to avoid a2dp suspend
 private:
     class DeathNotifier : public IBinder::DeathRecipient {
     public:
@@ -1534,7 +1540,9 @@ private:
     std::string mMetricsId;  // GUARDED_BY(mLock), could change in createTrack_l().
     std::string mCallerName; // for example "aaudio"
 
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     bool                    mTrackOffloaded;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 
     // report error to mediametrics.
     void reportError(status_t status, const char *event, const char *message) const;

@@ -27,6 +27,8 @@
  */
 
 #include <media/stagefright/foundation/MediaDefs.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <media/stagefright/ExtendedMediaDefs.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 #endif  // STAGEFRIGHT_MEDIA_DEFS_H_

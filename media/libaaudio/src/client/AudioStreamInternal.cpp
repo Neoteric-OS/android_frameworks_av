@@ -56,7 +56,9 @@ using android::content::AttributionSourceState;
 
 using namespace aaudio;
 
+// QTI_BEGIN: 2024-05-09: Audio: AAudio: increase aaudio stream timeout from 1 to 2.2 seconds
 #define MIN_TIMEOUT_NANOS        (2200 * AAUDIO_NANOS_PER_MILLISECOND)
+// QTI_END: 2024-05-09: Audio: AAudio: increase aaudio stream timeout from 1 to 2.2 seconds
 
 // Wait at least this many times longer than the operation should take.
 #define MIN_TIMEOUT_OPERATIONS    4

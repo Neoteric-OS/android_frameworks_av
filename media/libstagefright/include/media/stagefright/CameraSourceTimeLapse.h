@@ -19,7 +19,9 @@
 #define CAMERA_SOURCE_TIME_LAPSE_H_
 
 #include <pthread.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <media/stagefright/CameraSource.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <utils/RefBase.h>
 #include <utils/threads.h>
 #include <utils/String16.h>
@@ -60,7 +62,9 @@ public:
     // returning quickly.
     void startQuickReadReturns();
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 protected:
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     // size of the encoded video.
     int32_t mVideoWidth;
     int32_t mVideoHeight;
@@ -154,7 +158,9 @@ protected:
     // the frame needs to be encoded, it returns false and also modifies
     // the time stamp to be one frame time ahead of the last encoded
     // frame's time stamp.
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     virtual bool skipFrameAndModifyTimeStamp(int64_t *timestampUs);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     // Wrapper to enter threadTimeLapseEntry()
     static void *ThreadTimeLapseWrapper(void *me);

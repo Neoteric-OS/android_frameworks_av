@@ -1,5 +1,10 @@
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2020-06-10: Audio: libstagefright: check for audio source aggregate before initialization
  * Copyright (c) 2013 - 2018, 2020 The Linux Foundation. All rights reserved.
+// QTI_END: 2020-06-10: Audio: libstagefright: check for audio source aggregate before initialization
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,7 +35,9 @@
 #define LOG_TAG "AVUtils"
 #include <utils/Log.h>
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <android/IMediaExtractor.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ABuffer.h>
@@ -48,11 +55,13 @@
 
 namespace android {
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 status_t AVUtils::convertMetaDataToMessage(
         const MetaDataBase *, sp<AMessage> *) {
     return OK;
 }
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 status_t AVUtils::convertMetaDataToMessage(
         const sp<MetaData> &, sp<AMessage> *) {
     return OK;
@@ -118,7 +127,11 @@ bool AVUtils::mapAACProfileToAudioFormat(const sp<AMessage> &,  audio_format_t &
     return false ;
 }
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-02-13: Audio: av: update canOffloadAPE to canOffloadSteam
 bool AVUtils::canOffloadStream(const sp<MetaData> &) {
+// QTI_END: 2019-02-13: Audio: av: update canOffloadAPE to canOffloadSteam
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
    return true;
 }
 
@@ -126,10 +139,14 @@ bool AVUtils::isEnhancedExtension(const char *) {
     return false;
 }
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2020-06-10: Audio: libstagefright: check for audio source aggregate before initialization
 bool AVUtils::isAudioSourceAggregate(const audio_attributes_t *, uint32_t) {
     return false;
 }
 
+// QTI_END: 2020-06-10: Audio: libstagefright: check for audio source aggregate before initialization
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 bool AVUtils::isAudioMuxFormatSupported(const char *) {
     return true;
 }
@@ -191,3 +208,4 @@ AVUtils *AVUtils::sInst =
 
 } //namespace android
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

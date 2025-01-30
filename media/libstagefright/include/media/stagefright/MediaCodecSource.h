@@ -66,8 +66,10 @@ struct MediaCodecSource : public MediaSource,
     virtual void signalBufferReturned(MediaBufferBase *buffer);
     virtual status_t setEncodingBitrate(int32_t bitRate /* bps */);
 
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     virtual void notifyPerformanceMode();
 
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     // for AHandlerReflector
     void onMessageReceived(const sp<AMessage> &msg);
 
@@ -163,10 +165,12 @@ private:
 
     int32_t mGeneration;
 
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
     int64_t mPrevBufferTimestampUs;
     bool mIsHFR;
     int32_t mBatchSize;
 
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
     DISALLOW_EVIL_CONSTRUCTORS(MediaCodecSource);
 };
 

@@ -59,7 +59,9 @@ enum {
     kKeyAACProfile        = 'aacp',  // int32_t
     kKeyAVCC              = 'avcc',  // raw data
     kKeyHVCC              = 'hvcc',  // raw data
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kKeyLHVC              = 'lhvc',  // raw data
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kKeyDVCC              = 'dvcc',  // raw data
     kKeyDVVC              = 'dvvc',  // raw data
     kKeyDVWC              = 'dvwc',  // raw data
@@ -294,7 +296,9 @@ enum {
     // DVB audio description
     kKeyDvbAudioDescription = 'addt', // bool (int32_t), DVB audio description only defined for
                                       // audio component
+// QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     kKeyVendorFeatureNalLength = 'vfnl', // int32_t key to check nal length enable
+// QTI_END: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
 
     // DVB teletext magazine number
     kKeyDvbTeletextMagazineNumber = 'ttxm', // int32_t, DVB teletext magazine number
@@ -307,7 +311,9 @@ enum {
     kTypeESDS        = 'esds',
     kTypeAVCC        = 'avcc',
     kTypeHVCC        = 'hvcc',
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kTypeLHVC        = 'lhvc',
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kTypeAV1C        = 'av1c',
     kTypeDVCC        = 'dvcc',
     kTypeDVVC        = 'dvvc',

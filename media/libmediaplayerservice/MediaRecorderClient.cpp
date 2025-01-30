@@ -23,7 +23,9 @@
 #include "StagefrightRecorder.h"
 #include "mediaplayerservice/AVMediaServiceExtensions.h"
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <inttypes.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <android/binder_auto_utils.h>
 #include <android/hardware/media/omx/1.0/IOmx.h>
 #include <android/hardware/media/c2/1.0/IComponentStore.h>

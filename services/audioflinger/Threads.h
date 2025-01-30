@@ -995,7 +995,9 @@ protected:
             const std::vector<uint8_t>& metadataBs) final;
 
     // ThreadBase virtuals
+// QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
     virtual     void        onIdleMixer();
+// QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
     void preExit() final EXCLUDES_ThreadBase_Mutex;
 
     virtual     bool        keepWakeLock() const { return true; }
@@ -1578,7 +1580,9 @@ protected:
                 bool        mHwSupportsPause;
                 bool        mHwPaused;
                 bool        mFlushPending;
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
                 bool        mHwSupportsSuspend;
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
                 // volumes last sent to audio HAL with stream->setVolume()
                 float mLeftVolFloat;
                 float mRightVolFloat;
@@ -1684,7 +1688,9 @@ protected:
 
             // Support low latency mode by default as unless explicitly indicated by the audio HAL
             // we assume the audio path is compatible with the head tracking latency requirements
+// QTI_BEGIN: 2023-06-14: Audio: update default supported latency modes
             std::vector<audio_latency_mode_t> mSupportedLatencyModes = {AUDIO_LATENCY_MODE_FREE,AUDIO_LATENCY_MODE_LOW};
+// QTI_END: 2023-06-14: Audio: update default supported latency modes
             // default to invalid value to force first update to the audio HAL
             audio_latency_mode_t mSetLatencyMode =
                     (audio_latency_mode_t)AUDIO_LATENCY_MODE_INVALID;
@@ -1819,10 +1825,12 @@ protected:
     float                   mMasterBalanceLeft = 1.f;
     float                   mMasterBalanceRight = 1.f;
 
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     uint64_t                mFramesWrittenAtStandby;// used to reset frames on track reset
     uint64_t                mFramesWrittenForSleep; // used to reset frames on track removal
                                                     // or underrun before entering standby
 
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 public:
     virtual     bool        hasFastMixer() const { return false; }
 
@@ -1844,7 +1852,9 @@ public:
                     }
                     return INVALID_OPERATION;
                 }
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     virtual     status_t    getTimestamp_l(AudioTimestamp& timestamp) override;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 };
 
 class OffloadThread : public DirectOutputThread {

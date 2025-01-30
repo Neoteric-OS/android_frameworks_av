@@ -1640,6 +1640,7 @@ status_t Camera3Device::waitUntilDrainedLocked(nsecs_t maxExpectedDuration) {
         mStatusTracker->dumpActiveComponents();
         SET_ERR_L("Error waiting for HAL to drain: %s (%d)", strerror(-res),
                 res);
+// QTI_BEGIN: 2018-08-16: Camera: Add critical log message
         if (res == TIMED_OUT) {
             for (size_t i = 0; i < mInFlightMap.size(); i++) {
                 InFlightRequest r = mInFlightMap.valueAt(i);
@@ -1649,6 +1650,7 @@ status_t Camera3Device::waitUntilDrainedLocked(nsecs_t maxExpectedDuration) {
                         r.numBuffersLeft);
             }
         }
+// QTI_END: 2018-08-16: Camera: Add critical log message
     }
     return res;
 }
@@ -3447,15 +3449,19 @@ status_t Camera3Device::RequestThread::clear(
 
 status_t Camera3Device::RequestThread::flush() {
     ATRACE_CALL();
+// QTI_BEGIN: 2019-09-10: Camera: Flush Improvements - Result drain optimization
     status_t flush_status;
+// QTI_END: 2019-09-10: Camera: Flush Improvements - Result drain optimization
     Mutex::Autolock l(mFlushLock);
 
+// QTI_BEGIN: 2019-09-10: Camera: Flush Improvements - Result drain optimization
     flush_status = mInterface->flush();
     // We have completed flush, signal RequestThread::waitForNextRequestLocked() to no longer wait for
     // new requests
     mRequestSignal.signal();
 
     return flush_status;
+// QTI_END: 2019-09-10: Camera: Flush Improvements - Result drain optimization
 }
 
 void Camera3Device::RequestThread::setPaused(bool paused) {

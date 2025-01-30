@@ -1,3 +1,4 @@
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
  * Copyright (c) 2013 - 2018, The Linux Foundation. All rights reserved.
  *
@@ -51,7 +52,9 @@ struct ABuffer;
  * Factory to create objects of base-classes in libmediaplayerservice
  */
 struct AVMediaServiceFactory {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     virtual StagefrightRecorder *createStagefrightRecorder(const content::AttributionSourceState& attributionSourcce);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     // RTSP extensions
     virtual sp<ARTSPConnection> createARTSPConnection(bool uidValid, uid_t uid);
@@ -90,3 +93,4 @@ struct AVMediaServiceUtils {
 }
 
 #endif // _AV_EXTENSIONS__H_
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

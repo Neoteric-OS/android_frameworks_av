@@ -108,8 +108,10 @@ struct MediaCodec : public AHandler {
         BUFFER_FLAG_PARTIAL_FRAME = 8,
         BUFFER_FLAG_MUXER_DATA    = 16,
         BUFFER_FLAG_DECODE_ONLY   = 32,
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         BUFFER_FLAG_EXTRADATA = 0x1000,
         BUFFER_FLAG_DATACORRUPT = 0x2000,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     };
 
     enum CVODegree {
@@ -451,7 +453,9 @@ private:
         kFlagIsEncoder                  = 256,
         // 512 skipped
         kFlagIsAsync                    = 1024,
+// QTI_BEGIN: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
         kFlagIsComponentAllocated       = 2048,
+// QTI_END: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
         kFlagPushBlankBuffersOnShutdown = 4096,
         kFlagUseBlockModel              = 8192,
         kFlagUseCryptoAsync             = 16384,
@@ -673,7 +677,9 @@ private:
     void PostReplyWithError(const sp<AMessage> &msg, int32_t err);
     void PostReplyWithError(const sp<AReplyToken> &replyID, int32_t err);
 
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
     status_t init(const AString &name, bool nameIsType = false);
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
 
     void setState(State newState);
     void returnBuffersToCodec(bool isReclaim = false);

@@ -31,7 +31,9 @@
 
 #include "TestPlayerStub.h"
 #include <nuplayer/NuPlayerDriver.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <mediaplayerservice/AVMediaServiceExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 namespace android {
 

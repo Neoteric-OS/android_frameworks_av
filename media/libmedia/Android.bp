@@ -438,10 +438,12 @@ cc_library {
         "resourcemanager_aidl_interface-ndk",
     ],
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     whole_static_libs: [
         "libavmediaextentions",
     ],
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     export_include_dirs: [
         "include",
     ],

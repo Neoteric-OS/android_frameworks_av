@@ -47,9 +47,11 @@ public:
         DYN_LOW_QUALITY=5,
         DYN_MED_QUALITY=6,
         DYN_HIGH_QUALITY=7,
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
         QTI_QUALITY=8,
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
     };
 
     static const CONSTEXPR float UNITY_GAIN_FLOAT = 1.0f;

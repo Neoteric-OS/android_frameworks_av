@@ -31,10 +31,12 @@
 #include "AudioResamplerCubic.h"
 #include "AudioResamplerDyn.h"
 
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
 #include "AudioResamplerQTI.h"
 #endif
 
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef __arm__
     // bug 13102576
     //#define ASM_ARM_RESAMP1 // enable asm optimisation for ResamplerOrder1
@@ -98,9 +100,11 @@ bool AudioResampler::qualityIsSupported(src_quality quality)
     case DYN_LOW_QUALITY:
     case DYN_MED_QUALITY:
     case DYN_HIGH_QUALITY:
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
     case QTI_QUALITY:
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
         return true;
     default:
         return false;
@@ -121,11 +125,15 @@ void AudioResampler::init_routine()
         if (*endptr == '\0') {
             defaultQuality = (src_quality) l;
             ALOGD("forcing AudioResampler quality to %d", defaultQuality);
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > QTI_QUALITY) {
 #else
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
             if (defaultQuality < DEFAULT_QUALITY || defaultQuality > DYN_HIGH_QUALITY) {
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
                 defaultQuality = DEFAULT_QUALITY;
             }
         }
@@ -144,9 +152,11 @@ uint32_t AudioResampler::qualityMHz(src_quality quality)
     case HIGH_QUALITY:
         return 20;
     case VERY_HIGH_QUALITY:
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
     case QTI_QUALITY: //for QTI_QUALITY, currently assuming same as VHQ
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
         return 34;
     case DYN_LOW_QUALITY:
         return 4;
@@ -222,11 +232,13 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
         case DYN_HIGH_QUALITY:
             quality = DYN_MED_QUALITY;
             break;
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
         case QTI_QUALITY:
             quality = DYN_HIGH_QUALITY;
             break;
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -246,11 +258,15 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
         resampler = new AudioResamplerCubic(inChannelCount, sampleRate);
         break;
     case HIGH_QUALITY:
+// QTI_BEGIN: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         ALOGV("Create HIGH_QUALITY sinc Resampler");
+// QTI_END: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
         resampler = new AudioResamplerSinc(inChannelCount, sampleRate);
         break;
+// QTI_BEGIN: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
     case VERY_HIGH_QUALITY:
+// QTI_END: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d", quality);
         LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
         resampler = new AudioResamplerSinc(inChannelCount, sampleRate, quality);
@@ -273,12 +289,14 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
             }
         }
         break;
+// QTI_BEGIN: 2018-05-07: Audio: Audio resampler support for playback
 #ifdef QTI_RESAMPLER
     case QTI_QUALITY:
         ALOGV("Create QTI_QUALITY Resampler = %d",quality);
         resampler = new AudioResamplerQTI(format, inChannelCount, sampleRate);
         break;
 #endif
+// QTI_END: 2018-05-07: Audio: Audio resampler support for playback
     }
 
     // initialize resampler

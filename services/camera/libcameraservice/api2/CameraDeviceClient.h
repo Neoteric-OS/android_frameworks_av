@@ -363,7 +363,9 @@ private:
     static const int32_t REQUEST_ID_NONE = -1;
 
     int32_t mRequestIdCounter;
+// QTI_BEGIN: 2018-03-10: Camera: Skip stream size check for whitelisted apps.
     bool mPrivilegedClient;
+// QTI_END: 2018-03-10: Camera: Skip stream size check for whitelisted apps.
 
     // Metadata queue to write the result metadata to.
     std::unique_ptr<MetadataQueue> mResultMetadataQueue;

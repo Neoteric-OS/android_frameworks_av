@@ -150,6 +150,7 @@ struct CompIntf : public ConfigurableC2Intf {
     virtual c2_status_t querySupportedValues(
             std::vector<C2FieldSupportedValuesQuery>& fields,
             c2_blocking_t mayBlock) const override {
+// QTI_BEGIN: 2024-09-05: Audio: Moving MultiAccessunitInterface to ComponentStore
         if (mMultiAccessUnitIntf == nullptr) {
            return  mIntf->querySupportedValues_vb(fields, mayBlock);
         }
@@ -179,6 +180,7 @@ struct CompIntf : public ConfigurableC2Intf {
                 std::pair<uint32_t, size_t> queryid = it->second;
                 fields[i] = queryArray[queryid.first][queryid.second];
             }
+// QTI_END: 2024-09-05: Audio: Moving MultiAccessunitInterface to ComponentStore
         }
         return err;
     }

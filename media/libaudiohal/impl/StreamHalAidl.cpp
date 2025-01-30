@@ -479,7 +479,9 @@ status_t StreamHalAidl::pause(StreamDescriptor::Reply* reply) {
             AUGMENT_LOG(D,
                         "HAL failed to handle the 'pause' command, but stream state is in one of"
                         " the PAUSED kind of states, current state: %s",
+// QTI_BEGIN: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
                         toString(innerReply->state).c_str());
+// QTI_END: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
             return OK;
         }
         return status;

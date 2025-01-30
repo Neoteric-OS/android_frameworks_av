@@ -49,11 +49,13 @@ struct AudioSource : public MediaSource,
         audio_microphone_direction_t selectedMicDirection = MIC_DIRECTION_UNSPECIFIED,
         float selectedMicFieldDimension = MIC_FIELD_DIMENSION_NORMAL);
 
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
     /* a default constructor for non-pcm format */
     AudioSource() {}
 
     virtual int64_t getFirstSampleSystemTimeUs() { return -1LL; }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     status_t initCheck() const;
 
     virtual status_t start(MetaData *params = NULL);
@@ -117,7 +119,9 @@ protected:
     int64_t mNumFramesLost;
     int64_t mNumClientOwnedBuffers;
     bool mNoMoreFramesToRead;
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     size_t mMaxBufferSize;
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     List<MediaBuffer * > mBuffersReceived;
 
@@ -132,7 +136,9 @@ protected:
     void queueInputBuffer_l(MediaBuffer *buffer, int64_t timeUs);
     void releaseQueuedFrames_l();
     void waitOutstandingEncodingFrames_l();
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     virtual status_t reset();
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
 
     // IAudioRecordCallback implementation
     size_t onMoreData(const AudioRecord::Buffer&) override;

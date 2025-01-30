@@ -30,7 +30,9 @@ filegroup {
         "StagefrightMetadataRetriever.cpp",
         "StagefrightRecorder.cpp",
         "TestPlayerStub.cpp",
+// QTI_BEGIN: 2023-06-21: Video: libmediaplayerservice: Enable perfboost during heif decode
         "mpctl/PerfBoost.cpp",
+// QTI_END: 2023-06-21: Video: libmediaplayerservice: Enable perfboost during heif decode
     ],
 }
 
@@ -77,7 +79,9 @@ cc_defaults {
         "libstagefright",
         "libstagefright_foundation",
         "libstagefright_httplive",
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "libstagefright_omx",
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "libutils",
         "packagemanager_aidl-cpp",
         "server_configurable_flags",
@@ -100,10 +104,12 @@ cc_defaults {
         "libstagefright_timedtext",
     ],
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     whole_static_libs: [
         "libavmediaserviceextensions",
     ],
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     sanitize: {
         cfi: true,
     },
@@ -126,8 +132,10 @@ cc_library {
     ],
 
     include_dirs: [
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "frameworks/av/media/libavextensions",
         "frameworks/av/media/libmediaextractor",
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "frameworks/av/media/module/mpeg2ts",
     ],
 

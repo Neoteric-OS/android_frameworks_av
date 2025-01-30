@@ -17,7 +17,9 @@
 #define LOG_TAG "audioserver"
 //#define LOG_NDEBUG 0
 
+// QTI_BEGIN: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
 #include <dlfcn.h>
+// QTI_END: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
 #include <algorithm>
 
 #include <fcntl.h>
@@ -35,7 +37,9 @@
 #include <hidl/HidlTransportSupport.h>
 #include <mediautils/LimitProcessMemory.h>
 #include <utils/Log.h>
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 #include <mediautils/TimeCheck.h>
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 
 // from include_dirs
 #include "AudioFlinger.h"
@@ -46,6 +50,7 @@
 
 using namespace android;
 
+// QTI_BEGIN: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
 constexpr const char kLibVRAudioPath [] = "libvraudio.so";
 
 void instantiateVRAudioServer() {
@@ -61,10 +66,12 @@ void instantiateVRAudioServer() {
     }
 }
 
+// QTI_END: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
 using android::media::audio::common::AudioMMapPolicy;
 using android::media::audio::common::AudioMMapPolicyInfo;
 using android::media::audio::common::AudioMMapPolicyType;
 
+// QTI_BEGIN: 2023-09-27: Audio: audioserver: register the IHalAdapterVendorExtension(IHAVE)
 void registerIHalAdapterVendorExtension() {
     constexpr char kLibPath[] = "libaudiohalvendorextn.so";
     void *libHandle = dlopen(kLibPath, RTLD_NOW | RTLD_NODELETE);
@@ -83,6 +90,7 @@ void registerIHalAdapterVendorExtension() {
     registerInterface();
 }
 
+// QTI_END: 2023-09-27: Audio: audioserver: register the IHalAdapterVendorExtension(IHAVE)
 int main(int argc __unused, char **argv)
 {
     ALOGD("%s: starting", __func__);
@@ -101,8 +109,10 @@ int main(int argc __unused, char **argv)
 #else
     bool doLog = (bool) property_get_bool("ro.test_harness", 0);
 #endif
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
     uint32_t timeOutMs = (uint32_t)property_get_int32("vendor.audio.timecheck_timeoutMs", 8000);
     mediautils::TimeCheck::setTimecheckTimeoutMs(timeOutMs);
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 
     pid_t childPid;
     // FIXME The advantage of making the process containing media.log service the parent process of
@@ -159,7 +169,9 @@ int main(int argc __unused, char **argv)
                     usage.ru_utime.tv_sec, usage.ru_utime.tv_usec / 1000,
                     usage.ru_stime.tv_sec, usage.ru_stime.tv_usec / 1000);
             sp<IServiceManager> sm = defaultServiceManager();
+// QTI_BEGIN: 2023-04-02: Audio: av: Fix compiler warnings
             sp<IBinder> binder = sm->waitForService(String16("media.log"));
+// QTI_END: 2023-04-02: Audio: av: Fix compiler warnings
             if (binder != 0) {
                 Vector<String16> args;
                 binder->dump(-1, args);
@@ -188,9 +200,11 @@ int main(int argc __unused, char **argv)
         // this automatically when called from AudioPolicy, but we do this anyways here.
         ProcessState::self()->startThreadPool();
 
+// QTI_BEGIN: 2023-09-27: Audio: audioserver: register the IHalAdapterVendorExtension(IHAVE)
         // Making sure this service is registered before the flinger.
         registerIHalAdapterVendorExtension();
 
+// QTI_END: 2023-09-27: Audio: audioserver: register the IHalAdapterVendorExtension(IHAVE)
         // Instantiating AudioFlinger (making it public, e.g. through ::initialize())
         // and then instantiating AudioPolicy (and making it public)
         // leads to situations where AudioFlinger is accessed remotely before
@@ -218,7 +232,9 @@ int main(int argc __unused, char **argv)
 
         // Add AudioFlinger and AudioPolicy to ServiceManager.
         sp<IServiceManager> sm = defaultServiceManager();
+// QTI_BEGIN: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
         instantiateVRAudioServer();
+// QTI_END: 2020-04-01: Audio: audioserver : dynamically instantiate vraudioservice.
         sm->addService(String16(IAudioFlinger::DEFAULT_SERVICE_NAME), afAdapter,
                 false /* allowIsolated */, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT);
         sm->addService(String16(AudioPolicyService::getServiceName()), aps,

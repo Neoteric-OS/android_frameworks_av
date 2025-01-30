@@ -35,7 +35,9 @@
 #include <media/AudioContainers.h>
 #include <utils/String8.h>
 #include <utils/Log.h>
+// QTI_BEGIN: 2018-03-22: Audio: Disable a2dp support on FM active
 #include <cutils/properties.h>
+// QTI_END: 2018-03-22: Audio: Disable a2dp support on FM active
 
 namespace android::audio_policy {
 
@@ -66,8 +68,10 @@ status_t Engine::loadWithFallback(const T& configSource) {
     }
 
     return OK;
+// QTI_BEGIN: 2018-02-19: Audio: audiopolicy: make audio policy extensible
 }
 
+// QTI_END: 2018-02-19: Audio: audiopolicy: make audio policy extensible
 
 status_t Engine::setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config)
 {
@@ -369,16 +373,20 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
             devices.add(devices2);
             break;
         }
+// QTI_BEGIN: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
         // if display-port is connected and being used in voice usecase,
         // play ringtone over speaker and display-port
         if ((strategy == STRATEGY_SONIFICATION) && getDpConnAndAllowedForVoice()) {
+// QTI_END: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
              DeviceVector devices2 = availableOutputDevices.getDevicesFromType(
                  AUDIO_DEVICE_OUT_AUX_DIGITAL);
              if (!devices2.isEmpty()) {
                devices.add(devices2);
                break;
+// QTI_BEGIN: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
              }
         }
+// QTI_END: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
 
         // if LEA headset is connected and we are told to use it, play ringtone over
         // speaker and BT LEA
@@ -421,8 +429,10 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
           devices = getDevicesForStrategyInt(
                     STRATEGY_PHONE, availableOutputDevices, outputs);
           break;
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: support extended feature in audiopolicymanager
         }
 
+// QTI_END: 2018-03-22: Audio: audiopolicy: support extended feature in audiopolicymanager
         DeviceVector devices2;
         if (strategy != STRATEGY_SONIFICATION) {
             // no sonification on remote submix (e.g. WFD)
@@ -498,11 +508,13 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
                     AUDIO_DEVICE_OUT_ANLG_DOCK_HEADSET);
         }
 
+// QTI_BEGIN: 2024-07-11: Audio: av: Add missing support for proxy out
         if ((devices2.isEmpty()) && (strategy != STRATEGY_SONIFICATION) && (devices.isEmpty())) {
             // no sonification on WFD sink
             devices2 = availableOutputDevices.getDevicesFromType(AUDIO_DEVICE_OUT_PROXY);
         }
 
+// QTI_END: 2024-07-11: Audio: av: Add missing support for proxy out
         if (devices2.isEmpty()) {
             devices2 = availableOutputDevices.getFirstDevicesFromTypes({
                         AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET, AUDIO_DEVICE_OUT_SPEAKER});
@@ -611,6 +623,7 @@ DeviceVector Engine::getDisabledDevicesForInputSource(
     return disabledDevices;
 }
 
+// QTI_BEGIN: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
 sp<DeviceDescriptor> Engine::getIPDevice(const DeviceVector &availableDevices) const
 {
     sp<DeviceDescriptor> device = nullptr;
@@ -621,6 +634,7 @@ sp<DeviceDescriptor> Engine::getIPDevice(const DeviceVector &availableDevices) c
     return device;
 }
 
+// QTI_END: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
 sp<DeviceDescriptor> Engine::getDeviceForInputSource(audio_source_t inputSource) const
 {
     const DeviceVector availableOutputDevices = getApmObserver()->getAvailableOutputDevices();
@@ -676,9 +690,11 @@ sp<DeviceDescriptor> Engine::getDeviceForInputSource(audio_source_t inputSource)
                     AUDIO_DEVICE_IN_REMOTE_SUBMIX, String8(""), AUDIO_FORMAT_DEFAULT);
             if (device != nullptr) break;
         }
+// QTI_BEGIN: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         device = getIPDevice(availableDevices);
         if (device != nullptr) break;
 
+// QTI_END: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         device = availableDevices.getDevice(
                 AUDIO_DEVICE_IN_BLUETOOTH_A2DP, String8(""), AUDIO_FORMAT_DEFAULT);
         if (device != nullptr) break;
@@ -706,9 +722,11 @@ sp<DeviceDescriptor> Engine::getDeviceForInputSource(audio_source_t inputSource)
             }
         }
 
+// QTI_BEGIN: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         device = getIPDevice(availableDevices);
         if (device != nullptr) break;
 
+// QTI_END: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         if (audio_is_bluetooth_out_sco_device(commDeviceType)) {
             // if SCO device is requested but no SCO device is available, fall back to default case
             device = availableDevices.getDevice(
@@ -788,9 +806,11 @@ sp<DeviceDescriptor> Engine::getDeviceForInputSource(audio_source_t inputSource)
         break;
     case AUDIO_SOURCE_CAMCORDER:
         // For a device without built-in mic, adding usb device
+// QTI_BEGIN: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         device = getIPDevice(availableDevices);
         if (device != nullptr) break;
 
+// QTI_END: 2023-09-28: Audio: audiopolicy: Add check to route AUDIO_DEVICE_IN_IP device
         device = availableDevices.getFirstExistingDevice({
                 AUDIO_DEVICE_IN_BACK_MIC, AUDIO_DEVICE_IN_BUILTIN_MIC,
                 AUDIO_DEVICE_IN_USB_DEVICE});

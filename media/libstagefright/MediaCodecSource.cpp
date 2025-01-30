@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-08-16: Video: Revert "Dynamic Video Framework Log Enablement"
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-08-16: Video: Revert "Dynamic Video Framework Log Enablement"
 #define LOG_TAG "MediaCodecSource"
 #define DEBUG_DRIFT_TIME 0
 
@@ -39,8 +41,12 @@
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/Utils.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
 #include <OMX_Core.h>
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
 
 namespace android {
 
@@ -171,7 +177,9 @@ status_t MediaCodecSource::Puller::postSynchronouslyAndReturnError(
 }
 
 status_t MediaCodecSource::Puller::setStopTimeUs(int64_t stopTimeUs) {
+// QTI_BEGIN: 2018-05-22: Video: media: fix infinite wait at source for HAL1 based recording
     return mSource->setStopTimeUs(stopTimeUs);
+// QTI_END: 2018-05-22: Video: media: fix infinite wait at source for HAL1 based recording
 }
 
 status_t MediaCodecSource::Puller::start(const sp<MetaData> &meta, const sp<AMessage> &notify) {
@@ -348,7 +356,9 @@ sp<MediaCodecSource> MediaCodecSource::Create(
         uint32_t flags) {
     sp<MediaCodecSource> mediaSource = new MediaCodecSource(
             looper, format, source, persistentSurface, flags);
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
     AVUtils::get()->getHFRParams(&mediaSource->mIsHFR, &mediaSource->mBatchSize, format);
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
 
     if (mediaSource->init() == OK) {
         return mediaSource;
@@ -475,10 +485,12 @@ MediaCodecSource::MediaCodecSource(
       mFirstSampleSystemTimeUs(-1LL),
       mPausePending(false),
       mFirstSampleTimeUs(-1LL),
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
       mGeneration(0),
       mPrevBufferTimestampUs(0),
       mIsHFR(false),
       mBatchSize(0){
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
     CHECK(mLooper != NULL);
 
     if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
@@ -535,21 +547,29 @@ status_t MediaCodecSource::initEncoder() {
                     MediaCodec::CONFIGURE_FLAG_ENCODE);
     } else {
         Vector<AString> matchingCodecs;
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         bool useQcHwEnc = AVUtils::get()->useQCHWEncoder(mOutputFormat, &matchingCodecs);
         if (!useQcHwEnc) {
             MediaCodecList::findMatchingCodecs(
                     outputMIME.c_str(), true /* encoder */,
                     ((mFlags & FLAG_PREFER_SOFTWARE_CODEC) ? MediaCodecList::kPreferSoftwareCodecs : 0),
                     &matchingCodecs);
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
+// QTI_BEGIN: 2018-02-07: Audio: PPR1.180130.002_AOSP_Merge
         }
+// QTI_END: 2018-02-07: Audio: PPR1.180130.002_AOSP_Merge
+// QTI_BEGIN: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
         int32_t callingPid = MediaCodec::kNoPid;
         int32_t callingUid = MediaCodec::kNoUid;
         mOutputFormat->findInt32("calling-pid", &callingPid);
         mOutputFormat->findInt32("calling-uid", &callingUid);
 
+// QTI_END: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
         for (size_t ix = 0; ix < matchingCodecs.size(); ++ix) {
             mEncoder = MediaCodec::CreateByComponentName(
+// QTI_BEGIN: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
                     mCodecLooper, matchingCodecs[ix], NULL, callingPid, callingUid);
+// QTI_END: 2023-06-26: Video: StagefrightRecorder: propagate calling pid/uid to MediaCodec
 
             if (mEncoder == NULL) {
                 continue;
@@ -560,16 +580,22 @@ status_t MediaCodecSource::initEncoder() {
             mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
             mEncoder->setCallback(mEncoderActivityNotify);
 
+// QTI_BEGIN: 2022-07-15: Video: libstagefright: limit configuring block model for hw encoders
             AString codecName = matchingCodecs[ix];
             bool isHWEnc = codecName.startsWith("c2.qti");
 
+// QTI_END: 2022-07-15: Video: libstagefright: limit configuring block model for hw encoders
             err = mEncoder->configure(
                         mOutputFormat,
                         NULL /* nativeWindow */,
                         NULL /* crypto */,
+// QTI_BEGIN: 2021-10-07: Video: libstagefright: Configure camcorder encoder session with
                         MediaCodec::CONFIGURE_FLAG_ENCODE |
+// QTI_END: 2021-10-07: Video: libstagefright: Configure camcorder encoder session with
+// QTI_BEGIN: 2023-01-01: Video: MediaCodec:configuring block model for encoders
                         ((mIsVideo && isHWEnc && (mFlags & FLAG_USE_SURFACE_INPUT)) ?
                          MediaCodec::CONFIGURE_FLAG_USE_BLOCK_MODEL : 0));
+// QTI_END: 2023-01-01: Video: MediaCodec:configuring block model for encoders
 
             if (err == OK) {
                 break;
@@ -603,10 +629,12 @@ status_t MediaCodecSource::initEncoder() {
         if (err != OK) {
             return err;
         }
+// QTI_BEGIN: 2022-03-17: Video: libstagefright: Adding NULL check for codec instance
         if (mEncoder == NULL) {
             ALOGE("initEncoder : mEncoder is null");
             return BAD_VALUE;
         }
+// QTI_END: 2022-03-17: Video: libstagefright: Adding NULL check for codec instance
     }
 
     sp<AMessage> inputFormat;
@@ -682,13 +710,21 @@ void MediaCodecSource::signalEOS(status_t err) {
             output->mBufferQueue.clear();
             output->mEncoderReachedEOS = true;
             output->mErrorCode = err;
+// QTI_BEGIN: 2018-04-20: Video: libstagefright: Handling SSR/Hardware error in Camcorder
             if (err != ERROR_END_OF_STREAM) {
+// QTI_END: 2018-04-20: Video: libstagefright: Handling SSR/Hardware error in Camcorder
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 output->mErrorCode = ERROR_IO;
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
+// QTI_BEGIN: 2018-05-15: Audio: av: stop puller before releasing encoder
             }
             if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
                 mStopping = true;
                 mPuller->stop();
+// QTI_END: 2018-05-15: Audio: av: stop puller before releasing encoder
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
             }
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
             output->mCond.signal();
 
             reachedEOS = true;
@@ -752,16 +788,24 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
                     return OK;
                 }
             }
+// QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
             mInputBufferTimeOffsetUs = AVUtils::get()->overwriteTimeOffset(mIsHFR,
                 mInputBufferTimeOffsetUs, &mPrevBufferTimestampUs, timeUs, mBatchSize);
+// QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
             timeUs += mInputBufferTimeOffsetUs;
 
             // push decoding time for video, or drift time for audio
             if (mIsVideo) {
                 mDecodingTimeQueue.push_back(timeUs);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                 if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-03-19: Video: stagefright: pass time offset to avenhancement
                     AVUtils::get()->addDecodingTimesFromBatch(mbuf, mDecodingTimeQueue, mInputBufferTimeOffsetUs);
+// QTI_END: 2019-03-19: Video: stagefright: pass time offset to avenhancement
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                 }
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             } else {
 #if DEBUG_DRIFT_TIME
                 if (mFirstSampleTimeUs < 0ll) {
@@ -782,7 +826,9 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
             if (err != OK || inbuf == NULL || inbuf->data() == NULL
                     || mbuf->data() == NULL || mbuf->size() == 0) {
                 mbuf->release();
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 signalEOS(err);
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
                 break;
             }
 
@@ -832,7 +878,9 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
 status_t MediaCodecSource::onStart(MetaData *params) {
     if (mStopping || mOutput.lock()->mEncoderReachedEOS) {
+// QTI_BEGIN: 2018-05-13: Video: libstagefright: encoder must exist when source starting.
         ALOGE("Failed to start while we're stopping or encoder already stopped due to EOS error");
+// QTI_END: 2018-05-13: Video: libstagefright: encoder must exist when source starting.
         return INVALID_OPERATION;
     }
     int64_t startTimeUs;
@@ -973,7 +1021,9 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             sp<MediaCodecBuffer> outbuf;
             status_t err = mEncoder->getOutputBuffer(index, &outbuf);
             if (err != OK || outbuf == NULL || outbuf->data() == NULL) {
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 signalEOS(err);
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
                 break;
             } else if (outbuf->size() == 0) {
                 // Zero length CSD buffers are not treated as an error
@@ -985,9 +1035,13 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 break;
             }
 
+// QTI_BEGIN: 2018-03-05: Audio: PPR1.180227.001_AOSP_Merge.
             MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
             sp<MetaData> meta = new MetaData(mbuf->meta_data());
+// QTI_END: 2018-03-05: Audio: PPR1.180227.001_AOSP_Merge.
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             AVUtils::get()->setDeferRelease(meta);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
             mbuf->setObserver(this);
             mbuf->add_ref();
@@ -1060,7 +1114,9 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
                 mStopping = true;
                 mPuller->stop();
             }
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
             signalEOS(err);
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
        }
        break;
     }
@@ -1144,8 +1200,10 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
              break;
         }
 
+// QTI_BEGIN: 2019-02-28: Video: libstagefright: call release encoder instead of signalEOS
         releaseEncoder();
 
+// QTI_END: 2019-02-28: Video: libstagefright: call release encoder instead of signalEOS
         ALOGD("source (%s) stopping stalled", mIsVideo ? "video" : "audio");
         signalEOS();
         break;
@@ -1223,6 +1281,7 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
     }
 }
 
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
 void MediaCodecSource::notifyPerformanceMode() {
     if (mIsVideo && mEncoder != NULL) {
         sp<AMessage> params = new AMessage;
@@ -1230,4 +1289,5 @@ void MediaCodecSource::notifyPerformanceMode() {
         mEncoder->setParameters(params);
     }
 }
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
 } // namespace android

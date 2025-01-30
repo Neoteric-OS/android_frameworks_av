@@ -36,7 +36,9 @@
 #include <media/IAudioFlinger.h>
 #include <media/MediaMetricsItem.h>
 #include <media/TypeConverter.h>
+// QTI_BEGIN: 2018-04-05: Secure Systems: SEEMP: add framework instrumentation
 #include <media/SeempLog.h>
+// QTI_END: 2018-04-05: Secure Systems: SEEMP: add framework instrumentation
 
 #define WAIT_PERIOD_MS          10
 
@@ -417,12 +419,14 @@ status_t AudioRecord::set(
     }
 
     // TODO: add audio hardware input latency here
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     if (mTransfer == TRANSFER_CALLBACK ||
             mTransfer == TRANSFER_SYNC) {
         mLatency = (1000 * mNotificationFramesAct) / mSampleRate;
     } else {
         mLatency = (1000 * mFrameCount) / mSampleRate;
     }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     mMarkerPosition = 0;
     mMarkerReached = false;
     mNewPosition = 0;
@@ -443,7 +447,9 @@ status_t AudioRecord::start(AudioSystem::sync_event_t event, audio_session_t tri
 {
     const int64_t beginNs = systemTime();
     ALOGV("%s(%d): sync event %d trigger session %d", __func__, mPortId, event, triggerSession);
+// QTI_BEGIN: 2018-04-05: Secure Systems: SEEMP: add framework instrumentation
     SEEMPLOG_RECORD(71,"");
+// QTI_END: 2018-04-05: Secure Systems: SEEMP: add framework instrumentation
     AutoMutex lock(mLock);
 
     status_t status = NO_ERROR;
@@ -956,13 +962,17 @@ status_t AudioRecord::createRecord_l(const Modulo<uint32_t> &epoch)
     mSessionId = output.sessionId;
     mSampleRate = output.sampleRate;
     mServerConfig = output.serverConfig;
+// QTI_BEGIN: 2022-04-01: Audio: av: fix compress capture with AudioRecord
     if (audio_is_linear_pcm(mServerConfig.format)) {
+// QTI_END: 2022-04-01: Audio: av: fix compress capture with AudioRecord
       mServerFrameSize = audio_bytes_per_frame(
             audio_channel_count_from_in_mask(mServerConfig.channel_mask), mServerConfig.format);
       mServerSampleSize = audio_bytes_per_sample(mServerConfig.format);
+// QTI_BEGIN: 2022-04-01: Audio: av: fix compress capture with AudioRecord
     } else {
         mServerFrameSize = mServerSampleSize = sizeof(uint8_t);
     }
+// QTI_END: 2022-04-01: Audio: av: fix compress capture with AudioRecord
     mHalSampleRate = output.halConfig.sample_rate;
     mHalChannelCount = audio_channel_count_from_in_mask(output.halConfig.channel_mask);
     mHalFormat = output.halConfig.format;
@@ -1257,21 +1267,29 @@ audio_io_handle_t AudioRecord::getInputPrivate() const
     return mInput;
 }
 
+// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 status_t AudioRecord::setParameters(const String8& keyValuePairs) {
     AutoMutex lock(mLock);
+// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
+// QTI_BEGIN: 2024-12-16: Audio: AudioRecord: add set/get Parameters API's
     if (mInput == AUDIO_IO_HANDLE_NONE || mAudioRecord == nullptr) {
         return NO_INIT;
     }
     return statusTFromBinderStatus(mAudioRecord->setParameters(keyValuePairs.c_str()));
+// QTI_END: 2024-12-16: Audio: AudioRecord: add set/get Parameters API's
+// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 }
 
 String8 AudioRecord::getParameters(const String8& keys) {
     AutoMutex lock(mLock);
     return mInput != AUDIO_IO_HANDLE_NONE
                ? AudioSystem::getParameters(mInput, keys)
+// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
                : String8();
+// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 }
 
+// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 // -------------------------------------------------------------------------
 
 ssize_t AudioRecord::read(void* buffer, size_t userSize, bool blocking)

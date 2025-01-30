@@ -654,12 +654,14 @@ void ACodecBufferChannel::drainThisBuffer(
     if (omxFlags & OMX_BUFFERFLAG_DECODEONLY) {
         flags |= MediaCodec::BUFFER_FLAG_DECODE_ONLY;
     }
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (omxFlags & OMX_BUFFERFLAG_EXTRADATA) {
         flags |= MediaCodec::BUFFER_FLAG_EXTRADATA;
     }
     if (omxFlags & OMX_BUFFERFLAG_DATACORRUPT) {
         flags |= MediaCodec::BUFFER_FLAG_DATACORRUPT;
     }
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     it->mClientBuffer->meta()->setInt32("flags", flags);
 
     mCallback->onOutputBufferAvailable(

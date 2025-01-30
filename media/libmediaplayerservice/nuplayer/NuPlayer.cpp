@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "NuPlayer"
 
 #include <inttypes.h>
@@ -62,13 +64,17 @@
 
 #include <media/esds/ESDS.h>
 #include <media/stagefright/Utils.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include "mediaplayerservice/AVNuExtensions.h"
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 namespace android {
 
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
 // maximum time to pause renderer to wait for video pre-roll
 static constexpr int64_t kDefaultVideoPrerollMaxUs = 2000000LL;
 
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
 struct NuPlayer::Action : public RefBase {
     Action() {}
 
@@ -78,6 +84,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(Action);
 };
 
+// QTI_BEGIN: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
 struct NuPlayer::InstantiateDecoderAction : public Action {
     explicit InstantiateDecoderAction(bool audio, sp<DecoderBase> (*decoder), bool checkAudioModeChange)
         : mAudio(audio),
@@ -97,6 +104,7 @@ private:
     DISALLOW_EVIL_CONSTRUCTORS(InstantiateDecoderAction);
 };
 
+// QTI_END: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
 struct NuPlayer::SeekAction : public Action {
     explicit SeekAction(int64_t seekTimeUs, MediaPlayerSeekMode mode)
         : mSeekTimeUs(seekTimeUs),
@@ -206,7 +214,9 @@ NuPlayer::NuPlayer(pid_t pid, const sp<MediaClock> &mediaClock)
       mAudioDecoderGeneration(0),
       mVideoDecoderGeneration(0),
       mRendererGeneration(0),
+// QTI_BEGIN: 2020-01-06: Video: Nuplayer: Update frame-rate based on display refresh rate
       mMaxOutputFrameRate(60),
+// QTI_END: 2020-01-06: Video: Nuplayer: Update frame-rate based on display refresh rate
       mLastStartedPlayingTimeNs(0),
       mLastStartedRebufferingTimeNs(0),
       mPreviousSeekTimeUs(0),
@@ -232,7 +242,9 @@ NuPlayer::NuPlayer(pid_t pid, const sp<MediaClock> &mediaClock)
       mPausedByClient(true),
       mPausedForBuffering(false),
       mIsDrmProtected(false),
+// QTI_BEGIN: 2021-03-17: Video: Revert "NuPlayer: enable seek preroll"
       mDataSourceType(DATA_SOURCE_TYPE_NONE) {
+// QTI_END: 2021-03-17: Video: Revert "NuPlayer: enable seek preroll"
     CHECK(mediaClock != NULL);
     clearFlushComplete();
 }
@@ -262,7 +274,9 @@ void NuPlayer::setDataSourceAsync(const sp<IStreamSource> &source) {
     mDataSourceType = DATA_SOURCE_TYPE_STREAM;
 }
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 bool NuPlayer::IsHTTPLiveURL(const char *url) {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (!strncasecmp("http://", url, 7)
             || !strncasecmp("https://", url, 8)
             || !strncasecmp("file://", url, 7)) {
@@ -279,6 +293,7 @@ bool NuPlayer::IsHTTPLiveURL(const char *url) {
     return false;
 }
 
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
 void NuPlayer::logLatencyBegin(std::string strId) {
     mLatencyStartTime[strId] = std::chrono::system_clock::now();
 }
@@ -289,6 +304,7 @@ void NuPlayer::logLatencyEnd(std::string strId) {
     ALOGI("%s latency : %.2f ms", strId.c_str(), (duration.count() * 1000));
 }
 
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
 void NuPlayer::setDataSourceAsync(
         const sp<IMediaHTTPService> &httpService,
         const char *url,
@@ -912,11 +928,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             readFromAMessage(msg, &rate);
             status_t err = OK;
             if (mRenderer != NULL) {
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                 // AudioSink allows only 1.f and 0.f for offload and direct modes.
                 // For other speeds, restart audio to fallback to supported paths
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 bool audioDirectOutput = (mAudioSink->getFlags() & AUDIO_OUTPUT_FLAG_DIRECT) != 0;
                 if ((mOffloadAudio || audioDirectOutput) &&
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                         ((rate.mSpeed != 0.f && rate.mSpeed != 1.f) || rate.mPitch != 1.f)) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                     int64_t currentPositionUs;
                     if (getCurrentPosition(&currentPositionUs) != OK) {
                         currentPositionUs = mPreviousSeekTimeUs;
@@ -1086,15 +1106,23 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 if (mSourceFlags & Source::FLAG_DYNAMIC_DURATION) {
                     schedulePollDuration();
                 }
+// QTI_BEGIN: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
 
                 // Pause the renderer till video queue pre-rolls
+// QTI_END: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
                 if (!mPaused && mVideoDecoder != NULL && mAudioDecoder != NULL) {
+// QTI_BEGIN: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
                     ALOGI("NOTE: Pausing Renderer after decoders instantiated..");
+// QTI_END: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
                     mRenderer->pause(true /* forPreroll */);
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
                     // wake up renderer if timed out
                     sp<AMessage> msg = new AMessage(kWhatWakeupRendererFromPreroll, this);
                     msg->post(kDefaultVideoPrerollMaxUs);
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
+// QTI_BEGIN: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
                 }
+// QTI_END: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
             }
 
             status_t err;
@@ -1180,7 +1208,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 mRenderer->queueEOS(audio, err);
             } else if (what == DecoderBase::kWhatFlushCompleted) {
                 ALOGV("decoder %s flush completed", audio ? "audio" : "video");
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
                 logLatencyEnd(audio ? "audioFlush" : "videoFlush");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
                 handleFlushComplete(audio, true /* isDecoder */);
                 finishFlushIfPossible();
             } else if (what == DecoderBase::kWhatVideoSizeChanged) {
@@ -1194,7 +1224,9 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 updateVideoSize(inputFormat, format);
             } else if (what == DecoderBase::kWhatShutdownCompleted) {
                 ALOGV("%s shutdown completed", audio ? "audio" : "video");
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
                 logLatencyEnd(audio ? "audioShutdown" : "videoShutdown");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
                 if (audio) {
                     Mutex::Autolock autoLock(mDecoderLock);
                     mAudioDecoder.clear();
@@ -1202,6 +1234,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     CHECK_EQ((int)mFlushingAudio, (int)SHUTTING_DOWN_DECODER);
                     mFlushingAudio = SHUT_DOWN;
+// QTI_BEGIN: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                     // if this shutdown is called due to audio decoder encountered error
                     // and stream contains video source and video already reached EOS
                     // notify NuPlayerDriver to complete playback
@@ -1209,6 +1242,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
                     }
                     mAudioDecoderError = false;
+// QTI_END: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                 } else {
                     Mutex::Autolock autoLock(mDecoderLock);
                     mVideoDecoder.clear();
@@ -1216,6 +1250,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
 
                     CHECK_EQ((int)mFlushingVideo, (int)SHUTTING_DOWN_DECODER);
                     mFlushingVideo = SHUT_DOWN;
+// QTI_BEGIN: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                     // if this shutdown is called due to video decoder encountered error
                     // and stream contains audio source and audio already reached EOS
                     // notify NuPlayerDriver to complete playback
@@ -1223,6 +1258,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                         notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
                     }
                     mVideoDecoderError = false;
+// QTI_END: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                 }
 
                 finishFlushIfPossible();
@@ -1280,6 +1316,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             // When both audio and video have error, or this stream has only audio
                             // which has error, notify client of error.
                             notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+// QTI_BEGIN: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                         } else if (mVideoEOS) {
                             // if stream has video source and video already reached EOS, then
                             // notify MEDIA_PLAYBACK_COMPLETE
@@ -1288,6 +1325,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             // check this state again after audio decoder shutdown
                             ALOGV("Audio encountered error, while video already reached EOS");
                             notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
+// QTI_END: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                         } else {
                             // Only audio track has error. Video track could be still good to play.
                             if (mVideoEOS) {
@@ -1303,6 +1341,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             // When both audio and video have error, or this stream has only video
                             // which has error, notify client of error.
                             notifyListener(MEDIA_ERROR, MEDIA_ERROR_UNKNOWN, err);
+// QTI_BEGIN: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                         } else if (mAudioEOS) {
                             // if stream has audio source and audio already reached EOS, then
                             // notify MEDIA_PLAYBACK_COMPLETE
@@ -1311,6 +1350,7 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             // check this state again after video decoder shutdown
                             ALOGV("Video encountered error, while audio already reached EOS");
                             notifyListener(MEDIA_PLAYBACK_COMPLETE, 0, 0);
+// QTI_END: 2018-05-13: Video: mediaplayerservice: check audio states when video encounterred error
                         } else {
                             // Only video track has error. Audio track could be still good to play.
                             if (mAudioEOS) {
@@ -1320,11 +1360,13 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                             }
                         }
                         if (mRenderer != NULL && mRenderer->isVideoPrerollInprogress()) {
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
                             // wake up renderer immediately. it's still waiting for video preroll,
                             // but video is already gone.
                             sp<AMessage> msg = new AMessage(kWhatWakeupRendererFromPreroll, this);
                             msg->post();
                         }
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
                         mVideoDecoderError = true;
                     }
                 }
@@ -1403,11 +1445,15 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             } else if (what == Renderer::kWhatMediaRenderingStart) {
                 ALOGV("media rendering started");
                 notifyListener(MEDIA_STARTED, 0, 0);
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
             } else if (!mPaused && what == Renderer::kWhatVideoPrerollComplete) {
                 // If NuPlayer is paused too, don't resume renderer. The pause may be called by
                 // client, wait for client to resume NuPlayer
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
+// QTI_BEGIN: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
                 ALOGI("NOTE: Video preroll complete.. resume renderer..");
                 mRenderer->resume();
+// QTI_END: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
             } else if (what == Renderer::kWhatAudioTearDown) {
                 int32_t reason;
                 CHECK(msg->findInt32("reason", &reason));
@@ -1493,9 +1539,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
                 }
                 break;
             }
+// QTI_BEGIN: 2022-03-26: Video: nuplayer: proper handling of audio start latency for A/V sync
             if(mPaused) {
                 mRenderer -> setIsSeekonPause();
             }
+// QTI_END: 2022-03-26: Video: nuplayer: proper handling of audio start latency for A/V sync
 
             mDeferredActions.push_back(
                     new FlushDecoderAction(FLUSH_CMD_FLUSH /* audio */,
@@ -1575,16 +1623,22 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
         case kWhatWakeupRendererFromPreroll:
         {
             // don't break pause if client requested renderer to pause too.
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
             if (!mPaused && mRenderer != NULL && mRenderer->isVideoPrerollInprogress()) {
+// QTI_BEGIN: 2019-11-17: Video: nuplayer: Don't shutdown the video during preroll timeout
                 ALOGI("NOTE: Video preroll timed out, resume renderer");
+// QTI_END: 2019-11-17: Video: nuplayer: Don't shutdown the video during preroll timeout
+// QTI_BEGIN: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
                 mRenderer->resume();
             }
             break;
         }
 
+// QTI_END: 2019-07-16: Video: NuPlayer: Resume renderer if wait for video pre-roll timedout
         default:
             TRESPASS();
             break;
@@ -1707,7 +1761,9 @@ void NuPlayer::onStart(int64_t startPositionUs, MediaPlayerSeekMode mode) {
     sp<AMessage> notify = new AMessage(kWhatRendererNotify, this);
     ++mRendererGeneration;
     notify->setInt32("generation", mRendererGeneration);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     mRenderer = AVNuFactory::get()->createRenderer(mAudioSink, mMediaClock, notify, flags);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     mRendererLooper = new ALooper;
     mRendererLooper->setName("NuPlayerRenderer");
     mRendererLooper->start(false, false, ANDROID_PRIORITY_AUDIO);
@@ -1863,7 +1919,9 @@ void NuPlayer::handleFlushComplete(bool audio, bool isDecoder) {
             *state = SHUTTING_DOWN_DECODER;
 
             ALOGV("initiating %s decoder shutdown", audio ? "audio" : "video");
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
             logLatencyBegin(audio ? "audioShutdown" : "videoShutdown");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
             getDecoder(audio)->initiateShutdown();
             break;
         }
@@ -1958,9 +2016,11 @@ void NuPlayer::restartAudio(
     closeAudioSink();
     mRenderer->flush(true /* audio */, false /* notifyComplete */);
     if (mVideoDecoder != NULL) {
+// QTI_BEGIN: 2018-05-13: Video: nuplayer: call video flush on audio teardown
         mDeferredActions.push_back(
                 new FlushDecoderAction(FLUSH_CMD_NONE /* audio */,
                                        FLUSH_CMD_FLUSH /* video */));
+// QTI_END: 2018-05-13: Video: nuplayer: call video flush on audio teardown
         mDeferredActions.push_back(
                 new SeekAction(currentPositionUs,
                 MediaPlayerSeekMode::SEEK_PREVIOUS_SYNC /* mode */));
@@ -1979,11 +2039,15 @@ void NuPlayer::restartAudio(
     }
 
     if (needsToCreateAudioDecoder) {
+// QTI_BEGIN: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
          mDeferredActions.push_back(
             new InstantiateDecoderAction(true /* audio */, &mAudioDecoder, !forceNonOffload));
+// QTI_END: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
     }
+// QTI_BEGIN: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
     processDeferredActions();
 
+// QTI_END: 2018-09-07: Audio: Audio : AV Sync issue on BT-Sco to BT-A2dp switch.
 }
 
 void NuPlayer::determineAudioModeChange(const sp<AMessage> &audioFormat) {
@@ -2033,10 +2097,14 @@ status_t NuPlayer::instantiateDecoder(
         return OK;
     }
 
+// QTI_BEGIN: 2019-07-16: Audio: Avoid null pointer exceptions
     sp<AMessage> format = (mSource != NULL) ? mSource->getFormat(audio) : NULL;
+// QTI_END: 2019-07-16: Audio: Avoid null pointer exceptions
 
     if (format == NULL) {
+// QTI_BEGIN: 2019-07-16: Audio: Avoid null pointer exceptions
         ALOGW("%s: getFormat called when source is gone or not set", __func__);
+// QTI_END: 2019-07-16: Audio: Avoid null pointer exceptions
         return UNKNOWN_ERROR;
     } else {
         status_t err;
@@ -2069,6 +2137,7 @@ status_t NuPlayer::instantiateDecoder(
             format->setInt32("protected", true);
         }
 
+// QTI_BEGIN: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
         if (mSurface != NULL) {
             int64_t refreshDuration = 0;
             native_window_get_refresh_cycle_duration(mSurface.get(), &refreshDuration);
@@ -2076,16 +2145,29 @@ status_t NuPlayer::instantiateDecoder(
                 mMaxOutputFrameRate = round(1000000000.0f / refreshDuration);
         }
 
+// QTI_END: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
         float rate = getFrameRate();
         if (rate > 0) {
             format->setFloat("operating-rate", rate * mPlaybackSettings.mSpeed);
+// QTI_BEGIN: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
             mRenderer->setVideoFrameRate(rate > mMaxOutputFrameRate ? mMaxOutputFrameRate : rate);
+// QTI_END: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
         }
+// QTI_BEGIN: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
         if (rate <= 0 || rate > mMaxOutputFrameRate) {
+// QTI_END: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
+// QTI_BEGIN: 2020-01-06: Video: Nuplayer: Update frame-rate based on display refresh rate
             format->setInt32("output-frame-rate", mMaxOutputFrameRate);
+// QTI_END: 2020-01-06: Video: Nuplayer: Update frame-rate based on display refresh rate
+// QTI_BEGIN: 2020-03-24: Video: Nuplayer: Update framerate as floating point value
             format->setFloat("vendor.qti-ext-dec-output-render-frame-rate.value",
+// QTI_END: 2020-03-24: Video: Nuplayer: Update framerate as floating point value
+// QTI_BEGIN: 2020-09-30: Video: Nuplayer: Set native_player vendor extension
                     mMaxOutputFrameRate);
+// QTI_END: 2020-09-30: Video: Nuplayer: Set native_player vendor extension
+// QTI_BEGIN: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
         }
+// QTI_END: 2021-02-25: Video: Nuplayer: Calculate max render rate during codec creation
 
         format->setInt32("android._video-scaling", mVideoScalingMode);
     }
@@ -2105,13 +2187,19 @@ status_t NuPlayer::instantiateDecoder(
 
             const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
             format->setInt32("has-video", hasVideo);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             *decoder = AVNuFactory::get()->createPassThruDecoder(notify, mSource, mRenderer);
             ALOGV("instantiateDecoder audio DecoderPassThrough hasVideo: %d", hasVideo);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         } else {
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             AVNuUtils::get()->setCodecOutputFormat(format);
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
             mSource->setOffloadAudio(false /* offload */);
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             *decoder = AVNuFactory::get()->createDecoder(notify, mSource, mPID, mUID, mRenderer);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             ALOGV("instantiateDecoder audio Decoder");
         }
         mAudioDecoderError = false;
@@ -2161,7 +2249,9 @@ status_t NuPlayer::instantiateDecoder(
             }
         }
 
+// QTI_BEGIN: 2019-05-03: Video: NuPlayer: Set playback-speed in instantiate decoder
         params->setFloat("playback-speed", mPlaybackSettings.mSpeed);
+// QTI_END: 2019-05-03: Video: NuPlayer: Set playback-speed in instantiate decoder
         if (params->countEntries() > 0) {
             (*decoder)->setParameters(params);
         }
@@ -2500,12 +2590,16 @@ void NuPlayer::performDecoderFlush(FlushCommand audio, FlushCommand video) {
     }
 
     if (audio != FLUSH_CMD_NONE && mAudioDecoder != NULL) {
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
         logLatencyBegin("audioFlush");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
         flushDecoder(true /* audio */, (audio == FLUSH_CMD_SHUTDOWN));
     }
 
     if (video != FLUSH_CMD_NONE && mVideoDecoder != NULL) {
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
         logLatencyBegin("videoFlush");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
         flushDecoder(false /* audio */, (video == FLUSH_CMD_SHUTDOWN));
     }
 }
@@ -2619,7 +2713,9 @@ void NuPlayer::performResumeDecoders(bool needNotify) {
 void NuPlayer::finishResume() {
     if (mResumePending) {
         mResumePending = false;
+// QTI_BEGIN: 2021-03-17: Video: Revert "NuPlayer: enable seek preroll"
         notifyDriverSeekComplete();
+// QTI_END: 2021-03-17: Video: Revert "NuPlayer: enable seek preroll"
     }
 }
 
@@ -2886,6 +2982,7 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
         case Source::kWhatRTCPByeReceived:
         {
             ALOGV("notify the client that Bye message is received");
@@ -2893,6 +2990,7 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
+// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
         default:
             TRESPASS();
     }

@@ -40,8 +40,10 @@
 #include <media/stagefright/Utils.h>
 #include <media/CharacterEncodingDetector.h>
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 namespace android {
 
 StagefrightMetadataRetriever::StagefrightMetadataRetriever()
@@ -93,7 +95,9 @@ status_t StagefrightMetadataRetriever::setDataSource(
     fd = dup(fd);
 
     ALOGV("setDataSource(%d, %" PRId64 ", %" PRId64 ")", fd, offset, length);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->printFileName(fd);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     clearMetadata();
     mSource = new PlayerServiceFileSource(fd, offset, length);
@@ -287,7 +291,9 @@ sp<IMemory> StagefrightMetadataRetriever::getImageInternal(
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
         const AString &componentName = matchingCodecs[i];
+// QTI_BEGIN: 2021-03-06: Video: media: Rename ImageDecoder class
         sp<MediaImageDecoder> decoder = new MediaImageDecoder(componentName, trackMeta, source);
+// QTI_END: 2021-03-06: Video: media: Rename ImageDecoder class
         int64_t frameTimeUs = thumbnail ? -1 : 0;
         if (decoder->init(frameTimeUs, 0 /*option*/, colorFormat) == OK) {
             sp<IMemory> frame = decoder->extractFrame(rect);
@@ -357,10 +363,12 @@ sp<IMemory> StagefrightMetadataRetriever::getFrameInternal(
             continue;
         }
 
+// QTI_BEGIN: 2018-05-07: Video: libstagefright: Check trackMeta for NULL
         if (meta == NULL) {
             continue;
         }
 
+// QTI_END: 2018-05-07: Video: libstagefright: Check trackMeta for NULL
         const char *mime;
         if (meta->findCString(kKeyMIMEType, &mime) && !strncasecmp(mime, "video/", 6)) {
             break;
@@ -576,23 +584,31 @@ void StagefrightMetadataRetriever::parseMetaData() {
     size_t numTracks = mExtractor->countTracks();
 
     char tmp[32];
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
     constexpr auto tmpSize = sizeof(tmp);
     snprintf(tmp, tmpSize, "%zu", numTracks);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
 
     mMetaData.add(METADATA_KEY_NUM_TRACKS, String8(tmp));
 
     float captureFps;
     if (meta->findFloat(kKeyCaptureFramerate, &captureFps)) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%f", captureFps);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_CAPTURE_FRAMERATE, String8(tmp));
     }
 
     int64_t exifOffset, exifSize;
     if (meta->findInt64(kKeyExifOffset, &exifOffset)
      && meta->findInt64(kKeyExifSize, &exifSize)) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%lld", (long long)exifOffset);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_EXIF_OFFSET, String8(tmp));
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%lld", (long long)exifSize);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_EXIF_LENGTH, String8(tmp));
     }
 
@@ -627,10 +643,12 @@ void StagefrightMetadataRetriever::parseMetaData() {
             continue;
         }
 
+// QTI_BEGIN: 2018-05-07: Video: libstagefright: Check trackMeta for NULL
         if (trackMeta == NULL) {
             continue;
         }
 
+// QTI_END: 2018-05-07: Video: libstagefright: Check trackMeta for NULL
         int64_t durationUs;
         if (trackMeta->findInt64(kKeyDuration, &durationUs)) {
             if (durationUs > maxDurationUs) {
@@ -652,11 +670,15 @@ void StagefrightMetadataRetriever::parseMetaData() {
                 trackMeta->findInt32(kKeyBitsPerSample, &bitsPerSample);
                 trackMeta->findInt32(kKeySampleRate, &sampleRate);
                 if (bitsPerSample >= 0) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
                     snprintf(tmp, tmpSize, "%d", bitsPerSample);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
                     mMetaData.add(METADATA_KEY_BITS_PER_SAMPLE, String8(tmp));
                 }
                 if (sampleRate >= 0) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
                     snprintf(tmp, tmpSize, "%d", sampleRate);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
                     mMetaData.add(METADATA_KEY_SAMPLERATE, String8(tmp));
                 }
             } else if (!hasVideo && !strncasecmp("video/", mime, 6)) {
@@ -733,20 +755,28 @@ void StagefrightMetadataRetriever::parseMetaData() {
         mMetaData.add(METADATA_KEY_HAS_VIDEO, String8("yes"));
 
         CHECK(videoWidth >= 0);
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", videoWidth);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_VIDEO_WIDTH, String8(tmp));
 
         CHECK(videoHeight >= 0);
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", videoHeight);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_VIDEO_HEIGHT, String8(tmp));
 
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", rotationAngle);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_VIDEO_ROTATION, String8(tmp));
 
         mMetaData.add(METADATA_KEY_VIDEO_CODEC_MIME_TYPE, videoMime);
 
         if (videoFrameCount > 0) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
             snprintf(tmp, tmpSize, "%d", videoFrameCount);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
             mMetaData.add(METADATA_KEY_VIDEO_FRAME_COUNT, String8(tmp));
         }
     }
@@ -755,33 +785,47 @@ void StagefrightMetadataRetriever::parseMetaData() {
     if (imageCount > 0 && imagePrimary >= 0) {
         mMetaData.add(METADATA_KEY_HAS_IMAGE, String8("yes"));
 
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", imageCount);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_IMAGE_COUNT, String8(tmp));
 
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", imagePrimary);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_IMAGE_PRIMARY, String8(tmp));
 
         CHECK(imageWidth >= 0);
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", imageWidth);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_IMAGE_WIDTH, String8(tmp));
 
         CHECK(imageHeight >= 0);
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", imageHeight);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_IMAGE_HEIGHT, String8(tmp));
 
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", imageRotation);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_IMAGE_ROTATION, String8(tmp));
     }
 
     if (numTracks == 1 && hasAudio && audioBitrate >= 0) {
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         snprintf(tmp, tmpSize, "%d", audioBitrate);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
         mMetaData.add(METADATA_KEY_BITRATE, String8(tmp));
     } else {
         off64_t sourceSize;
         if (mSource != NULL && mSource->getSize(&sourceSize) == OK) {
             int64_t avgBitRate = (int64_t)(sourceSize * 8E6 / maxDurationUs);
 
+// QTI_BEGIN: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
             snprintf(tmp, tmpSize, "%" PRId64, avgBitRate);
+// QTI_END: 2019-08-21: Video: stagefright: use snprintf instead of sprintf
             mMetaData.add(METADATA_KEY_BITRATE, String8(tmp));
         }
     }

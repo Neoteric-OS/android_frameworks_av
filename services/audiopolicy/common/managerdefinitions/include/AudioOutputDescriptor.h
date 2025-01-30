@@ -190,7 +190,9 @@ public:
      * Active ref count of the client will be incremented/decremented through setActive API
      */
     virtual void setClientActive(const sp<TrackClientDescriptor>& client, bool active);
+// QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
     bool isClientActive(const sp<TrackClientDescriptor>& client);
+// QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
 
     bool isActive(uint32_t inPastMs) const;
     bool isActive(VolumeSource volumeSource = VOLUME_SOURCE_NONE,
@@ -303,6 +305,7 @@ public:
         }
         return false;
     }
+// QTI_BEGIN: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
     bool isDirectOutput() {
         if (const auto policyPort = getPolicyAudioPort(); policyPort != nullptr) {
             if (const auto port = policyPort->asAudioPort(); port != nullptr) {
@@ -311,11 +314,14 @@ public:
         }
         return false;
     }
+// QTI_END: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
     TrackClientVector clientsList(bool activeOnly = false,
                                   product_strategy_t strategy = PRODUCT_STRATEGY_NONE,
                                   bool preferredDeviceOnly = false) const;
 
+// QTI_BEGIN: 2018-02-19: Audio: audiopolicy: make audio policy extensible
     audio_io_handle_t mIoHandle;           // output handle
+// QTI_END: 2018-02-19: Audio: audiopolicy: make audio policy extensible
     // override ClientMapHandler to abort when removing a client when active.
     void removeClient(audio_port_handle_t portId) override {
         auto client = getClient(portId);
@@ -620,16 +626,20 @@ public:
      */
     audio_io_handle_t getA2dpOutput() const;
 
+// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     /**
      * return true if primary HAL supports A2DP Playback
      */
     bool isA2dpOnPrimary() const;
 
+// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
+// QTI_BEGIN: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
     /**
      * returns true if primary HAL supports A2DP Offload
      */
     bool isA2dpOffloadedOnPrimary() const;
 
+// QTI_END: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
     sp<SwAudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
 
     sp<SwAudioOutputDescriptor> getPrimaryOutput() const;

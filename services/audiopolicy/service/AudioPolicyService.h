@@ -610,7 +610,9 @@ private:
             SET_PORTS_VOLUME,
             SET_PARAMETERS,
             SET_VOICE_VOLUME,
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
             START_OUTPUT,
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
             STOP_OUTPUT,
             RELEASE_OUTPUT,
             CREATE_AUDIO_PATCH,
@@ -747,11 +749,15 @@ private:
             float mVolume;
         };
 
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
         class StartOutputData : public AudioCommandData {
         public:
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
             audio_port_handle_t mPortId;
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
         };
 
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
         class StopOutputData : public AudioCommandData {
         public:
             audio_port_handle_t mPortId;

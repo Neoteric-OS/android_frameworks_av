@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #include "hidl/HidlSupport.h"
 #define LOG_TAG "MediaCodec"
 #include <utils/Log.h>
@@ -85,7 +87,9 @@
 #include <private/android_filesystem_config.h>
 #include <server_configurable_flags/get_flags.h>
 #include <utils/Singleton.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 namespace android {
 
@@ -713,8 +717,10 @@ void MediaCodec::ResourceManagerServiceProxy::notifyClientCreated() {
         return;
     }
     if (service == NULL) {
+// QTI_BEGIN: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
         return;
     }
+// QTI_END: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
     service->notifyClientCreated(getClientInfo());
 }
 
@@ -728,8 +734,10 @@ void MediaCodec::ResourceManagerServiceProxy::notifyClientStarted(
     }
     clientConfig.clientInfo = getClientInfo();
     if (service == NULL) {
+// QTI_BEGIN: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
         return;
     }
+// QTI_END: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
     service->notifyClientStarted(clientConfig);
 }
 
@@ -743,8 +751,10 @@ void MediaCodec::ResourceManagerServiceProxy::notifyClientStopped(
     }
     clientConfig.clientInfo = getClientInfo();
     if (service == NULL) {
+// QTI_BEGIN: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
         return;
     }
+// QTI_END: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
     service->notifyClientStopped(clientConfig);
 }
 
@@ -758,8 +768,10 @@ void MediaCodec::ResourceManagerServiceProxy::notifyClientConfigChanged(
     }
     clientConfig.clientInfo = getClientInfo();
     if (service == NULL) {
+// QTI_BEGIN: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
         return;
     }
+// QTI_END: 2023-06-06: Video: MediaCodec: fix possible null pointer dereference
     service->notifyClientConfigChanged(clientConfig);
 }
 
@@ -1166,7 +1178,9 @@ sp<MediaCodec> MediaCodec::CreateByType(
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
         sp<MediaCodec> codec = new MediaCodec(looper, pid, uid);
         AString componentName = matchingCodecs[i];
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
         status_t ret = codec->init(componentName, true);
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
         if (err != NULL) {
             *err = ret;
         }
@@ -2193,7 +2207,9 @@ static CodecBase *CreateCCodec() {
 sp<CodecBase> MediaCodec::GetCodecBase(const AString &name, const char *owner) {
     if (owner) {
         if (strcmp(owner, "default") == 0) {
+// QTI_BEGIN: 2023-07-20: Audio: MediaCodec: use AVFactory to create ACodec by owner
             return AVFactory::get()->createACodec();
+// QTI_END: 2023-07-20: Audio: MediaCodec: use AVFactory to create ACodec by owner
         } else if (strncmp(owner, "codec2", 6) == 0) {
             return CreateCCodec();
         }
@@ -2231,7 +2247,9 @@ static const CodecListCache &GetCodecListCache() {
     return sCache;
 }
 
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
 status_t MediaCodec::init(const AString &name, bool nameIsType) {
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
     status_t err = mResourceManagerProxy->init();
     if (err != OK) {
         mErrorLog.log(LOG_TAG, base::StringPrintf(
@@ -2327,11 +2345,15 @@ status_t MediaCodec::init(const AString &name, bool nameIsType) {
             std::unique_ptr<CodecBase::BufferCallback>(
                     new BufferCallback(new AMessage(kWhatCodecNotify, this))));
     sp<AMessage> msg = new AMessage(kWhatInit, this);
+// QTI_BEGIN: 2019-12-25: Video: stagefright: Allow codecs not listed in mediacodeclist
     msg->setObject("codecInfo", mCodecInfo);
     // name may be different from mCodecInfo->getCodecName() if we stripped
     // ".secure"
+// QTI_END: 2019-12-25: Video: stagefright: Allow codecs not listed in mediacodeclist
     msg->setString("name", name);
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
     msg->setInt32("nameIsType", nameIsType);
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
 
     // initial naming setup covers the period before the first call to ::configure().
     // after that, we manage this through ::configure() and the setup message.
@@ -2584,9 +2606,11 @@ status_t MediaCodec::configure(
     msg->setMessage("format", format);
     msg->setInt32("flags", flags);
     msg->setObject("surface", surface);
+// QTI_BEGIN: 2018-04-12: Video: media: Set "encoder" if encoder component is initialized
     if (flags & CONFIGURE_FLAG_ENCODE) {
         msg->setInt32("encoder", 1);
     }
+// QTI_END: 2018-04-12: Video: media: Set "encoder" if encoder component is initialized
 
     if (crypto != NULL || descrambler != NULL) {
         if (crypto != NULL) {
@@ -3738,11 +3762,13 @@ status_t MediaCodec::getCodecInfo(sp<MediaCodecInfo> *codecInfo) const {
 
     sp<RefBase> obj;
     CHECK(response->findObject("codecInfo", &obj));
+// QTI_BEGIN: 2018-05-03: Audio: Add gracefull exit for extended audio codecs.
 
     if (static_cast<MediaCodecInfo *>(obj.get()) == nullptr) {
         ALOGE("codec info not found");
         return NAME_NOT_FOUND;
     }
+// QTI_END: 2018-05-03: Audio: Add gracefull exit for extended audio codecs.
     *codecInfo = static_cast<MediaCodecInfo *>(obj.get());
 
     return OK;
@@ -4580,8 +4606,10 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         // we log a warning and ignore.
                         ALOGW("start interrupted by release, current state %d/%s",
                               mState, stateString(mState).c_str());
+// QTI_BEGIN: 2019-02-06: Video: MediaCodec: handle a spontaneous error while start
                         break;
                     }
+// QTI_END: 2019-02-06: Video: MediaCodec: handle a spontaneous error while start
 
                     CHECK_EQ(mState, STARTING);
 
@@ -5013,13 +5041,19 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
             (void)msg->findObject("codecInfo", &codecInfo);
             AString name;
             CHECK(msg->findString("name", &name));
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
             int32_t nameIsType;
             msg->findInt32("nameIsType", &nameIsType);
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
 
             sp<AMessage> format = new AMessage;
+// QTI_BEGIN: 2019-12-25: Video: stagefright: Allow codecs not listed in mediacodeclist
             format->setObject("codecInfo", codecInfo);
+// QTI_END: 2019-12-25: Video: stagefright: Allow codecs not listed in mediacodeclist
             format->setString("componentName", name);
+// QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
             format->setInt32("nameIsType", nameIsType);
+// QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
 
             mCodec->initiateAllocateComponent(format);
             break;
@@ -6698,16 +6732,20 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     }
 
     if (offset + size > buffer->capacity()) {
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         if ( ((int)size < 0) && !(flags & BUFFER_FLAG_EOS)) {
             size = 0;
             ALOGD("EOS, reset size to zero");
         } else {
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
             mErrorLog.log(LOG_TAG, base::StringPrintf(
                 "buffer offset and size goes beyond the capacity: "
                 "offset=%zu, size=%zu, cap=%zu",
                 offset, size, buffer->capacity()));
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
             return -EINVAL;
         }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     }
     buffer->setRange(offset, size);
     status_t err = OK;
@@ -7304,11 +7342,15 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
     AString mime;
     CHECK(mOutputFormat->findString("mime", &mime));
 
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     int32_t nalLengthBistream = 0;
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     if (!mOutputFormat->findInt32("feature-nal-length-bitstream", &nalLengthBistream)) {
         mOutputFormat->findInt32(
                 "vendor.qti-ext-enc-nal-length-bs.num-bytes", &nalLengthBistream);
     }
+// QTI_END: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
 
     if (!strcasecmp(mime.c_str(), MEDIA_MIMETYPE_VIDEO_AVC)) {
         // Codec specific data should be SPS and PPS in a single buffer,
@@ -7321,9 +7363,12 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
         const uint8_t *data = buffer->data();
         size_t size = buffer->size();
 
+// QTI_BEGIN: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
         if (!memcmp(data, "\x00\x00\x00\x01", 4)) {
             nalLengthBistream = 0;
         }
+// QTI_END: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         if (!nalLengthBistream) {
             const uint8_t *nalStart;
             size_t nalSize;
@@ -7331,10 +7376,14 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
                 sp<ABuffer> csd = new ABuffer(nalSize + 4);
                 memcpy(csd->data(), "\x00\x00\x00\x01", 4);
                 memcpy(csd->data() + 4, nalStart, nalSize);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
 
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
                 mOutputFormat->setBuffer(
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
                         base::StringPrintf("csd-%u", csdIndex).c_str(), csd);
 
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
                 ++csdIndex;
             }
         } else {
@@ -7354,6 +7403,7 @@ status_t MediaCodec::amendOutputFormatWithCodecSpecificData(
                 bytesLeft -= (nalSize + 4);
                 ++csdIndex;
             }
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         }
 
         if (csdIndex != 2) {
