@@ -206,14 +206,24 @@ TimerThread& TimeCheck::getTimeCheckThread() {
     return sTimeCheckThread;
 }
 
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 static bool sSystemReady = false;
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 void TimeCheck::setTimecheckTimeoutMs(uint32_t timeOutMs) {
    ALOGD("vendor timecheck timeout value is %d", timeOutMs);
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
    kDefaultTimeoutDurationMs =  timeOutMs;
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 }
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 void TimeCheck::setSystemReady() {
     sSystemReady = true;
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
+// QTI_BEGIN: 2020-07-12: Audio: Access vendor audio prop for timeout in audioserver.
 }
+// QTI_END: 2020-07-12: Audio: Access vendor audio prop for timeout in audioserver.
 
 /* static */
 std::string TimeCheck::toString() {
@@ -228,7 +238,9 @@ TimeCheck::TimeCheck(std::string_view tag, OnTimerFunc&& onTimer, Duration reque
     : mTimeCheckHandler{ std::make_shared<TimeCheckHandler>(
             tag, std::move(onTimer), crashOnTimeout, requestedTimeoutDuration,
             secondChanceDuration, std::chrono::system_clock::now(), getThreadIdWrapper()) }
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     , mTimerHandle((requestedTimeoutDuration.count() == 0 || !sSystemReady)
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
               /* for TimeCheck we don't consider a non-zero secondChanceDuration here */
               ? getTimeCheckThread().trackTask(mTimeCheckHandler->tag)
               : getTimeCheckThread().scheduleTask(

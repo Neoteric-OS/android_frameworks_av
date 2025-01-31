@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "NuPlayerDriver"
 #include <inttypes.h>
 #include <android-base/macros.h>
@@ -43,8 +45,12 @@ using ::android::base::StringPrintf;
 
 static const int kDumpLockRetries = 50;
 static const int kDumpLockSleepUs = 20000;
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include "mediaplayerservice/AVNuExtensions.h"
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 #include "mediaplayerservice/AVMediaServiceExtensions.h"
+// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 
 namespace android {
 
@@ -91,7 +97,9 @@ NuPlayerDriver::NuPlayerDriver(pid_t pid)
       mRebufferingAtExit(false),
       mLooper(new ALooper),
       mMediaClock(new MediaClock),
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
       mPlayer(AVNuFactory::get()->createNuPlayer(pid, mMediaClock)),
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
       mPlayerFlags(0),
       mCachedPlayerIId(PLAYER_PIID_INVALID),
       mMetricsItem(NULL),
@@ -192,7 +200,9 @@ status_t NuPlayerDriver::setDataSource(int fd, int64_t offset, int64_t length) {
     }
     ATRACE_END();
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVNuUtils::get()->printFileName(fd);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return mAsyncResult;
 }
 
@@ -752,11 +762,13 @@ status_t NuPlayerDriver::reset() {
         notifyListener_l(MEDIA_STOPPED);
     }
 
+// QTI_BEGIN: 2018-04-09: Video: media: Print Stats when application stops playback
     if (property_get_bool("persist.debug.sf.stats", false)) {
         Vector<String16> args;
         dump(-1, args);
     }
 
+// QTI_END: 2018-04-09: Video: media: Print Stats when application stops playback
     mState = STATE_RESET_IN_PROGRESS;
     mPlayer->resetAsync();
 
@@ -912,8 +924,10 @@ status_t NuPlayerDriver::getMetadata(
             Metadata::kSeekAvailable,
             mPlayerFlags & NuPlayer::Source::FLAG_CAN_SEEK);
 
+// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     AVMediaServiceUtils::get()->appendMeta(&meta);
 
+// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     return OK;
 }
 

@@ -288,10 +288,12 @@ ssize_t DeviceVector::add(const sp<DeviceDescriptor>& item)
         ALOGW("DeviceVector::add device %08x already in", item->type());
         ret = -1;
     }
+// QTI_BEGIN: 2019-08-06: Audio: audiopolicy: sort devices based on type, id and addr
 
     return ret;
 }
 
+// QTI_END: 2019-08-06: Audio: audiopolicy: sort devices based on type, id and addr
 int DeviceVector::do_compare(const void* lhs, const void* rhs) const {
     const auto ldevice = *reinterpret_cast<const sp<DeviceDescriptor>*>(lhs);
     const auto rdevice = *reinterpret_cast<const sp<DeviceDescriptor>*>(rhs);
@@ -542,6 +544,7 @@ DeviceVector DeviceVector::filterForEngine() const
     return filteredDevices;
 }
 
+// QTI_BEGIN: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
 bool DeviceVector::areAllDevicesAttached() const
 {
     for (const auto &device : *this) {
@@ -552,4 +555,5 @@ bool DeviceVector::areAllDevicesAttached() const
     return true;
 }
 
+// QTI_END: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
 } // namespace android

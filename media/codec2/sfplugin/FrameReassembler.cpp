@@ -142,7 +142,9 @@ c2_status_t FrameReassembler::process(
 
     if (buffer->size() > 0) {
         mCurrentOrdinal.timestamp = timeUs;
+// QTI_BEGIN: 2021-03-01: Audio: codec2: Set custom ordinal for inputs processed by FrameReassembler
         mCurrentOrdinal.customOrdinal = timeUs;
+// QTI_END: 2021-03-01: Audio: codec2: Set custom ordinal for inputs processed by FrameReassembler
     }
 
     size_t frameSizeBytes = mFrameSize.value() * mChannelCount * bytesPerSample();
@@ -219,7 +221,9 @@ void FrameReassembler::finishCurrentBlock(std::list<std::unique_ptr<C2Work>> *it
 
     ++mCurrentOrdinal.frameIndex;
     mCurrentOrdinal.timestamp += mFrameSize.value() * 1000000 / mSampleRate;
+// QTI_BEGIN: 2021-03-01: Audio: codec2: Set custom ordinal for inputs processed by FrameReassembler
     mCurrentOrdinal.customOrdinal = mCurrentOrdinal.timestamp;
+// QTI_END: 2021-03-01: Audio: codec2: Set custom ordinal for inputs processed by FrameReassembler
     mCurrentBlock.reset();
     mWriteView.reset();
 }

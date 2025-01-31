@@ -96,8 +96,10 @@ class LinearBuffer : public C2Buffer {
   public:
     explicit LinearBuffer(const std::shared_ptr<C2LinearBlock>& block)
         : C2Buffer({block->share(block->offset(), block->size(), ::C2Fence())}) {}
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
 
     explicit LinearBuffer(const std::shared_ptr<C2LinearBlock>& block, size_t size)
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
         : C2Buffer({block->share(block->offset(), size, ::C2Fence())}) {}
 };
 
@@ -545,13 +547,19 @@ void decodeNFrames(const std::shared_ptr<android::Codec2Client::Component>& comp
                 fprintf(stderr, "C2LinearBlock::map() failed : %d", view.error());
                 break;
             }
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ((size_t)alignedSize, view.capacity());
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ(0u, view.offset());
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ((size_t)alignedSize, view.size());
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
 
             memcpy(view.base(), data, size);
 
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             work->input.buffers.emplace_back(new LinearBuffer(block, size));
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             free(data);
         }
         work->worklets.clear();

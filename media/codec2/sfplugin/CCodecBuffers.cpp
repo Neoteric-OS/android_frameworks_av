@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "CCodecBuffers"
 #include <utils/Log.h>
 
@@ -638,10 +640,12 @@ sp<ABuffer> LocalBufferPool::newBuffer(size_t capacity) {
             return nullptr;
         }
     }
+// QTI_BEGIN: 2024-05-09: Video: CCodecBuffers: allocate vector by using reserve API
     std::vector<uint8_t> vec;
     // Use reserve to avoid overhead of CPU & memory cycles in place of constructor which does
     // implicit initialization with zero.
     vec.reserve(capacity);
+// QTI_END: 2024-05-09: Video: CCodecBuffers: allocate vector by using reserve API
     mUsedSize += vec.capacity();
     return new VectorBuffer(std::move(vec), shared_from_this());
 }
@@ -703,10 +707,12 @@ bool FlexBuffersImpl::releaseSlot(
     }
     std::shared_ptr<C2Buffer> result = mBuffers[index].compBuffer.lock();
     if (!result) {
+// QTI_BEGIN: 2022-12-08: Video: CCodec: Avoid OOB memory access in some cases
         if (!c2buffer) {
             clientBuffer->clearC2BufferRefs();
             return true;
         }
+// QTI_END: 2022-12-08: Video: CCodec: Avoid OOB memory access in some cases
         result = clientBuffer->asC2Buffer();
         clientBuffer->clearC2BufferRefs();
         mBuffers[index].compBuffer = result;
@@ -827,10 +833,12 @@ bool BuffersArrayImpl::returnBuffer(
     ALOGV("[%s] %s: matching buffer found (index=%zu)", mName, __func__, index);
     std::shared_ptr<C2Buffer> result = mBuffers[index].compBuffer.lock();
     if (!result) {
+// QTI_BEGIN: 2022-12-08: Video: CCodec: Avoid OOB memory access in some cases
         if (!c2buffer) {
             clientBuffer->clearC2BufferRefs();
             return true;
         }
+// QTI_END: 2022-12-08: Video: CCodec: Avoid OOB memory access in some cases
         result = clientBuffer->asC2Buffer();
         clientBuffer->clearC2BufferRefs();
         mBuffers[index].compBuffer = result;
@@ -1594,6 +1602,7 @@ std::function<sp<Codec2Buffer>()> LinearOutputBuffers::getAlloc() {
     };
 }
 
+// QTI_BEGIN: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 // LinearMetadataOutputBuffers
 
 std::function<sp<Codec2Buffer>()> LinearMetadataOutputBuffers::getAlloc() {
@@ -1603,6 +1612,7 @@ std::function<sp<Codec2Buffer>()> LinearMetadataOutputBuffers::getAlloc() {
     };
 }
 
+// QTI_END: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 // GraphicOutputBuffers
 
 sp<Codec2Buffer> GraphicOutputBuffers::wrap(const std::shared_ptr<C2Buffer> &buffer) {

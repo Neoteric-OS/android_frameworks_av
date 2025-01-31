@@ -121,6 +121,7 @@ public:
      */
     bool isHW() const;
 
+// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Returns a native handle that can be used to send this fence
      * \note The returned handle, if valid, must be closed and deleted by the caller.
@@ -129,6 +130,7 @@ public:
      */
     C2Handle *handle() const;
 
+// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Null-fence. A fence that has fired.
      */

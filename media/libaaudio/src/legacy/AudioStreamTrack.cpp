@@ -101,10 +101,12 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
             break;
 
         case AAUDIO_PERFORMANCE_MODE_NONE:
+// QTI_BEGIN: 2018-06-05: Audio: aaudio: set primary flag for AAUDIO_PERFORMANCE_MODE_NONE
             // Use primary output to avoid AAudio using direct output
             flags = AUDIO_OUTPUT_FLAG_PRIMARY;
             break;
 
+// QTI_END: 2018-06-05: Audio: aaudio: set primary flag for AAUDIO_PERFORMANCE_MODE_NONE
         default:
             // No flags. Use a normal mixer in front of the FAST mixer.
             flags = AUDIO_OUTPUT_FLAG_NONE;

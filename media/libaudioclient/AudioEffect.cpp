@@ -89,12 +89,14 @@ status_t AudioEffect::set(const effect_uuid_t *type,
         return NO_INIT;
     }
 
+// QTI_BEGIN: 2020-09-09: Audio: libaudioclient: fix deadlock during apm initialization
     const sp<IAudioPolicyService>& aps = AudioSystem::get_audio_policy_service();
     if (aps == 0) {
         ALOGE("set(): Could not get aps");
         return NO_INIT;
     }
 
+// QTI_END: 2020-09-09: Audio: libaudioclient: fix deadlock during apm initialization
     if (type == nullptr && uuid == nullptr) {
         ALOGW("Must specify at least type or uuid");
         return BAD_VALUE;

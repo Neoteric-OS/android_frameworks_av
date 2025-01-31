@@ -17,11 +17,15 @@
 
 // Proxy for media player implementations
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "MediaPlayerService"
 #include <utils/Log.h>
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <inttypes.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <chrono>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1044,7 +1048,9 @@ status_t MediaPlayerService::Client::setDataSource(
 
 status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64_t length)
 {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("setDataSource fd=%d, offset=%" PRId64 ", length=%" PRId64 "", fd, offset, length);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     struct stat sb;
     int ret = fstat(fd, &sb);
     if (ret != 0) {
@@ -1052,11 +1058,15 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
         return UNKNOWN_ERROR;
     }
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("st_dev  = %" PRIu64 "", static_cast<uint64_t>(sb.st_dev));
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("st_mode = %u", sb.st_mode);
     ALOGV("st_uid  = %lu", static_cast<unsigned long>(sb.st_uid));
     ALOGV("st_gid  = %lu", static_cast<unsigned long>(sb.st_gid));
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ALOGV("st_size = %" PRId64 "", sb.st_size);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
     if (offset >= sb.st_size) {
         ALOGE("offset error");
@@ -1064,7 +1074,9 @@ status_t MediaPlayerService::Client::setDataSource(int fd, int64_t offset, int64
     }
     if (offset + length > sb.st_size) {
         length = sb.st_size - offset;
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         ALOGV("calculated length = %" PRId64 "\n", length);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     }
 
     player_type playerType = MediaPlayerFactory::getPlayerType(this,
@@ -1964,11 +1976,13 @@ int64_t MediaPlayerService::AudioOutput::getPlayedOutDurationUs(int64_t nowUs) c
         //        numFramesPlayed, (long long)numFramesPlayedAtUs);
     } else {                         // case 3: transitory at new track or audio fast tracks.
         res = mTrack->getPosition(&numFramesPlayed);
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
         if (res != OK) {
             // return with invalid duration to indicate playback position should
             // be queried from MediaClock using system clock
             return -1;
         }
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
         numFramesPlayedAtUs = nowUs;
         numFramesPlayedAtUs += 1000LL * mTrack->latency() / 2; /* XXX */
         //ALOGD("getPosition: %u %lld", numFramesPlayed, (long long)numFramesPlayedAtUs);
@@ -2120,16 +2134,20 @@ status_t MediaPlayerService::AudioOutput::open(
         if (AudioSystem::getOutputSamplingRate(&afSampleRate, mStreamType) != NO_ERROR) {
             return NO_INIT;
         }
+// QTI_BEGIN: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
         if (afSampleRate == 0) {
             return NO_INIT;
         }
+// QTI_END: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
         const size_t framesPerBuffer =
                 (unsigned long long)sampleRate * afFrameCount / afSampleRate;
 
         if (bufferCount == 0) {
+// QTI_BEGIN: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
             if (framesPerBuffer == 0) {
                 return NO_INIT;
             }
+// QTI_END: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
             // use suggestedFrameCount
             bufferCount = (suggestedFrameCount + framesPerBuffer - 1) / framesPerBuffer;
         }
@@ -2277,12 +2295,16 @@ status_t MediaPlayerService::AudioOutput::open(
                       mRecycledTrack->frameCount(), t->frameCount());
                 reuse = false;
             }
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             // If recycled and new tracks are not on the same output,
             // don't reuse the recycled one.
             if (mRecycledTrack->getOutput() != t->getOutput()) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 ALOGV("output has changed, don't reuse track");
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                 reuse = false;
             }
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
         }
 
         if (reuse) {
@@ -2516,9 +2538,11 @@ void MediaPlayerService::AudioOutput::close()
     ALOGV("close");
     sp<AudioTrack> track;
     {
+// QTI_BEGIN: 2022-02-17: Audio: libmediaplayerservice: Explicitly force callbacks to stop running
         if (mTrack != 0) {
             mTrack->stopAndJoinCallbacks();
         }
+// QTI_END: 2022-02-17: Audio: libmediaplayerservice: Explicitly force callbacks to stop running
         Mutex::Autolock lock(mLock);
         track = mTrack;
     }
@@ -2733,7 +2757,9 @@ size_t MediaPlayerService::AudioOutput::CallbackData::onMoreData(const AudioTrac
     // This is a benign busy-wait, with the next data request generated 10 ms or more later;
     // nevertheless for power reasons, we don't want to see too many of these.
 
+// QTI_BEGIN: 2022-04-25: Video: libmediaplayerservice: Fixing compilation issue on enabling verbose log
     ALOGV_IF(actualSize == 0 && buffer.size() > 0, "callbackwrapper: empty buffer returned");
+// QTI_END: 2022-04-25: Video: libmediaplayerservice: Fixing compilation issue on enabling verbose log
     unlock();
     return actualSize;
 }
