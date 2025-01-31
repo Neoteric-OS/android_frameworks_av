@@ -5817,8 +5817,9 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
             // don't count underruns that occur while stopping or pausing
             // or stopped which can occur when flush() is called while active
             size_t underrunFrames = 0;
-            if (!(track->isStopping() || track->isPausing() || track->isStopped()) &&
-                    recentUnderruns > 0) {
+            if (!(track->isStopping() || track->isPausing()
+                    || track->isStopped() || track->isPaused())
+                && recentUnderruns > 0) {
                 // FIXME fast mixer will pull & mix partial buffers, but we count as a full underrun
                 underrunFrames = recentUnderruns * mFrameCount;
             }
@@ -10808,6 +10809,7 @@ status_t MmapThread::start(const AudioClient& client,
         config.channel_mask = mChannelMask;
         config.format = mFormat;
         audio_port_handle_t deviceId = getFirstDeviceId(mDeviceIds);
+        audio_source_t source = AUDIO_SOURCE_DEFAULT;
         mutex().unlock();
         ret = AudioSystem::getInputForAttr(&localAttr, &io,
                                               RECORD_RIID_INVALID,
@@ -10816,9 +10818,11 @@ status_t MmapThread::start(const AudioClient& client,
                                               &config,
                                               AUDIO_INPUT_FLAG_MMAP_NOIRQ,
                                               &deviceId,
-                                              &portId);
+                                              &portId,
+                                              &source);
         mutex().lock();
         // localAttr is const for getInputForAttr.
+        localAttr.source = source;
     }
     // APM should not chose a different input or output stream for the same set of attributes
     // and audo configuration
