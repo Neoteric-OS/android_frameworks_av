@@ -40,7 +40,9 @@ extern const char *MEDIA_MIMETYPE_VIDEO_DIVX;
 extern const char *MEDIA_MIMETYPE_VIDEO_DIVX3;
 extern const char *MEDIA_MIMETYPE_VIDEO_XVID;
 extern const char *MEDIA_MIMETYPE_VIDEO_MJPEG;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 extern const char *MEDIA_MIMETYPE_VIDEO_MVHEVC;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_NB;
 extern const char *MEDIA_MIMETYPE_AUDIO_AMR_WB;
@@ -145,8 +147,10 @@ enum AudioEncoding {
     kAudioEncodingPcm16bit = 2,
     kAudioEncodingPcm8bit = 3,
     kAudioEncodingPcmFloat = 4,
+// QTI_BEGIN: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
     kAudioEncodingPcm24bitPacked = 21,
     kAudioEncodingPcm32bit = 22,
+// QTI_END: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
 };
 
 }  // namespace android

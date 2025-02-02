@@ -40,11 +40,13 @@ status_t EngineBase::initCheck()
     return (mApmObserver != nullptr)? NO_ERROR : NO_INIT;
 }
 
+// QTI_BEGIN: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
 void EngineBase::setDpConnAndAllowedForVoice(bool connAndAllowed)
 {
     mDpConnAndAllowedForVoice = connAndAllowed;
 }
 
+// QTI_END: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
 status_t EngineBase::setPhoneState(audio_mode_t state)
 {
     ALOGV("setPhoneState() state %d", state);

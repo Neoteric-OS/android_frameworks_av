@@ -64,9 +64,11 @@ cc_library_static {
     ],
 
     include_dirs: [
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "frameworks/av/media/libavextensions",
         "frameworks/av/media/libmediaplayerservice",
         "frameworks/av/media/libmediaextractor",
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     ],
 
     cflags: [
@@ -91,8 +93,10 @@ cc_library_static {
         "libmediadrm",
         "libpowermanager",
         "android.hardware.drm-V1-ndk",
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "libhidlmemory",
         "libcrypto",
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "libcamera_client",
     ],
 

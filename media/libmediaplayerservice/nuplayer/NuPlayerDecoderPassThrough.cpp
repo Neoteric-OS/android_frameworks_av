@@ -43,7 +43,9 @@ NuPlayer::DecoderPassThrough::DecoderPassThrough(
         const sp<Source> &source,
         const sp<Renderer> &renderer)
     : DecoderBase(notify),
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
       mAggregateBufferSizeBytes(24 * 1024),
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
       mSource(source),
       mRenderer(renderer),
       mSkipRenderingUntilMediaTimeUs(-1LL),
@@ -60,7 +62,9 @@ NuPlayer::DecoderPassThrough::~DecoderPassThrough() {
 
 void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     ALOGV("[%s] onConfigure", mComponentName.c_str());
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
     logLatencyBegin("audioStartDecPassThrough");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
     mCachedBytes = 0;
     mPendingBuffersToDrain = 0;
     mReachedEOS = false;
@@ -80,7 +84,9 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
     if (err != OK) {
         handleError(err);
     }
+// QTI_BEGIN: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
     logLatencyEnd("audioStartDecPassThrough");
+// QTI_END: 2023-07-07: Video: Nuplayer: Add latency logs for video and audio calls in nuplayer.
 }
 
 void NuPlayer::DecoderPassThrough::onSetParameters(const sp<AMessage> &/*params*/) {
@@ -169,9 +175,13 @@ sp<ABuffer> NuPlayer::DecoderPassThrough::aggregateBuffer(
     size_t smallSize = accessUnit->size();
     if ((mAggregateBuffer == NULL)
             // Don't bother if only room for a few small buffers.
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             && (smallSize < (mAggregateBufferSizeBytes / 3))) {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         // Create a larger buffer for combining smaller buffers from the extractor.
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         mAggregateBuffer = new ABuffer(mAggregateBufferSizeBytes);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         mAggregateBuffer->setRange(0, 0); // start empty
     }
 

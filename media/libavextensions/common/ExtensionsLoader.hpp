@@ -1,3 +1,4 @@
+//  QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
  * Copyright (c) 2013 - 2018, The Linux Foundation. All rights reserved.
  *
@@ -48,6 +49,8 @@ template <typename T>
 T *ExtensionsLoader<T>::createInstance(const char *createFunctionName) {
         ALOGV("createInstance(%lubit) : %s", (unsigned long)sizeof(intptr_t)*8, createFunctionName);
         // create extended object if extensions-lib is available
+//  QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+//  QTI_BEGIN: 2019-02-19: Video: AVExtensions: Fix CFI warning
         using CreateFunc_t = T*(*)(void);
 
         CreateFunc_t createFunc = nullptr;
@@ -60,8 +63,14 @@ T *ExtensionsLoader<T>::createInstance(const char *createFunctionName) {
             }
         }
 
+//  QTI_END: 2019-02-19: Video: AVExtensions: Fix CFI warning
+//  QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         if (createFunc) {
+//  QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+//  QTI_BEGIN: 2019-02-19: Video: AVExtensions: Fix CFI warning
             return (*createFunc)();
+//  QTI_END: 2019-02-19: Video: AVExtensions: Fix CFI warning
+//  QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         }
         // Else, create the default object
         return new T;
@@ -84,3 +93,4 @@ template <typename T>
 void *ExtensionsLoader<T>::mLibHandle = NULL;
 
 } //namespace android
+//  QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

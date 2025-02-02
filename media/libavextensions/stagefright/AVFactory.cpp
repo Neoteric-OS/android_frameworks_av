@@ -1,3 +1,4 @@
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
  * Copyright (c) 2013 - 2018, The Linux Foundation. All rights reserved.
  *
@@ -61,11 +62,15 @@ CameraSource* AVFactory::CreateCameraSourceFromCamera(
             Size videoSize,
             int32_t frameRate,
             const sp<IGraphicBufferProducer>& surface,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
             // parameter from CreateFromCamera API.
             bool /*storeMetaDataInVideoBuffers*/) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return CameraSource::CreateFromCamera(camera, proxy, cameraId,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             clientName, clientUid, clientPid, videoSize, frameRate, surface);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 
 CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
@@ -79,12 +84,16 @@ CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
         int32_t videoFrameRate,
         const sp<IGraphicBufferProducer>& surface,
         int64_t timeBetweenFrameCaptureUs,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
         // parameter from CreateFromCamera API.
         bool /*storeMetaDataInVideoBuffers*/) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return CameraSourceTimeLapse::CreateFromCamera(camera, proxy, cameraId,
             clientName, clientUid, clientPid, videoSize, videoFrameRate, surface,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             timeBetweenFrameCaptureUs);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 
 MPEG4Writer* AVFactory::CreateMPEG4Writer(int fd) {
@@ -97,17 +106,21 @@ ElementaryStreamQueue* AVFactory::createESQueue(
 }
 
 AudioSource* AVFactory::createAudioSource(
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             const audio_attributes_t *attr,
             const content::AttributionSourceState& attributionSource,
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             uint32_t sampleRate,
             uint32_t channels,
             uint32_t outSampleRate,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             audio_port_handle_t selectedDeviceId,
             audio_microphone_direction_t /*selectedMicDirection*/,
             float /*selectedMicFieldDimension*/) {
     // TODO(b/129493645): use new selectedMicDirection and selectedMicFieldDimension params
     return new AudioSource(attr, attributionSource, sampleRate,
                             channels, outSampleRate, selectedDeviceId);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 // ----- NO TRESSPASSING BEYOND THIS LINE ------
 AVFactory::AVFactory() {
@@ -122,3 +135,4 @@ AVFactory *AVFactory::sInst =
 
 } //namespace android
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
