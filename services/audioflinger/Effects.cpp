@@ -341,9 +341,11 @@ ssize_t EffectBase::removeHandle_l(IAfEffectHandle *handle)
         }
     }
 
+// QTI_BEGIN: 2020-08-17: Audio: audioflinger: Remove effect from hal before closing.
     // Prevent calls to process() and other functions on effect interface from now on.
     // The effect engine will be released by the destructor when the last strong reference on
     // this object is released which can happen after next process is called.
+// QTI_END: 2020-08-17: Audio: audioflinger: Remove effect from hal before closing.
     if (mHandles.size() == 0 && !mPinned) {
         mState = DESTROYED;
     }
@@ -1576,6 +1578,11 @@ bool EffectModule::isSpatializer() const {
     return IAfEffectModule::isSpatializer(&mDescriptor.type);
 }
 
+bool EffectModule::isEffect(const effect_uuid_t &uuid) const {
+    using android::effect::utils::operator==;
+    return mDescriptor.uuid == uuid;
+}
+
 status_t EffectModule::setHapticScale_l(int id, os::HapticScale hapticScale) {
     if (mStatus != NO_ERROR) {
         return mStatus;
@@ -2317,7 +2324,9 @@ void EffectChain::process_l() {
     // never process effects when:
     // - on an OFFLOAD thread
     // - no more tracks are on the session and the effect tail has been rendered
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
     bool doProcess = !mEffectCallback->isOffloadOrMmap() && !mEffectCallback->isOffloadOrDirect();
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
     if (!audio_is_global_session(mSessionId)) {
         bool tracksOnSession = (trackCnt() != 0);
 

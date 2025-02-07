@@ -95,9 +95,12 @@ using media::audio::common::AudioMMapPolicyType;
 using media::audio::common::AudioMode;
 using android::content::AttributionSourceState;
 using android::detail::AudioHalVersionInfo;
+using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::INativePermissionController;
 using com::android::media::permission::IPermissionProvider;
 using com::android::media::permission::NativePermissionController;
+using com::android::media::permission::PermissionEnum;
+using com::android::media::permission::PermissionEnum::MODIFY_AUDIO_SETTINGS;
 using com::android::media::permission::ValidatedAttributionSourceState;
 
 static const AudioHalVersionInfo kMaxAAudioPropertyDeviceHalVersion =
@@ -580,7 +583,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
 
     // TODO b/182392553: refactor or make clearer
     AttributionSourceState adjAttributionSource;
-    if (!com::android::media::audio::audioserver_permissions()) {
+    if (!audioserver_permissions()) {
         pid_t clientPid =
             VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(client.attributionSource.pid));
         bool updatePid = (clientPid == (pid_t)-1);
@@ -748,6 +751,20 @@ AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
     }
 
     return NULL;
+}
+
+error::BinderResult<std::monostate> AudioFlinger::enforceCallingPermission(PermissionEnum perm) {
+    const uid_t uid = IPCThreadState::self()->getCallingUid();
+    // Due to a complicated start-up sequence, we could get a call from ourselves before APS
+    // populates the permission provider (done immediately following its construction). So,
+    // bail before calling into the permission provider, even though it also does this check.
+    if (uid == getuid()) return {};
+    const bool hasPerm = VALUE_OR_RETURN(getPermissionProvider().checkPermission(perm, uid));
+    if (hasPerm) {
+        return {};
+    } else {
+        return error::unexpectedExceptionCode(EX_SECURITY, "");
+    }
 }
 
 void AudioFlinger::dumpClients_ll(int fd, bool dumpAllocators) {
@@ -1129,7 +1146,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
 
     AttributionSourceState adjAttributionSource;
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
-    if (!com::android::media::audio::audioserver_permissions()) {
+    if (!audioserver_permissions()) {
         adjAttributionSource = input.clientInfo.attributionSource;
         const uid_t callingUid = IPCThreadState::self()->getCallingUid();
         uid_t clientUid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_uid_t(
@@ -1410,8 +1427,12 @@ status_t AudioFlinger::setMasterVolume(float value)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     audio_utils::lock_guard _l(mutex());
@@ -1452,8 +1473,12 @@ status_t AudioFlinger::setMasterBalance(float balance)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     // check range
@@ -1486,8 +1511,12 @@ status_t AudioFlinger::setMode(audio_mode_t mode)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
     if (uint32_t(mode) >= AUDIO_MODE_CNT) {
         ALOGW("Illegal value: setMode(%d)", mode);
@@ -1528,8 +1557,12 @@ status_t AudioFlinger::setMicMute(bool state)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+     if (audioserver_permissions()) {
+         VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     audio_utils::lock_guard lock(hardwareMutex());
@@ -1598,8 +1631,12 @@ status_t AudioFlinger::setMasterMute(bool muted)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     audio_utils::lock_guard _l(mutex());
@@ -1685,8 +1722,12 @@ status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
         bool muted, audio_io_handle_t output)
 {
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     status_t status = checkStreamType(stream);
@@ -1813,8 +1854,12 @@ status_t AudioFlinger::getSoundDoseInterface(const sp<media::ISoundDoseCallback>
 status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
 {
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     status_t status = checkStreamType(stream);
@@ -1946,8 +1991,12 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             IPCThreadState::self()->getCallingPid(), IPCThreadState::self()->getCallingUid());
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     String8 filteredKeyValuePairs = keyValuePairs;
@@ -2188,8 +2237,12 @@ status_t AudioFlinger::setVoiceVolume(float value)
     }
 
     // check calling permissions
-    if (!settingsAllowed()) {
-        return PERMISSION_DENIED;
+    if (audioserver_permissions()) {
+        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
+    } else {
+        if (!settingsAllowed()) {
+            return PERMISSION_DENIED;
+        }
     }
 
     audio_utils::lock_guard lock(hardwareMutex());
@@ -2458,7 +2511,7 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
 
     AttributionSourceState adjAttributionSource;
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
-    if (!com::android::media::audio::audioserver_permissions()) {
+    if (!audioserver_permissions()) {
         adjAttributionSource = input.clientInfo.attributionSource;
         bool updatePid = (adjAttributionSource.pid == -1);
         const uid_t callingUid = IPCThreadState::self()->getCallingUid();
@@ -2689,9 +2742,19 @@ audio_module_handle_t AudioFlinger::loadHwModule(const char *name)
     if (name == NULL) {
         return AUDIO_MODULE_HANDLE_NONE;
     }
-    if (!settingsAllowed()) {
-        return AUDIO_MODULE_HANDLE_NONE;
+    if (audioserver_permissions()) {
+        const auto res = enforceCallingPermission(MODIFY_AUDIO_SETTINGS);
+        if (!res.ok()) {
+            ALOGE("Function: %s perm check result (%s)", __FUNCTION__,
+                  errorToString(res.error()).c_str());
+            return AUDIO_MODULE_HANDLE_NONE;
+        }
+    } else {
+        if (!settingsAllowed()) {
+            return AUDIO_MODULE_HANDLE_NONE;
+        }
     }
+
     audio_utils::lock_guard _l(mutex());
     audio_utils::lock_guard lock(hardwareMutex());
     AudioHwDevice* module = loadHwModule_ll(name);
@@ -2894,7 +2957,9 @@ status_t AudioFlinger::setLowRamDevice(bool isLowRamDevice, int64_t totalMemory)
 size_t AudioFlinger::getClientSharedHeapSize() const
 {
     size_t heapSizeInBytes = property_get_int32("ro.af.client_heap_size_kbyte", 0) * 1024;
+// QTI_BEGIN: 2018-05-27: Audio: Increase the minimum heap size allocation
     if (heapSizeInBytes > mClientSharedHeapSize) { // read-only property overrides all.
+// QTI_END: 2018-05-27: Audio: Increase the minimum heap size allocation
         return heapSizeInBytes;
     }
     return mClientSharedHeapSize;
@@ -2997,9 +3062,11 @@ status_t AudioFlinger::systemReady()
         return NO_ERROR;
     }
     mSystemReady = true;
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 
     mediautils::TimeCheck::setSystemReady();
 
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         IAfThreadBase* const thread = mPlaybackThreads.valueAt(i).get();
         thread->systemReady();
@@ -3019,19 +3086,27 @@ status_t AudioFlinger::systemReady()
     return NO_ERROR;
 }
 
-sp<IAudioManager> AudioFlinger::getOrCreateAudioManager()
-{
-    if (mAudioManager.load() == nullptr) {
+sp<IAudioManager> AudioFlinger::getOrCreateAudioManager() {
+    sp<IAudioManager> iface = mAudioManager.load();
+    if (iface == nullptr) {
         // use checkService() to avoid blocking
-        sp<IBinder> binder =
-            defaultServiceManager()->checkService(String16(kAudioServiceName));
+        sp<IBinder> binder = defaultServiceManager()->checkService(String16(kAudioServiceName));
         if (binder != nullptr) {
-            mAudioManager = interface_cast<IAudioManager>(binder);
-        } else {
-            ALOGE("%s(): binding to audio service failed.", __func__);
+            iface = interface_cast<IAudioManager>(binder);
+            if (const auto native_iface = iface->getNativeInterface(); native_iface) {
+                mAudioManagerNative = std::move(native_iface);
+                mAudioManager.store(iface);
+            } else {
+                iface = nullptr;
+            }
         }
     }
-    return mAudioManager.load();
+    ALOGE_IF(iface == nullptr, "%s(): binding to audio service failed.", __func__);
+    return iface;
+}
+
+sp<media::IAudioManagerNative> AudioFlinger::getAudioManagerNative() const {
+    return mAudioManagerNative.load();
 }
 
 status_t AudioFlinger::getMicrophones(std::vector<media::MicrophoneInfoFw>* microphones) const
@@ -4300,7 +4375,7 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
     status_t lStatus = NO_ERROR;
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
     pid_t currentPid;
-    if (!com::android::media::audio::audioserver_permissions()) {
+    if (!audioserver_permissions()) {
         adjAttributionSource.uid = VALUE_OR_RETURN_STATUS(legacy2aidl_uid_t_int32_t(callingUid));
         currentPid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(adjAttributionSource.pid));
         if (currentPid == -1 || !isAudioServerOrMediaServerOrSystemServerOrRootUid(callingUid)) {
@@ -4334,9 +4409,23 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
         goto Exit;
     }
 
+    bool isSettingsAllowed;
+    if (audioserver_permissions()) {
+        const auto res = getPermissionProvider().checkPermission(
+                MODIFY_AUDIO_SETTINGS,
+                IPCThreadState::self()->getCallingUid());
+        if (!res.ok()) {
+            lStatus = statusTFromBinderStatus(res.error());
+            goto Exit;
+        }
+        isSettingsAllowed = res.value();
+    } else {
+        isSettingsAllowed = settingsAllowed();
+    }
+
     // check audio settings permission for global effects
     if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
-        if (!settingsAllowed()) {
+        if (!isSettingsAllowed) {
             ALOGE("%s: no permission for AUDIO_SESSION_OUTPUT_MIX", __func__);
             lStatus = PERMISSION_DENIED;
             goto Exit;

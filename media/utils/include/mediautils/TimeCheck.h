@@ -107,8 +107,12 @@ class TimeCheck {
     static std::string toString();
     static void setAudioHalPids(const std::vector<pid_t>& pids);
     static std::vector<pid_t> getAudioHalPids();
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     static void setSystemReady();
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
     static void setTimecheckTimeoutMs(uint32_t timeOutMs);
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
     static std::string signalAudioHals();
 
   private:
@@ -160,6 +164,9 @@ class TimeCheck {
 // obtained from getStatisticsForClass(className).
 TimeCheck makeTimeCheckStatsForClassMethod(
         std::string_view className, std::string_view methodName);
+
+std::unique_ptr<TimeCheck> makeTimeCheckStatsForClassMethodUniquePtr(
+            std::string_view className, std::string_view methodName);
 
 // A handy statement-like macro to put at the beginning of almost every method
 // which calls into HAL. Note that it requires the class to implement 'getClassName'.

@@ -31,10 +31,14 @@ cc_library_static {
         "WebmWriter.cpp",
     ],
 
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     include_dirs: [
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
         "frameworks/av/media/module/mpeg2ts",
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         "frameworks/av/media/libavextensions",
     ],
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     local_include_dirs: [
         "include/webm",
     ],
@@ -52,6 +56,7 @@ cc_library_static {
         "liblog",
         "libstagefright_foundation",
         "libutils",
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         "libhidlbase",
         "libui",
         "libgui",
@@ -60,6 +65,7 @@ cc_library_static {
         "libcrypto",
         "android.hardware.media.omx@1.0",
         "libhidlmemory",
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
         "libcamera_client",
     ],
 

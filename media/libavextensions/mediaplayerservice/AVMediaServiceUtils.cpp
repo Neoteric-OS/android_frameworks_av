@@ -1,3 +1,4 @@
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 /*
  * Copyright (c) 2013 - 2018, The Linux Foundation. All rights reserved.
  *
@@ -32,9 +33,11 @@
 #include <utils/Log.h>
 
 #include <media/stagefright/foundation/ADebug.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <media/stagefright/rtsp/ARTPConnection.h>
 #include <media/stagefright/rtsp/ASessionDescription.h>
 #include <media/stagefright/rtsp/MyHandler.h>
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
 #include "common/ExtensionsLoader.hpp"
 #include "mediaplayerservice/AVMediaServiceExtensions.h"
@@ -102,3 +105,4 @@ AVMediaServiceUtils *AVMediaServiceUtils::sInst =
 
 } //namespace android
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

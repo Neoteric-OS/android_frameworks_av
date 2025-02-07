@@ -46,9 +46,15 @@
 
 #include <com_android_media_extractor_flags.h>
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 
 // TODO : Remove the defines once mainline media is built against NDK >= 31.
 // The mp4 extractor is part of mainline and builds against NDK 29 as of
@@ -740,6 +746,39 @@ static void parseAV1ProfileLevelFromCsd(const sp<ABuffer> &csd, sp<AMessage> &fo
     }
 }
 
+static void parseAPVProfileLevelFromCsd(const sp<ABuffer>& csd, sp<AMessage>& format) {
+    // Parse CSD structure to extract profile level information
+    // https://github.com/openapv/openapv/blob/main/readme/apv_isobmff.md#syntax-1
+    const uint8_t* data = csd->data();
+    size_t csdSize = csd->size();
+    if (csdSize < 21 || data[5] != 0x01) {  // configurationVersion == 1
+        return;
+    }
+    uint8_t profileData = data[9];           // profile_idc
+    uint8_t levelData = data[10];            // level_idc
+    uint8_t band = data[11];                 // band_idc
+    uint8_t bitDepth = (data[20] >> 4) + 8;  // bit_depth_minus8
+    const static ALookup<std::pair<uint8_t, uint8_t>, int32_t> profiles{
+            {{33, 10}, APVProfile422_10},
+            {{44, 12}, APVProfile422_10HDR10Plus},
+    };
+    int32_t profile;
+    if (profiles.map(std::make_pair(profileData, bitDepth), &profile)) {
+        // bump to HDR profile
+        if (isHdr10or10Plus(format) && profile == APVProfile422_10) {
+            if (format->contains("hdr-static-info")) {
+                profile = APVProfile422_10HDR10;
+            }
+        }
+        format->setInt32("profile", profile);
+    }
+    int level_num = (levelData / 30) * 2;
+    if (levelData % 30 == 0) {
+        level_num -= 1;
+    }
+    int32_t level = ((0x100 << (level_num - 1)) | (1 << band));
+    format->setInt32("level", level);
+}
 
 static std::vector<std::pair<const char *, uint32_t>> stringMappings {
     {
@@ -802,7 +841,9 @@ static std::vector<std::pair<const char *, uint32_t>> int32Mappings {
         { "valid-samples", kKeyValidSamples },
         { "dvb-component-tag", kKeyDvbComponentTag},
         { "dvb-audio-description", kKeyDvbAudioDescription},
+// QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
         { "vendor.qti-ext-enc-nal-length-bs.num-bytes",  kKeyVendorFeatureNalLength },
+// QTI_END: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
         { "dvb-teletext-magazine-number", kKeyDvbTeletextMagazineNumber},
         { "dvb-teletext-page-number", kKeyDvbTeletextPageNumber},
         { "profile", kKeyAudioProfile },
@@ -819,7 +860,9 @@ static std::vector<std::pair<const char *, uint32_t>> bufferMappings {
         { "crypto-key", kKeyCryptoKey },
         { "crypto-encrypted-sizes", kKeyEncryptedSizes },
         { "crypto-plain-sizes", kKeyPlainSizes },
+// QTI_BEGIN: 2019-10-20: Video: stagefright: Set HDR10+ sample metadata to codec
         { "hdr10-plus-info" , kKeyHdr10PlusInfo },
+// QTI_END: 2019-10-20: Video: stagefright: Set HDR10+ sample metadata to codec
         { "icc-profile", kKeyIccProfile },
         { "sei", kKeySEI },
         { "text-format-data", kKeyTextFormatData },
@@ -1440,6 +1483,7 @@ status_t convertMetaDataToMessage(
         }
 
         parseHevcProfileLevelFromHvcc((const uint8_t *)data, dataSize, msg);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         const void *lhvcData;
         if (meta->findData(kKeyLHVC, &type, &lhvcData, &size)) {
             const uint8_t *ptr = (const uint8_t *)lhvcData;
@@ -1507,6 +1551,7 @@ status_t convertMetaDataToMessage(
             lhvcBuffer->meta()->setInt64("timeUs", 0);
             msg->setBuffer("csd-1", lhvcBuffer);
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     } else if (meta->findData(kKeyAV1C, &type, &data, &size)) {
         sp<ABuffer> buffer = new (std::nothrow) ABuffer(size);
         if (buffer.get() == NULL || buffer->base() == NULL) {
@@ -1529,6 +1574,7 @@ status_t convertMetaDataToMessage(
         buffer->meta()->setInt32("csd", true);
         buffer->meta()->setInt64("timeUs", 0);
         msg->setBuffer("csd-0", buffer);
+        parseAPVProfileLevelFromCsd(buffer, msg);
     } else if (meta->findData(kKeyESDS, &type, &data, &size)) {
         ESDS esds((const char *)data, size);
         if (esds.InitCheck() != (status_t)OK) {
@@ -1642,9 +1688,11 @@ status_t convertMetaDataToMessage(
         msg->setBuffer("csd-0", buffer);
     }
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
     AVUtils::get()->convertMetaDataToMessage(meta, &msg);
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
     if (meta->findData(kKeyDVCC, &type, &data, &size)
             || meta->findData(kKeyDVVC, &type, &data, &size)
             || meta->findData(kKeyDVWC, &type, &data, &size)) {
@@ -1813,6 +1861,7 @@ static size_t reassembleHVCC(const sp<ABuffer> &csd0, uint8_t *hvcc, size_t hvcc
     return size;
 }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 static size_t reassembleLHVC(const sp<ABuffer> &csd1, uint8_t *lhvc, size_t lhvcSize, size_t nalSizeLength) {
     HevcParameterSets paramSets;
     uint8_t* data = csd1->data();
@@ -1849,6 +1898,7 @@ static size_t reassembleLHVC(const sp<ABuffer> &csd1, uint8_t *lhvc, size_t lhvc
 }
 
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 #if 0
 static void convertMessageToMetaDataInt32(
         const sp<AMessage> &msg, sp<MetaData> &meta, uint32_t key, const char *name) {
@@ -2193,11 +2243,16 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     }
 
     // reassemble the csd data into its original form
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     int32_t nalLengthBitstream = 0;
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     if (! msg->findInt32("feature-nal-length-bitstream", &nalLengthBitstream)) {
         msg->findInt32("vendor.qti-ext-enc-nal-length-bs.num-bytes", &nalLengthBitstream);
     }
+// QTI_END: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     sp<ABuffer> csd0, csd1, csd2;
+// QTI_BEGIN: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (msg->findBuffer("csd-0", &csd0)) {
         uint8_t* data = csd0->data();
         if (csd0->size() < 4) {
@@ -2208,7 +2263,10 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
             nalLengthBitstream = 0;
         }
     }
+// QTI_END: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (msg->findBuffer("csd-0", &csd0) && !nalLengthBitstream) {
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         int csd0size = csd0->size();
         if (mime == MEDIA_MIMETYPE_VIDEO_AVC) {
             sp<ABuffer> csd1;
@@ -2217,6 +2275,7 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 size_t outsize = reassembleAVCC(csd0, csd1, avcc.data());
                 meta->setData(kKeyAVCC, kTypeAVCC, avcc.data(), outsize);
             }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         } else if (mime == MEDIA_MIMETYPE_VIDEO_MVHEVC) {
             std::vector<uint8_t> hvcc(csd0size + 1024);
             size_t outsize = reassembleHVCC(csd0, hvcc.data(), hvcc.size(), 4);
@@ -2226,6 +2285,7 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
                 outsize = reassembleLHVC(csd1, lhvc.data(), lhvc.size(), 4);
                 meta->setData(kKeyLHVC, kTypeLHVC, lhvc.data(), outsize);
             }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         } else if (mime == MEDIA_MIMETYPE_AUDIO_AAC ||
                 mime == MEDIA_MIMETYPE_VIDEO_MPEG4 ||
                 mime == MEDIA_MIMETYPE_AUDIO_WMA ||
@@ -2430,6 +2490,7 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     } else if ((mime == MEDIA_MIMETYPE_VIDEO_HEVC || mime == MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC)
             && msg->findBuffer("csd-hevc", &csd0)) {
         meta->setData(kKeyHVCC, kTypeHVCC, csd0->data(), csd0->size());
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     } else if (mime == MEDIA_MIMETYPE_VIDEO_MVHEVC) {
         if (msg->findBuffer("csd-hevc", &csd0)) {
             meta->setData(kKeyHVCC, kTypeHVCC, csd0->data(), csd0->size());
@@ -2437,6 +2498,7 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
         if (msg->findBuffer("csd-lhevc", &csd1)) {
             meta->setData(kKeyLHVC, kTypeLHVC, csd1->data(), csd1->size());
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     } else if (msg->findBuffer("esds", &csd0)) {
         meta->setData(kKeyESDS, kTypeESDS, csd0->data(), csd0->size());
     } else if (msg->findBuffer("mpeg2-stream-header", &csd0)) {
@@ -2458,8 +2520,12 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     // XXX TODO add whatever other keys there are
     
 #ifndef __NO_AVEXTENSIONS__
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     AVUtils::get()->convertMessageToMetaData(msg, meta);
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 
 #if 0
     ALOGI("converted %s to:", msg->debugString(0).c_str());
@@ -2495,9 +2561,15 @@ status_t sendMetaDataToHal(sp<MediaPlayerBase::AudioSink>& sink,
         param.addInt(String8(AUDIO_OFFLOAD_CODEC_PADDING_SAMPLES), paddingSamples);
     }
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->sendMetaDataToHal(meta, &param);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
     ALOGV("sendMetaDataToHal: bitRate %d, sampleRate %d, chanMask %d,"
           "delaySample %d, paddingSample %d", bitRate, sampleRate,
           channelMask, delaySamples, paddingSamples);
@@ -2539,11 +2611,17 @@ const struct mime_conv_t* p = &mimeLookup[0];
         ++p;
     }
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return AVUtils::get()->mapMimeToAudioFormat(format, mime);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #else
     return BAD_VALUE;
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 }
 
 struct aac_format_conv_t {
@@ -2617,9 +2695,13 @@ status_t getAudioOffloadInfo(const sp<MetaData>& meta, bool hasVideo,
         ALOGV("Mime type \"%s\" mapped to audio_format %d", mime, info->format);
     }
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
     info->format  = AVUtils::get()->updateAudioFormat(info->format, meta);
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
     int32_t pcmEncoding;
     if (meta->findInt32(kKeyPcmEncoding, &pcmEncoding)) {
         info->format = audioFormatFromEncoding(pcmEncoding);
@@ -2632,24 +2714,44 @@ status_t getAudioOffloadInfo(const sp<MetaData>& meta, bool hasVideo,
         return BAD_VALUE;
     }
 
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
+// QTI_BEGIN: 2019-02-13: Audio: av: update canOffloadAPE to canOffloadSteam
     if (AVUtils::get()->canOffloadStream(meta) != true) {
+// QTI_END: 2019-02-13: Audio: av: update canOffloadAPE to canOffloadSteam
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         return false;
     }
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
 
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
     // Redefine aac format according to its profile
     // Offloading depends on audio DSP capabilities.
     int32_t aacaot = -1;
     if (meta->findInt32(kKeyAACAOT, &aacaot)) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         bool isADTSSupported = false;
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
         isADTSSupported = AVUtils::get()->mapAACProfileToAudioFormat(meta, info->format,
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                                     (OMX_AUDIO_AACPROFILETYPE) aacaot);
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #endif
+// QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         if (!isADTSSupported) {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             mapAACProfileToAudioFormat(info->format, aacaot);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         }
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         mapAACProfileToAudioFormat(info->format, aacaot);
     }
 
@@ -2672,8 +2774,10 @@ status_t getAudioOffloadInfo(const sp<MetaData>& meta, bool hasVideo,
         } else {
             cmask = audio_channel_out_mask_from_count(channelCount);
         }
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
         ALOGW("track of type '%s' does not publish channel mask, channel count %d",
               mime, channelCount);
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
     }
     info->channel_mask = cmask;
 
@@ -2683,7 +2787,9 @@ status_t getAudioOffloadInfo(const sp<MetaData>& meta, bool hasVideo,
     }
     info->duration_us = duration;
 
+// QTI_BEGIN: 2021-03-18: Audio: Utils: intialize bitrate to 0
     int32_t brate = 0;
+// QTI_END: 2021-03-18: Audio: Utils: intialize bitrate to 0
     if (!meta->findInt32(kKeyBitRate, &brate)) {
         ALOGV("track of type '%s' does not publish bitrate", mime);
     }

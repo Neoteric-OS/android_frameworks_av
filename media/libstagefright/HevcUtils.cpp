@@ -46,13 +46,17 @@ static const uint8_t kHevcNalUnitTypes[8] = {
 };
 
 HevcParameterSets::HevcParameterSets()
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     : mInfo(kInfoNone)
     , mIsLhevc(false) {
 }
 
 HevcParameterSets::HevcParameterSets(bool isMvHevc)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     : mInfo(kInfoNone) {
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     mIsLhevc = isMvHevc;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 }
 
 status_t HevcParameterSets::addNalUnit(const uint8_t* data, size_t size) {
@@ -61,7 +65,9 @@ status_t HevcParameterSets::addNalUnit(const uint8_t* data, size_t size) {
         return ERROR_MALFORMED;
     }
     uint8_t nalUnitType = (data[0] >> 1) & 0x3f;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     uint8_t nuhLayerId = ((data[0] & 0x01) << 5) | ((data[1] >> 3) & 0x1f);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     status_t err = OK;
     switch (nalUnitType) {
         case 32:  // VPS
@@ -76,23 +82,33 @@ status_t HevcParameterSets::addNalUnit(const uint8_t* data, size_t size) {
                 ALOGE("invalid NAL/SPS size b/35467107");
                 return ERROR_MALFORMED;
             }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             err = parseSps(data + 2, size - 2, nuhLayerId);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             break;
         case 34:  // PPS
             if (size < 2) {
                 ALOGE("invalid NAL/PPS size b/35467107");
                 return ERROR_MALFORMED;
             }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             err = parsePps(data + 2, size - 2, nuhLayerId);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             break;
+// QTI_BEGIN: 2023-11-08: Video: libstagefright: Change to handle AUD nal unit type
         case 35:  // AUD
+// QTI_END: 2023-11-08: Video: libstagefright: Change to handle AUD nal unit type
         case 39:  // Prefix SEI
         case 40:  // Suffix SEI
+// QTI_BEGIN: 2025-01-02: Audio: av: Adding bad data check before calling parseSEI am: c97943483f am: c97943483f
             if (size < 2) {
                 ALOGE("invalid NAL/PPS size b/35467107");
                 return ERROR_MALFORMED;
             }
+// QTI_END: 2025-01-02: Audio: av: Adding bad data check before calling parseSEI am: c97943483f am: c97943483f
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             err = parseSeiMessage(data + 2, size - 2);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             break;
         default:
             ALOGE("Unrecognized NAL unit type.");
@@ -100,20 +116,28 @@ status_t HevcParameterSets::addNalUnit(const uint8_t* data, size_t size) {
     }
 
     if (err != OK) {
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         ALOGE("error parsing VPS or SPS or PPS or SEI");
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         return err;
     }
 
     sp<ABuffer> buffer = ABuffer::CreateAsCopy(data, size);
     buffer->setInt32Data(nalUnitType);
     mNalUnits.push(buffer);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // nal unit layer id
     mNalLayerIds.push(nuhLayerId);
     if (mNalUnits.size() != mNalLayerIds.size()) {
         ALOGE("mNalUnits.size():%d, mNalLayerIds.size():%d",
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
             mNalUnits.size(), mNalLayerIds.size());
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         return ERROR_MALFORMED;
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
@@ -145,6 +169,7 @@ bool HevcParameterSets::findParam64(uint32_t key, uint64_t *param) {
     return findParam(key, param, mParams);
 }
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 bool HevcParameterSets::getThreeDimParamParsed() {
     uint8_t leftViewId;
     if (!findParam8(kSeiLeftViewId, &leftViewId)) {
@@ -153,6 +178,8 @@ bool HevcParameterSets::getThreeDimParamParsed() {
     return true;
 }
 
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 size_t HevcParameterSets::getNumNalUnitsOfType(uint8_t type, uint8_t layerId) {
     size_t num = 0;
     if (mNalUnits.size() != mNalLayerIds.size()) {
@@ -167,6 +194,7 @@ size_t HevcParameterSets::getNumNalUnitsOfType(uint8_t type, uint8_t layerId) {
     }
     return num;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 size_t HevcParameterSets::getNumNalUnitsOfType(uint8_t type) {
     size_t num = 0;
     for (size_t i = 0; i < mNalUnits.size(); ++i) {
@@ -186,10 +214,12 @@ size_t HevcParameterSets::getSize(size_t index) {
     CHECK_LT(index, mNalUnits.size());
     return mNalUnits[index]->size();
 }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 size_t HevcParameterSets::getLayerId(size_t index) {
     CHECK_LT(index, mNalLayerIds.size());
     return mNalLayerIds[index];
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
 bool HevcParameterSets::write(size_t index, uint8_t* dest, size_t size) {
     CHECK_LT(index, mNalUnits.size());
@@ -204,15 +234,20 @@ bool HevcParameterSets::write(size_t index, uint8_t* dest, size_t size) {
 }
 
 status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     size_t bitCounter = 0;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // See Rec. ITU-T H.265 v3 (04/2015) Chapter 7.3.2.1 for reference
     NALBitReader reader(data, size);
     // Skip vps_video_parameter_set_id
     reader.skipBits(4);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // vps_base_layer_internal_flag
     bool baseLayerInternalFlag = reader.getBits(1);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // Skip vps_base_layer_available_flag
     reader.skipBits(1);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // vps_max_layers_minus_1
     // if the bitstream is for multiview profile, this value is set greater than 0.
     uint8_t maxLayersMinusOne = reader.getBits(6);
@@ -220,11 +255,18 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
     // vps_max_sub_layers_minus1
     uint8_t maxSubLayersMinusOne;
     maxSubLayersMinusOne = reader.getBits(3);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+    // save vps_max_sub_layers_minus1 for further use
+    mParams.add(kVpsMaxSubLayersMinusOne, maxSubLayersMinusOne);
+
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
     // Skip vps_temporal_id_nesting_flags
     reader.skipBits(1);
     // Skip reserved
     reader.skipBits(16);
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     status_t err = OK;
     if (reader.atLeastNumBitsLeft(96)) {
         err = parseProfileTierLevel(1, maxSubLayersMinusOne, reader, 1);
@@ -232,8 +274,12 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
     } else {
         reader.skipBits(96);
         return reader.overRead() ? ERROR_MALFORMED : OK;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (maxLayersMinusOne == 0) { // main(10) profile
         mParams.add(kNumViews, 1);
         if (err != OK) {
@@ -246,34 +292,62 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
         ALOGE("VPS maxLayersMinusOne is greater than 1.");
         return ERROR_MALFORMED;
     }
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // Additional parsing bits for more information
     bool subLayerOrderingInfoPresentFlag;
     subLayerOrderingInfoPresentFlag = reader.getBits(1);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     for (size_t i = (subLayerOrderingInfoPresentFlag? 0 : maxSubLayersMinusOne);
             i <= maxSubLayersMinusOne; i++) {
         //skip vps_max_dec_pic_buffering_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         parseUEWithFallback(&reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         //skip vps_max_num_reorder_pics[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         parseUEWithFallback(&reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         //skip vps_max_latency_increase_plus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         parseUEWithFallback(&reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
 
     uint8_t maxLayerId, numLayerSetsMinusOne;
     // vps_max_layer_id
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     maxLayerId = reader.getBits(6);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // vps_num_layer_sets_minus1
     numLayerSetsMinusOne = parseUEWithFallback(&reader, 0U);
     for (size_t i = 1; i <= numLayerSetsMinusOne; i++) {
         for (size_t j = 0; j <= maxLayerId; j++) {
             // Skip layer_id_included_flag[i][j]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             reader.skipBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
     }
 
     // vps_timing_info_present_flag
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     bool timingInfoPresentFlag = reader.getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (timingInfoPresentFlag) {
         // Skip vps_num_units_in_tick
         reader.skipBits(32);
@@ -283,20 +357,36 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
         bool pocProportionalToTimingFlag = reader.getBits(1);
         if (pocProportionalToTimingFlag) {
             // skip vps_num_ticks_poc_diff_one_minus1;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             parseUEWithFallback(&reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
         // skip vps_num_hrd_parameters
         uint8_t numHrdParameters = parseUEWithFallback(&reader, 0U);
         for (size_t i = 0; i < numHrdParameters; i++) {
             // skip hrd_layer_set_idx[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             parseUEWithFallback(&reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             bool cprmsPresentFlag = false;
             if (i > 0) {
                 // cprms_present_flag[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
                 cprmsPresentFlag = reader.getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             }
             err = parseHrdParameters(cprmsPresentFlag,
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
                     maxSubLayersMinusOne, &reader);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (err != OK) {
                 ALOGE("error parsing HRD Parameters");
                 return err;
@@ -304,11 +394,23 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
         }
     }
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     bool extensionFlag = reader.getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (extensionFlag) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         while(!byteAligned(reader.numBitsLeft())) {
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             // skip vps_extension_alignment_bit_equal_to_one
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             reader.skipBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
         status_t err = parseVpsExtension(kMaxLayersMinusOne,
                             baseLayerInternalFlag, reader);
@@ -316,34 +418,60 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
             ALOGE("error parsing VPS Extension.");
             return err;
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
 
     return reader.overRead() ? ERROR_MALFORMED : OK;
 }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
         const uint8_t nuhLayerId) {
     ALOGV("parseSPS, nuh_layer_id : %d", nuhLayerId);
-    // See Rec. ITU-T H.265 v3 (04/2015) Chapter 7.3.2.2 for reference
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+    // See Rec. ITU-T H.265 v8 (08/2021) Chapter 7.3.2.2 for reference
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
     NALBitReader reader(data, size);
     // Skip sps_video_parameter_set_id
     reader.skipBits(4);
-    uint8_t maxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+
+    uint8_t extOrMaxSubLayersMinus1 = 0, maxSubLayersMinus1 = 0;
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (nuhLayerId == 0) {
-        mParams.add(kSpsMaxSubLayersMinusOne, maxSubLayersMinus1);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+        maxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+    } else {
+        // extOrMaxSubLayersMinus1 is defined in F.7.3.2.2.1
+        extOrMaxSubLayersMinus1 = reader.getBitsWithFallback(3, 0);
+        maxSubLayersMinus1 = (extOrMaxSubLayersMinus1 == 7)
+            ? mParams.valueFor(kVpsMaxSubLayersMinusOne) : extOrMaxSubLayersMinus1;
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
     }
-    // extOrMaxSubLayersMinus1 is defined in F.7.3.2.2.1
-    uint8_t extOrMaxSubLayersMinus1 = maxSubLayersMinus1;
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+    mParams.add(kSpsMaxSubLayersMinusOne, maxSubLayersMinus1);
+
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     const bool MultiLayerExtSpsFlag = nuhLayerId > 0 && extOrMaxSubLayersMinus1 == 7;
     // additonal condition is defined in F.7.3.2.2.1
     if (!MultiLayerExtSpsFlag) {
         // sps_temporal_id_nesting_flag
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         reader.skipBits(1);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         // Skip general profile
         parseProfileTierLevel(1, mParams.valueFor(kSpsMaxSubLayersMinusOne), reader, false);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     // Skip sps_seq_parameter_set_id
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     skipUE(&reader);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (MultiLayerExtSpsFlag) {
         if (reader.getBitsWithFallback(1, 0) /*update_rep_format_flag*/) {
             // sps_rep_format_idx
@@ -360,9 +488,13 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
             reader.skipBits(1);
         }
         // Skip pic_width_in_luma_samples
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         skipUE(&reader);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         // Skip pic_height_in_luma_samples
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         skipUE(&reader);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         if (reader.getBitsWithFallback(1, 0) /* i.e. conformance_window_flag */) {
             // Skip conf_win_left_offset
             skipUE(&reader);
@@ -382,10 +514,12 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
             skipUE(&reader);
             skipUE(&reader);
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
 
     // log2_max_pic_order_cnt_lsb_minus4
     size_t log2MaxPicOrderCntLsb = parseUEWithFallback(&reader, 0) + (size_t)4;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (!MultiLayerExtSpsFlag) {
         bool spsSubLayerOrderingInfoPresentFlag = reader.getBitsWithFallback(1, 0);
         for (uint32_t i = spsSubLayerOrderingInfoPresentFlag ? 0 : maxSubLayersMinus1;
@@ -394,6 +528,7 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
             skipUE(&reader); // sps_max_num_reorder_pics[i]
             skipUE(&reader); // sps_max_latency_increase_plus1[i]
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
     skipUE(&reader); // log2_min_luma_coding_block_size_minus3
     skipUE(&reader); // log2_diff_max_min_luma_coding_block_size
@@ -402,6 +537,7 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
     skipUE(&reader); // max_transform_hierarchy_depth_inter
     skipUE(&reader); // max_transform_hierarchy_depth_intra
     if (reader.getBitsWithFallback(1, 0)) { // scaling_list_enabled_flag u(1)
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         bool inferScalingListFlag = false;
         if (MultiLayerExtSpsFlag) {
             // sps_infer_scaling_list_flag
@@ -426,6 +562,7 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
                             for (uint32_t i = 0; i < coefNum; ++i) {
                                 skipSE(&reader); // scaling_list_delta_coef
                             }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                         }
                     }
                 }
@@ -500,11 +637,14 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
         }
         if (reader.getBitsWithFallback(1, 0)) { // video_signal_type_present_flag
             reader.skipBits(3); // video_format
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (nuhLayerId == 0) {
                 uint32_t videoFullRangeFlag;
                 if (reader.getBitsGraceful(1, &videoFullRangeFlag)) {
                     mParams.add(kVideoFullRangeFlag, videoFullRangeFlag);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 if (reader.getBitsWithFallback(1, 0)) { // colour_description_present_flag
                     mInfo = (Info)(mInfo | kInfoHasColorDescription);
                     uint32_t colourPrimaries, transferCharacteristics, matrixCoeffs;
@@ -520,9 +660,12 @@ status_t HevcParameterSets::parseSps(const uint8_t *data, size_t size,
                     }
                     if (reader.getBitsGraceful(8, &matrixCoeffs)) {
                         mParams.add(kMatrixCoeffs, matrixCoeffs);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                     }
                 }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 // skip rest of VUI
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             }
         }
     }
@@ -579,12 +722,15 @@ void HevcParameterSets::FindHEVCDimensions(const sp<ABuffer> &SpsBuffer, int32_t
 }
 
 status_t HevcParameterSets::parsePps(
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         const uint8_t* data UNUSED_PARAM, size_t size UNUSED_PARAM,
         const uint8_t nuhLayerId) {
     ALOGV("parse PPS, nuh_layer_id : %d", nuhLayerId);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseProfileTierLevel(const bool profilePresentFlag, uint8_t maxNumSubLayersMinus1, NALBitReader& reader,
                                                 const bool isInVps) {
     ALOGV("parseProfileTierLevel()");
@@ -619,8 +765,14 @@ status_t HevcParameterSets::parseProfileTierLevel(const bool profilePresentFlag,
     bool subLayerProfilePresentFlag[8];
     bool subLayerLevelPresentFlag[8];
     for (int i = 0; i < maxNumSubLayersMinus1; ++i) {
-        subLayerProfilePresentFlag[i] = reader.getBits(1);
-        subLayerLevelPresentFlag[i] = reader.getBits(1);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+        if (reader.atLeastNumBitsLeft(2)) {
+            subLayerProfilePresentFlag[i] = reader.getBits(1);
+            subLayerLevelPresentFlag[i] = reader.getBits(1);
+        }
+// QTI_END: 2025-01-15: Video: media: update HEVC SPS parser to align with standard
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
     // Skip
     if (maxNumSubLayersMinus1 > 0) {
@@ -639,8 +791,12 @@ status_t HevcParameterSets::parseProfileTierLevel(const bool profilePresentFlag,
 
     return reader.overRead() ? ERROR_MALFORMED : OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 status_t HevcParameterSets::parseHrdParameters(const bool cprmsPresentFlag, uint8_t maxNumSubLayersMinus1, NALBitReader* reader) {
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     bool nalHrdParamPresentFlag=0, vclHrdParamPresentFlag=0, subPicHrdParamsPresentFlag = 0;
     if (cprmsPresentFlag) {
         // nal_hrd_parameters_present_flag
@@ -650,7 +806,11 @@ status_t HevcParameterSets::parseHrdParameters(const bool cprmsPresentFlag, uint
 
         if (nalHrdParamPresentFlag || vclHrdParamPresentFlag) {
             // sub_pic_hrd_params_present_flag
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             subPicHrdParamsPresentFlag = reader->getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (subPicHrdParamsPresentFlag) {
                 // Skip tick_divisor_minus2
                 reader->skipBits(8);
@@ -682,31 +842,55 @@ status_t HevcParameterSets::parseHrdParameters(const bool cprmsPresentFlag, uint
         uint8_t cpbCntMinus1=0;
         bool fixedPicRateGeneralFlag = 0, fixedPicRateWithinCvsFlag = 0, lowDelayHrdFlag = 0;
         // fixed_pic_rate_general_flag[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         fixedPicRateGeneralFlag = reader->getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         if (!fixedPicRateGeneralFlag) {
             // fixed_pic_rate_within_cvs_flag[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             fixedPicRateWithinCvsFlag = reader->getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
         if ( fixedPicRateWithinCvsFlag) {
             // Skip elemental_duration_in_tc_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             parseUEWithFallback(reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         } else {
             // low_delay_hrd_flag[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             lowDelayHrdFlag = reader->getBits(1);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
         if (!lowDelayHrdFlag) {
             // Skip cpb_cnt_minus1[i]
             cpbCntMinus1 = parseUEWithFallback(reader, 0U);
         }
         if (nalHrdParamPresentFlag) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             status_t err = parseSubLayerHrdParameters(subPicHrdParamsPresentFlag, cpbCntMinus1, reader);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (err != OK) {
                 ALOGE("error parsing Sub layer HRD Parameters (NAL)");
                 return err;
             }
         }
         if (vclHrdParamPresentFlag) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             status_t err = parseSubLayerHrdParameters(subPicHrdParamsPresentFlag, cpbCntMinus1, reader);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (err != OK) {
                 ALOGE("error parsing Sub layer HRD Parameters (VCL)");
                 return err;
@@ -715,43 +899,75 @@ status_t HevcParameterSets::parseHrdParameters(const bool cprmsPresentFlag, uint
     }
     return reader->overRead() ? ERROR_MALFORMED : OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 status_t HevcParameterSets::parseSubLayerHrdParameters(const bool subPicHrdParamsPresentFlag, const uint8_t cpbCntMinus1, NALBitReader *reader) {
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     uint8_t cpbCnt = cpbCntMinus1 + 1;
     for (size_t i = 0; i < cpbCnt; i++) {
         // Skip bit_rate_value_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         parseUEWithFallback(reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         // Skip cpb_size_value_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         parseUEWithFallback(reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         if (subPicHrdParamsPresentFlag) {
             // Skip cpb_size_du_value_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             parseUEWithFallback(reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             // Skip bit_rate_du_value_minus1[i]
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
             parseUEWithFallback(reader, 0U);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
         // Skip cbr_flag[i]
         reader->skipBits(1);
     }
     return reader->overRead() ? ERROR_MALFORMED : OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseVpsExtension(const uint8_t maxLayersMinus1, const bool baseLayerInternalFlag, NALBitReader& reader) {
     if (maxLayersMinus1 > 0 && baseLayerInternalFlag) {
         parseProfileTierLevel(0, 0, reader, 0);
     }
     bool splittingFlag = reader.getBits(1);
     bool scalabilityMaskFlag[16];
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     std::fill_n(scalabilityMaskFlag, 16, 0);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     uint8_t numScalabilityTypes = 0;
     for (size_t i = 0; i < 16; i++) {
         scalabilityMaskFlag[i] = reader.getBits(1);
         numScalabilityTypes += scalabilityMaskFlag[i];
     }
     uint8_t dimensionIdLenMinus1[16];
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     std::fill_n(dimensionIdLenMinus1, 16, 0);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     for (size_t j = 0; j < (numScalabilityTypes - splittingFlag); j++) {
         dimensionIdLenMinus1[j] = reader.getBits(3);
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     // F.7.4.3.1, maxNumLayers = 63
     uint8_t dimBitOffset[63];
     std::fill_n(dimBitOffset, 63, 0);
@@ -765,7 +981,11 @@ status_t HevcParameterSets::parseVpsExtension(const uint8_t maxLayersMinus1, con
                             = 5 - dimBitOffset[numScalabilityTypes -1];
         dimBitOffset[numScalabilityTypes] = 6;
     }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     bool nuhLayerIdPresentFlag = reader.getBits(1);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     uint8_t MaxLayersMinus1 = std::min((uint8_t)63, maxLayersMinus1);
     uint8_t layerIdInNuh[63];
     // F.7.4.3.1
@@ -778,20 +998,34 @@ status_t HevcParameterSets::parseVpsExtension(const uint8_t maxLayersMinus1, con
     for (size_t i = 0; i < 63; i++) {
         std::fill_n(dimensionId[i], 16, 0);
     }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     for (size_t i = 1; i <= MaxLayersMinus1; i++) {
         if (nuhLayerIdPresentFlag) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
             // layer_id_in_nuh[i]
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             layerIdInNuh[i] = reader.getBits(6);
         }
         if (!splittingFlag) {
             for (size_t j = 0; j < numScalabilityTypes; j++) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                 // dimension_id[i][j]
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 dimensionId[i][j] = reader.getBits(dimensionIdLenMinus1[j] + 1);
             }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         } else { // F.7.4.3.1
             for (size_t j = 0; j < numScalabilityTypes; j++) {
                 dimensionId[i][j] = ((layerIdInNuh[i] & ((1 << dimBitOffset[j+1]) - 1)) >> dimBitOffset[j]);
             }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
     }
     // derive NumViews (please refer to dimension_id[i] semantic for more details.)
@@ -824,7 +1058,9 @@ status_t HevcParameterSets::parseVpsExtension(const uint8_t maxLayersMinus1, con
 
     return reader.overRead() ? ERROR_MALFORMED : OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 size_t HevcParameterSets::numBitsParsedExpGolomb(uint8_t symbol) {
     uint8_t value = symbol + 1;
     size_t counter = 0;
@@ -834,8 +1070,11 @@ size_t HevcParameterSets::numBitsParsedExpGolomb(uint8_t symbol) {
     }
     return counter * 2 - 1;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::makeHvcc(uint8_t *hvcc, size_t *hvccSize, size_t nalSizeLength) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (hvcc == NULL || hvccSize == NULL
             || (nalSizeLength != 4 && nalSizeLength != 2)) {
         return BAD_VALUE;
@@ -852,6 +1091,7 @@ status_t HevcParameterSets::makeHvcc(uint8_t *hvcc, size_t *hvccSize, size_t nal
         }
         ++numOfArrays;
         size += 3;
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         for (size_t j = 0; j < numNalUnits; ++j) {
             if (getType(j) != type) {
                 continue;
@@ -959,8 +1199,11 @@ status_t HevcParameterSets::makeHvcc_l(uint8_t *hvcc, size_t *hvccSize, size_t n
         }
         ++numOfArrays;
         size += 3;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         for (size_t j = 0; j < numNalUnits; ++j) {
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (getType(j) != type || getLayerId(j) != 0) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 continue;
             }
             size += 2 + getSize(j);
@@ -1024,7 +1267,9 @@ status_t HevcParameterSets::makeHvcc_l(uint8_t *hvcc, size_t *hvccSize, size_t n
     header += 23;
     for (size_t i = 0; i < ARRAY_SIZE(kHevcNalUnitTypes); ++i) {
         uint8_t type = kHevcNalUnitTypes[i];
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         size_t numNalus = getNumNalUnitsOfType(type, 0);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         if (numNalus == 0) {
             continue;
         }
@@ -1034,7 +1279,9 @@ status_t HevcParameterSets::makeHvcc_l(uint8_t *hvcc, size_t *hvccSize, size_t n
         header[2] = numNalus & 0xff;
         header += 3;
         for (size_t j = 0; j < numNalUnits; ++j) {
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             if (getType(j) != type || getLayerId(j) != 0) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 continue;
             }
             header[0] = (getSize(j) >> 8) & 0xff;
@@ -1046,9 +1293,12 @@ status_t HevcParameterSets::makeHvcc_l(uint8_t *hvcc, size_t *hvccSize, size_t n
         }
     }
     CHECK_EQ(header - size, hvcc);
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::makeLhvc(uint8_t *lhvc, size_t *lhvcSize,
         size_t nalSizeLength) {
     ALOGV("makeLhvc() start");
@@ -1076,7 +1326,9 @@ status_t HevcParameterSets::makeLhvc(uint8_t *lhvc, size_t *lhvcSize,
             size += 2 + getSize(j);
         }
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (size > *lhvcSize) {
         ALOGE("size : %d, numNalus : %d", size, numNalUnits);
         return NO_MEMORY;
@@ -1119,9 +1371,11 @@ status_t HevcParameterSets::makeLhvc(uint8_t *lhvc, size_t *lhvcSize,
         }
     }
     CHECK_EQ(header - size, lhvc);
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::makeHero(uint8_t *hero) {
     ALOGV("makeHero()");
 
@@ -1142,7 +1396,9 @@ status_t HevcParameterSets::makeHero(uint8_t *hero) {
     ALOGV("hero : %#04x", *hero);
     return OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseSeiMessage(const uint8_t *data, size_t size) {
     uint32_t payloadType = 0;
     uint32_t payloadSize = 0;
@@ -1170,7 +1426,9 @@ status_t HevcParameterSets::parseSeiMessage(const uint8_t *data, size_t size) {
     }
     return err;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseThreeDimensionalReferenceInfoSei(const uint8_t *data, size_t size) {
     ALOGV("three-dimensional reference displays info()");
 
@@ -1194,6 +1452,7 @@ status_t HevcParameterSets::parseThreeDimensionalReferenceInfoSei(const uint8_t 
     }
     return OK;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
 bool HevcParameterSets::IsHevcIDR(const uint8_t *data, size_t size) {
     bool foundIDR = false;
@@ -1206,7 +1465,9 @@ bool HevcParameterSets::IsHevcIDR(const uint8_t *data, size_t size) {
         }
 
         uint8_t nalType = (nalStart[0] & 0x7E) >> 1;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         switch (nalType) {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             case kHevcNalUnitTypeCodedSliceIdr:
             case kHevcNalUnitTypeCodedSliceIdrNoLP:
             case kHevcNalUnitTypeCodedSliceCra:
@@ -1218,8 +1479,11 @@ bool HevcParameterSets::IsHevcIDR(const uint8_t *data, size_t size) {
     return foundIDR;
 }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 // indicates whether the current bitstream is mv-hevc bitstream
 bool HevcParameterSets::IsMvHevc() {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (mIsLhevc) {
         return true;
     } else {
@@ -1229,7 +1493,10 @@ bool HevcParameterSets::IsMvHevc() {
             : "[MV-HEVC] This bitstream is single view video.");
             return numViews > 1;
         }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
     return false;
 }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 }  // namespace android

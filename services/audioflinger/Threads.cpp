@@ -124,6 +124,8 @@ static inline T min(const T& a, const T& b)
     return a < b ? a : b;
 }
 
+using com::android::media::audio::audioserver_permissions;
+using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using com::android::media::permission::ValidatedAttributionSourceState;
 namespace audioserver_flags = com::android::media::audioserver;
 
@@ -189,7 +191,9 @@ static const uint32_t kMaxNormalSinkBufferSizeMs = 24;
 static const uint32_t kMinNormalCaptureBufferSizeMs = 12;
 
 // Offloaded output thread standby delay: allows track transition without going to standby
+// QTI_BEGIN: 2018-07-24: Audio: AudioFlinger: Increase offload standby delay
 static const nsecs_t kOffloadStandbyDelayNs = seconds(3);
+// QTI_END: 2018-07-24: Audio: AudioFlinger: Increase offload standby delay
 
 // Direct output thread minimum sleep time in idle or active(underrun) state
 static const nsecs_t kDirectMinSleepTimeUs = 10000;
@@ -199,9 +203,11 @@ static const nsecs_t kDirectMinSleepTimeUs = 10000;
 // timestamp update and will falsely detect underrun.
 static constexpr nsecs_t kMinimumTimeBetweenTimestampChecksNs = 150 /* ms */ * 1'000'000;
 
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 static const effect_uuid_t IID_VISUALIZER = {0x1d0a1a53, 0x7d5d, 0x48f2, 0x8e71, {0x27,
                                              0xfb, 0xd1, 0x0d, 0x84, 0x2c}};
 
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 // The universal constant for ubiquitous 20ms value. The value of 20ms seems to provide a good
 // balance between power consumption and latency, and allows threads to be scheduled reliably
 // by the CFS scheduler.
@@ -1564,9 +1570,11 @@ status_t PlaybackThread::checkEffectCompatibility_l(
             }
         }
     } break;
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     case DIRECT:
         // Treat direct threads similar to offload threads,
         // since mixing and post processing should be done by DSP here as well.
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     case OFFLOAD:
         // nothing actionable on offload threads, if the effect:
         //   - is offloadable: the effect can be created
@@ -1788,7 +1796,9 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
         broadcast_l();
     }
     if (!effect->isOffloadable()) {
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         if (mType == ThreadBase::OFFLOAD || mType == ThreadBase::DIRECT) {
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
             PlaybackThread *t = (PlaybackThread *)this;
             t->invalidateTracks(AUDIO_STREAM_MUSIC);
         }
@@ -1796,12 +1806,16 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
             mAfThreadCallback->onNonOffloadableGlobalEffectEnable();
         }
     }
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
     if ((mType== OFFLOAD) && (AudioSystem::getDeviceConnectionState(AUDIO_DEVICE_OUT_PROXY, "")
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         == AUDIO_POLICY_DEVICE_STATE_AVAILABLE) && (memcmp (&effect->desc().uuid,
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         &IID_VISUALIZER, sizeof (effect_uuid_t)) == 0)) {
         PlaybackThread *t = (PlaybackThread *)this;
         t->invalidateTracks(AUDIO_STREAM_MUSIC);
     }
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 }
 
 void ThreadBase::onEffectDisable() {
@@ -1840,7 +1854,9 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
     sp<IAfEffectChain> chain = getEffectChain_l(sessionId);
     bool chainCreated = false;
 
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     ALOGD_IF((mType == OFFLOAD || mType == DIRECT) && !effect->isOffloadable(),
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
              "%s: on offloaded thread %p: effect %s does not support offload flags %#x",
              __func__, this, effect->desc().name, effect->desc().flags);
 
@@ -2186,7 +2202,9 @@ PlaybackThread::PlaybackThread(const sp<IAfThreadCallback>& afThreadCallback,
         mScreenState(mAfThreadCallback->getScreenState()),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::sMaxFastTracks) - 1) & ~1),
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mHwSupportsPause(false), mHwPaused(false), mFlushPending(false), mHwSupportsSuspend(false),
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mLeftVolFloat(-1.0), mRightVolFloat(-1.0),
         mDownStreamPatch{},
         mIsTimestampAdvancing(kMinimumTimeBetweenTimestampChecksNs)
@@ -3196,7 +3214,9 @@ NO_THREAD_SAFETY_ANALYSIS
 {
     // unfortunately we have no way of recovering from errors here, hence the LOG_ALWAYS_FATAL
     const audio_config_base_t audioConfig = mOutput->getAudioProperties();
+// QTI_BEGIN: 2023-06-22: Core: audioflinger: Normalize FrameCount for duplicating thread
     bool isDup = false;
+// QTI_END: 2023-06-22: Core: audioflinger: Normalize FrameCount for duplicating thread
     mSampleRate = audioConfig.sample_rate;
     mChannelMask = audioConfig.channel_mask;
     if (!audio_is_output_channel(mChannelMask)) {
@@ -3272,10 +3292,12 @@ NO_THREAD_SAFETY_ANALYSIS
         // This may need to be updated as MixerThread/OutputTracks are added and not here.
     }
 
+// QTI_BEGIN: 2023-06-22: Core: audioflinger: Normalize FrameCount for duplicating thread
     if (property_get_bool("vendor.audio.gaming.enabled", false /* default_value */) &&
             mType == DUPLICATING) {
         isDup = true;
     }
+// QTI_END: 2023-06-22: Core: audioflinger: Normalize FrameCount for duplicating thread
     // Calculate size of normal sink buffer relative to the HAL output buffer size
     double multiplier = 1.0;
     // Note: mType == SPATIALIZER does not support FastMixer and DEEP is by definition not "fast"
@@ -3397,6 +3419,7 @@ NO_THREAD_SAFETY_ANALYSIS
     }
     item.record();
 
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
     String8 key("supports_hw_suspend");
     String8 out_s8;
     status_t ret;
@@ -3410,6 +3433,7 @@ NO_THREAD_SAFETY_ANALYSIS
     }
 
     ALOGV("mHwSupportsSuspend: %d value %d, addr %p", mHwSupportsSuspend, value, &mHwSupportsSuspend);
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
 }
 
 ThreadBase::MetadataUpdate PlaybackThread::updateMetadata_l()
@@ -3418,49 +3442,37 @@ ThreadBase::MetadataUpdate PlaybackThread::updateMetadata_l()
         return {}; // nothing to do
     }
     StreamOutHalInterface::SourceMetadata metadata;
-    static const bool stereo_spatialization_property =
-            property_get_bool("ro.audio.stereo_spatialization_enabled", false);
-    const bool stereo_spatialization_enabled =
-            stereo_spatialization_property && com_android_media_audio_stereo_spatialization();
-    if (stereo_spatialization_enabled) {
-        std::map<audio_session_t, std::vector<playback_track_metadata_v7_t> >allSessionsMetadata;
-        for (const sp<IAfTrack>& track : mActiveTracks) {
-            std::vector<playback_track_metadata_v7_t>& sessionMetadata =
-                    allSessionsMetadata[track->sessionId()];
-            auto backInserter = std::back_inserter(sessionMetadata);
-            // No track is invalid as this is called after prepareTrack_l in the same
-            // critical section
-            track->copyMetadataTo(backInserter);
+    std::map<audio_session_t, std::vector<playback_track_metadata_v7_t> >allSessionsMetadata;
+    for (const sp<IAfTrack>& track : mActiveTracks) {
+        std::vector<playback_track_metadata_v7_t>& sessionMetadata =
+                allSessionsMetadata[track->sessionId()];
+        auto backInserter = std::back_inserter(sessionMetadata);
+        // No track is invalid as this is called after prepareTrack_l in the same
+        // critical section
+        track->copyMetadataTo(backInserter);
+    }
+    std::vector<playback_track_metadata_v7_t> spatializedTracksMetaData;
+    for (const auto& [session, sessionTrackMetadata] : allSessionsMetadata) {
+        metadata.tracks.insert(metadata.tracks.end(),
+                sessionTrackMetadata.begin(), sessionTrackMetadata.end());
+        if (auto chain = getEffectChain_l(session) ; chain != nullptr) {
+            chain->sendMetadata_l(sessionTrackMetadata, {});
         }
-        std::vector<playback_track_metadata_v7_t> spatializedTracksMetaData;
-        for (const auto& [session, sessionTrackMetadata] : allSessionsMetadata) {
-            metadata.tracks.insert(metadata.tracks.end(),
+        if ((hasAudioSession_l(session) & IAfThreadBase::SPATIALIZED_SESSION) != 0) {
+            spatializedTracksMetaData.insert(spatializedTracksMetaData.end(),
                     sessionTrackMetadata.begin(), sessionTrackMetadata.end());
-            if (auto chain = getEffectChain_l(session) ; chain != nullptr) {
-                chain->sendMetadata_l(sessionTrackMetadata, {});
-            }
-            if ((hasAudioSession_l(session) & IAfThreadBase::SPATIALIZED_SESSION) != 0) {
-                spatializedTracksMetaData.insert(spatializedTracksMetaData.end(),
-                        sessionTrackMetadata.begin(), sessionTrackMetadata.end());
-            }
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, {});
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, spatializedTracksMetaData);
-        }
-        if (auto chain = getEffectChain_l(AUDIO_SESSION_DEVICE); chain != nullptr) {
-            chain->sendMetadata_l(metadata.tracks, {});
-        }
-    } else {
-        auto backInserter = std::back_inserter(metadata.tracks);
-        for (const sp<IAfTrack>& track : mActiveTracks) {
-            // No track is invalid as this is called after prepareTrack_l in the same
-            // critical section
-            track->copyMetadataTo(backInserter);
         }
     }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_MIX); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, {});
+    }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_OUTPUT_STAGE); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, spatializedTracksMetaData);
+    }
+    if (auto chain = getEffectChain_l(AUDIO_SESSION_DEVICE); chain != nullptr) {
+        chain->sendMetadata_l(metadata.tracks, {});
+    }
+
     sendMetadataToBackend_l(metadata);
     MetadataUpdate change;
     change.playbackMetadataUpdate = metadata.tracks;
@@ -4281,9 +4293,11 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
             mMixerStatus = prepareTracks_l(&tracksToRemove);
 
             mActiveTracks.updatePowerState_l(this);
+// QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
             if (mMixerStatus == MIXER_IDLE && !mActiveTracks.size()) {
                 onIdleMixer();
             }
+// QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 
             metadataUpdate = updateMetadata_l();
 
@@ -4442,7 +4456,9 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
             }
 
             // only process effects if we're going to write
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             if (mSleepTimeUs == 0 && mType != OFFLOAD && mType != DIRECT) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 for (size_t i = 0; i < effectChains.size(); i ++) {
                     effectChains[i]->process_l();
                     // TODO: Write haptic data directly to sink buffer when mixing.
@@ -4473,7 +4489,9 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
         // was read from audio track: process only updates effect state
         // and thus does have to be synchronized with audio writes but may have
         // to be called while waiting for async write callback
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
         if (mType == OFFLOAD || mType == DIRECT) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
             for (size_t i = 0; i < effectChains.size(); i ++) {
                 effectChains[i]->process_l();
             }
@@ -5070,10 +5088,12 @@ status_t PlaybackThread::createAudioPatch_l(const struct audio_patch *patch,
     mOutDeviceTypeAddrs = deviceTypeAddrs;
     checkSilentMode_l();
 
+// QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
     mActiveTracks.setHasChanged();
     updateMetadata_l();
 
+// QTI_END: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     if (mOutput->audioHwDev->supportsAudioPatches()) {
         sp<DeviceHalInterface> hwDevice = mOutput->audioHwDev->hwDevice();
         status = hwDevice->createAudioPatch(patch->num_sources,
@@ -5124,10 +5144,12 @@ status_t PlaybackThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
     mPatch = audio_patch{};
     mOutDeviceTypeAddrs.clear();
 
+// QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
     mActiveTracks.setHasChanged();
     updateMetadata_l();
 
+// QTI_END: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     if (mOutput->audioHwDev->supportsAudioPatches()) {
         sp<DeviceHalInterface> hwDevice = mOutput->audioHwDev->hwDevice();
         status = hwDevice->releaseAudioPatch(handle);
@@ -5375,8 +5397,10 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
         mNormalSink = initFastMixer ? mPipeSink : mOutputSink;
         break;
     }
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
 
     mIdleTimeOffsetUs = 0;
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
     // setMasterBalance needs to be called after the FastMixer
     // (if any) is set up, in order to deliver the balance settings to it.
     setMasterBalance(afThreadCallback->getMasterBalance_l());
@@ -5636,7 +5660,9 @@ void MixerThread::threadLoop_sleepTime()
                 }
             }
         } else {
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
             mSleepTimeUs = mIdleSleepTimeUs + mIdleTimeOffsetUs;
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         }
     } else if (mBytesWritten != 0 || (mMixerStatus == MIXER_TRACKS_ENABLED)) {
         // clear out mMixerBuffer or mSinkBuffer, to ensure buffers are cleared
@@ -5653,7 +5679,9 @@ void MixerThread::threadLoop_sleepTime()
         ALOGV_IF(mBytesWritten == 0 && (mMixerStatus == MIXER_TRACKS_ENABLED),
                 "anticipated start");
     }
+// QTI_BEGIN: 2018-06-03: Audio: audioflinger: do not idle thread if active tracks exist
     mIdleTimeOffsetUs = 0;
+// QTI_END: 2018-06-03: Audio: audioflinger: do not idle thread if active tracks exist
     // TODO add standby time extension fct of effect tail
 }
 
@@ -5913,6 +5941,10 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                         volume = masterVolume * track->getPortVolume();
                     }
                 }
+                if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                    track->maybeLogPlaybackHardening(*iface);
+                }
+
                 handleVoipVolume_l(&volume);
 
                 // cache the combined master volume and stream type volume for fast mixer; this
@@ -6076,9 +6108,11 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 if (track->state() == IAfTrackBase::RESUMING) {
                     track->setState(IAfTrackBase::ACTIVE);
                     // If a new track is paused immediately after start, do not ramp on resume.
+// QTI_BEGIN: 2018-03-22: Audio: don't apply ramp if track is paused before the first mix
                     if (cblk->mServer != 0) {
                         param = AudioMixer::RAMP_VOLUME;
                     }
+// QTI_END: 2018-03-22: Audio: don't apply ramp if track is paused before the first mix
                 }
                 mAudioMixer->setParameter(trackId, AudioMixer::RESAMPLE, AudioMixer::RESET, NULL);
                 mLeftVolFloat = -1.0;
@@ -6110,6 +6144,9 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 }
             }
             handleVoipVolume_l(&v);
+            if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                track->maybeLogPlaybackHardening(*iface);
+            }
 
             if (track->isPausing()) {
                 vl = vr = 0;
@@ -6829,7 +6866,9 @@ DirectOutputThread::DirectOutputThread(const sp<IAfThreadCallback>& afThreadCall
         , mOffloadInfo(offloadInfo)
         , mVolumeShaperActive(false)
         , mFramesWrittenAtStandby(0)
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
         , mFramesWrittenForSleep(0)
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 {
     setMasterBalance(afThreadCallback->getMasterBalance_l());
 }
@@ -6942,6 +6981,10 @@ void DirectOutputThread::processVolume_l(IAfTrack* track, bool lastTrack)
                                track->getPortMute(),
                                track->isPlaybackRestrictedControl()});
     }
+    if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+        track->maybeLogPlaybackHardening(*iface);
+    }
+
 
     if (lastTrack) {
         track->setFinalVolume(left, right);
@@ -6965,14 +7008,18 @@ void DirectOutputThread::processVolume_l(IAfTrack* track, bool lastTrack)
             }
         }
     }
+// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
 
 }
 
+// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
 void PlaybackThread::onIdleMixer()
+// QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 {
     ALOGV("onIdleMixer");
 }
 
+// QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 void DirectOutputThread::onAddNewTrack_l()
 {
     sp<IAfTrack> previousTrack = mPreviousTrack.promote();
@@ -6989,11 +7036,13 @@ void DirectOutputThread::onAddNewTrack_l()
                 mFlushPending = true;
             }
         }
+// QTI_BEGIN: 2018-03-22: Audio: audioflinger: fix for playback paused during track transition
     } else if (previousTrack == 0) {
         // there could be an old track added back during track transition for direct
         // output, so always issues flush to flush data of the previous track if it
         // was already destroyed with HAL paused, then flush can resume the playback
         mFlushPending = true;
+// QTI_END: 2018-03-22: Audio: audioflinger: fix for playback paused during track transition
     }
     PlaybackThread::onAddNewTrack_l();
 }
@@ -7137,7 +7186,9 @@ PlaybackThread::mixer_state DirectOutputThread::prepareTracks_l(
                  }
             }
             if ((track->sharedBuffer() != 0) || track->isStopped() ||
+// QTI_BEGIN: 2018-10-22: Audio: audioflinger: fix redundant adding to tracksToRemove
                     track->isStopping_2() || track->isPaused()) {
+// QTI_END: 2018-10-22: Audio: audioflinger: fix redundant adding to tracksToRemove
                 // We have consumed all the buffers of this track.
                 // Remove it from the list of active tracks.
                 bool presComplete = false;
@@ -7152,7 +7203,9 @@ PlaybackThread::mixer_state DirectOutputThread::prepareTracks_l(
                     }
                     if (track->isStopped()) {
                         track->reset();
+// QTI_BEGIN: 2018-10-22: Audio: Avoid presentationComplete loop when hardware is paused
                         mFlushPending = true;
+// QTI_END: 2018-10-22: Audio: Avoid presentationComplete loop when hardware is paused
                     }
                     tracksToRemove->add(track);
                 }
@@ -7184,8 +7237,10 @@ PlaybackThread::mixer_state DirectOutputThread::prepareTracks_l(
                             mHwPaused = true;
                         }
                     }
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                 } else if (last) {
                     mixerStatus = MIXER_TRACKS_ENABLED;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 }
             }
         }
@@ -7287,20 +7342,28 @@ void DirectOutputThread::threadLoop_exit()
 // must be called with thread mutex locked
 bool DirectOutputThread::shouldStandby_l()
 {
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     bool standbyForDirectPcm = false;
     bool standbyWhenIdle = false;
 
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     bool trackPaused = false;
     bool trackStopped = false;
     bool trackDisabled = false;
 
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     if (mStandby) {
         return false; // already in standby
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
+// QTI_BEGIN: 2016-03-18: Audio: allow standby for direct track
     }
 
+// QTI_END: 2016-03-18: Audio: allow standby for direct track
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     // allowing DIRECT linear pcm track to be in standby even when active
     standbyForDirectPcm = (mType == DIRECT) && audio_is_linear_pcm(mFormat) && !usesHwAvSync();
 
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     // do not put the HAL in standby when paused. NuPlayer clear the offloaded AudioTrack
     // after a timeout and we will enter standby then.
     // On offload threads, do not enter standby if the main track is still underrunning.
@@ -7312,6 +7375,7 @@ bool DirectOutputThread::shouldStandby_l()
         trackDisabled = (mType == OFFLOAD) && mainTrack->isDisabled();
     }
     standbyWhenIdle = trackStopped || (!trackPaused && !mHwPaused) || trackDisabled;
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     // store position when entering standby in idle/stopped state for DIRECT linear pcm tracks.
     // This is required because presentation position for a DIRECT linear pcm track is not reset
     // on standby, and must be reset on track stop.
@@ -7325,6 +7389,7 @@ bool DirectOutputThread::shouldStandby_l()
         }
     }
     return standbyForDirectPcm || standbyWhenIdle;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 }
 
 // checkForNewParameter_l() must be called with ThreadBase::mutex() held
@@ -7414,8 +7479,10 @@ void DirectOutputThread::cacheParameters_l()
         mStandbyDelayNs = 0;
     } else if (mType == OFFLOAD) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     } else if (mType == DIRECT) {
         mStandbyDelayNs = kOffloadStandbyDelayNs;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     } else {
         mStandbyDelayNs = microseconds(mActiveSleepTimeUs*2);
     }
@@ -7426,9 +7493,13 @@ void DirectOutputThread::flushHw_l()
     PlaybackThread::flushHw_l();
     mOutput->flush();
     mFlushPending = false;
+// QTI_BEGIN: 2019-10-21: Audio: audioflinger: reset frames written at the time of flush for direct outputs.
     mFramesWritten = 0;
+// QTI_END: 2019-10-21: Audio: audioflinger: reset frames written at the time of flush for direct outputs.
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     mFramesWrittenAtStandby = 0;
     mFramesWrittenForSleep = 0;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
     mTimestampVerifier.discontinuity(discontinuityForStandbyOrFlush());
     mTimestamp.clear();
     mMonotonicFrameCounter.onFlush();
@@ -7436,19 +7507,27 @@ void DirectOutputThread::flushHw_l()
     // Note: the client track in Tracks.cpp and AudioTrack.cpp
     // has a FLUSHED state but the DirectOutputThread does not;
     // those tracks will continue to show isStopped().
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
 }
 
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 status_t DirectOutputThread::getTimestamp_l(AudioTimestamp& timestamp)
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
 {
     if (mOutput != NULL) {
         uint64_t position64;
         if (mOutput->getPresentationPosition(&position64, &timestamp.mTime) == OK) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
+// QTI_BEGIN: 2019-04-02: Audio: audioflinger: fix sub-overflow detected by ubsan
             timestamp.mPosition = (position64 <= (mFramesWrittenAtStandby + mFramesWrittenForSleep)) ?
                    0 : (uint32_t) (position64 - mFramesWrittenAtStandby - mFramesWrittenForSleep);
+// QTI_END: 2019-04-02: Audio: audioflinger: fix sub-overflow detected by ubsan
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             return NO_ERROR;
         }
     }
     return INVALID_OPERATION;
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 }
 
 int64_t DirectOutputThread::computeWaitTimeNs_l() const {
@@ -7900,6 +7979,7 @@ void OffloadThread::invalidateTracks(audio_stream_type_t streamType)
 }
 
 void MixerThread::onIdleMixer()
+// QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 {
     PlaybackThread::onIdleMixer();
 
@@ -7935,6 +8015,7 @@ void MixerThread::onIdleMixer()
     }
 }
 
+// QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 void OffloadThread::invalidateTracks(std::set<audio_port_handle_t>& portIds) {
     audio_utils::lock_guard _l(mutex());
     if (PlaybackThread::invalidateTracks_l(portIds)) {
@@ -9260,9 +9341,22 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
     }
 
     if (maxSharedAudioHistoryMs != 0) {
-        if (!captureHotwordAllowed(attributionSource)) {
-            lStatus = PERMISSION_DENIED;
-            goto Exit;
+        if (audioserver_permissions()) {
+            const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
+                    CAPTURE_AUDIO_HOTWORD,
+                    attributionSource.uid);
+            if (!res.ok()) {
+                lStatus = aidl_utils::statusTFromBinderStatus(res.error());
+            }
+            if (!res.value()) {
+                lStatus = PERMISSION_DENIED;
+                goto Exit;
+            }
+        } else {
+            if (!captureHotwordAllowed(attributionSource)) {
+                lStatus = PERMISSION_DENIED;
+                goto Exit;
+            }
         }
         if (maxSharedAudioHistoryMs < 0
                 || maxSharedAudioHistoryMs > kMaxSharedAudioHistoryMs) {
@@ -9383,7 +9477,11 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         if (!mSharedAudioPackageName.empty()
                 && mSharedAudioPackageName == attributionSource.packageName
                 && mSharedAudioSessionId == sessionId
-                && captureHotwordAllowed(attributionSource)) {
+                && (audioserver_permissions() ?
+                      mAfThreadCallback->getPermissionProvider().checkPermission(
+                          CAPTURE_AUDIO_HOTWORD,
+                          attributionSource.uid).value_or(false)
+                    : captureHotwordAllowed(attributionSource))) {
             startFrames = mSharedAudioStartFrames;
         }
 
@@ -10207,10 +10305,12 @@ status_t RecordThread::createAudioPatch_l(const struct audio_patch* patch,
         }
     }
 
+// QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
     mActiveTracks.setHasChanged();
     updateMetadata_l();
 
+// QTI_END: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     if (mInput->audioHwDev->supportsAudioPatches()) {
         sp<DeviceHalInterface> hwDevice = mInput->audioHwDev->hwDevice();
         status = hwDevice->createAudioPatch(patch->num_sources,
@@ -10250,10 +10350,12 @@ status_t RecordThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
     mPatch = audio_patch{};
     mInDeviceTypeAddr.reset();
 
+// QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
     mActiveTracks.setHasChanged();
     updateMetadata_l();
 
+// QTI_END: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     if (mInput->audioHwDev->supportsAudioPatches()) {
         sp<DeviceHalInterface> hwDevice = mInput->audioHwDev->hwDevice();
         status = hwDevice->releaseAudioPatch(handle);
@@ -10550,8 +10652,11 @@ void MmapThread::disconnect()
             activeTracks.add(t);
         }
         localPortId = mPortId;
+        ALOGD("%s: localPortId = %d", __func__, localPortId);
+        mPortId = AUDIO_PORT_HANDLE_NONE;
     }
     for (const sp<IAfMmapTrack>& t : activeTracks) {
+        ALOGD("%s: t->portId() = %d", __func__, t->portId());
         stop(t->portId());
     }
     // This will decrement references and may cause the destruction of this thread.
@@ -10751,9 +10856,13 @@ status_t MmapThread::start(const AudioClient& client,
     sp<IAfMmapTrack> track = IAfMmapTrack::create(
             this, attr == nullptr ? mAttr : *attr, mSampleRate, mFormat,
                                         mChannelMask, mSessionId, isOutput(),
-                                        client.attributionSource,
+                                        adjAttributionSource,
                                         IPCThreadState::self()->getCallingPid(), portId,
                                         volume, muted);
+
+    // MMAP tracks are only created when they are started, so mark them as Start for the purposes
+    // of the IAfTrackBase interface
+    track->start();
     if (!isOutput()) {
         track->setSilenced_l(isClientSilenced_l(portId));
     }
@@ -10764,7 +10873,7 @@ status_t MmapThread::start(const AudioClient& client,
     } else if (!track->isSilenced_l()) {
         for (const sp<IAfMmapTrack>& t : mActiveTracks) {
             if (t->isSilenced_l()
-                    && t->uid() != static_cast<uid_t>(client.attributionSource.uid)) {
+                    && t->uid() != static_cast<uid_t>(adjAttributionSource.uid)) {
                 t->invalidate();
             }
         }
@@ -10819,6 +10928,7 @@ status_t MmapThread::stop(audio_port_handle_t handle)
 
     mActiveTracks.remove(track);
     eraseClientSilencedState_l(track->portId());
+    track->stop();
 
     mutex().unlock();
     if (isOutput()) {
@@ -11089,10 +11199,12 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
         }
     }
 
+// QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
     mActiveTracks.setHasChanged();
     updateMetadata_l();
 
+// QTI_END: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // For mmap streams, once the routing has changed, they will be disconnected. It should be
     // okay to notify the client earlier before the new patch creation.
     if (!areDeviceIdsEqual(deviceIds, mDeviceIds)) {
@@ -11515,6 +11627,13 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
             }
         }
     }
+
+    bool shouldMutePlaybackHardening = std::all_of(mActiveTracks.begin(), mActiveTracks.end(),
+            [](const auto& x) { return x->isPlaybackRestrictedControl(); });
+    if (shouldMutePlaybackHardening) {
+        volume = 0;
+    }
+
     if (volume != mHalVolFloat) {
         // Convert volumes from float to 8.24
         uint32_t vol = (uint32_t)(volume * (1 << 24));
@@ -11556,7 +11675,8 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
                         false /*muteFromPlaybackRestricted*/,
                         false /*muteFromClientVolume*/,
                         false /*muteFromVolumeShaper*/,
-                        false /*muteFromPortVolume*/});
+                        false /*muteFromPortVolume*/,
+                        shouldMutePlaybackHardening});
             } else {
                 track->processMuteEvent_l(mAfThreadCallback->getOrCreateAudioManager(),
                     /*muteState=*/{mMasterMute,
@@ -11566,8 +11686,12 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent_l
                                    false /*muteFromPlaybackRestricted*/,
                                    false /*muteFromClientVolume*/,
                                    false /*muteFromVolumeShaper*/,
-                                   track->getPortMute()});
-                }
+                                   track->getPortMute(),
+                                   shouldMutePlaybackHardening});
+            }
+            if (const auto iface = mAfThreadCallback->getAudioManagerNative(); iface) {
+                track->maybeLogPlaybackHardening(*iface);
+            }
         }
     }
 }

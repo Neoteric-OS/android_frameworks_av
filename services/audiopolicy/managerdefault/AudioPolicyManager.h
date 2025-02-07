@@ -267,7 +267,9 @@ public:
 
         status_t setAllowedCapturePolicy(uid_t uid, audio_flags_mask_t capturePolicy) override;
         virtual audio_offload_mode_t getOffloadSupport(const audio_offload_info_t& offloadInfo);
+// QTI_BEGIN: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
         bool isOffloadSupportedInternal(const audio_offload_info_t& offloadInfo);
+// QTI_END: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 
         virtual bool isDirectOutputSupported(const audio_config_base_t& config,
                                              const audio_attributes_t& attributes);
@@ -748,7 +750,9 @@ protected:
          * Must be called before updateDevicesAndOutputs()
          * @param attr to be considered
          */
+// QTI_BEGIN: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
         virtual void checkOutputForAttributes(const audio_attributes_t &attr);
+// QTI_END: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
 
         /**
          * @brief checkAudioSourceForAttributes checks if any AudioSource following the same routing
@@ -760,8 +764,10 @@ protected:
          */
         void checkAudioSourceForAttributes(const audio_attributes_t &attr);
 
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         bool isInvalidationOfMusicStreamNeeded(const audio_attributes_t &attr);
 
+// QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         bool followsSameRouting(const audio_attributes_t &lAttr,
                                 const audio_attributes_t &rAttr) const;
 
@@ -1072,9 +1078,13 @@ private:
                 uid_t uid);
 
         void onNewAudioModulesAvailableInt(DeviceVector *newDevices);
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
         void chkDpConnAndAllowedForVoice(audio_devices_t device, audio_policy_dev_state_t state);
+// QTI_END: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
 
+// QTI_BEGIN: 2018-02-19: Audio: audiopolicy: make audio policy extensible
 protected:
+// QTI_END: 2018-02-19: Audio: audiopolicy: make audio policy extensible
         // Add or remove AC3 DTS encodings based on user preferences.
         void modifySurroundFormats(const sp<DeviceDescriptor>& devDesc, FormatVector *formatsPtr);
         void modifySurroundChannelMasks(ChannelMaskSet *channelMasksPtr);
@@ -1150,7 +1160,9 @@ protected:
                 bool *isSpatialized,
                 bool *isBitPerfect);
         // internal method to return the output handle for the given device and format
+// QTI_BEGIN: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
         virtual audio_io_handle_t getOutputForDevices(
+// QTI_END: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
                 const DeviceVector &devices,
                 audio_session_t session,
                 const audio_attributes_t *attr,
@@ -1208,12 +1220,14 @@ protected:
 
         void checkVirtualizerClientRoutes();
 
+// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
         // Internal method checking If direct pcm track's offloadInfo needs to be updated.
         void checkAndUpdateOffloadInfoForDirectTracks(
                 const audio_attributes_t *attr,
                 audio_stream_type_t *stream,
                 audio_config_t *config,
                 audio_output_flags_t *flags);
+// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
         /**
          * @brief Returns true if at least one device can only be reached via the output passed
          * as argument. Always returns false for duplicated outputs.
@@ -1256,7 +1270,9 @@ protected:
         status_t setDeviceConnectionStateInt(audio_policy_dev_state_t state,
                                              const android::media::audio::common::AudioPort& port,
                                              audio_format_t encodedFormat);
+// QTI_BEGIN: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
         virtual status_t setDeviceConnectionStateInt(audio_devices_t deviceType,
+// QTI_END: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
                                              audio_policy_dev_state_t state,
                                              const char *device_address,
                                              const char *device_name,

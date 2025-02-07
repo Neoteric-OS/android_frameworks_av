@@ -12,10 +12,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+// QTI_BEGIN: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
  *
  * Changes from Qualcomm Innovation Center are provided under the following license:
+// QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
+// QTI_BEGIN: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
  * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+// QTI_END: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
+// QTI_BEGIN: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
  * SPDX-License-Identifier: BSD-3-Clause-Clear
+// QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
  */
 
 #define LOG_TAG "APM_AudioPolicyManager"
@@ -88,9 +94,12 @@ using content::AttributionSourceState;
 // media / notification / system volume.
 constexpr float IN_CALL_EARPIECE_HEADROOM_DB = 3.f;
 
+// QTI_BEGIN: 2019-09-18: Audio: Optimize device switching time for playback
 static const unsigned int DEFAULT_MUTE_LATENCY_FACTOR = 2;
 static const unsigned int DEFAULT_ROUTING_LATENCY_MS = 50;
 
+// QTI_END: 2019-09-18: Audio: Optimize device switching time for playback
+// QTI_BEGIN: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 static constexpr unsigned int kWmaStandardFrequencies = 7;
 static constexpr unsigned int kWmaStandardChannels = 2;
 static constexpr unsigned int kWmaProMaxBitrate = 1536000;
@@ -120,9 +129,14 @@ static const uint32_t kWMASupportedMaxByteRates[kWmaStandardFrequencies][kWmaSta
     {20008, 32048},
     {20000, 48000},
     {48024, 320032},
+// QTI_END: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
+// QTI_BEGIN: 2021-04-21: Audio: audiopolicy: Fix WMA 48k offload path issue
     {256008, 256008}
+// QTI_END: 2021-04-21: Audio: audiopolicy: Fix WMA 48k offload path issue
+// QTI_BEGIN: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 };
 
+// QTI_END: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 template <typename T>
 bool operator== (const SortedVector<T> &left, const SortedVector<T> &right)
 {
@@ -325,7 +339,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
             return BAD_VALUE;
         }
 
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
         chkDpConnAndAllowedForVoice(device->type(), state);
+// QTI_END: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
         // Propagate device availability to Engine
         setEngineDeviceConnectionState(device, state);
 
@@ -428,7 +444,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
         checkLeBroadcastRoutes(wasLeUnicastActive, nullptr, 0);
 
         mpClientInterface->onAudioPortListUpdate();
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         ALOGV("%s() completed for device: %s", __func__, device->toString().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         return NO_ERROR;
     }  // end if is output device
 
@@ -444,8 +462,10 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
                 return INVALID_OPERATION;
             }
 
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             ALOGV("%s() connecting device %s", __func__, device->toString().c_str());
 
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             if (mAvailableInputDevices.add(device) < 0) {
                 return NO_MEMORY;
             }
@@ -525,7 +545,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
         }
 
         mpClientInterface->onAudioPortListUpdate();
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         ALOGV("%s() completed for device: %s", __func__, device->toString().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         return NO_ERROR;
     } // end if is input device
 
@@ -587,10 +609,16 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
                                                       const char *device_name,
                                                       audio_format_t encodedFormat)
 {
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     status_t status = NO_ERROR;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     String8 reply;
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     int volIndex = 0;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
+// QTI_BEGIN: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
     int isA2dpSuspended = 0;
+// QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
 
     ALOGV("handleDeviceConfigChange(() device: 0x%X, address %s name %s encodedFormat: 0x%X",
           device, device_address, device_name, encodedFormat);
@@ -606,20 +634,28 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
     }
     sp<DeviceDescriptor> devDesc = deviceList.itemAt(0);
 
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
 
     //cache music stream volume on speaker and mute it to avoid leak on speaker
     status = getStreamVolumeIndex(AUDIO_STREAM_MUSIC, &volIndex, AUDIO_DEVICE_OUT_SPEAKER);
     if (status == NO_ERROR) {
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         status = setStreamVolumeIndex(AUDIO_STREAM_MUSIC, 0, false, AUDIO_DEVICE_OUT_SPEAKER);
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         ALOGD("MusicStream is muted on speaker, status%d and VolIndex is %d for unmute",
               status, volIndex);
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
+// QTI_BEGIN: 2020-10-21: Audio: APM: Fix a2dp device config change
     } else {
         /*Throw warning and reset error, streamVolumeIndex should not block
         a2dp device config change*/
         ALOGW("getStreamVolumeIndex failed status=%d",status);
         status = NO_ERROR;
+// QTI_END: 2020-10-21: Audio: APM: Fix a2dp device config change
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     }
 
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     auto musicStrategy = streamToStrategy(AUDIO_STREAM_MUSIC);
     uint32_t muteWaitMs = 0;
 
@@ -649,7 +685,9 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
                 param.add(key, String8("true"));
                 mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
                 devDesc->setEncodedFormat(encodedFormat);
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
                 goto exit;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
             }
         }
     }
@@ -670,6 +708,7 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
           mEngine->getOutputDevicesForAttributes(attributes_initializer(AUDIO_USAGE_MEDIA),
                                               nullptr, true /*fromCache*/).types());
     }
+// QTI_BEGIN: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
 
     // get the a2dpSuspended status for the device
     if (audio_is_a2dp_out_device(device)) {
@@ -678,6 +717,7 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
         repliedParameters.getInt(String8("A2dpSuspended"), isA2dpSuspended);
     }
 
+// QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
     // Wait for the muted audio to propagate down the audio path see checkDeviceMuteStrategies().
     // We assume that MUTE_TIME_MS is way larger than muteWaitMs so that unmuting still
     // happens after the actual device switch.
@@ -694,31 +734,41 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
     if (status != NO_ERROR) {
         ALOGW("handleDeviceConfigChange() error disabling connection state: %d",
               status);
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         goto exit;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     }
 
+// QTI_BEGIN: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
     // if a2dp was in suspended state before disconnection, set A2dpSuspended=true.
     // this will be cached and applied during device connection
     if (isA2dpSuspended) {
         mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, String8("A2dpSuspended=true"));
     }
 
+// QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
     status = setDeviceConnectionState(device,
                                       AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                       device_address, device_name, encodedFormat);
     if (status != NO_ERROR) {
         ALOGW("handleDeviceConfigChange() error enabling connection state: %d",
               status);
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         goto exit;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     }
 
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
 exit:
     //Restore speaker volume for music stream
     if (volIndex) {
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         setStreamVolumeIndex(AUDIO_STREAM_MUSIC, volIndex, false, AUDIO_DEVICE_OUT_SPEAKER);
+// QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
         ALOGD("MusicStreamVol is unmuted on speaker with Volume %d", volIndex);
     }
     return status;
+// QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
 }
 
 status_t AudioPolicyManager::getHwOffloadFormatsSupportedForBluetoothMedia(
@@ -729,10 +779,12 @@ status_t AudioPolicyManager::getHwOffloadFormatsSupportedForBluetoothMedia(
     std::unordered_set<audio_format_t> formatSet;
     sp<HwModule> primaryModule =
             mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY);
+// QTI_BEGIN: 2019-06-26: Audio: audiopolicy: add null pointer check for primary hw
     if (primaryModule == nullptr) {
         ALOGE("%s() unable to get primary module", __func__);
         return NO_INIT;
     }
+// QTI_END: 2019-06-26: Audio: audiopolicy: add null pointer check for primary hw
 
     DeviceTypeSet audioDeviceSet;
 
@@ -1034,6 +1086,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // check for device and output changes triggered by new phone state
     checkForDeviceAndOutputChanges();
 
+// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Enable DSD voice concurrency.
     sp<SwAudioOutputDescriptor> outputDesc;
     bool voiceDSDConcurrency = property_get_bool("vendor.voice.dsd.playback.conc.disabled", true );
     if (voiceDSDConcurrency) {
@@ -1045,11 +1098,14 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
                 ALOGD("voice_conc:calling closeOutput on call mode for DSD COMPRESS output");
                 closeOutput(mOutputs.keyAt(i));
                 // call invalidate for music, so that DSD compress will fallback to deep-buffer.
+// QTI_END: 2021-02-02: Audio: audiopolicy: Enable DSD voice concurrency.
                 invalidateStreams({AUDIO_STREAM_MUSIC});
+// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Enable DSD voice concurrency.
             }
         }
     }
 
+// QTI_END: 2021-02-02: Audio: audiopolicy: Enable DSD voice concurrency.
     int delayMs = 0;
     if (isStateInCall(state)) {
         nsecs_t sysTime = systemTime();
@@ -1312,9 +1368,13 @@ audio_io_handle_t AudioPolicyManager::getOutput(audio_stream_type_t stream)
 
     audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE;
     if (stream == AUDIO_STREAM_MUSIC && mConfig->useDeepBufferForMedia()) {
+// QTI_BEGIN: 2018-08-01: Audio: Set Deep Buffer flag for music stream.
         // use DEEP_BUFFER as default output for music stream type
+// QTI_END: 2018-08-01: Audio: Set Deep Buffer flag for music stream.
         flags = AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
+// QTI_BEGIN: 2018-08-01: Audio: Set Deep Buffer flag for music stream.
     }
+// QTI_END: 2018-08-01: Audio: Set Deep Buffer flag for music stream.
     const audio_io_handle_t output = selectOutput(outputs, flags);
 
     ALOGV("getOutput() stream %d selected devices %s, output %d", stream,
@@ -1609,6 +1669,7 @@ status_t AudioPolicyManager::getOutputForAttrInt(
     return NO_ERROR;
 }
 
+// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
 void AudioPolicyManager::checkAndUpdateOffloadInfoForDirectTracks(
         const audio_attributes_t *attr,
         audio_stream_type_t *stream,
@@ -1633,6 +1694,7 @@ void AudioPolicyManager::checkAndUpdateOffloadInfoForDirectTracks(
     }
 }
 
+// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
 status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_io_handle_t *output,
                                               audio_session_t session,
@@ -1669,9 +1731,11 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     }
     *selectedDeviceIds = sanitizedRequestedPortIds;
 
+// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
     audio_config_t directConfig = *config;
     checkAndUpdateOffloadInfoForDirectTracks(attr, stream, &directConfig, flags);
 
+// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
     status_t status = getOutputForAttrInt(&resultAttr, output, session, attr, stream, uid,
             &directConfig, flags, selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
             secondaryOutputs != nullptr ? &secondaryMixes : nullptr, outputType, isSpatialized,
@@ -1752,7 +1816,9 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
     sp<IOProfile> profile;
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
     if (((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) ||
+// QTI_END: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
             !(mEffects.isNonOffloadableEffectEnabled() || mMasterMono)) {
         profile = getProfileForOutput(
                 devices, config->sample_rate, config->format, config->channel_mask,
@@ -1762,14 +1828,17 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     if (profile == nullptr) {
         return NAME_NOT_FOUND;
     }
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
     if (!(flags & AUDIO_OUTPUT_FLAG_DIRECT) &&
          (profile->getFlags() & AUDIO_OUTPUT_FLAG_DIRECT)) {
         ALOGI("%s rejecting direct profile as was not requested ", __func__);
         profile = nullptr;
         return NAME_NOT_FOUND;
     }
+// QTI_END: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
 
     // exclusive outputs for MMAP and Offload are enforced by different session ids.
+// QTI_BEGIN: 2024-06-19: Audio: audiopolicy: Modify to accomodate direct_track_reprioritization changes
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
         if (!desc->isDuplicated() && (profile == desc->mProfile)) {
@@ -1784,33 +1853,42 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
                     mOutputs.keyAt(i), session);
                 *output = mOutputs.keyAt(i);
                 return NO_ERROR;
+// QTI_END: 2024-06-19: Audio: audiopolicy: Modify to accomodate direct_track_reprioritization changes
             }
         }
     }
 
     if (!profile->canOpenNewIo()) {
         if (!com::android::media::audioserver::direct_track_reprioritization()) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             ALOGW("%s profile %s can't open new output maxOpenCount reached", __func__,
                   profile->getName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             return NAME_NOT_FOUND;
         } else if ((profile->getFlags() & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) != 0) {
             // MMAP gracefully handles lack of an exclusive track resource by mixing
             // above the audio framework. For AAudio to know that the limit is reached,
             // return an error.
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             ALOGW("%s profile %s can't open new mmap output maxOpenCount reached", __func__,
                   profile->getName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             return NAME_NOT_FOUND;
+// QTI_BEGIN: 2024-07-14: Audio: audiopolicy: Fix direct pcm behavior when 2 direct tracks are played
         } else if (profile->getFlags() == AUDIO_OUTPUT_FLAG_DIRECT) {
             ALOGW("%s profile %s can't open new direct pcm output for session %d"
                    " maxOpenCount reached", __func__, profile->getName().c_str(), session);
              return NAME_NOT_FOUND;
+// QTI_END: 2024-07-14: Audio: audiopolicy: Fix direct pcm behavior when 2 direct tracks are played
         } else {
             // Close outputs on this profile, if available, to free resources for this request
             for (int i = 0; i < mOutputs.size() && !profile->canOpenNewIo(); i++) {
                 const auto desc = mOutputs.valueAt(i);
                 if (desc->mProfile == profile) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s closeOutput %d to prioritize session %d on profile %s", __func__,
                           desc->mIoHandle, session, profile->getName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     closeOutput(desc->mIoHandle);
                 }
             }
@@ -1819,12 +1897,16 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
 
     // Unable to close streams to find free resources for this request
     if (!profile->canOpenNewIo()) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         ALOGW("%s profile %s can't open new output maxOpenCount reached", __func__,
               profile->getName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         return NAME_NOT_FOUND;
     }
 
+// QTI_BEGIN: 2024-06-19: Audio: audiopolicy: Modify to accomodate direct_track_reprioritization changes
     auto outputDesc = sp<SwAudioOutputDescriptor>::make(profile, mpClientInterface);
+// QTI_END: 2024-06-19: Audio: audiopolicy: Modify to accomodate direct_track_reprioritization changes
 
     // An MSD patch may be using the only output stream that can service this request. Release
     // all MSD patches to prioritize this request over any active output on MSD.
@@ -1893,6 +1975,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
 
     audio_stream_type_t stream = mEngine->getStreamTypeForAttributes(*attr);
 
+// QTI_BEGIN: 2021-03-10: Audio: audiopolicy: add device switch handling for WFD AFE PROXY playback.
     /*
     * WFD audio routes back to target speaker when starting a ringtone playback.
     * This is because primary output is reused for ringtone, so output device is
@@ -1911,6 +1994,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
                         AUDIO_OUTPUT_FLAG_DIRECT : AUDIO_OUTPUT_FLAG_FAST;
         }
     }
+// QTI_END: 2021-03-10: Audio: audiopolicy: add device switch handling for WFD AFE PROXY playback.
     // open a direct output if required by specified parameters
     //force direct flag if offload flag is set: offloading implies a direct output stream
     // and all common behaviors are driven by checking only the direct flag
@@ -1921,6 +2005,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     if ((*flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         *flags = (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
 
     // Force direct flags for PCM data, this can help to maintain audio bitstream
     // quality by avoiding resampling/downmixing by using direct track when hal/DSP
@@ -1928,6 +2013,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     // mixed output. To some extent, it can help save some power.
     const bool trackDirectPCM =
             property_get_bool("vendor.audio.offload.track.enable", true /* default_value */);
+// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
+// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
     const bool offloadDisable =
             property_get_bool("audio.offload.disable", false /* default_value */);
     if (trackDirectPCM && !offloadDisable && stream == AUDIO_STREAM_MUSIC) {
@@ -1936,29 +2023,48 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
              config->offload_info.usage == AUDIO_USAGE_GAME)) {
             ALOGV("Force direct flags to use pcm offload, original flags(0x%x)", *flags);
             *flags = AUDIO_OUTPUT_FLAG_DIRECT;
+// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
         }
+// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
+// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
     } else if (audio_is_linear_pcm(config->format) &&
             *flags == AUDIO_OUTPUT_FLAG_DIRECT) {
         ALOGV("%s Remove direct flags stream %d,orginal flags %0x", __func__, stream, *flags);
         *flags = AUDIO_OUTPUT_FLAG_NONE;
+// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
     }
 
+// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     bool forceDeepBuffer = false;
+// QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     // only allow deep buffering for music stream type
     if (stream != AUDIO_STREAM_MUSIC) {
         *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE || *flags == AUDIO_OUTPUT_FLAG_DIRECT ||
                 (*flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) && !isInCall() &&
+// QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
+// QTI_BEGIN: 2024-12-26: Audio: audiopolicy : Fix force deep buffer condition
                 mConfig->useDeepBufferForMedia()) {
+// QTI_END: 2024-12-26: Audio: audiopolicy : Fix force deep buffer condition
         // use DEEP_BUFFER as default output for music stream type
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
         forceDeepBuffer = true;
+// QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     }
     if (stream == AUDIO_STREAM_TTS) {
         *flags = AUDIO_OUTPUT_FLAG_TTS;
+// QTI_BEGIN: 2021-11-15: Audio: Select low latency path during voice call for voice stream
     } else if ((stream == AUDIO_STREAM_VOICE_CALL &&
+// QTI_END: 2021-11-15: Audio: Select low latency path during voice call for voice stream
                audio_is_linear_pcm(config->format) &&
+// QTI_BEGIN: 2021-11-15: Audio: Select low latency path during voice call for voice stream
                (*flags & AUDIO_OUTPUT_FLAG_INCALL_MUSIC) == 0) &&
                (mEngine->getPhoneState() != AUDIO_MODE_IN_CALL)) {
+// QTI_END: 2021-11-15: Audio: Select low latency path during voice call for voice stream
         *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_VOIP_RX |
                                        AUDIO_OUTPUT_FLAG_DIRECT);
         ALOGV("Set VoIP and Direct output flags for PCM format");
@@ -1978,7 +2084,9 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
         prefMixerConfigInfo == nullptr &&
         ((((*flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) &&
         checkHapticCompatibilityOnSpatializerOutput(config, session))
+// QTI_BEGIN: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
                   || audio_is_linear_pcm(config->format))) {
+// QTI_END: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
         *isSpatialized = true;
         return mSpatializerOutput->mIoHandle;
     }
@@ -3076,12 +3184,14 @@ bool AudioPolicyManager::releaseOutput(audio_port_handle_t portId)
 
     ALOGV("releaseOutput() %d", outputDesc->mIoHandle);
 
+// QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
     sp<TrackClientDescriptor> client = outputDesc->getClient(portId);
     if (outputDesc->isClientActive(client)) {
         ALOGW("releaseOutput() inactivates portId %d in good faith", portId);
         stopOutput(portId);
     }
 
+// QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
     if (outputDesc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) {
         if (outputDesc->mDirectOpenCount <= 0) {
             ALOGW("releaseOutput() invalid open count %d for output %d",
@@ -3380,8 +3490,10 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(const sp<DeviceDescripto
         return input;
     }
 
-    // Reuse an already opened input if a client with the same session ID already exists
-    // on that input
+    // Reuse an already opened input if:
+    //  - a client with the same session ID already exists on that input
+    //  - OR the requested device is a remote submix device with the same adrress
+    //    as the one connected to that input
     for (size_t i = 0; i < mInputs.size(); i++) {
         sp <AudioInputDescriptor> desc = mInputs.valueAt(i);
         if (desc->mProfile != profile) {
@@ -3392,6 +3504,11 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(const sp<DeviceDescripto
             if (session == client->session()) {
                 return desc->mIoHandle;
             }
+        }
+        if (audio_is_remote_submix_device(device->type())
+                && (device->address() != "0")
+                && device->equals(desc->getDevice())) {
+            return desc->mIoHandle;
         }
     }
 
@@ -3837,8 +3954,10 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
         ALOGW("%s: no group for stream %s, bailing out", __func__, toString(stream).c_str());
         return NO_ERROR;
     }
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
     ALOGV("%s: stream %s attributes=%s, index %d , device 0x%X", __func__,
           toString(stream).c_str(), toString(attributes).c_str(), index, device);
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
     return setVolumeIndexForAttributes(attributes, index, muted, device);
 }
 
@@ -4026,8 +4145,10 @@ status_t AudioPolicyManager::setVolumeCurveIndex(int index,
     bool hasVoice = hasVoiceStream(volumeCurves.getStreamTypes());
     if (((index < volumeCurves.getVolumeIndexMin()) && !(hasVoice && index == 0)) ||
             (index > volumeCurves.getVolumeIndexMax())) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         ALOGE("%s: wrong index %d min=%d max=%d, device 0x%X", __FUNCTION__, index,
               volumeCurves.getVolumeIndexMin(), volumeCurves.getVolumeIndexMax(), device);
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
         return BAD_VALUE;
     }
     if (!audio_is_output_device(device)) {
@@ -4091,9 +4212,11 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
     //    AudioFlinger will invalidate the track and the offloaded output
     //    will be closed causing the effect to be moved to a PCM output.
     // 2: Spatializer output if the stereo spatializer feature enabled
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     // 3: A deep buffer output
     // 4: The primary output
     // 5: the first output in the list
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 
     DeviceVector devices = mEngine->getOutputDevicesForAttributes(
                 attributes_initializer(AUDIO_USAGE_MEDIA), nullptr, false /*fromCache*/);
@@ -4111,7 +4234,9 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
         audio_io_handle_t outputSpatializer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputDeepBuffer = AUDIO_IO_HANDLE_NONE;
         audio_io_handle_t outputPrimary = AUDIO_IO_HANDLE_NONE;
+// QTI_BEGIN: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
         audio_io_handle_t outputDirect = AUDIO_IO_HANDLE_NONE;
+// QTI_END: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
 
         for (audio_io_handle_t outputLoop : outputs) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(outputLoop);
@@ -4128,9 +4253,15 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
                     outputSpatializer = outputLoop;
                 }
             }
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             if ((desc->mFlags == AUDIO_OUTPUT_FLAG_DIRECT) != 0) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
+// QTI_BEGIN: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
                 outputDirect = outputLoop;
+// QTI_END: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             }
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
             if ((desc->mFlags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
                 outputDeepBuffer = outputLoop;
             }
@@ -4142,8 +4273,10 @@ audio_io_handle_t AudioPolicyManager::selectOutputForMusicEffects()
             output = outputOffloaded;
         } else if (outputSpatializer != AUDIO_IO_HANDLE_NONE) {
             output = outputSpatializer;
+// QTI_BEGIN: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
         } else if (outputDirect != AUDIO_IO_HANDLE_NONE) {
              output = outputDirect;
+// QTI_END: 2024-12-26: Audio: audiopolicy: Fix behavior of selectOutputForMusicEffects
         } else if (outputDeepBuffer != AUDIO_IO_HANDLE_NONE) {
             output = outputDeepBuffer;
         } else if (outputPrimary != AUDIO_IO_HANDLE_NONE) {
@@ -4277,6 +4410,7 @@ status_t AudioPolicyManager::registerPolicyMixes(const Vector<AudioMix>& mixes)
     bool checkOutputs = false;
     sp<HwModule> rSubmixModule;
     Vector<AudioMix> registeredMixes;
+    AudioDeviceTypeAddrVector devices;
     // examine each mix's route type
     for (size_t i = 0; i < mixes.size(); i++) {
         AudioMix mix = mixes[i];
@@ -4400,6 +4534,7 @@ status_t AudioPolicyManager::registerPolicyMixes(const Vector<AudioMix>& mixes)
                 break;
             } else {
                 checkOutputs = true;
+                devices.push_back(AudioDeviceTypeAddr(mix.mDeviceType, mix.mDeviceAddress.c_str()));
                 registeredMixes.add(mix);
             }
         }
@@ -4415,7 +4550,10 @@ status_t AudioPolicyManager::registerPolicyMixes(const Vector<AudioMix>& mixes)
         }
     } else if (checkOutputs) {
         checkForDeviceAndOutputChanges();
-        updateCallAndOutputRouting();
+        changeOutputDevicesMuteState(devices);
+        updateCallAndOutputRouting(false /* forceVolumeReeval */, 0 /* delayMs */,
+            true /* skipDelays */);
+        changeOutputDevicesMuteState(devices);
     }
     return res;
 }
@@ -4426,6 +4564,7 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
     status_t res = NO_ERROR;
     bool checkOutputs = false;
     sp<HwModule> rSubmixModule;
+    AudioDeviceTypeAddrVector devices;
     // examine each mix's route type
     for (const auto& mix : mixes) {
         if ((mix.mRouteFlags & MIX_ROUTE_FLAG_LOOP_BACK) == MIX_ROUTE_FLAG_LOOP_BACK) {
@@ -4473,6 +4612,7 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
                 res = INVALID_OPERATION;
                 continue;
             } else {
+                devices.push_back(AudioDeviceTypeAddr(mix.mDeviceType, mix.mDeviceAddress.c_str()));
                 checkOutputs = true;
             }
         }
@@ -4480,7 +4620,10 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
 
     if (res == NO_ERROR && checkOutputs) {
         checkForDeviceAndOutputChanges();
-        updateCallAndOutputRouting();
+        changeOutputDevicesMuteState(devices);
+        updateCallAndOutputRouting(false /* forceVolumeReeval */, 0 /* delayMs */,
+            true /* skipDelays */);
+        changeOutputDevicesMuteState(devices);
     }
     return res;
 }
@@ -5013,9 +5156,11 @@ audio_offload_mode_t AudioPolicyManager::getOffloadSupport(const audio_offload_i
         return AUDIO_OFFLOAD_NOT_SUPPORTED;
     }
 
+// QTI_BEGIN: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
     if (!isOffloadSupportedInternal(offloadInfo)) {
         return AUDIO_OFFLOAD_NOT_SUPPORTED;
     }
+// QTI_END: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
     // See if there is a profile to support this.
     // AUDIO_DEVICE_NONE
     sp<IOProfile> profile = getProfileForOutput(DeviceVector() /*ignore device */,
@@ -5036,6 +5181,7 @@ audio_offload_mode_t AudioPolicyManager::getOffloadSupport(const audio_offload_i
     return AUDIO_OFFLOAD_SUPPORTED;
 }
 
+// QTI_BEGIN: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 bool AudioPolicyManager::isOffloadSupportedInternal(const audio_offload_info_t& offloadInfo)
 {
     const bool audioExtensionFormatsEnabled =
@@ -5097,6 +5243,7 @@ bool AudioPolicyManager::isOffloadSupportedInternal(const audio_offload_info_t& 
     return true;
 }
 
+// QTI_END: 2021-02-03: Audio: audiopolicy: add more conditions for getOffloadSupport.
 bool AudioPolicyManager::isDirectOutputSupported(const audio_config_base_t& config,
                                                  const audio_attributes_t& attributes) {
     audio_output_flags_t output_flags = AUDIO_OUTPUT_FLAG_NONE;
@@ -6415,8 +6562,10 @@ status_t AudioPolicyManager::setMasterMono(bool mono)
         Vector<audio_io_handle_t> offloaded;
         for (size_t i = 0; i < mOutputs.size(); ++i) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
+// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             if (desc->mFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD ||
                 desc->mFlags == AUDIO_OUTPUT_FLAG_DIRECT) {
+// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 offloaded.push(desc->mIoHandle);
             }
         }
@@ -7111,6 +7260,7 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
             if (!mConfig->getOutputDevices().contains(supportedDevice)) {
                 continue;
             }
+// QTI_BEGIN: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
 
             if (outProfile->isMmap() && !outProfile->hasDynamicAudioProfile()
                 && availProfileDevices.areAllDevicesAttached()) {
@@ -7119,6 +7269,7 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                 continue;
             }
 
+// QTI_END: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
             sp<SwAudioOutputDescriptor> outputDesc = new SwAudioOutputDescriptor(outProfile,
                                                                                  mpClientInterface);
             audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
@@ -7180,6 +7331,7 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                     __func__, inProfile->getTagName().c_str());
                 continue;
             }
+// QTI_BEGIN: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
 
             if (inProfile->isMmap() && !inProfile->hasDynamicAudioProfile()
                 && availProfileDevices.areAllDevicesAttached()) {
@@ -7188,6 +7340,7 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                 continue;
             }
 
+// QTI_END: 2024-06-30: Audio: audiopolicy: skip opening mmap profile during new device connection (2)
             sp<AudioInputDescriptor> inputDesc = new AudioInputDescriptor(
                     inProfile, mpClientInterface, false /*isPreemptor*/);
 
@@ -7195,7 +7348,9 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
             status_t status = inputDesc->open(nullptr,
                                               availProfileDevices.itemAt(0),
                                               AUDIO_SOURCE_MIC,
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: use profile flags during opening an input
                                               (audio_input_flags_t) inProfile->getFlags(),
+// QTI_END: 2024-06-27: Audio: audiopolicy: use profile flags during opening an input
                                               &input);
             if (status != NO_ERROR) {
                 ALOGW("%s: Cannot open input stream for device %s for profile %s on hw module %s",
@@ -7342,11 +7497,13 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
             if (j != outputs.size()) {
                 continue;
             }
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
             if (profile->isMmap() && !profile->hasDynamicAudioProfile()) {
                 ALOGV("%s skip opening output for mmap profile %s",
                       __func__, profile->getTagName().c_str());
                 continue;
             }
+// QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
             if (!profile->canOpenNewIo()) {
                 ALOGW("Max Output number %u already opened for this profile %s",
                       profile->maxOpenCount, profile->getTagName().c_str());
@@ -7463,8 +7620,10 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
 
                 if (profile->supportsDevice(device)) {
                     profiles.add(profile);
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s : adding profile %s from module %s", __func__,
                           profile->getTagName().c_str(), hwModule->getName());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 }
             }
         }
@@ -7496,22 +7655,30 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
                 continue;
             }
 
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
             if (profile->isMmap() && !profile->hasDynamicAudioProfile()) {
                 ALOGV("%s skip opening input for mmap profile %s",
                       __func__, profile->getTagName().c_str());
                 continue;
             }
+// QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
             if (!profile->canOpenNewIo()) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 ALOGW("%s Max Input number %u already opened for this profile %s",
                       __func__, profile->maxOpenCount, profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 continue;
             }
 
             desc = new AudioInputDescriptor(profile, mpClientInterface, false  /*isPreemptor*/);
             audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
             ALOGV("%s opening input for profile %s", __func__, profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: use profile flags during opening an input
             status = desc->open(nullptr, device, AUDIO_SOURCE_MIC,
                                 (audio_input_flags_t) profile->getFlags(), &input);
+// QTI_END: 2024-06-27: Audio: audiopolicy: use profile flags during opening an input
 
             if (status == NO_ERROR) {
                 const String8& address = String8(device->address().c_str());
@@ -7522,8 +7689,10 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
                 }
                 updateAudioProfiles(device, input, profile);
                 if (!profile->hasValidAudioProfile()) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGW("%s direct input missing param for profile %s", __func__,
                             profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     desc->close();
                     input = AUDIO_IO_HANDLE_NONE;
                 }
@@ -7534,20 +7703,26 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
             } // endif input != 0
 
             if (input == AUDIO_IO_HANDLE_NONE) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 ALOGW("%s could not open input for device %s on profile %s", __func__,
                        device->toString().c_str(), profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 profiles.removeAt(profile_index);
                 profile_index--;
             } else {
                 if (audio_device_is_digital(device->type())) {
                     device->importAudioPortAndPickAudioProfile(profile);
                 }
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                 ALOGV("%s: adding input %d for profile %s", __func__,
                         input, profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
 
                 if (checkCloseInput(desc)) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s: closing input %d for profile %s", __func__,
                             input, profile->getTagName().c_str());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     closeInput(input);
                 }
             }
@@ -7566,8 +7741,10 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
                  profile_index++) {
                 sp<IOProfile> profile = hwModule->getInputProfiles()[profile_index];
                 if (profile->supportsDevice(device)) {
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s: clearing direct input profile %s on module %s", __func__,
                             profile->getTagName().c_str(), hwModule->getName());
+// QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     profile->clearAudioProfiles();
                 }
             }
@@ -7775,12 +7952,15 @@ void AudioPolicyManager::clearAudioSourcesForOutput(audio_io_handle_t output)
     }
 }
 
+// QTI_BEGIN: 2019-09-18: Audio: Optimize device switching time for playback
 const unsigned int muteLatencyFactor = property_get_int32(
             "audio.sys.mute.latency.factor", DEFAULT_MUTE_LATENCY_FACTOR);
 
 const unsigned int routingLatency = property_get_int32(
             "audio.sys.routing.latency", DEFAULT_ROUTING_LATENCY_MS);
 
+// QTI_END: 2019-09-18: Audio: Optimize device switching time for playback
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
 bool AudioPolicyManager::isInvalidationOfMusicStreamNeeded(const audio_attributes_t &attr)
 {
     if (followsSameRouting(attr, attributes_initializer(AUDIO_USAGE_MEDIA))) {
@@ -7792,10 +7972,13 @@ bool AudioPolicyManager::isInvalidationOfMusicStreamNeeded(const audio_attribute
     }
     return true;
 }
+// QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
 void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr)
 {
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
     if (!isInvalidationOfMusicStreamNeeded(attr))
         return;
+// QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
     auto psId = mEngine->getProductStrategyForAttributes(attr);
 
     DeviceVector oldDevices = mEngine->getOutputDevicesForAttributes(attr, 0, true /*fromCache*/);
@@ -7818,7 +8001,8 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
         }
 
         for (const sp<TrackClientDescriptor>& client : desc->getClientIterable()) {
-            if (mEngine->getProductStrategyForAttributes(client->attributes()) != psId) {
+            if (mEngine->getProductStrategyForAttributes(client->attributes()) != psId
+                    || client->isInvalid()) {
                 continue;
             }
             if (!desc->supportsAllDevices(newDevices)) {
@@ -7848,6 +8032,9 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
         for (audio_io_handle_t srcOut : srcOutputs) {
             sp<SwAudioOutputDescriptor> desc = mPreviousOutputs.valueFor(srcOut);
             if (desc == nullptr) continue;
+            if (desc == mSpatializerOutput && newDevices == oldDevices) {
+                continue;
+            }
 
             if (desc->isStrategyActive(psId) && maxLatency < desc->latency()) {
                 maxLatency = desc->latency();
@@ -7855,6 +8042,9 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
 
             bool invalidate = false;
             for (auto client : desc->clientsList(false /*activeOnly*/)) {
+                if (client->isInvalid()) {
+                    continue;
+                }
                 if (desc->isDuplicated() || !desc->mProfile->isDirectOutput()) {
                     // a client on a non direct outputs has necessarily a linear PCM format
                     // so we can call selectOutput() safely
@@ -8011,7 +8201,9 @@ void AudioPolicyManager::checkA2dpSuspend()
 {
     audio_io_handle_t a2dpOutput = mOutputs.getA2dpOutput();
 
+// QTI_BEGIN: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
     if (a2dpOutput == 0 || mOutputs.isA2dpOffloadedOnPrimary()) {
+// QTI_END: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
         mA2dpSuspended = false;
         return;
     }
@@ -8022,13 +8214,17 @@ void AudioPolicyManager::checkA2dpSuspend()
     bool isScoRequested = isScoRequestedForComm();
 
     // if suspended, restore A2DP output if:
+// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     //      (A2DP output is present and not on primary output) &&
+// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     //      ((SCO device is NOT connected) ||
     //       ((SCO is not requested) &&
     //        (phone state is NOT in call) && (phone state is NOT ringing)))
     //
     // if not suspended, suspend A2DP output if:
+// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     //      (A2DP output is present and not on primary output) &&
+// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     //      (SCO device is connected) &&
     //       ((SCO is requested) ||
     //       ((phone state is in call) || (phone state is ringing)))
@@ -8038,7 +8234,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              (!isScoRequested &&
               (mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) &&
               (mEngine->getPhoneState() != AUDIO_MODE_RINGTONE))) {
+// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
                 mpClientInterface->restoreOutput(a2dpOutput);
+// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
             mA2dpSuspended = false;
         }
     } else {
@@ -8046,7 +8244,9 @@ void AudioPolicyManager::checkA2dpSuspend()
              (isScoRequested ||
               (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) ||
               (mEngine->getPhoneState() == AUDIO_MODE_RINGTONE))) {
+// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
                 mpClientInterface->suspendOutput(a2dpOutput);
+// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
             mA2dpSuspended = true;
         }
     }
@@ -8340,7 +8540,9 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
     // temporary mute output if device selection changes to avoid volume bursts due to
     // different per device volumes
     if (outputDesc->isActive() && (devices != prevDevices)) {
+// QTI_BEGIN: 2019-09-18: Audio: Optimize device switching time for playback
         uint32_t tempMuteWaitMs = outputDesc->latency() * muteLatencyFactor;
+// QTI_END: 2019-09-18: Audio: Optimize device switching time for playback
 
         if (muteWaitMs < tempMuteWaitMs) {
             muteWaitMs = tempMuteWaitMs;
@@ -8353,8 +8555,10 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
         uint32_t tempMuteDurationMs = tempRecommendedMuteDuration > 0 ?
                 tempRecommendedMuteDuration : (outputDesc->latency() * muteLatencyFactor)
                 + routingLatency;
+// QTI_BEGIN: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
         if (outputDesc->isDirectOutput() && tempRecommendedMuteDuration > 0)
             muteWaitMs = tempMuteDurationMs;
+// QTI_END: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
 
         for (const auto &activeVs : outputDesc->getActiveVolumeSources()) {
             // make sure that we do not start the temporary mute period too early in case of
@@ -8369,7 +8573,9 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
     // wait for the PCM output buffers to empty before proceeding with the rest of the command
     if (muteWaitMs > delayMs) {
         muteWaitMs -= delayMs;
+// QTI_BEGIN: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
         ALOGV("%s() muteWaitMs = %d", __func__, muteWaitMs);
+// QTI_END: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
         usleep(muteWaitMs * 1000);
         return muteWaitMs;
     }
@@ -9660,6 +9866,7 @@ void AudioPolicyManager::reopenOutputsWithDevices(
     }
 }
 
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
 void AudioPolicyManager::chkDpConnAndAllowedForVoice(audio_devices_t device,
                                                      audio_policy_dev_state_t state)
 {
@@ -9679,6 +9886,7 @@ void AudioPolicyManager::chkDpConnAndAllowedForVoice(audio_devices_t device,
     }
 }
 
+// QTI_END: 2021-02-23: Audio: audiopolicy: Add support for voice for DP.
 PortHandleVector AudioPolicyManager::getClientsForStream(
         audio_stream_type_t streamType) const {
     PortHandleVector clients;

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "MediaCodecList"
 #include <utils/Log.h>
 
@@ -51,8 +53,10 @@
 #include <algorithm>
 #include <regex>
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 namespace android {
 
 namespace {

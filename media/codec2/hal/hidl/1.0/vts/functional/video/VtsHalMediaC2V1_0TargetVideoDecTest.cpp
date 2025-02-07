@@ -86,14 +86,20 @@ std::vector<CompToFiles> gCompToFiles = {
          "bbb_vp9_704x480_280kbps_24fps_altref_2.info", ""},
         {"av01", "bbb_av1_640_360.av1", "bbb_av1_640_360.info", "bbb_av1_640_360_chksum.md5"},
         {"av01", "bbb_av1_176_144.av1", "bbb_av1_176_144.info", "bbb_av1_176_144_chksm.md5"},
+        {"apv", "trim_pattern_640x480_30fps_16mbps_apv_10bit.apv",
+                "trim_pattern_640x480_30fps_16mbps_apv_10bit.info", ""},
+        {"apv", "trim_pattern_1280x720_30fps_30mbps_apv_10bit.apv",
+                "trim_pattern_1280x720_30fps_30mbps_apv_10bit.info", ""},
 };
 
 class LinearBuffer : public C2Buffer {
   public:
     explicit LinearBuffer(const std::shared_ptr<C2LinearBlock>& block)
         : C2Buffer({block->share(block->offset(), block->size(), ::C2Fence())}) {}
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
 
     explicit LinearBuffer(const std::shared_ptr<C2LinearBlock>& block, size_t size)
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
         : C2Buffer({block->share(block->offset(), size, ::C2Fence())}) {}
 };
 
@@ -541,13 +547,19 @@ void decodeNFrames(const std::shared_ptr<android::Codec2Client::Component>& comp
                 fprintf(stderr, "C2LinearBlock::map() failed : %d", view.error());
                 break;
             }
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ((size_t)alignedSize, view.capacity());
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ(0u, view.offset());
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             ASSERT_EQ((size_t)alignedSize, view.size());
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
 
             memcpy(view.base(), data, size);
 
+// QTI_BEGIN: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             work->input.buffers.emplace_back(new LinearBuffer(block, size));
+// QTI_END: 2019-07-01: Video: codec2: vts-video: align input buffer size for decoders
             free(data);
         }
         work->worklets.clear();
@@ -734,7 +746,8 @@ TEST_P(Codec2VideoDecHidlTest, AdaptiveDecodeTest) {
     if (mDisableTest) GTEST_SKIP() << "Test is disabled";
     if (!(strcasestr(mMime.c_str(), "avc") || strcasestr(mMime.c_str(), "hevc") ||
           strcasestr(mMime.c_str(), "vp8") || strcasestr(mMime.c_str(), "vp9") ||
-          strcasestr(mMime.c_str(), "mpeg2") || strcasestr(mMime.c_str(), "av01"))) {
+          strcasestr(mMime.c_str(), "mpeg2") || strcasestr(mMime.c_str(), "av01") ||
+          strcasestr(mMime.c_str(), "apv"))) {
         return;
     }
 

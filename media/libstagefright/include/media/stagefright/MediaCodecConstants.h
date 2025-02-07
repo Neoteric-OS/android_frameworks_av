@@ -856,6 +856,8 @@ inline static const char *asString_ColorFormat(int32_t i, const char *def = "??"
 }
 
 inline constexpr char FEATURE_AdaptivePlayback[]       = "adaptive-playback";
+inline constexpr char FEATURE_DetachedSurface[]        = "detached-surface";
+inline constexpr char FEATURE_DynamicColorAspects[]    = "dynamic-color-aspects";
 inline constexpr char FEATURE_DynamicTimestamp[]       = "dynamic-timestamp";
 inline constexpr char FEATURE_EncodingStatistics[]     = "encoding-statistics";
 inline constexpr char FEATURE_FrameParsing[]           = "frame-parsing";
@@ -882,7 +884,9 @@ inline constexpr char MIMETYPE_VIDEO_MPEG2[] = "video/mpeg2";
 inline constexpr char MIMETYPE_VIDEO_RAW[] = "video/raw";
 inline constexpr char MIMETYPE_VIDEO_DOLBY_VISION[] = "video/dolby-vision";
 inline constexpr char MIMETYPE_VIDEO_SCRAMBLED[] = "video/scrambled";
+// QTI_BEGIN: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
 inline constexpr char MIMETYPE_VIDEO_MVHEVC[] = "video/x-mvhevc";
+// QTI_END: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
 
 inline constexpr char MIMETYPE_AUDIO_AMR_NB[] = "audio/3gpp";
 inline constexpr char MIMETYPE_AUDIO_AMR_WB[] = "audio/amr-wb";

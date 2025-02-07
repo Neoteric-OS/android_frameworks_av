@@ -83,7 +83,9 @@ std::array<char const*, 5> const& getXmlPaths() {
 Mutex MediaProfiles::sLock;
 bool MediaProfiles::sIsInitialized = false;
 MediaProfiles *MediaProfiles::sInstance = NULL;
+// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 MediaProfiles::MediaProfiles_override *MediaProfiles::mMediaProfiles_override = NULL;
+// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 
 const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
     {"h263", VIDEO_ENCODER_H263},
@@ -91,7 +93,9 @@ const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
     {"m4v",  VIDEO_ENCODER_MPEG_4_SP},
     {"vp8",  VIDEO_ENCODER_VP8},
     {"hevc", VIDEO_ENCODER_HEVC},
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     {"mvhevc", VIDEO_ENCODER_MVHEVC},
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     {"vp9",  VIDEO_ENCODER_VP9},
     {"dolbyvision", VIDEO_ENCODER_DOLBY_VISION},
 };
@@ -118,8 +122,12 @@ const MediaProfiles::NameToTagMap MediaProfiles::sAudioEncoderNameMap[] = {
     {"heaacps", AUDIO_ENCODER_HE_AAC_PS},
     {"aaceld", AUDIO_ENCODER_AAC_ELD},
     {"opus",   AUDIO_ENCODER_OPUS},
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     {"lpcm",  AUDIO_ENCODER_LPCM},
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
+// QTI_BEGIN: 2023-02-28: Audio: media: add new enum for HE-AAC V2
     {"heaac_v2",  AUDIO_ENCODER_HE_AAC_V2},
+// QTI_END: 2023-02-28: Audio: media: add new enum for HE-AAC V2
 };
 
 const MediaProfiles::NameToTagMap MediaProfiles::sFileFormatMap[] = {
@@ -164,7 +172,9 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"timelapse4kdci", CAMCORDER_QUALITY_TIME_LAPSE_4KDCI},
     {"timelapseqhd", CAMCORDER_QUALITY_TIME_LAPSE_QHD},
     {"timelapse2k", CAMCORDER_QUALITY_TIME_LAPSE_2K},
+// QTI_BEGIN: 2021-05-05: Video: media: Add timelapse 8k UHD Camcorder profile to quality map
     {"timelapse8kuhd", CAMCORDER_QUALITY_TIME_LAPSE_8KUHD},
+// QTI_END: 2021-05-05: Video: media: Add timelapse 8k UHD Camcorder profile to quality map
 
     {"highspeedlow",  CAMCORDER_QUALITY_HIGH_SPEED_LOW},
     {"highspeedhigh", CAMCORDER_QUALITY_HIGH_SPEED_HIGH},
@@ -172,9 +182,11 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"highspeed720p", CAMCORDER_QUALITY_HIGH_SPEED_720P},
     {"highspeed1080p", CAMCORDER_QUALITY_HIGH_SPEED_1080P},
     {"highspeed2160p", CAMCORDER_QUALITY_HIGH_SPEED_2160P},
+// QTI_BEGIN: 2018-02-07: Video: CamcorderProfiles: Add new camcorder profiles
     {"highspeedcif", CAMCORDER_QUALITY_HIGH_SPEED_CIF},
     {"highspeedvga", CAMCORDER_QUALITY_HIGH_SPEED_VGA},
     {"highspeed4kdci", CAMCORDER_QUALITY_HIGH_SPEED_4KDCI},
+// QTI_END: 2018-02-07: Video: CamcorderProfiles: Add new camcorder profiles
 
     // Vendor-specific profiles
 };
@@ -319,7 +331,9 @@ MediaProfiles::detectAdvancedVideoProfile(
         // flow does not get here
 
     case VIDEO_ENCODER_HEVC:
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     case VIDEO_ENCODER_MVHEVC:
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         switch (profile) {
         case HEVCProfileMain:
             return true;
@@ -723,6 +737,7 @@ void MediaProfiles::addStartTimeOffset(int cameraId, const char** atts, size_t n
     mStartTimeOffsets.replaceValueFor(cameraId, offsetTimeMs);
 }
 
+// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ void
 MediaProfiles::startOverrideXmlElementHandler(void *userData, const char *name, const char **atts)
 {
@@ -866,6 +881,7 @@ MediaProfiles::startElementHandler_override(void *userData, const char *name, co
     }
 }
 
+// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ void
 MediaProfiles::startElementHandler(void *userData, const char *name, const char **atts)
 {
@@ -1100,7 +1116,9 @@ void MediaProfiles::checkAndAddRequiredProfilesIfNecessary() {
 /*static*/ MediaProfiles*
 MediaProfiles::getInstance()
 {
+// QTI_BEGIN: 2018-08-13: Video: media: Add changes to pick target specific media xml's
     char platform[PROPERTY_VALUE_MAX] = {0};
+// QTI_END: 2018-08-13: Video: media: Add changes to pick target specific media xml's
     ALOGV("getInstance");
     Mutex::Autolock lock(sLock);
     if (!sIsInitialized) {
@@ -1121,10 +1139,15 @@ MediaProfiles::getInstance()
                 sInstance = createInstanceFromXmlFile(xmlFile);
             }
         } else {
+// QTI_BEGIN: 2018-08-13: Video: media: Add changes to pick target specific media xml's
                 if (!strncmp(value, "/vendor/etc", strlen("/vendor/etc"))) {
                     property_get("ro.board.platform", platform, NULL);
                     if (!strcmp(platform, "msm8953")){
+// QTI_END: 2018-08-13: Video: media: Add changes to pick target specific media xml's
+// QTI_BEGIN: 2019-11-04: Video: MediaProfiles: rename the device name with target
                         if (property_get("vendor.media.target.version", value, "0") &&
+// QTI_END: 2019-11-04: Video: MediaProfiles: rename the device name with target
+// QTI_BEGIN: 2018-08-13: Video: media: Add changes to pick target specific media xml's
                             (atoi(value) == 1)){
                             strlcpy(value, "/vendor/etc/media_profiles_8953_v1.xml",
                                     PROPERTY_VALUE_MAX);
@@ -1132,8 +1155,14 @@ MediaProfiles::getInstance()
                             strlcpy(value, "/vendor/etc/media_profiles_vendor.xml",
                                     PROPERTY_VALUE_MAX);
                         }
+// QTI_END: 2018-08-13: Video: media: Add changes to pick target specific media xml's
+// QTI_BEGIN: 2018-09-25: Video: media: Changes to pick target specific media xml
                     } else if (!strcmp(platform, "sdm660")) {
+// QTI_END: 2018-09-25: Video: media: Changes to pick target specific media xml
+// QTI_BEGIN: 2019-11-04: Video: MediaProfiles: rename the device name with target
                         property_get("vendor.media.target.version", value, "0");
+// QTI_END: 2019-11-04: Video: MediaProfiles: rename the device name with target
+// QTI_BEGIN: 2018-09-25: Video: media: Changes to pick target specific media xml
                         if (atoi(value) == 1) {
                             strlcpy(value, "/vendor/etc/media_profiles_sdm660_v1.xml",
                                     PROPERTY_VALUE_MAX);
@@ -1141,25 +1170,39 @@ MediaProfiles::getInstance()
                             strlcpy(value, "/vendor/etc/media_profiles_vendor.xml",
                                     PROPERTY_VALUE_MAX);
                         }
+// QTI_END: 2018-09-25: Video: media: Changes to pick target specific media xml
+// QTI_BEGIN: 2020-04-02: Video: media: add support to pick target specific xml
                     } else if (!strcmp(platform, "bengal")) {
+// QTI_END: 2020-04-02: Video: media: add support to pick target specific xml
+// QTI_BEGIN: 2020-05-26: Video: media: extend added support to pick target specific xml
                         property_get("vendor.sys.media.target.version", value, "0");
+// QTI_END: 2020-05-26: Video: media: extend added support to pick target specific xml
+// QTI_BEGIN: 2021-04-23: Video: media: add support to pick target specific xml
                         if (atoi(value) == 3) {
                             strlcpy(value, "/vendor/etc/media_profiles_khaje.xml",
                                     PROPERTY_VALUE_MAX);
                         } else if (atoi(value) == 2) {
+// QTI_END: 2021-04-23: Video: media: add support to pick target specific xml
+// QTI_BEGIN: 2020-04-02: Video: media: add support to pick target specific xml
                             strlcpy(value, "/vendor/etc/media_profiles_scuba.xml",
                                     PROPERTY_VALUE_MAX);
                         } else {
                             strlcpy(value, "/vendor/etc/media_profiles_vendor.xml",
                                     PROPERTY_VALUE_MAX);
                         }
+// QTI_END: 2020-04-02: Video: media: add support to pick target specific xml
+// QTI_BEGIN: 2018-08-13: Video: media: Add changes to pick target specific media xml's
                     }
+// QTI_END: 2018-08-13: Video: media: Add changes to pick target specific media xml's
+// QTI_BEGIN: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
                     char variant[PROPERTY_VALUE_MAX];
                     if (property_get("ro.media.xml_variant.codecs", variant, NULL) > 0) {
                         std::string xmlPath = std::string("/vendor/etc/media_profiles") +
                                               std::string(variant) + std::string(".xml");
                         strlcpy(value, xmlPath.c_str(), PROPERTY_VALUE_MAX);
                         ALOGI("Profiles xml path: %s", value);
+// QTI_END: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
+// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
                         //Checking if QSPA is enabled
                         char qspaEnabled[PROPERTY_VALUE_MAX];
                         property_get("ro.boot.vendor.qspa", qspaEnabled, NULL);
@@ -1190,8 +1233,13 @@ MediaProfiles::getInstance()
                                 }
                             }
                         }
+// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
+// QTI_BEGIN: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
                     }
+// QTI_END: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
+// QTI_BEGIN: 2018-08-13: Video: media: Add changes to pick target specific media xml's
                 }
+// QTI_END: 2018-08-13: Video: media: Add changes to pick target specific media xml's
             sInstance = createInstanceFromXmlFile(value);
         }
         CHECK(sInstance != NULL);
@@ -1367,7 +1415,9 @@ MediaProfiles::createDefaultCamcorderProfiles(MediaProfiles *profiles)
 MediaProfiles::createDefaultAudioEncoders(MediaProfiles *profiles)
 {
     profiles->mAudioEncoders.add(createDefaultAmrNBEncoderCap());
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     profiles->mAudioEncoders.add(createDefaultLpcmEncoderCap());
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
 }
 
 /*static*/ void
@@ -1402,6 +1452,7 @@ MediaProfiles::createDefaultAmrNBEncoderCap()
         AUDIO_ENCODER_AMR_NB, 5525, 12200, 8000, 8000, 1, 1);
 }
 
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
 
 /*static*/ MediaProfiles::AudioEncoderCap*
 MediaProfiles::createDefaultLpcmEncoderCap()
@@ -1410,6 +1461,7 @@ MediaProfiles::createDefaultLpcmEncoderCap()
         AUDIO_ENCODER_LPCM, 768000, 4608000, 8000, 48000, 1, 6);
 }
 
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
 /*static*/ void
 MediaProfiles::createDefaultImageEncodingQualityLevels(MediaProfiles *profiles)
 {
@@ -1441,6 +1493,7 @@ bool MediaProfiles::checkXmlFile(const char* xmlFile) {
     // TODO: Add validation
 }
 
+// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 //Parsing the Qspa override xml file
 /*static*/ MediaProfiles::MediaProfiles_override*
 MediaProfiles::parseOverrideXmlFile(const char *xml)
@@ -1540,6 +1593,7 @@ MediaProfiles::createInstanceFromXmlFile_override(const char *xml, MediaProfiles
         return profiles;
 }
 
+// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ MediaProfiles*
 MediaProfiles::createInstanceFromXmlFile(const char *xml)
 {

@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "MPEG4Writer"
 
 #include <algorithm>
@@ -33,7 +35,9 @@
 #include <functional>
 
 #include <media/stagefright/MediaSource.h>
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 #include <media/stagefright/foundation/ABitReader.h>
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ALookup.h>
@@ -54,8 +58,10 @@
 #include <media/esds/ESDS.h>
 #include "include/HevcUtils.h"
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <stagefright/AVExtensions.h>
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include <com_android_internal_camera_flags.h>
 #include <com_android_media_editing_flags.h>
 namespace editing_flags = com::android::media::editing::flags;
@@ -168,7 +174,9 @@ public:
     void bufferChunk(int64_t timestampUs);
     bool isAvc() const { return mIsAvc; }
     bool isHevc() const { return mIsHevc; }
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool isMvHevc() const { return mIsMvHevc; }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool isAv1() const { return mIsAv1; }
     bool isApv() const { return mIsApv; }
     bool isHeic() const { return mIsHeic; }
@@ -176,7 +184,9 @@ public:
     bool isHeif() const { return mIsHeif; }
     bool isAudio() const { return mIsAudio; }
     bool isMPEG4() const { return mIsMPEG4; }
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool usePrefix() const { return (mIsAvc || mIsHevc || mIsHeic || mIsMvHevc || mIsDovi)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
       && !mNalLengthBitstream; }
     bool isExifData(MediaBufferBase *buffer, uint32_t *tiffHdrOffset) const;
     bool isGainmapMetaData(MediaBufferBase* buffer, uint32_t* offset) const;
@@ -345,7 +355,9 @@ public:
     volatile bool mStarted;
     bool mIsAvc;
     bool mIsHevc;
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool mIsMvHevc;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool mIsAv1;
     bool mIsApv;
     bool mIsDovi;
@@ -355,14 +367,18 @@ public:
     bool mIsAvif;
     bool mIsHeif;
     bool mIsMPEG4;
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     bool mIsMPEGH;
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     bool mGotStartKeyFrame;
     bool mIsMalformed;
     TrackId mTrackId;
     int64_t mTrackDurationUs;
     int64_t mMaxChunkDurationUs;
     int64_t mLastDecodingTimeUs;
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     int32_t mNalLengthBitstream;
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     int64_t mEstimatedTrackSizeBytes;
     int64_t mMdatSizeBytes;
     int32_t mTimeScale;
@@ -409,7 +425,10 @@ public:
 
     int32_t mDoviProfile;
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     HevcParameterSets mParamSets;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     struct StereoParams {
         StereoParams()
             : mEyeViewsReversed(0),
@@ -451,17 +470,28 @@ public:
         size_t mHorizFieldOfViewDataSize;
     };
     StereoParams mStereoParams;
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 
     void *mCodecSpecificData;
     size_t mCodecSpecificDataSize;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     // for MV-HEVC (LHVC box)
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     std::unique_ptr<uint8_t[]> mMvHevcSpecificData;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     size_t mMvHevcSpecificDataSize;
     // for Stereo ISO-BMFF mandatory information (stri box)
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     std::unique_ptr<uint8_t[]> mStereoSpecificData;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     size_t mStereoSpecificDataSize;
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     bool mGotAllCodecSpecificData;
     bool mTrackingProgressStatus;
 
@@ -507,21 +537,29 @@ public:
 
     status_t copyCodecSpecificData(const uint8_t *data, size_t size, size_t minLength = 0);
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     status_t copyMvHevcCodecSpecificData(const uint8_t *data, size_t size, size_t minLength = 0);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     status_t makeAVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t copyAVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t parseAVCCodecSpecificData(const uint8_t *data, size_t size);
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     status_t makeHEVCCodecSpecificData(const uint8_t *data, size_t size,
                                      const bool isMvHevc);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     status_t copyHEVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t parseHEVCCodecSpecificData(
             const uint8_t *data, size_t size, HevcParameterSets &paramSets);
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     status_t makeMVHEVCCodecSpecificDataUsingSeiMessage(const uint8_t *data, size_t size);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
     status_t getDolbyVisionProfile();
 
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     status_t parseMHASPackets(MediaBufferBase *buffer);
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     // Track authoring progress status
     void trackProgressStatus(int64_t timeUs, status_t err = OK);
     void initTrackingProgressStatus(MetaData *params);
@@ -559,12 +597,14 @@ public:
     void writePaspBox();
     void writeAvccBox();
     void writeHvccBox();
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     // additional boxes for MV-HEVC
     void writeLhvcBox();
     void writeVexuBox();
     void writeHfovBox();
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     void writeAv1cBox();
     void writeApvcBox();
     void writeDoviConfigBox();
@@ -582,7 +622,9 @@ public:
     void writeMdcvAndClliBoxes();
     void writeMp4aEsdsBox();
     void writeMp4vEsdsBox();
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     void writeMhaCBox();
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     void writeAudioFourCCBox();
     void writeVideoFourCCBox();
     void writeMetadataFourCCBox();
@@ -677,7 +719,9 @@ void MPEG4Writer::initInternal(int fd, bool isFirstSession) {
         mAreGeoTagsAvailable = false;
         mSwitchPending = false;
         mIsFileSizeLimitExplicitlyRequested = false;
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mInfos.clear();
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     }
 
     // Verify mFd is seekable
@@ -759,8 +803,10 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "sawb";
         } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
             return "mp4a";
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime)) {
             return "mhm1";
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         }
     } else if (!strncasecmp(mime, "video/", 6)) {
         if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
@@ -771,8 +817,10 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "avc1";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
             return "hvc1";
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
             return "hvc1";
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
             return "av01";
         } else if (editing_flags::muxer_mp4_enable_apv() &&
@@ -832,12 +880,16 @@ status_t MPEG4Writer::addSource(const sp<MediaSource> &source) {
         return ERROR_UNSUPPORTED;
     }
 
+// QTI_BEGIN: 2020-05-05: Video: stagefright: Avoid null pointer dereference in writer
     bool isAudio = !strncasecmp(mime, "audio/", 6);
+// QTI_END: 2020-05-05: Video: stagefright: Avoid null pointer dereference in writer
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (isAudio && !AVUtils::get()->isAudioMuxFormatSupported(mime)) {
         ALOGE("Muxing is not supported for %s", mime);
         return ERROR_UNSUPPORTED;
     }
 
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     // This is a metadata track or the first track of either audio or video
     // Go ahead to add the track.
     Track *track = new Track(this, source, 1 + mTracks.size());
@@ -1032,12 +1084,14 @@ status_t MPEG4Writer::start(MetaData *param) {
      */
     int32_t fileSizeBits = fpathconf(mFd, _PC_FILESIZEBITS);
     ALOGD("fpathconf _PC_FILESIZEBITS:%" PRId32, fileSizeBits);
+// QTI_BEGIN: 2022-02-17: Video: stagefright: error handling during file size limit set
 
     if (fileSizeBits < 0) {
         ALOGE("fpathconf(%d) failed: %d, %s", mFd, fileSizeBits, strerror(errno));
         return UNKNOWN_ERROR;
     }
 
+// QTI_END: 2022-02-17: Video: stagefright: error handling during file size limit set
     fileSizeBits = std::min(fileSizeBits, 52 /* cap it below 4 peta bytes */);
     int64_t maxFileSizeBytes = ((int64_t)1 << fileSizeBits) - 1;
     if (mMaxFileSizeLimitBytes > maxFileSizeBytes) {
@@ -1088,7 +1142,9 @@ status_t MPEG4Writer::start(MetaData *param) {
     mStreamableFile =
         (mMaxFileSizeLimitBytes != 0 &&
          mMaxFileSizeLimitBytes >= kMinStreamableFileSizeInBytes);
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     mStreamableFile = 0;
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 
     /*
      * mWriteBoxToMemory is true if the amount of data in a file-level meta or
@@ -1451,9 +1507,11 @@ status_t MPEG4Writer::reset(bool stopSource, bool waitForAnyPreviousCallToComple
     int64_t maxDurationUs = 0;
     int64_t minDurationUs = 0x7fffffffffffffffLL;
     int32_t nonImageTrackCount = 0;
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     List<Track *>::iterator it = mTracks.end();
     do{
         --it;
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
         status_t trackErr = (*it)->stop(stopSource);
         WARN_UNLESS(trackErr == OK, "%s track stopped with an error",
                     (*it)->getTrackType());
@@ -1472,7 +1530,9 @@ status_t MPEG4Writer::reset(bool stopSource, bool waitForAnyPreviousCallToComple
         if (durationUs < minDurationUs) {
             minDurationUs = durationUs;
         }
+// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
     } while (it != mTracks.begin());
+// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
 
     if (nonImageTrackCount > 1) {
         ALOGD("Duration from tracks range is [%" PRId64 ", %" PRId64 "] us",
@@ -1819,7 +1879,9 @@ off64_t MPEG4Writer::addSample_l(
     return old_offset;
 }
 
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 void MPEG4Writer:: StripStartcode(MediaBuffer *buffer) {
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     if (buffer->range_length() < 4) {
         return;
     }
@@ -1840,7 +1902,9 @@ void MPEG4Writer::addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer) {
     const uint8_t *nextNalStart;
     const uint8_t *data = dataStart;
     size_t nextNalSize;
+// QTI_BEGIN: 2020-09-03: Video: Revert "Stagefright: Reduce NAL search range for AVC"
     size_t searchSize = buffer->range_length();
+// QTI_END: 2020-09-03: Video: Revert "Stagefright: Reduce NAL search range for AVC"
 
     while (getNextNALUnit(&data, &searchSize, &nextNalStart,
             &nextNalSize, true) == OK) {
@@ -2309,11 +2373,15 @@ bool MPEG4Writer::reachedEOS() {
     return allDone;
 }
 
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
 void MPEG4Writer::setStartTimestampUs(int64_t timeUs, int64_t *trackStartTime) {
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
     ALOGI("setStartTimestampUs: %" PRId64, timeUs);
     CHECK_GE(timeUs, 0LL);
     Mutex::Autolock autoLock(mLock);
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
     *trackStartTime = timeUs;
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
     if (mStartTimestampUs < 0 || mStartTimestampUs > timeUs) {
         mStartTimestampUs = timeUs;
         ALOGI("Earliest track starting time: %" PRId64, mStartTimestampUs);
@@ -2333,6 +2401,7 @@ int32_t MPEG4Writer::getStartTimeOffsetBFramesUs() {
     return mStartTimeOffsetBFramesUs;
 }
 
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
 int64_t MPEG4Writer::getStartTimeOffsetTimeUs(int64_t startTime) {
     int64_t trackStartTimeOffsetUs = 0;
     Mutex::Autolock autoLock(mLock);
@@ -2343,6 +2412,7 @@ int64_t MPEG4Writer::getStartTimeOffsetTimeUs(int64_t startTime) {
     return trackStartTimeOffsetUs;
 }
 
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
 size_t MPEG4Writer::numTracks() {
     Mutex::Autolock autolock(mLock);
     return mTracks.size();
@@ -2362,7 +2432,9 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
       mIsMalformed(false),
       mTrackId(aTrackId),
       mTrackDurationUs(0),
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
       mNalLengthBitstream(0),
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
       mEstimatedTrackSizeBytes(0),
       mSamplesHaveSameSize(true),
       mStszTableEntries(new ListTableEntries<uint32_t, 1>(1000)),
@@ -2376,13 +2448,23 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
       mMinCttsOffsetTicks(0),
       mMaxCttsOffsetTicks(0),
       mDoviProfile(0),
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
       mIsMvHevc(0),
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
       mCodecSpecificData(NULL),
       mCodecSpecificDataSize(0),
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
       mStereoParams(),
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
       mMvHevcSpecificData(nullptr),
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
       mMvHevcSpecificDataSize(0),
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
       mParamSets(false),
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
       mGotAllCodecSpecificData(false),
       mReachedEOS(false),
       mStartTimestampUs(-1),
@@ -2411,7 +2493,9 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
     mMeta->findCString(kKeyMIMEType, &mime);
     mIsAvc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC);
     mIsHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     mIsMvHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MVHEVC);
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     mIsAv1 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1);
     mIsApv = editing_flags::muxer_mp4_enable_apv() && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV);
     mIsDovi = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
@@ -2422,11 +2506,15 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
     mIsHeif = mIsHeic || mIsAvif;
     mIsMPEG4 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC);
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     mIsMPEGH = !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MHAS);
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 
+// QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     if (!mMeta->findInt32(kKeyFeatureNalLengthBitstream, &mNalLengthBitstream)) {
         mMeta->findInt32(kKeyVendorFeatureNalLength, &mNalLengthBitstream);
     }
+// QTI_END: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     // store temporal layer count
     if (mIsVideo) {
         int32_t count;
@@ -2750,6 +2838,11 @@ void MPEG4Writer::Track::addItemOffsetAndSize(off64_t offset, size_t size, bool 
     }
 
     if (mProperties.empty()) {
+        // Min length of hvcC CSD is 23. (ISO/IEC 14496-15:2014 Chapter 8.4.1.1.2)
+        if (mIsHeif && mCodecSpecificDataSize < 23) {
+            ALOGE("hvcC csd size is less than 23 bytes");
+            return;
+        }
         mProperties.push_back(mOwner->addProperty_l({
             .type = static_cast<uint32_t>(mIsAvif ?
                   FOURCC('a', 'v', '1', 'C') :
@@ -2978,7 +3071,9 @@ void MPEG4Writer::Track::getCodecSpecificDataFromInputFormatIfPossible() {
     if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
         mMeta->findData(kKeyAVCC, &type, &data, &size);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC) ||
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MVHEVC) ||
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                !strcasecmp(mime, MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC)) {
         mMeta->findData(kKeyHVCC, &type, &data, &size);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1) ||
@@ -3034,8 +3129,10 @@ MPEG4Writer::Track::~Track() {
         free(mCodecSpecificData);
         mCodecSpecificData = NULL;
     }
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
     mMvHevcSpecificData.reset();
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 }
 
 void MPEG4Writer::Track::initTrackingProgressStatus(MetaData *params) {
@@ -3053,6 +3150,7 @@ void MPEG4Writer::Track::initTrackingProgressStatus(MetaData *params) {
     }
 }
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 status_t MPEG4Writer::Track::copyMvHevcCodecSpecificData(
         const uint8_t *data, size_t size, size_t minLength) {
     if (size < minLength) {
@@ -3070,6 +3168,7 @@ status_t MPEG4Writer::Track::copyMvHevcCodecSpecificData(
     return OK;
 }
 
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 // static
 void *MPEG4Writer::ThreadWrapper(void *me) {
     ALOGV("ThreadWrapper: %p", me);
@@ -3311,10 +3410,14 @@ status_t MPEG4Writer::Track::start(MetaData *params) {
 
     meta->setInt64(kKeyTime, startTimeUs);
 
+// QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
     nsecs_t sourceStartedTime = systemTime(SYSTEM_TIME_REALTIME);
+// QTI_END: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
     status_t err = mSource->start(meta.get());
+// QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
     nsecs_t sourceFinishedTime = systemTime(SYSTEM_TIME_REALTIME);
     ALOGI("Time taken by %s Track Source to start : %" PRId64 "ms" , mIsVideo ? "video" : "audio" , (sourceFinishedTime - sourceStartedTime)/1000000);
+// QTI_END: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
     if (err != OK) {
         mDone = mReachedEOS = true;
         return err;
@@ -3406,13 +3509,20 @@ const uint8_t *MPEG4Writer::Track::parseParamSet(
     CHECK(type == kNalUnitTypeSeqParamSet ||
           type == kNalUnitTypePicParamSet);
 
+// QTI_BEGIN: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
     int32_t nalLengthBistream = mNalLengthBitstream;
     if (!memcmp("\x00\x00\x00\x01", data, 4)) {
         nalLengthBistream = 0;
     }
 
+// QTI_END: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     const uint8_t *nextStartCode = NULL;
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (nalLengthBistream) {
+// QTI_END: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         uint32_t nalSize = 0;
         std::copy(data, data + 4, reinterpret_cast<uint8_t *>(&nalSize));
         nalSize = ntohl(nalSize);
@@ -3425,6 +3535,7 @@ const uint8_t *MPEG4Writer::Track::parseParamSet(
         *paramSetLen = nextStartCode - data;
     }
 
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (*paramSetLen == 0) {
         ALOGE("Param set is malformed, since its length is 0");
         return NULL;
@@ -3505,7 +3616,9 @@ status_t MPEG4Writer::Track::parseAVCCodecSpecificData(
     size_t bytesLeft = size;
     size_t paramSetLen = 0;
     mCodecSpecificDataSize = 0;
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     while (bytesLeft > 4 && (!memcmp("\x00\x00\x00\x01", tmp, 4) || mNalLengthBitstream)) {
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         getNalUnitType(*(tmp + 4), &type);
         if (type == kNalUnitTypeSeqParamSet) {
             if (gotPps) {
@@ -3515,7 +3628,9 @@ status_t MPEG4Writer::Track::parseAVCCodecSpecificData(
             if (!gotSps) {
                 gotSps = true;
             }
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
             nextStartCode = parseParamSet(tmp, bytesLeft, type, &paramSetLen);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         } else if (type == kNalUnitTypePicParamSet) {
             if (!gotSps) {
                 ALOGE("SPS must come before PPS");
@@ -3524,7 +3639,9 @@ status_t MPEG4Writer::Track::parseAVCCodecSpecificData(
             if (!gotPps) {
                 gotPps = true;
             }
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
             nextStartCode = parseParamSet(tmp, bytesLeft, type, &paramSetLen);
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         } else {
             ALOGE("Only SPS and PPS Nal units are expected");
             return ERROR_MALFORMED;
@@ -3598,7 +3715,9 @@ status_t MPEG4Writer::Track::makeAVCCodecSpecificData(
     }
 
     // Data is in the form of AVCCodecSpecificData
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (memcmp("\x00\x00\x00\x01", data, 4) && !mNalLengthBitstream) {
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         return copyAVCCodecSpecificData(data, size);
     }
 
@@ -3670,12 +3789,15 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
     const uint8_t *tmp = data;
     const uint8_t *nextStartCode = data;
     size_t bytesLeft = size;
+// QTI_BEGIN: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
     int32_t nalLengthBistream = mNalLengthBitstream;
     if (!memcmp("\x00\x00\x00\x01", tmp, 4)) {
         nalLengthBistream = 0;
     }
 
     if (nalLengthBistream) {
+// QTI_END: 2018-06-19: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         while  (bytesLeft > 4) {
             uint32_t nalSize = 0;
             std::copy(tmp, tmp+4, reinterpret_cast<uint8_t *>(&nalSize));
@@ -3688,7 +3810,9 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
 
             bytesLeft -= (nalSize + 4);
             tmp += nalSize + 4;
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         }
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     } else {
         while (bytesLeft > 4 && !memcmp("\x00\x00\x00\x01", tmp, 4)) {
             nextStartCode = findNextNalStartCode(tmp + 4, bytesLeft - 4);
@@ -3696,19 +3820,27 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
             if (err != OK) {
                 return ERROR_MALFORMED;
             }
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
 
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
             // Move on to find the next parameter set
             bytesLeft -= nextStartCode - tmp;
             tmp = nextStartCode;
         }
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     const bool isMvHevc = paramSets.IsMvHevc();
     const size_t numLayers = isMvHevc? 2 : 1;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     size_t csdSize = 23;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     size_t csdSizeMvHevc = 6;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     const size_t numNalUnits = paramSets.getNumNalUnits();
     for (size_t i = 0; i < ARRAY_SIZE(kMandatoryHevcNalUnitTypes); ++i) {
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         // MV-HEVC : find any parameter set whose nuh_layer_id > 0
         for (size_t layer = 0; layer < numLayers; ++layer) {
             int type = kMandatoryHevcNalUnitTypes[i];
@@ -3725,19 +3857,25 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
                 ALOGE("Could not find NAL unit of type %d", type);
                 return ERROR_MALFORMED;
             }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
     }
     for (size_t i = 0; i < ARRAY_SIZE(kHevcNalUnitTypes); ++i) {
         int type = kHevcNalUnitTypes[i];
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         for (size_t layer = 0; layer < numLayers; ++layer) {
             size_t numParamSets = paramSets.getNumNalUnitsOfType(type, layer);
             if (numParamSets > 0xffff) {
                 ALOGE("Too many seq parameter sets (%zu) found", numParamSets);
                 return ERROR_MALFORMED;
             }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
             if (numParamSets == 0) {
                  continue;
              }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             switch (layer) {
                 case 0 :
                     csdSize += 3;
@@ -3760,24 +3898,35 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
                     break;
                 default :
                     break;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             }
         }
     }
     mCodecSpecificDataSize = csdSize;
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (isMvHevc) {
         mMvHevcSpecificDataSize = csdSizeMvHevc;
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mStereoParams.mStereoSpecificDataSize = 1;
         mStereoParams.mPrjInfoDataSize = 1;
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
 status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         const uint8_t *data, size_t size, const bool isMvHevc) {
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     mParamSets.setMvHevc(isMvHevc);
     ALOGV("mime type in makeHEVCCodecSpecificData: %s", isMvHevc? "video/x-mvhevc" : "video/hevc");
 
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mCodecSpecificData != NULL) {
         ALOGE("Already have codec specific data");
         return ERROR_MALFORMED;
@@ -3789,11 +3938,15 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
     }
 
     // Data is in the form of HEVCCodecSpecificData
+// QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     if (memcmp("\x00\x00\x00\x01", data, 4) && !mNalLengthBitstream) {
+// QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         return copyHEVCCodecSpecificData(data, size);
     }
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (parseHEVCCodecSpecificData(data, size, mParamSets) != OK) {
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         ALOGE("failed parsing codec specific data");
         return ERROR_MALFORMED;
     }
@@ -3804,33 +3957,54 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
         ALOGE("Failed allocating codec specific data");
         return NO_MEMORY;
     }
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     ALOGV("mParamSets.IsMvHevc() : %d", mParamSets.IsMvHevc());
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     status_t err = mParamSets.IsMvHevc()?mParamSets.makeHvcc_l((uint8_t *)mCodecSpecificData,
             &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2)
             : mParamSets.makeHvcc((uint8_t *)mCodecSpecificData,
              &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (err != OK) {
         ALOGE("failed constructing HVCC atom");
         return err;
     }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     // memory allocation for MV-HEVC
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (mParamSets.IsMvHevc())
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         ALOGV("[MV-HEVC] lhvC composition");
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         mMvHevcSpecificData = std::make_unique<uint8_t[]>(mMvHevcSpecificDataSize);
         if (!mMvHevcSpecificData) {
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
             mMvHevcSpecificDataSize = 0;
             return NO_MEMORY;
         }
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         status_t err = mParamSets.makeLhvc(mMvHevcSpecificData.get(),
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
                 &mMvHevcSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
         if (err != OK) {
             ALOGE("failed constructing LHVC atom");
             return err;
         }
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         // stri box info
         mStereoParams.mEyeViewsReversed = 0;
         mStereoParams.mHasAdditionalViews = 0;
@@ -3875,11 +4049,17 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
             ALOGV("hfov : %.2f", mStereoParams.mHorizFieldOfViewData);
         } else {
             ALOGV("Stereo camera inforamtion is not set");
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     }
     return OK;
 }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 status_t MPEG4Writer::Track::makeMVHEVCCodecSpecificDataUsingSeiMessage(const uint8_t *data,
                                                                 size_t size) {
     const uint8_t *seiNalData;
@@ -3895,7 +4075,11 @@ status_t MPEG4Writer::Track::makeMVHEVCCodecSpecificDataUsingSeiMessage(const ui
             seiNalData = tmp;
             seiNalLength = nextStartCode - tmp;
             break;
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         bytesLeft -= nextStartCode - tmp;
         tmp = nextStartCode;
     }
@@ -3903,7 +4087,9 @@ status_t MPEG4Writer::Track::makeMVHEVCCodecSpecificDataUsingSeiMessage(const ui
         ALOGE("no SEI is found.");
         return ERROR_MALFORMED;
     }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (parseHEVCCodecSpecificData(seiNalData,
                                     seiNalLength, mParamSets) != OK) {
         ALOGE("failed parsing codec specific data");
@@ -3923,9 +4109,14 @@ status_t MPEG4Writer::Track::makeMVHEVCCodecSpecificDataUsingSeiMessage(const ui
             ALOGE("failed constructing HVCC atom");
             return ERROR_MALFORMED;
         }
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mStereoParams.mHeroEyeDataSize = 1;
         mParamSets.makeHero(&mStereoParams.mHeroEyeIndicator);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
@@ -3963,6 +4154,7 @@ status_t MPEG4Writer::Track::getDolbyVisionProfile() {
     return OK;
 }
 
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 uint32_t parseEscaped(ABitReader &br, uint32_t bits1 = 0,
                       uint32_t bits2 = 0, uint32_t bits3 = 0) {
   if (bits1 == 0)
@@ -3974,7 +4166,9 @@ uint32_t parseEscaped(ABitReader &br, uint32_t bits1 = 0,
   }
   return value;
 }
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 status_t MPEG4Writer::Track::parseMHASPackets(MediaBufferBase *buffer) {
     const uint8_t* data = (const uint8_t*)buffer->data();
     size_t size = buffer->size();
@@ -4005,6 +4199,7 @@ status_t MPEG4Writer::Track::parseMHASPackets(MediaBufferBase *buffer) {
     return (size == 0) ? OK : ERROR_MALFORMED;
 }
 
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 /*
  * Updates the drift time from the audio track so that
  * the video track can get the updated drift time information
@@ -4084,7 +4279,9 @@ status_t MPEG4Writer::Track::threadEntry() {
     MediaBufferBase *buffer;
     const char *trackName = getTrackType();
 
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
     while (!mDone && (err = mSource->read(&buffer)) == OK && buffer != NULL) {
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
         ALOGV("read:buffer->range_length:%lld", (long long)buffer->range_length());
         int32_t isEOS = false;
         if (buffer->range_length() == 0) {
@@ -4142,11 +4339,15 @@ status_t MPEG4Writer::Track::threadEntry() {
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
                             buffer->range_length());
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
                 } else if (mIsHevc || mIsHeic || mIsMvHevc) {
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
                     err = makeHEVCCodecSpecificData(
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                             buffer->range_length(), mIsMvHevc);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                 } else if (mIsMPEG4 || mIsAv1 || mIsApv) {
                     err = copyCodecSpecificData((const uint8_t *)buffer->data() + buffer->range_offset(),
                             buffer->range_length());
@@ -4269,6 +4470,7 @@ status_t MPEG4Writer::Track::threadEntry() {
         }
         ALOGV("sampleFileOffset:%lld", (long long)sampleFileOffset);
 
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         if (mIsMPEGH && !mGotAllCodecSpecificData) {
             err = parseMHASPackets(buffer);
             if (OK != err || !mGotAllCodecSpecificData) {
@@ -4279,6 +4481,7 @@ status_t MPEG4Writer::Track::threadEntry() {
             }
         }
 
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         /*
          * Reserve space in the file for the current sample + to be written MOOV box. If reservation
          * for a new sample fails, preAllocate(...) stops muxing session completely. Stop() could
@@ -4384,7 +4587,9 @@ status_t MPEG4Writer::Track::threadEntry() {
                     mFirstSampleStartOffsetUs = -timestampUs;
                     timestampUs = 0;
                 }
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
                 mOwner->setStartTimestampUs(timestampUs, &mStartTimestampUs);
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
                 previousPausedDurationUs = mStartTimestampUs;
             }
 
@@ -4713,10 +4918,14 @@ status_t MPEG4Writer::Track::threadEntry() {
     if (mIsAudio) {
         ALOGI("Audio track drift time: %" PRId64 " us", mOwner->getDriftTimeUs());
     }
+// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
     // if err is ERROR_IO (ex: during SSR), return OK to save the
     // recorded file successfully. Session tear down will happen as part of
     // client callback
+// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
+// QTI_BEGIN: 2018-04-20: Video: libstagefright: Handling SSR/Hardware error in Camcorder
     if ((err == ERROR_IO) || (err == ERROR_END_OF_STREAM)) {
+// QTI_END: 2018-04-20: Video: libstagefright: Handling SSR/Hardware error in Camcorder
         return OK;
     }
     return err;
@@ -4886,7 +5095,9 @@ void MPEG4Writer::Track::bufferChunk(int64_t timestampUs) {
 }
 
 int64_t MPEG4Writer::Track::getDurationUs() const {
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
     return mTrackDurationUs +
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
         mOwner->getStartTimeOffsetTimeUs(mStartTimestampUs) +
         mOwner->getStartTimeOffsetBFramesUs();
 }
@@ -4959,11 +5170,15 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
     const char *mime;
     CHECK(mMeta->findCString(kKeyMIMEType, &mime));
     if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime) ||
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         !strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime) ||
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime) ||
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime) ||
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime) ||
         (editing_flags::muxer_mp4_enable_apv() && !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, mime) ||
@@ -4995,9 +5210,11 @@ void MPEG4Writer::Track::writeTrackHeader() {
     uint32_t now = getMpeg4Time();
     mOwner->beginBox("trak");
         writeTkhdBox(now);
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         if (!mIsMvHevc) {
             writeEdtsBox();
         }
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mOwner->beginBox("mdia");
             writeMdhdBox(now);
             writeHdlrBox();
@@ -5140,9 +5357,13 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
         writeAvccBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
         writeHvccBox();
+// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
         writeHvccBox();
+// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         writeLhvcBox();
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
         writeAv1cBox();
     } else if (editing_flags::muxer_mp4_enable_apv() &&
@@ -5161,10 +5382,12 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
 
     writePaspBox();
     writeColrBox();
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     if (mIsMvHevc) {
         writeVexuBox();
         writeHfovBox();
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     writeMdcvAndClliBoxes();
     mOwner->endBox();  // mp4v, s263 or avc1
 }
@@ -5284,8 +5507,10 @@ void MPEG4Writer::Track::writeAudioFourCCBox() {
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime) ||
                !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)) {
         writeDamrBox();
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     } else if(!strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime)) {
         writeMhaCBox();
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     }
     mOwner->endBox();
 }
@@ -5418,6 +5643,7 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
     mOwner->endBox();  // esds
 }
 
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 void MPEG4Writer::Track::writeMhaCBox() {
     mOwner->beginBox("mhaC");
     mOwner->writeInt8(0x01);          // version=1
@@ -5430,6 +5656,7 @@ void MPEG4Writer::Track::writeMhaCBox() {
 
     mOwner->endBox();  // mhaC
 }
+// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 
 void MPEG4Writer::Track::writeTkhdBox(uint32_t now) {
     mOwner->beginBox("tkhd");
@@ -5749,18 +5976,31 @@ void MPEG4Writer::Track::writeHvccBox() {
     mOwner->endBox();  // hvcC
 }
 
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 void MPEG4Writer::Track::writeLhvcBox() {
     ALOGV("writing lhvc box");
     // To be modified properly
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     CHECK(mMvHevcSpecificData != nullptr);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     // Patch hvcc's lengthSize field to match the number
     // of bytes we use to indicate the size of a nal unit.
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     uint8_t *ptr = mMvHevcSpecificData.get();
     ptr[4] = (ptr[4] & 0xfc) | (mOwner->useNalLengthFour() ? 3 : 1);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     mOwner->beginBox("lhvC");
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     mOwner->write(mMvHevcSpecificData.get(), mMvHevcSpecificDataSize);
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     mOwner->endBox();  // lhvc
 }
 
@@ -5772,14 +6012,20 @@ void MPEG4Writer::Track::writeVexuBox() {
     // mime type : blin, dadj (not mandatory)
     // please refer to the website https://blog.mikeswanson.com/spatial-video
     // or Stereo-Video-ISOBMFF Version 0.9 (June 21, 2023)
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mStereoParams.mStereoSpecificDataSize != 1) {
         ALOGE("Skip writing vexu box - stri box is mandatory for vexu box, but not available");
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         return;
     }
     mOwner->beginBox("vexu");
     mOwner->beginBox("eyes"); // container only
     mOwner->beginBox("stri");
     mOwner->writeInt32(0); // stri extends FullBox, version=0 (8), flags=0 (24)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     uint8_t stri = 0;
     // preceding 4 bits are reserved (0)
     stri = uint8_t(mStereoParams.mEyeViewsReversed) << 3;
@@ -5787,27 +6033,49 @@ void MPEG4Writer::Track::writeVexuBox() {
     stri |= uint8_t(mStereoParams.mHasRightEyeView) << 1;
     stri |= uint8_t(mStereoParams.mHasLeftEyeView);
     mOwner->writeInt8(stri);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     mOwner->endBox();  // stri
 
     // hero box is an optional box.
     // If any meaningful info is not available, it is set to a default value.
     // (the left view is set as a base view)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mStereoParams.mHeroEyeDataSize == 1) {
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->beginBox("hero");
         mOwner->writeInt32(0); // hero extends FullBox, version=0 (8), flags=0 (24)
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mOwner->writeInt8(mStereoParams.mHeroEyeIndicator);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->endBox(); //hero
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     }
 
     // blin box is an optional box.
     // If any meaningful info is not available, zero is written.
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mStereoParams.mBaselineDistanceDataSize == 1) { // mStereoDispAdjDataSize is uint32_t
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->beginBox("cams"); // container only
         mOwner->beginBox("blin");
         mOwner->writeInt32(0); // blin extends FullBox, version=0 (8), flags=0 (24)
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mOwner->writeInt32(mStereoParams.mBaselineDistanceData);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->endBox(); //blin
         mOwner->endBox(); //cams
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     } else {
         //FIXME : This part should be removed when parameters from the camera is available
         mOwner->beginBox("cams"); // container only
@@ -5821,47 +6089,86 @@ void MPEG4Writer::Track::writeVexuBox() {
 
     // dadj box is an optional box.
     // If any meaningful info is not available, zero is written.
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mStereoParams.mStereoDispAdjDataSize == 1) { // mStereoDispAdjDataSize is uint32_t
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->beginBox("cmfy"); // container only
         mOwner->beginBox("dadj");
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         mOwner->writeInt32(0); // dadj extends FullBox, version=0 (8), flags=0 (24)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mOwner->writeInt32(mStereoParams.mStereoDispAdjData);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
         mOwner->endBox(); //dadj
         mOwner->endBox(); //cmfy
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     } else {
         //FIXME : This part should be removed when parameters from the camera is available
         mOwner->beginBox("cmfy"); // container only
         mOwner->beginBox("dadj");
         mOwner->writeInt32(0); // dadj extends FullBox, version=0 (8), flags=0 (24)
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         mOwner->writeInt32(0);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         mOwner->endBox(); //dadj
         mOwner->endBox(); //cmfy
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     mOwner->endBox(); //eyes
     // prji box is an optional box.
     // the value is fixed as "rect"
     mOwner->beginBox("proj"); // container only
     mOwner->beginBox("prji");
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     mOwner->writeInt32(0); // prij extends FullBox, version=0 (8), flags=0 (24)
     mOwner->writeInt32(mStereoParams.mPrjInfoData);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     mOwner->endBox();  // prji
     mOwner->endBox();  // stbl
     mOwner->endBox();  // vexu
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 }
 
 void MPEG4Writer::Track::writeHfovBox() {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     // If any meaningful info is not available, zero is written as default.
+// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     ALOGV("writing Hfov box");
     mOwner->beginBox("hfov");
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mStereoParams.mHorizFieldOfViewDataSize == 1) {  // mHorizFieldOfViewDataSize is uint32_t
         mOwner->writeInt32(mStereoParams.mHorizFieldOfViewData);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     } else {
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
         ALOGI("hfov box - filled with 0");
         mOwner->writeInt32(0);
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     }
     mOwner->endBox();  // hfov
 }
 
+// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 void MPEG4Writer::Track::writeAv1cBox() {
     CHECK(mCodecSpecificData);
     CHECK_GE(mCodecSpecificDataSize, 4u);
@@ -5932,8 +6239,10 @@ void MPEG4Writer::Track::writePaspBox() {
 }
 
 int32_t MPEG4Writer::Track::getStartTimeOffsetScaledTime() const {
+// QTI_BEGIN: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
     return (mOwner->getStartTimeOffsetTimeUs(mStartTimestampUs) *
                 mTimeScale + 500000LL) / 1000000LL;
+// QTI_END: 2018-10-18: Audio: libstagefright: Protect MPEG4Writer start time access
 }
 
 void MPEG4Writer::Track::writeSttsBox() {
@@ -6549,6 +6858,7 @@ void MPEG4Writer::writeGeoDataBox() {
     endBox();
 }
 
+// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 status_t MPEG4Writer::setCameraInfo(String8 info) {
     // start temporary code until add se api
     std::stringstream ss(info.c_str());
@@ -6578,4 +6888,5 @@ bool MPEG4Writer::getStereoCameraInfo(std::string &stereoCamInfo) {
     return true;
 }
 
+// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 }  // namespace android

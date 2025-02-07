@@ -206,14 +206,24 @@ TimerThread& TimeCheck::getTimeCheckThread() {
     return sTimeCheckThread;
 }
 
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 static bool sSystemReady = false;
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 void TimeCheck::setTimecheckTimeoutMs(uint32_t timeOutMs) {
    ALOGD("vendor timecheck timeout value is %d", timeOutMs);
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
    kDefaultTimeoutDurationMs =  timeOutMs;
+// QTI_BEGIN: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
 }
+// QTI_END: 2024-05-02: Audio: av: Increase timecheck timeout value for AF/APS commands
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 void TimeCheck::setSystemReady() {
     sSystemReady = true;
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
+// QTI_BEGIN: 2020-07-12: Audio: Access vendor audio prop for timeout in audioserver.
 }
+// QTI_END: 2020-07-12: Audio: Access vendor audio prop for timeout in audioserver.
 
 /* static */
 std::string TimeCheck::toString() {
@@ -228,7 +238,9 @@ TimeCheck::TimeCheck(std::string_view tag, OnTimerFunc&& onTimer, Duration reque
     : mTimeCheckHandler{ std::make_shared<TimeCheckHandler>(
             tag, std::move(onTimer), crashOnTimeout, requestedTimeoutDuration,
             secondChanceDuration, std::chrono::system_clock::now(), getThreadIdWrapper()) }
+// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     , mTimerHandle((requestedTimeoutDuration.count() == 0 || !sSystemReady)
+// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
               /* for TimeCheck we don't consider a non-zero secondChanceDuration here */
               ? getTimeCheckThread().trackTask(mTimeCheckHandler->tag)
               : getTimeCheckThread().scheduleTask(
@@ -379,24 +391,56 @@ void TimeCheck::TimeCheckHandler::onTimeout(TimerThread::Handle timerHandle) con
     }
 }
 
+template <typename T>
+concept is_ptr = requires(T t) { *t; t.operator->(); };
+
 // Automatically create a TimeCheck class for a class and method.
 // This is used for Audio HAL support.
-mediautils::TimeCheck makeTimeCheckStatsForClassMethod(
+template <typename T>
+T makeTimeCheckStatsForClassMethodGeneric(
         std::string_view className, std::string_view methodName) {
     std::shared_ptr<MethodStatistics<std::string>> statistics =
             mediautils::getStatisticsForClass(className);
-    if (!statistics) return {}; // empty TimeCheck.
-    return mediautils::TimeCheck(
-            FixedString62(className).append("::").append(methodName),
-            [ safeMethodName = FixedString30(methodName),
-              stats = std::move(statistics) ]
-            (bool timeout, float elapsedMs) {
-                    if (timeout) {
-                        ; // ignored, there is no timeout value.
+
+    if constexpr (is_ptr<T>) {
+        if (!statistics) return T(new TimeCheck{}); // empty TimeCheck
+        return T(new TimeCheck{
+                FixedString62(className).append("::").append(methodName),
+                [safeMethodName = FixedString30(methodName),
+                        stats = std::move(statistics)]
+                        (bool timeout, float elapsedMs) {
+                    if (timeout) { ; // ignored, there is no timeout value.
                     } else {
                         stats->event(safeMethodName.asStringView(), elapsedMs);
                     }
-            }, {} /* timeoutDuration */, {} /* secondChanceDuration */, false /* crashOnTimeout */);
+                }, {} /* timeoutDuration */, {} /* secondChanceDuration */,
+                false /* crashOnTimeout */});
+    } else /* constexpr */ {
+        if (!statistics) return TimeCheck{}; // empty TimeCheck
+        return TimeCheck{
+                FixedString62(className).append("::").append(methodName),
+                [safeMethodName = FixedString30(methodName),
+                        stats = std::move(statistics)]
+                        (bool timeout, float elapsedMs) {
+                    if (timeout) { ; // ignored, there is no timeout value.
+                    } else {
+                        stats->event(safeMethodName.asStringView(), elapsedMs);
+                    }
+                }, {} /* timeoutDuration */, {} /* secondChanceDuration */,
+                false /* crashOnTimeout */};
+
+    }
+}
+
+mediautils::TimeCheck makeTimeCheckStatsForClassMethod(
+        std::string_view className, std::string_view methodName) {
+    return makeTimeCheckStatsForClassMethodGeneric<mediautils::TimeCheck>(className, methodName);
+}
+
+std::unique_ptr<mediautils::TimeCheck> makeTimeCheckStatsForClassMethodUniquePtr(
+        std::string_view className, std::string_view methodName) {
+    return makeTimeCheckStatsForClassMethodGeneric<std::unique_ptr<mediautils::TimeCheck>>(
+            className, methodName);
 }
 
 }  // namespace android::mediautils

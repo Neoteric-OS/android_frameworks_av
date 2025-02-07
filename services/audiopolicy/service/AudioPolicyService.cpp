@@ -1857,19 +1857,25 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     command->mStatus = AudioSystem::setVoiceVolume(data->mVolume);
                     ul.lock();
                     }break;
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                 case START_OUTPUT: {
                     StartOutputData *data = (StartOutputData *)command->mParam.get();
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     ALOGV("AudioCommandThread() processing start output portId %d",
                             data->mPortId);
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     svc = mService.promote();
                     if (svc == 0) {
                         command->mStatus = UNKNOWN_ERROR;
                         break;
                     }
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     mMutex.unlock();
                     command->mStatus = svc->doStartOutput(data->mPortId);
                     mMutex.lock();
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     }break;
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                 case STOP_OUTPUT: {
                     StopOutputData *data = (StopOutputData *)command->mParam.get();
                     ALOGV("AudioCommandThread() processing stop output portId %d",
@@ -2236,17 +2242,23 @@ status_t AudioPolicyService::AudioCommandThread::voiceVolumeCommand(float volume
 }
 
 status_t AudioPolicyService::AudioCommandThread::startOutputCommand(audio_port_handle_t portId)
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
 {
     sp<AudioCommand> command = new AudioCommand();
     command->mCommand = START_OUTPUT;
     sp<StartOutputData> data = new StartOutputData();
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     data->mPortId = portId;
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     command->mParam = data;
     command->mWaitStatus = true;
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     ALOGV("AudioCommandThread() adding start output portId %d", portId);
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     return sendCommand(command);
 }
 
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
 void AudioPolicyService::AudioCommandThread::setEffectSuspendedCommand(int effectId,
                                                                        audio_session_t sessionId,
                                                                        bool suspended)

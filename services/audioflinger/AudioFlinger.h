@@ -33,6 +33,7 @@
 #include <audio_utils/mutex.h>
 #include <audio_utils/FdToString.h>
 #include <audio_utils/SimpleLog.h>
+#include <com/android/media/permission/PermissionEnum.h>
 #include <media/IAudioFlinger.h>
 #include <media/IAudioPolicyServiceLocal.h>
 #include <media/MediaMetricsItem.h>
@@ -49,6 +50,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <variant>
 
 namespace android {
 
@@ -380,6 +382,7 @@ private:
         return mEffectsFactoryHal;
     }
     sp<IAudioManager> getOrCreateAudioManager() final;
+    sp<media::IAudioManagerNative> getAudioManagerNative() const final;
 
     // Called when the last effect handle on an effect instance is removed. If this
     // effect belongs to an effect chain in mOrphanEffectChains, the chain is updated
@@ -474,6 +477,9 @@ private:
 
     AudioHwDevice*          findSuitableHwDev_l(audio_module_handle_t module,
             audio_devices_t deviceType) REQUIRES(mutex());
+
+    error::BinderResult<std::monostate> enforceCallingPermission(
+                    com::android::media::permission::PermissionEnum perm);
 
     // incremented by 2 when screen state changes, bit 0 == 1 means "off"
     // AudioFlinger::setParameters() updates with mutex().
@@ -802,8 +808,9 @@ private:
     int32_t mAAudioBurstsPerBuffer GUARDED_BY(mutex()) = 0;
     int32_t mAAudioHwBurstMinMicros GUARDED_BY(mutex()) = 0;
 
-    /** Interface for interacting with the AudioService. */
+    /** Interfaces for interacting with the AudioService. */
     mediautils::atomic_sp<IAudioManager> mAudioManager;
+    mediautils::atomic_sp<media::IAudioManagerNative> mAudioManagerNative;
 
     // Bluetooth Variable latency control logic is enabled or disabled
     std::atomic<bool> mBluetoothLatencyModesEnabled = true;

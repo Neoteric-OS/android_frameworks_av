@@ -33,7 +33,9 @@
 #include <sys/stat.h>
 #include <inttypes.h>
 
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
 #include "stagefright/AVExtensions.h"
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
 using namespace webm;
 
 namespace {
@@ -247,7 +249,9 @@ sp<WebmElement> WebmWriter::audioTrack(const sp<MetaData>& md) {
     } else {
         ALOGE("Track (%s) is not a supported audio format", mimeType);
         return NULL;
+// QTI_BEGIN: 2018-02-19: Audio: frameworks/av: enable audio extended features
     }
+// QTI_END: 2018-02-19: Audio: frameworks/av: enable audio extended features
 }
 
 size_t WebmWriter::numTracks() {

@@ -3814,8 +3814,10 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
                 ret = true;
             }
         }
+// QTI_BEGIN: 2018-06-12: Camera: Miscellaneous fixes in QDataCallback and binder death scenarios.
         //clear the evicted client list before acquring service lock again.
         evicted.clear();
+// QTI_END: 2018-06-12: Camera: Miscellaneous fixes in QDataCallback and binder death scenarios.
         // Reacquire mServiceLock
         mServiceLock.lock();
 
@@ -4628,21 +4630,21 @@ void CameraService::BasicClient::opChanged(int32_t op, const String16&) {
                             AppOpsManager::OP_CAMERA, attr.uid,
                             toString16(attr.packageName.value_or(""))));
                 });
-        ALOGV("checkOp returns: %d, %s ", res,
+        res = appOpModeToPermissionResult(appOpMode);
+        ALOGV("checkOp returns: %d, %s ", appOpMode,
               appOpMode == AppOpsManager::MODE_ALLOWED   ? "ALLOWED"
               : appOpMode == AppOpsManager::MODE_IGNORED ? "IGNORED"
               : appOpMode == AppOpsManager::MODE_ERRORED ? "ERRORED"
                                                          : "UNKNOWN");
-        res = appOpModeToPermissionResult(appOpMode);
     } else {
         int32_t appOpMode = mAppOpsManager->checkOp(AppOpsManager::OP_CAMERA, getClientUid(),
                                                     toString16(getPackageName()));
-        ALOGV("checkOp returns: %d, %s ", res,
+        res = appOpModeToPermissionResult(appOpMode);
+        ALOGV("checkOp returns: %d, %s ", appOpMode,
               appOpMode == AppOpsManager::MODE_ALLOWED   ? "ALLOWED"
               : appOpMode == AppOpsManager::MODE_IGNORED ? "IGNORED"
               : appOpMode == AppOpsManager::MODE_ERRORED ? "ERRORED"
                                                          : "UNKNOWN");
-        res = appOpModeToPermissionResult(appOpMode);
     }
 
     if (res == PermissionChecker::PERMISSION_HARD_DENIED) {
@@ -4718,7 +4720,6 @@ status_t CameraService::BasicClient::isPrimaryClient(bool* isPrimary) {
     }
 
     if (!mSharedMode) {
-        ALOGW("%s: Invalid operation when camera is not opened in shared mode", __FUNCTION__);
         return INVALID_OPERATION;
     }
     *isPrimary = mIsPrimaryClient;
@@ -4733,7 +4734,6 @@ status_t CameraService::BasicClient::setPrimaryClient(bool isPrimary) {
     }
 
     if (!mSharedMode) {
-        ALOGW("%s:Invalid operation when camera is not opened in shared mode", __FUNCTION__);
         return INVALID_OPERATION;
     }
     mIsPrimaryClient = isPrimary;

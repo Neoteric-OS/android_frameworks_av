@@ -19,7 +19,6 @@
 
 #include "AudioPolicyService.h"
 #include "AudioRecordClient.h"
-#include "TypeConverter.h"
 #include <cutils/properties.h>
 
 #include <android/content/AttributionSourceState.h>
@@ -30,6 +29,7 @@
 #include <cutils/properties.h>
 #include <error/expected_utils.h>
 #include <media/AidlConversion.h>
+#include <media/AudioPermissionPolicy.h>
 #include <media/AudioPolicy.h>
 #include <media/AudioValidator.h>
 #include <media/MediaMetricsItem.h>
@@ -58,7 +58,6 @@
 #define MAX_ITEMS_PER_LIST 1024
 
 namespace android {
-namespace audiopolicy_flags = android::media::audiopolicy;
 using binder::Status;
 using aidl_utils::binderStatusFromStatusT;
 using android::media::audio::concurrent_audio_record_bypass_permission;
@@ -95,6 +94,7 @@ using media::audio::common::AudioStreamType;
 using media::audio::common::AudioUsage;
 using media::audio::common::AudioUuid;
 using media::audio::common::Int;
+using media::permission::isSystemUsage;
 
 constexpr int kDefaultVirtualDeviceId = 0;
 namespace {
@@ -127,19 +127,6 @@ bool mustAnonymizeBluetoothAddress(const AttributionSourceState& attributionSour
     }
 }
 
-}
-
-const std::vector<audio_usage_t>& SYSTEM_USAGES = {
-    AUDIO_USAGE_CALL_ASSISTANT,
-    AUDIO_USAGE_EMERGENCY,
-    AUDIO_USAGE_SAFETY,
-    AUDIO_USAGE_VEHICLE_STATUS,
-    AUDIO_USAGE_ANNOUNCEMENT
-};
-
-bool isSystemUsage(audio_usage_t usage) {
-    return std::find(std::begin(SYSTEM_USAGES), std::end(SYSTEM_USAGES), usage)
-        != std::end(SYSTEM_USAGES);
 }
 
 bool AudioPolicyService::isSupportedSystemUsage(audio_usage_t usage) {
@@ -613,14 +600,18 @@ Status AudioPolicyService::startOutput(int32_t portIdAidl)
     }
     ALOGV("startOutput()");
     return binderStatusFromStatusT(mOutputCommandThread->startOutputCommand(portId));
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
 }
 
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
 status_t AudioPolicyService::doStartOutput(audio_port_handle_t portId)
+// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
 {
     if (mAudioPolicyManager == NULL) {
         return NO_INIT;
     }
     ALOGV("doStartOutput()");
+// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     sp<AudioPlaybackClient> client;
     sp<AudioPolicyEffects> audioPolicyEffects;
 

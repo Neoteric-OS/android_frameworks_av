@@ -101,10 +101,12 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
             break;
 
         case AAUDIO_PERFORMANCE_MODE_NONE:
+// QTI_BEGIN: 2018-06-05: Audio: aaudio: set primary flag for AAUDIO_PERFORMANCE_MODE_NONE
             // Use primary output to avoid AAudio using direct output
             flags = AUDIO_OUTPUT_FLAG_PRIMARY;
             break;
 
+// QTI_END: 2018-06-05: Audio: aaudio: set primary flag for AAUDIO_PERFORMANCE_MODE_NONE
         default:
             // No flags. Use a normal mixer in front of the FAST mixer.
             flags = AUDIO_OUTPUT_FLAG_NONE;
@@ -135,6 +137,9 @@ aaudio_result_t AudioStreamTrack::open(const AudioStreamBuilder& builder)
             // that is some multiple of the burst size.
             notificationFrames = 0 - DEFAULT_BURSTS_PER_BUFFER_CAPACITY;
         }
+    } else if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        streamTransferType = AudioTrack::transfer_type::TRANSFER_SYNC_NOTIF_CALLBACK;
+        callback = wp<AudioTrack::IAudioTrackCallback>::fromExisting(this);
     }
     mCallbackBufferSize = builder.getFramesPerDataCallback();
 
