@@ -8398,41 +8398,37 @@ float AudioPolicyManager::adjustDeviceAttenuationForAbsVolume(IVolumeCurves &cur
     device_category deviceCategory = Volume::getDeviceCategory({volumeDevice});
     float volumeDb = curves.volIndexToDb(deviceCategory, index);
 
-    if (com_android_media_audio_abs_volume_index_fix()) {
-        const auto it = mAbsoluteVolumeDrivingStreams.find(volumeDevice);
-        if (it != mAbsoluteVolumeDrivingStreams.end()) {
-            audio_attributes_t attributesToDriveAbs = it->second;
-            auto groupToDriveAbs = mEngine->getVolumeGroupForAttributes(attributesToDriveAbs);
-            if (groupToDriveAbs == VOLUME_GROUP_NONE) {
-                ALOGD("%s: no group matching with %s", __FUNCTION__,
-                      toString(attributesToDriveAbs).c_str());
-                return volumeDb;
-            }
-
-            float volumeDbMax = curves.volIndexToDb(deviceCategory, curves.getVolumeIndexMax());
-            VolumeSource vsToDriveAbs = toVolumeSource(groupToDriveAbs);
-            if (vsToDriveAbs == volumeSource) {
-                // attenuation is applied by the abs volume controller
-                // do not mute LE broadcast to allow the secondary device to continue playing
-                return (index != 0 || volumeDevice == AUDIO_DEVICE_OUT_BLE_BROADCAST) ? volumeDbMax
-                                                                                      : volumeDb;
-            } else {
-                IVolumeCurves &curvesAbs = getVolumeCurves(vsToDriveAbs);
-                int indexAbs = curvesAbs.getVolumeIndex({volumeDevice});
-                float volumeDbAbs = curvesAbs.volIndexToDb(deviceCategory, indexAbs);
-                float volumeDbAbsMax = curvesAbs.volIndexToDb(deviceCategory,
-                                                              curvesAbs.getVolumeIndexMax());
-                float newVolumeDb = fminf(volumeDb + volumeDbAbsMax - volumeDbAbs, volumeDbMax);
-                ALOGV("%s: abs vol stream %d with attenuation %f is adjusting stream %d from "
-                      "attenuation %f to attenuation %f %f", __func__, vsToDriveAbs, volumeDbAbs,
-                      volumeSource, volumeDb, newVolumeDb, volumeDbMax);
-                return newVolumeDb;
-            }
+    const auto it = mAbsoluteVolumeDrivingStreams.find(volumeDevice);
+    if (it != mAbsoluteVolumeDrivingStreams.end()) {
+        audio_attributes_t attributesToDriveAbs = it->second;
+        auto groupToDriveAbs = mEngine->getVolumeGroupForAttributes(attributesToDriveAbs);
+        if (groupToDriveAbs == VOLUME_GROUP_NONE) {
+            ALOGD("%s: no group matching with %s", __FUNCTION__,
+                  toString(attributesToDriveAbs).c_str());
+            return volumeDb;
         }
-        return volumeDb;
-    } else {
-        return volumeDb;
+
+        float volumeDbMax = curves.volIndexToDb(deviceCategory, curves.getVolumeIndexMax());
+        VolumeSource vsToDriveAbs = toVolumeSource(groupToDriveAbs);
+        if (vsToDriveAbs == volumeSource) {
+            // attenuation is applied by the abs volume controller
+            // do not mute LE broadcast to allow the secondary device to continue playing
+            return (index != 0 || volumeDevice == AUDIO_DEVICE_OUT_BLE_BROADCAST) ? volumeDbMax
+                                                                                  : volumeDb;
+        } else {
+            IVolumeCurves &curvesAbs = getVolumeCurves(vsToDriveAbs);
+            int indexAbs = curvesAbs.getVolumeIndex({volumeDevice});
+            float volumeDbAbs = curvesAbs.volIndexToDb(deviceCategory, indexAbs);
+            float volumeDbAbsMax = curvesAbs.volIndexToDb(deviceCategory,
+                                                          curvesAbs.getVolumeIndexMax());
+            float newVolumeDb = fminf(volumeDb + volumeDbAbsMax - volumeDbAbs, volumeDbMax);
+            ALOGV("%s: abs vol stream %d with attenuation %f is adjusting stream %d from "
+                  "attenuation %f to attenuation %f %f", __func__, vsToDriveAbs, volumeDbAbs,
+                  volumeSource, volumeDb, newVolumeDb, volumeDbMax);
+            return newVolumeDb;
+        }
     }
+    return volumeDb;
 }
 
 float AudioPolicyManager::computeVolume(IVolumeCurves &curves,
