@@ -38,7 +38,6 @@
 #include <aidl/AidlCameraService.h>
 #include <android-base/macros.h>
 #include <android-base/parseint.h>
-#include <android_companion_virtualdevice_flags.h>
 #include <android/companion/virtualnative/IVirtualDeviceManagerNative.h>
 #include <binder/ActivityManager.h>
 #include <binder/AppOpsManager.h>
@@ -130,7 +129,6 @@ using hardware::camera2::utils::CameraIdAndSessionConfiguration;
 using hardware::camera2::utils::ConcurrentCameraIdCombination;
 
 namespace flags = com::android::internal::camera::flags;
-namespace vd_flags = android::companion::virtualdevice::flags;
 
 // ----------------------------------------------------------------------------
 // Logging support -- this is for debugging only
@@ -365,23 +363,21 @@ void CameraService::filterAPI1SystemCameraLocked(
         const std::vector<std::string> &normalDeviceIds) {
     mNormalDeviceIdsWithoutSystemCamera.clear();
     for (auto &cameraId : normalDeviceIds) {
-        if (vd_flags::camera_device_awareness()) {
-            CameraMetadata cameraInfo;
-            status_t res = mCameraProviderManager->getCameraCharacteristics(
-                    cameraId, false, &cameraInfo,
-                    hardware::ICameraService::ROTATION_OVERRIDE_NONE);
-            int32_t deviceId = kDefaultDeviceId;
-            if (res != OK) {
-                ALOGW("%s: Not able to get camera characteristics for camera id %s",
-                      __FUNCTION__, cameraId.c_str());
-            } else {
-                deviceId = getDeviceId(cameraInfo);
-            }
-            // Cameras associated with non-default device id's (i.e., virtual cameras) can never be
-            // system cameras, so skip for non-default device id's.
-            if (deviceId != kDefaultDeviceId) {
-                continue;
-            }
+        CameraMetadata cameraInfo;
+        status_t res = mCameraProviderManager->getCameraCharacteristics(
+                cameraId, false, &cameraInfo,
+                hardware::ICameraService::ROTATION_OVERRIDE_NONE);
+        int32_t deviceId = kDefaultDeviceId;
+        if (res != OK) {
+            ALOGW("%s: Not able to get camera characteristics for camera id %s",
+                  __FUNCTION__, cameraId.c_str());
+        } else {
+            deviceId = getDeviceId(cameraInfo);
+        }
+        // Cameras associated with non-default device id's (i.e., virtual cameras) can never be
+        // system cameras, so skip for non-default device id's.
+        if (deviceId != kDefaultDeviceId) {
+            continue;
         }
 
         SystemCameraKind deviceKind = SystemCameraKind::PUBLIC;
@@ -800,7 +796,7 @@ Status CameraService::getNumberOfCameras(int32_t type,
         const AttributionSourceState& clientAttribution, int32_t devicePolicy,
         int32_t* numCameras) {
     ATRACE_CALL();
-    if (vd_flags::camera_device_awareness() && (clientAttribution.deviceId != kDefaultDeviceId)
+    if (clientAttribution.deviceId != kDefaultDeviceId
             && (devicePolicy != IVirtualDeviceManagerNative::DEVICE_POLICY_DEFAULT)) {
         *numCameras = mVirtualDeviceCameraIdMapper.getNumberOfCameras(clientAttribution.deviceId);
         return Status::ok();
@@ -1263,7 +1259,7 @@ Status CameraService::getCameraInfo(int cameraId,  int rotationOverride,
 
 std::string CameraService::cameraIdIntToStrLocked(int cameraIdInt,
         int32_t deviceId, int32_t devicePolicy) {
-    if (vd_flags::camera_device_awareness() && (deviceId != kDefaultDeviceId)
+    if (deviceId != kDefaultDeviceId
             && (devicePolicy != IVirtualDeviceManagerNative::DEVICE_POLICY_DEFAULT)) {
         std::optional<std::string> cameraIdOptional =
                 mVirtualDeviceCameraIdMapper.getActualCameraId(cameraIdInt, deviceId);
@@ -5938,7 +5934,7 @@ void CameraService::updateStatus(StatusInternal status, const std::string& camer
         return;
     }
 
-    if (vd_flags::camera_device_awareness() && status == StatusInternal::PRESENT) {
+    if (status == StatusInternal::PRESENT) {
         CameraMetadata cameraInfo;
         status_t res = mCameraProviderManager->getCameraCharacteristics(
                 cameraId, false, &cameraInfo, hardware::ICameraService::ROTATION_OVERRIDE_NONE);

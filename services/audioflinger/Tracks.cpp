@@ -75,6 +75,7 @@ namespace android {
 
 using ::android::aidl_utils::binderStatusFromStatusT;
 using ::com::android::media::audio::hardening_impl;
+using ::com::android::media::audio::hardening_partial;
 using ::com::android::media::audio::hardening_strict;
 using binder::Status;
 using com::android::media::audio::audioserver_permissions;
@@ -3666,9 +3667,7 @@ static bool shouldExemptFromOpControl(audio_usage_t usage, IAfThreadCallback& cb
     if (cb.isHardeningOverrideEnabled()) {
         return false;
     }
-    // TODO(b/389136997) this should be swapped to another flag when it is added, but use this flag
-    // for now since it is already in teamfood
-    if (hardening_strict()) {
+    if (hardening_partial()) {
         switch (usage) {
             case AUDIO_USAGE_VIRTUAL_SOURCE:
                 return true;
