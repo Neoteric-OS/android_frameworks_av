@@ -3067,11 +3067,7 @@ status_t AudioFlinger::systemReady()
         return NO_ERROR;
     }
     mSystemReady = true;
-// QTI_BEGIN: 2023-02-08: Audio: media: Skip Timecheck until system is ready
 
-    mediautils::TimeCheck::setSystemReady();
-
-// QTI_END: 2023-02-08: Audio: media: Skip Timecheck until system is ready
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         IAfThreadBase* const thread = mPlaybackThreads.valueAt(i).get();
         thread->systemReady();
