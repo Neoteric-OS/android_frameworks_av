@@ -10651,7 +10651,9 @@ status_t MmapThread::start(const AudioClient& client,
         chain->incActiveTrackCnt();
     }
 
-    track->logBeginInterval(patchSinksToString(&mPatch)); // log to MediaMetrics
+    // log to MediaMetrics
+    track->logBeginInterval(
+            isOutput() ? patchSinksToString(&mPatch) : patchSourcesToString(&mPatch));
     *handle = portId;
 
     if (mActiveTracks.size() == 1) {
@@ -11003,6 +11005,16 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
     }
     // Force meteadata update after a route change
     mActiveTracks.setHasChanged();
+
+    const std::string patchSourcesAsString = isOutput() ? "" : patchSourcesToString(patch);
+    const std::string patchSinksAsString = isOutput() ? patchSinksToString(patch) : "";
+    mThreadMetrics.logEndInterval();
+    mThreadMetrics.logCreatePatch(patchSourcesAsString, patchSinksAsString);
+    mThreadMetrics.logBeginInterval();
+    for (const auto &track : mActiveTracks) {
+        track->logEndInterval();
+        track->logBeginInterval(isOutput() ? patchSinksAsString : patchSourcesAsString);
+    }
 
     return status;
 }

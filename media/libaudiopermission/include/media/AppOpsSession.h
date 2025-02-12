@@ -17,7 +17,7 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
-#include <binder/IAppOpsCallback.h>
+#include <com/android/internal/app/BnAppOpsCallback.h>
 #include <cutils/android_filesystem_config.h>
 #include <log/log.h>
 #include <utils/RefBase.h>
@@ -166,12 +166,13 @@ class DefaultAppOpsFacade {
                                 std::function<void(bool)> cb);
     void removeChangeCallback(uintptr_t);
 
-    class OpMonitor : public BnAppOpsCallback {
+    class OpMonitor : public com::android::internal::app::BnAppOpsCallback {
       public:
         OpMonitor(ValidatedAttributionSourceState attr, Ops ops, std::function<void(bool)> cb)
             : mAttr(std::move(attr)), mOps(ops), mCb(std::move(cb)) { }
 
-        void opChanged(int32_t op, const String16& packageName) override;
+        binder::Status opChanged(int32_t op, int32_t uid, const String16& packageName,
+                                 const String16& persistenDeviceId) override;
 
         void stopListening() {
             std::lock_guard l_{mLock};

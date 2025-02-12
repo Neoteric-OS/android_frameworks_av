@@ -28,7 +28,6 @@
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IActivityManager.h>
-#include <binder/IAppOpsCallback.h>
 #include <binder/IServiceManager.h>
 #include <binder/IUidObserver.h>
 #include <cutils/multiuser.h>
@@ -517,10 +516,11 @@ public:
 
         std::unique_ptr<AppOpsManager>  mAppOpsManager = nullptr;
 
-        class OpsCallback : public BnAppOpsCallback {
+        class OpsCallback : public com::android::internal::app::BnAppOpsCallback {
         public:
             explicit OpsCallback(wp<BasicClient> client);
-            virtual void opChanged(int32_t op, const String16& packageName);
+            virtual binder::Status opChanged(int32_t op, int32_t uid,
+                                   const String16& packageName, const String16& persistentDeviceId);
 
         private:
             wp<BasicClient> mClient;

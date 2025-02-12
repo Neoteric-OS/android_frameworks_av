@@ -2486,7 +2486,7 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
                                          const sp<TrackClientDescriptor>& client,
                                          uint32_t *delayMs)
 {
-    // cannot start playback of STREAM_TTS if any other output is being used
+    // cannot start beacon playback if any other output is being used
     uint32_t beaconMuteLatency = 0;
 
     *delayMs = 0;
@@ -2494,17 +2494,22 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
     auto clientVolSrc = client->volumeSource();
     auto clientStrategy = client->strategy();
     auto clientAttr = client->attributes();
-    if (stream == AUDIO_STREAM_TTS) {
-        ALOGV("\t found BEACON stream");
-        if (!mTtsOutputAvailable && mOutputs.isAnyOutputActive(
-                                    toVolumeSource(AUDIO_STREAM_TTS, false) /*sourceToIgnore*/)) {
-            return INVALID_OPERATION;
+    // SPEAKER_CLEANUP doesn't the share the high-frequency requirements of beacons
+    if (clientAttr.usage != AUDIO_USAGE_SPEAKER_CLEANUP) {
+        if (stream == AUDIO_STREAM_TTS) {
+            ALOGV("\t found BEACON stream");
+            if (!mTtsOutputAvailable && mOutputs.isAnyOutputActive(
+                    toVolumeSource(AUDIO_STREAM_TTS, false) /*sourceToIgnore*/)) {
+                return INVALID_OPERATION;
+            } else {
+                beaconMuteLatency = handleEventForBeacon(STARTING_BEACON);
+            }
         } else {
-            beaconMuteLatency = handleEventForBeacon(STARTING_BEACON);
+            // some playback other than beacon starts
+            beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
         }
     } else {
-        // some playback other than beacon starts
-        beaconMuteLatency = handleEventForBeacon(STARTING_OUTPUT);
+        // TODO handle muting of other streams outside of a11y
     }
 
     // force device change if the output is inactive and no audio patch is already present.
@@ -2776,7 +2781,11 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
     auto clientVolSrc = client->volumeSource();
     bool wasLeUnicastActive = isLeUnicastActive();
 
-    handleEventForBeacon(stream == AUDIO_STREAM_TTS ? STOPPING_BEACON : STOPPING_OUTPUT);
+    // speaker cleanup is not a beacon event
+    // TODO handle speaker cleanup activity
+    if (client->attributes().usage != AUDIO_USAGE_SPEAKER_CLEANUP) {
+        handleEventForBeacon(stream == AUDIO_STREAM_TTS ? STOPPING_BEACON : STOPPING_OUTPUT);
+    }
 
     if (outputDesc->getActivityCount(clientVolSrc) > 0) {
         if (outputDesc->getActivityCount(clientVolSrc) == 1) {

@@ -4744,12 +4744,13 @@ CameraService::Client::OpsCallback::OpsCallback(wp<BasicClient> client):
         mClient(client) {
 }
 
-void CameraService::Client::OpsCallback::opChanged(int32_t op,
-        const String16& packageName) {
+binder::Status CameraService::Client::OpsCallback::opChanged(int32_t op, int32_t,
+        const String16& packageName, const String16&) {
     sp<BasicClient> client = mClient.promote();
     if (client != NULL) {
         client->opChanged(op, packageName);
     }
+    return binder::Status::ok();
 }
 
 // ----------------------------------------------------------------------------
