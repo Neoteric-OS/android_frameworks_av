@@ -8347,6 +8347,7 @@ sp<IOProfile> AudioPolicyManager::getInputProfile(const sp<DeviceDescriptor> &de
         uint32_t updatedSamplingRate = 0;
         audio_format_t updatedFormat = AUDIO_FORMAT_INVALID;
         audio_channel_mask_t updatedChannelMask = AUDIO_CHANNEL_INVALID;
+        auto bestCompatibleScore = IOProfile::NO_MATCH;
         for (const auto& hwModule : mHwModules) {
             for (const auto& profile : hwModule->getInputProfiles()) {
                 // profile->log();
@@ -8369,10 +8370,13 @@ sp<IOProfile> AudioPolicyManager::getInputProfile(const sp<DeviceDescriptor> &de
                 } else if ((flags != AUDIO_INPUT_FLAG_NONE
                         && compatibleScore == IOProfile::PARTIAL_MATCH_WITH_FLAG)
                     || (inexact == nullptr && compatibleScore != IOProfile::NO_MATCH)) {
-                    inexact = profile;
-                    inexactSamplingRate = updatedSamplingRate;
-                    inexactFormat = updatedFormat;
-                    inexactChannelMask = updatedChannelMask;
+                    if (compatibleScore > bestCompatibleScore) {
+                        inexact = profile;
+                        inexactSamplingRate = updatedSamplingRate;
+                        inexactFormat = updatedFormat;
+                        inexactChannelMask = updatedChannelMask;
+                        bestCompatibleScore = compatibleScore;
+                    }
                 }
             }
         }
