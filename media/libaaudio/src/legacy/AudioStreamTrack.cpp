@@ -686,6 +686,7 @@ aaudio_result_t AudioStreamTrack::setOffloadEndOfStream() {
         return result;
     }
     mOffloadEosPending = true;
+    setState(AAUDIO_STREAM_STATE_STOPPING);
     return AAUDIO_OK;
 }
 

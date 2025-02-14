@@ -424,6 +424,13 @@ public:
         printf("          2 = PCM_FLOAT\n");
         printf("          3 = PCM_I24_PACKED\n");
         printf("          4 = PCM_I32\n");
+        printf("          6 = MP3\n");
+        printf("          7 = AAC_LC\n");
+        printf("          8 = AAC_HE_V1\n");
+        printf("          9 = AAC_HE_V2\n");
+        printf("          10 = AAC_ELD\n");
+        printf("          12 = AAC_XHE\n");
+        printf("          13 = OPUS\n");
         printf("      -i{inputPreset} eg. 5 for AAUDIO_INPUT_PRESET_CAMCORDER\n");
         printf("      -m{0|1|2|3} set MMAP policy\n");
         printf("          0 = _UNSPECIFIED, use aaudio.mmap_policy system property, default\n");
