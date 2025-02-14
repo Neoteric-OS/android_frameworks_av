@@ -18,7 +18,6 @@
 #define LOG_TAG "ACameraManager"
 
 #include "ACameraManager.h"
-#include <android_companion_virtualdevice_flags.h>
 #include <camera/CameraUtils.h>
 #include <camera/StringUtils.h>
 #include <camera/VendorTagDescriptor.h>
@@ -31,7 +30,6 @@
 #include <com_android_internal_camera_flags.h>
 
 using namespace android::acam;
-namespace vd_flags = android::companion::virtualdevice::flags;
 namespace flags = com::android::internal::camera::flags;
 
 namespace android {
@@ -62,10 +60,6 @@ sp<IVirtualDeviceManagerNative> getVirtualDeviceManager() {
 // Returns device id calling process is running on.
 // If the process cannot be attributed to single virtual device id, returns default device id.
 int getCurrentDeviceId() {
-    if (!vd_flags::camera_device_awareness()) {
-        return kDefaultDeviceId;
-    }
-
     auto vdm = getVirtualDeviceManager();
     if (vdm == nullptr) {
         return kDefaultDeviceId;
@@ -91,7 +85,7 @@ int getCurrentDeviceId() {
 
 // Returns device policy for POLICY_TYPE_CAMERA corresponding to deviceId.
 DevicePolicy getDevicePolicyForDeviceId(const int deviceId) {
-    if (!vd_flags::camera_device_awareness() || deviceId == kDefaultDeviceId) {
+    if (deviceId == kDefaultDeviceId) {
         return DevicePolicy::DEVICE_POLICY_DEFAULT;
     }
 
@@ -113,8 +107,7 @@ DevicePolicy getDevicePolicyForDeviceId(const int deviceId) {
 
 // Returns true if camera owned by device cameraDeviceId can be accessed within deviceContext.
 bool isCameraAccessible(const DeviceContext deviceContext, const int cameraDeviceId) {
-    if (!vd_flags::camera_device_awareness() ||
-        deviceContext.policy == DevicePolicy::DEVICE_POLICY_DEFAULT) {
+    if (deviceContext.policy == DevicePolicy::DEVICE_POLICY_DEFAULT) {
         return cameraDeviceId == kDefaultDeviceId;
     }
     return deviceContext.deviceId == cameraDeviceId;
