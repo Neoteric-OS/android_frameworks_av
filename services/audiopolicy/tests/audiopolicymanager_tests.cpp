@@ -2683,7 +2683,7 @@ TEST_P(AudioPolicyManagerTestDeviceConnection, PassingExtraAudioDescriptors) {
     const size_t lastConnectedDevicePortCount = mClient->getConnectedDevicePortCount();
     const size_t lastDisconnectedDevicePortCount = mClient->getDisconnectedDevicePortCount();
     EXPECT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
-                    AUDIO_POLICY_DEVICE_STATE_AVAILABLE, port, AUDIO_FORMAT_DEFAULT));
+                    AUDIO_POLICY_DEVICE_STATE_AVAILABLE, port, AUDIO_FORMAT_DEFAULT, false));
     EXPECT_EQ(lastConnectedDevicePortCount + 1, mClient->getConnectedDevicePortCount());
     EXPECT_EQ(lastDisconnectedDevicePortCount, mClient->getDisconnectedDevicePortCount());
     const audio_port_v7* devicePort = mClient->getLastConnectedDevicePort();
@@ -4708,6 +4708,34 @@ TEST_F_WITH_FLAGS(
     ASSERT_NO_FATAL_FAILURE(getInputForAttr(attr, &input2, TEST_SESSION_ID, 1, &selectedDeviceId,
                                         AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_IN_STEREO,
                                         k48000SamplingRate));
+
+    EXPECT_EQ(1, mClient->getOpenInputCallsCount());
+    EXPECT_EQ(0, mClient->getCloseInputCallsCount());
+    EXPECT_EQ(input1, input2);
+}
+
+TEST_F_WITH_FLAGS(
+        AudioPolicyManagerInputPreemptionTest,
+        SameDeviceAndSourceReusesInput,
+        REQUIRES_FLAGS_ENABLED(
+        ACONFIG_FLAG(com::android::media::audioserver, fix_input_sharing_logic))
+) {
+    mClient->resetInputApiCallsCounters();
+
+    audio_attributes_t attr = AUDIO_ATTRIBUTES_INITIALIZER;
+    attr.source = AUDIO_SOURCE_VOICE_RECOGNITION;
+    audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE;
+    audio_io_handle_t input1 = AUDIO_PORT_HANDLE_NONE;
+    ASSERT_NO_FATAL_FAILURE(getInputForAttr(attr, &input1, TEST_SESSION_ID, 1, &selectedDeviceId,
+                                            AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_IN_STEREO,
+                                            k48000SamplingRate));
+
+    EXPECT_EQ(1, mClient->getOpenInputCallsCount());
+
+    audio_io_handle_t input2 = AUDIO_PORT_HANDLE_NONE;
+    ASSERT_NO_FATAL_FAILURE(getInputForAttr(attr, &input2, OTHER_SESSION_ID, 1, &selectedDeviceId,
+                                            AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_IN_STEREO,
+                                            k48000SamplingRate));
 
     EXPECT_EQ(1, mClient->getOpenInputCallsCount());
     EXPECT_EQ(0, mClient->getCloseInputCallsCount());

@@ -304,7 +304,8 @@ public:
     static void onNewAudioModulesAvailable();
     static status_t setDeviceConnectionState(audio_policy_dev_state_t state,
                                              const android::media::audio::common::AudioPort& port,
-                                             audio_format_t encodedFormat);
+                                             audio_format_t encodedFormat,
+                                             bool deviceSwitch);
     static audio_policy_dev_state_t getDeviceConnectionState(audio_devices_t device,
                                                                 const char *device_address);
     static status_t handleDeviceConfigChange(audio_devices_t device,

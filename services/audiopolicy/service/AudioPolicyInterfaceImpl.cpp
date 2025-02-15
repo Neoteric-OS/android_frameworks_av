@@ -181,7 +181,8 @@ void AudioPolicyService::doOnNewAudioModulesAvailable()
 Status AudioPolicyService::setDeviceConnectionState(
         media::AudioPolicyDeviceState stateAidl,
         const android::media::audio::common::AudioPort& port,
-        const AudioFormatDescription& encodedFormatAidl) {
+        const AudioFormatDescription& encodedFormatAidl,
+        bool deviceSwitch) {
     audio_policy_dev_state_t state = VALUE_OR_RETURN_BINDER_STATUS(
             aidl2legacy_AudioPolicyDeviceState_audio_policy_dev_state_t(stateAidl));
     audio_format_t encodedFormat = VALUE_OR_RETURN_BINDER_STATUS(
@@ -204,7 +205,7 @@ Status AudioPolicyService::setDeviceConnectionState(
     audio_utils::lock_guard _l(mMutex);
     AutoCallerClear acc;
     status_t status = mAudioPolicyManager->setDeviceConnectionState(
-            state, port, encodedFormat);
+            state, port, encodedFormat, deviceSwitch);
     if (status == NO_ERROR) {
         onCheckSpatializer_l();
     }

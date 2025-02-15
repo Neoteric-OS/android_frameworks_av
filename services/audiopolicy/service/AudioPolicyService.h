@@ -100,7 +100,8 @@ public:
     binder::Status setDeviceConnectionState(
             media::AudioPolicyDeviceState state,
             const android::media::audio::common::AudioPort& port,
-            const AudioFormatDescription& encodedFormat) override;
+            const AudioFormatDescription& encodedFormat,
+            bool deviceSwitch) override;
     binder::Status getDeviceConnectionState(const AudioDevice& device,
                                             media::AudioPolicyDeviceState* _aidl_return) override;
     binder::Status handleDeviceConfigChange(
