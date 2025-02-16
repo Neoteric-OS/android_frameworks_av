@@ -19,7 +19,9 @@
 // QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #include "hidl/HidlSupport.h"
 #define LOG_TAG "MediaCodec"
+#define ATRACE_TAG  ATRACE_TAG_VIDEO
 #include <utils/Log.h>
+#include <utils/Trace.h>
 
 #include <dlfcn.h>
 #include <inttypes.h>
@@ -2250,6 +2252,7 @@ static const CodecListCache &GetCodecListCache() {
 // QTI_BEGIN: 2018-04-22: Video: libstagefright: Detect component allocation type
 status_t MediaCodec::init(const AString &name, bool nameIsType) {
 // QTI_END: 2018-04-22: Video: libstagefright: Detect component allocation type
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::Init#native");
     status_t err = mResourceManagerProxy->init();
     if (err != OK) {
         mErrorLog.log(LOG_TAG, base::StringPrintf(
@@ -2591,7 +2594,7 @@ status_t MediaCodec::configure(
         const sp<ICrypto> &crypto,
         const sp<IDescrambler> &descrambler,
         uint32_t flags) {
-
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::configure#native");
     // Update the codec importance.
     updateCodecImportance(format);
 
@@ -3272,6 +3275,7 @@ uint64_t MediaCodec::getGraphicBufferSize() {
 }
 
 status_t MediaCodec::start() {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::start#native");
     sp<AMessage> msg = new AMessage(kWhatStart, this);
 
     sp<AMessage> callback;
@@ -3329,6 +3333,7 @@ status_t MediaCodec::start() {
 }
 
 status_t MediaCodec::stop() {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::stop#native");
     sp<AMessage> msg = new AMessage(kWhatStop, this);
 
     sp<AMessage> response;
@@ -3377,7 +3382,7 @@ status_t MediaCodec::reset() {
     /* When external-facing MediaCodec object is created,
        it is already initialized.  Thus, reset is essentially
        release() followed by init(), plus clearing the state */
-
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::reset#native");
     status_t err = release();
 
     // unregister handlers
@@ -3414,6 +3419,7 @@ status_t MediaCodec::queueInputBuffer(
         int64_t presentationTimeUs,
         uint32_t flags,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueInputBuffer#native");
     if (errorDetailMsg != NULL) {
         errorDetailMsg->clear();
     }
@@ -3435,6 +3441,7 @@ status_t MediaCodec::queueInputBuffers(
         size_t size,
         const sp<BufferInfosWrapper> &infos,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueInputBuffers#native");
     sp<AMessage> msg = new AMessage(kWhatQueueInputBuffer, this);
     uint32_t bufferFlags = 0;
     uint32_t flagsinAllAU = BUFFER_FLAG_DECODE_ONLY | BUFFER_FLAG_CODECCONFIG;
@@ -3484,6 +3491,7 @@ status_t MediaCodec::queueSecureInputBuffer(
         int64_t presentationTimeUs,
         uint32_t flags,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueSecureInputBuffer#native");
     if (errorDetailMsg != NULL) {
         errorDetailMsg->clear();
     }
@@ -3515,6 +3523,7 @@ status_t MediaCodec::queueSecureInputBuffers(
         const sp<BufferInfosWrapper> &auInfo,
         const sp<CryptoInfosWrapper> &cryptoInfos,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueSecureInputBuffers#native");
     if (errorDetailMsg != NULL) {
         errorDetailMsg->clear();
     }
@@ -3566,6 +3575,7 @@ status_t MediaCodec::queueBuffer(
         const sp<BufferInfosWrapper> &bufferInfos,
         const sp<AMessage> &tunings,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueBuffer#native");
     if (errorDetailMsg != NULL) {
         errorDetailMsg->clear();
     }
@@ -3601,6 +3611,7 @@ status_t MediaCodec::queueEncryptedBuffer(
         const sp<CryptoInfosWrapper> &cryptoInfos,
         const sp<AMessage> &tunings,
         AString *errorDetailMsg) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::queueEncryptedBuffer#native");
     if (errorDetailMsg != NULL) {
         errorDetailMsg->clear();
     }
@@ -3657,6 +3668,7 @@ status_t MediaCodec::dequeueOutputBuffer(
         int64_t *presentationTimeUs,
         uint32_t *flags,
         int64_t timeoutUs) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::dequeueOutputBuffer#native");
     sp<AMessage> msg = new AMessage(kWhatDequeueOutputBuffer, this);
     msg->setInt64("timeoutUs", timeoutUs);
 
@@ -3676,6 +3688,7 @@ status_t MediaCodec::dequeueOutputBuffer(
 }
 
 status_t MediaCodec::renderOutputBufferAndRelease(size_t index) {
+    ScopedTrace (ATRACE_TAG, "MediaCodec::renderOutputBufferAndRelease#native");
     sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
     msg->setInt32("render", true);
@@ -3685,6 +3698,7 @@ status_t MediaCodec::renderOutputBufferAndRelease(size_t index) {
 }
 
 status_t MediaCodec::renderOutputBufferAndRelease(size_t index, int64_t timestampNs) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::renderOutputBufferAndRelease#native");
     sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
     msg->setInt32("render", true);
@@ -3695,6 +3709,7 @@ status_t MediaCodec::renderOutputBufferAndRelease(size_t index, int64_t timestam
 }
 
 status_t MediaCodec::releaseOutputBuffer(size_t index) {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::releaseOutputBuffer#native");
     sp<AMessage> msg = new AMessage(kWhatReleaseOutputBuffer, this);
     msg->setSize("index", index);
 
@@ -3909,6 +3924,7 @@ status_t MediaCodec::getBufferAndFormat(
 }
 
 status_t MediaCodec::flush() {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::flush#native");
     sp<AMessage> msg = new AMessage(kWhatFlush, this);
 
     sp<AMessage> response;
@@ -6484,6 +6500,7 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
     size_t size = 0;
     int64_t timeUs = 0;
     uint32_t flags = 0;
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::onQueueInputBuffer#native");
     CHECK(msg->findSize("index", &index));
     CHECK(msg->findInt64("timeUs", &timeUs));
     CHECK(msg->findInt32("flags", (int32_t *)&flags));
@@ -6694,7 +6711,11 @@ status_t MediaCodec::onQueueInputBuffer(const sp<AMessage> &msg) {
                     && (mFlags & kFlagUseCryptoAsync)) {
                 // create error detail
                 sp<AMessage> cryptoErrorInfo = new AMessage();
-                buildCryptoInfoAMessage(cryptoErrorInfo, CryptoAsync::kActionDecrypt);
+                if (msg->findObject("cryptoInfos", &obj)) {
+                    cryptoErrorInfo->setObject("cryptoInfos", obj);
+                } else {
+                    buildCryptoInfoAMessage(cryptoErrorInfo, CryptoAsync::kActionDecrypt);
+                }
                 cryptoErrorInfo->setInt32("err", err);
                 cryptoErrorInfo->setInt32("actionCode", ACTION_CODE_FATAL);
                 cryptoErrorInfo->setString("errorDetail", errorDetailMsg);
@@ -7200,6 +7221,7 @@ void MediaCodec::onInputBufferAvailable() {
 }
 
 void MediaCodec::onOutputBufferAvailable() {
+    ScopedTrace trace(ATRACE_TAG, "MediaCodec::onOutputBufferAvailable#native");
     int32_t index;
     while ((index = dequeuePortBuffer(kPortIndexOutput)) >= 0) {
         if (discardDecodeOnlyOutputBuffer(index)) {

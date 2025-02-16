@@ -143,6 +143,7 @@ private:
     sp<IMemory> mFrameMemory;
     sp<AsyncCodecHandler> mHandler;
     sp<ALooper> mAsyncLooper;
+    bool mSourceStopped;
     bool mHandleOutputBufferAsyncDone;
     std::mutex mMutex;
     std::condition_variable mOutputFramePending;
