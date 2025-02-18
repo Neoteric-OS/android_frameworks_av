@@ -1816,10 +1816,10 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
     sp<IOProfile> profile;
-// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
+// QTI_BEGIN: 2025-02-02: Audio: audiopolicy: Allow MMap when global effects are enabled
     if ((((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) == 0) &&
             flags != AUDIO_OUTPUT_FLAG_DIRECT) ||
-// QTI_END: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
+// QTI_END: 2025-02-02: Audio: audiopolicy: Allow MMap when global effects are enabled
             !(mEffects.isNonOffloadableEffectEnabled() || mMasterMono)) {
         profile = getProfileForOutput(
                 devices, config->sample_rate, config->format, config->channel_mask,
