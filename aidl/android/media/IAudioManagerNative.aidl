@@ -51,5 +51,5 @@ interface IAudioManagerNative {
      * @param portId Port id to update
      * @param event the mute event containing info about the mute
      */
-    void portMuteEvent(in int portId, in int event);
+    oneway void portMuteEvent(in int portId, in int event);
 }
