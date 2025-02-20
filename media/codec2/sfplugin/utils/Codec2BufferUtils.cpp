@@ -828,6 +828,11 @@ GraphicView2MediaImageConverter::GraphicView2MediaImageConverter(
 
     bool tryWrapping = !copy;
 
+#if defined(__aarch64__)
+    // Temporarily disable wrapping for 64 bit
+    tryWrapping = false;
+#endif
+
     switch (layout.type) {
         case C2PlanarLayout::TYPE_YUV: {
             mediaImage->mType = MediaImage2::MEDIA_IMAGE_TYPE_YUV;
