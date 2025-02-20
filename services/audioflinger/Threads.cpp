@@ -636,6 +636,8 @@ const char* IAfThreadBase::threadTypeToString(ThreadBase::type_t type)
         return "SPATIALIZER";
     case BIT_PERFECT:
         return "BIT_PERFECT";
+    case DIRECT_RECORD:
+        return "DIRECT_RECORD";
     default:
         return "unknown";
     }
@@ -8214,15 +8216,19 @@ sp<IAfRecordThread> IAfRecordThread::create(const sp<IAfThreadCallback>& afThrea
         AudioStreamIn* input,
         audio_io_handle_t id,
         bool systemReady) {
-    return sp<RecordThread>::make(afThreadCallback, input, id, systemReady);
+    if (input->flags & AUDIO_INPUT_FLAG_DIRECT) {
+        return sp<DirectRecordThread>::make(afThreadCallback, input, id, systemReady);
+    }
+    return sp<RecordThread>::make(afThreadCallback, RECORD, input, id, systemReady);
 }
 
 RecordThread::RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+                                         ThreadBase::type_t type,
                                          AudioStreamIn *input,
                                          audio_io_handle_t id,
                                          bool systemReady
                                          ) :
-    ThreadBase(afThreadCallback, id, RECORD, systemReady, false /* isOut */),
+    ThreadBase(afThreadCallback, id, type, systemReady, false /* isOut */),
     mInput(input),
     mSource(mInput),
     mActiveTracks(&this->mLocalLog),
@@ -9665,6 +9671,18 @@ void RecordThread::setRecordSilenced(audio_port_handle_t portId, bool silenced)
         }
     }
 }
+
+// --------------------------------------------------------------------------------------
+//              DirectRecordThread
+// --------------------------------------------------------------------------------------
+
+DirectRecordThread::DirectRecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+                                     AudioStreamIn* input, audio_io_handle_t id, bool systemReady)
+    : RecordThread(afThreadCallback, DIRECT_RECORD, input, id, systemReady) {
+    ALOGD("%s:", __func__);
+}
+
+DirectRecordThread::~DirectRecordThread() {}
 
 void ResamplerBufferProvider::reset()
 {

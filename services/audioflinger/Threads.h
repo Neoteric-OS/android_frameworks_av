@@ -1997,6 +1997,7 @@ public:
     }
 
             RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+                    ThreadBase::type_t type,
                     AudioStreamIn *input,
                     audio_io_handle_t id,
                     bool systemReady
@@ -2228,6 +2229,13 @@ private:
             std::string                         mSharedAudioPackageName = {};
             int32_t                             mSharedAudioStartFrames = -1;
             audio_session_t                     mSharedAudioSessionId = AUDIO_SESSION_NONE;
+};
+
+class DirectRecordThread final : public RecordThread {
+  public:
+    DirectRecordThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStreamIn* input,
+                       audio_io_handle_t id, bool systemReady);
+    ~DirectRecordThread() override;
 };
 
 class MmapThread : public ThreadBase, public virtual IAfMmapThread
