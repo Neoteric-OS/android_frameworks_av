@@ -7492,6 +7492,7 @@ void DirectOutputThread::flushHw_l()
 {
     PlaybackThread::flushHw_l();
     mOutput->flush();
+    mHwPaused = false;
     mFlushPending = false;
 // QTI_BEGIN: 2019-10-21: Audio: audioflinger: reset frames written at the time of flush for direct outputs.
     mFramesWritten = 0;
