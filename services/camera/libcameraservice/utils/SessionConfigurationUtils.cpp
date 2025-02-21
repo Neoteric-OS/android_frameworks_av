@@ -281,6 +281,9 @@ bool is10bitCompatibleFormat(int32_t format, android_dataspace_t dataSpace) {
             } else if (dataSpace == static_cast<android_dataspace_t>(
                         ::aidl::android::hardware::graphics::common::Dataspace::HEIF_ULTRAHDR)) {
                 return true;
+            } else if (dataSpace == static_cast<android_dataspace_t>(
+                        ::aidl::android::hardware::graphics::common::Dataspace::HEIF)) {
+                return true;
             }
 
             return false;
