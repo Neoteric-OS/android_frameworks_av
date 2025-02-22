@@ -1240,8 +1240,8 @@ binder::Status CameraDeviceClient::createStream(
         int i = 0;
         for (auto& surfaceKey : surfaceKeys) {
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-            ALOGV("%s: mStreamMap add surfaceKey %lu streamId %d, surfaceId %d",
-                    __FUNCTION__, surfaceKey, streamId, i);
+            ALOGV("%s: mStreamMap add surfaceKey %" PRIu64 " streamId %d, surfaceId %d",
+                  __FUNCTION__, surfaceKey, streamId, i);
 #else
             ALOGV("%s: mStreamMap add surfaceKey %p streamId %d, surfaceId %d",
                     __FUNCTION__, surfaceKey.get(), streamId, i);
@@ -1981,8 +1981,8 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
                      "Could not get the SurfaceKey");
             }
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-            ALOGV("%s: mStreamMap add surface_key %lu streamId %d, surfaceId %d", __FUNCTION__,
-                    surfaceKey, streamId, consumerSurfaceIds[i]);
+            ALOGV("%s: mStreamMap add surface_key %" PRIu64 " streamId %d, surfaceId %d",
+                  __FUNCTION__, surfaceKey, streamId, consumerSurfaceIds[i]);
 #else
             ALOGV("%s: mStreamMap add surface_key %p streamId %d, surfaceId %d", __FUNCTION__,
                     surfaceKey.get(), streamId, consumerSurfaceIds[i]);
