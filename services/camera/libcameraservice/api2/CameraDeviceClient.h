@@ -334,7 +334,10 @@ private:
     // Surface only
     status_t getSurfaceKey(sp<Surface> surface, SurfaceKey* out) const;
 
-    bool matchClientRequest(const CaptureResultExtras& resultExtras, int* clientReqId);
+    bool matchSharedStreamingRequest(int reqId);
+    bool matchSharedCaptureRequest(int reqId);
+    void markClientActive();
+    void markClientIdle();
 
     // IGraphicsBufferProducer binder -> Stream ID + Surface ID for output streams
     KeyedVector<SurfaceKey, StreamSurfaceId> mStreamMap;

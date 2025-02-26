@@ -783,10 +783,10 @@ OpPlayAudioMonitor::PlayAudioOpCallback::PlayAudioOpCallback(
         const wp<OpPlayAudioMonitor>& monitor) : mMonitor(monitor)
 { }
 
-void OpPlayAudioMonitor::PlayAudioOpCallback::opChanged(int32_t op,
-            const String16& packageName) {
+binder::Status OpPlayAudioMonitor::PlayAudioOpCallback::opChanged(int32_t op, int32_t,
+            const String16& packageName, const String16&) {
     if (op != AppOpsManager::OP_PLAY_AUDIO) {
-        return;
+        return binder::Status::ok();
     }
 
     ALOGI("%s OP_PLAY_AUDIO callback received for %s", __func__, String8(packageName).c_str());
@@ -794,6 +794,7 @@ void OpPlayAudioMonitor::PlayAudioOpCallback::opChanged(int32_t op,
     if (monitor != NULL) {
         monitor->checkPlayAudioForUsage(/*doBroadcast=*/true);
     }
+    return binder::Status::ok();
 }
 
 // ----------------------------------------------------------------------------
