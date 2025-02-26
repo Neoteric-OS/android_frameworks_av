@@ -594,6 +594,9 @@ class CameraDeviceBase : public virtual FrameProducer {
     virtual status_t injectSessionParams(
         const CameraMetadata& sessionParams) = 0;
 
+    // Lock to synchronize onDeviceActive and onDeviceIdle callbacks when camera
+    // has been opened in shared mode.
+    mutable Mutex mSharedDeviceActiveLock;
 protected:
     bool mImageDumpMask = 0;
     std::vector<int64_t> mStreamUseCaseOverrides;

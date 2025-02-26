@@ -2703,6 +2703,7 @@ void CameraDeviceClient::onResultAvailable(const CaptureResult& result) {
 }
 
 void CameraDeviceClient::markClientActive() {
+    Mutex::Autolock l(mDevice->mSharedDeviceActiveLock);
     if (mDeviceActive) {
         // Already in active state.
         return;
@@ -2716,6 +2717,7 @@ void CameraDeviceClient::markClientActive() {
 }
 
 void CameraDeviceClient::markClientIdle() {
+    Mutex::Autolock l(mDevice->mSharedDeviceActiveLock);
     if (!mDeviceActive) {
         // Already in idle state.
         return;
