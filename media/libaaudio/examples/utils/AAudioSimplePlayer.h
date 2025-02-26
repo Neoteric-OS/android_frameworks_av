@@ -71,7 +71,7 @@ static float s_burnCPU(int32_t workload) {
 class AAudioSimplePlayer {
 public:
     AAudioSimplePlayer() {}
-    ~AAudioSimplePlayer() {
+    virtual ~AAudioSimplePlayer() {
         close();
     };
 
