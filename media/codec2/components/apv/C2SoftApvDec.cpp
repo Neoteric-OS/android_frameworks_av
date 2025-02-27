@@ -38,6 +38,8 @@ const char* MEDIA_MIMETYPE_VIDEO_APV = "video/apv";
 
 #define MAX_NUM_FRMS (1)  // supports only 1-frame output
 #define FRM_IDX (0)       // supports only 1-frame output
+#define MAX_SUPPORTED_WIDTH (4096)
+#define MAX_SUPPORTED_HEIGHT (4096)
 // check generic frame or not
 #define IS_NON_AUX_FRM(frm)                              \
     (((frm)->pbu_type == OAPV_PBU_TYPE_PRIMARY_FRAME) || \
@@ -76,8 +78,8 @@ class C2SoftApvDec::IntfImpl : public SimpleInterface<void>::BaseParams {
         addParameter(DefineParam(mSize, C2_PARAMKEY_PICTURE_SIZE)
                              .withDefault(new C2StreamPictureSizeInfo::output(0u, 320, 240))
                              .withFields({
-                                     C2F(mSize, width).inRange(2, 4096),
-                                     C2F(mSize, height).inRange(2, 4096),
+                                     C2F(mSize, width).inRange(2, MAX_SUPPORTED_WIDTH),
+                                     C2F(mSize, height).inRange(2, MAX_SUPPORTED_HEIGHT),
                              })
                              .withSetter(SizeSetter)
                              .build());
@@ -945,6 +947,7 @@ void C2SoftApvDec::process(const std::unique_ptr<C2Work>& work,
 
         if (OAPV_FAILED(oapvd_info(bitb.addr, bitb.ssize, &aui))) {
             ALOGE("cannot get information from bitstream");
+            work->result = C2_CORRUPTED;
             return;
         }
 
@@ -963,6 +966,12 @@ void C2SoftApvDec::process(const std::unique_ptr<C2Work>& work,
             if (mWidth != finfo->w || mHeight != finfo->h) {
                 mWidth = finfo->w;
                 mHeight = finfo->h;
+            }
+
+            if (mWidth > MAX_SUPPORTED_WIDTH || mHeight > MAX_SUPPORTED_HEIGHT) {
+                ALOGE("Stream resolution of %dx%d is not supported.", mWidth, mHeight);
+                work->result = C2_CORRUPTED;
+                return;
             }
 
             if (frm->imgb != NULL && (frm->imgb->w[0] != finfo->w || frm->imgb->h[0] != finfo->h)) {
@@ -1243,19 +1252,15 @@ status_t C2SoftApvDec::outputBuffer(const std::shared_ptr<C2BlockPool>& pool,
     getHDR10PlusInfoData(&hdrInfo, work);
 
     uint32_t format = HAL_PIXEL_FORMAT_YV12;
-    std::shared_ptr<C2StreamColorAspectsInfo::output> codedColorAspects;
-    if (OAPV_CS_GET_BIT_DEPTH(imgbOutput->cs) == 10 &&
-        mPixelFormatInfo->value != HAL_PIXEL_FORMAT_YCBCR_420_888) {
-        IntfImpl::Lock lock = mIntf->lock();
-        codedColorAspects = mIntf->getColorAspects_l();
-
-        bool allowRGBA1010102 = false;
-        if (codedColorAspects->primaries == C2Color::PRIMARIES_BT2020 &&
-            codedColorAspects->matrix == C2Color::MATRIX_BT2020 &&
-            codedColorAspects->transfer == C2Color::TRANSFER_ST2084) {
-            allowRGBA1010102 = true;
+    if (mPixelFormatInfo->value != HAL_PIXEL_FORMAT_YCBCR_420_888) {
+        if (isHalPixelFormatSupported((AHardwareBuffer_Format)AHARDWAREBUFFER_FORMAT_YCbCr_P210)) {
+            format = AHARDWAREBUFFER_FORMAT_YCbCr_P210;
+        } else if (isHalPixelFormatSupported(
+                        (AHardwareBuffer_Format)HAL_PIXEL_FORMAT_YCBCR_P010)) {
+            format = HAL_PIXEL_FORMAT_YCBCR_P010;
+        } else {
+            format = HAL_PIXEL_FORMAT_YV12;
         }
-        format = getHalPixelFormatForBitDepth10(allowRGBA1010102);
     }
 
     if (mHalPixelFormat != format) {

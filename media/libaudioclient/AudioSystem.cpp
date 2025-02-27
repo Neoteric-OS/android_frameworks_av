@@ -1177,7 +1177,7 @@ void AudioSystem::onNewAudioModulesAvailable() {
 
 status_t AudioSystem::setDeviceConnectionState(audio_policy_dev_state_t state,
                                                const android::media::audio::common::AudioPort& port,
-                                               audio_format_t encodedFormat) {
+                                               audio_format_t encodedFormat, bool deviceSwitch) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
 
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
@@ -1188,7 +1188,8 @@ status_t AudioSystem::setDeviceConnectionState(audio_policy_dev_state_t state,
                             legacy2aidl_audio_policy_dev_state_t_AudioPolicyDeviceState(state)),
                     port,
                     VALUE_OR_RETURN_STATUS(
-                            legacy2aidl_audio_format_t_AudioFormatDescription(encodedFormat))));
+                            legacy2aidl_audio_format_t_AudioFormatDescription(encodedFormat)),
+                    deviceSwitch));
 }
 
 audio_policy_dev_state_t AudioSystem::getDeviceConnectionState(audio_devices_t device,

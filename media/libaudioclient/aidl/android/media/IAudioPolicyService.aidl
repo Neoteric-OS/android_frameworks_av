@@ -72,7 +72,8 @@ interface IAudioPolicyService {
 
     void setDeviceConnectionState(in AudioPolicyDeviceState state,
                                   in android.media.audio.common.AudioPort port,
-                                  in AudioFormatDescription encodedFormat);
+                                  in AudioFormatDescription encodedFormat,
+                                  boolean deviceSwitch);
 
     AudioPolicyDeviceState getDeviceConnectionState(in AudioDevice device);
 

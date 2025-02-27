@@ -48,10 +48,11 @@ private:
 
     AppOpsManager mAppOpsManager;
 
-    class PlayAudioOpCallback : public BnAppOpsCallback {
+    class PlayAudioOpCallback : public com::android::internal::app::BnAppOpsCallback {
     public:
         explicit PlayAudioOpCallback(const wp<OpPlayAudioMonitor>& monitor);
-        void opChanged(int32_t op, const String16& packageName) override;
+        binder::Status opChanged(int32_t op, int32_t uid, const String16& packageName,
+                                 const String16& persistentDeviceId) override;
 
     private:
         const wp<OpPlayAudioMonitor> mMonitor;

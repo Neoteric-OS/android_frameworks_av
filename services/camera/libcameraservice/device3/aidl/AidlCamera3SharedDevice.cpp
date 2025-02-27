@@ -591,6 +591,7 @@ void AidlCamera3SharedDevice::notifyError(
 }
 
 status_t AidlCamera3SharedDevice::notifyActive(float maxPreviewFps) {
+    Mutex::Autolock l(mSharedDeviceActiveLock);
     for (auto activeClient : mClientRequestIds) {
         sp<NotificationListener> listener =  mClientListeners[activeClient.first].promote();
         if (listener != NULL) {
@@ -605,6 +606,7 @@ void  AidlCamera3SharedDevice::notifyIdle(int64_t requestCount, int64_t resultEr
                                      bool deviceError,
                                      std::pair<int32_t, int32_t> mostRequestedFpsRange,
                                      const std::vector<hardware::CameraStreamStats>& stats) {
+    Mutex::Autolock l(mSharedDeviceActiveLock);
     for (auto clientListener : mClientListeners) {
         sp<NotificationListener> listener =  clientListener.second.promote();
         if (listener != NULL) {

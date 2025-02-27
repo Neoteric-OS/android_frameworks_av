@@ -698,13 +698,13 @@ TEST_F(AudioSystemTest, SetDeviceConnectedState) {
         // !!! Instead of the default format, use each format from 'ext.encodedFormats'
         // !!! if they are not empty
         status = AudioSystem::setDeviceConnectionState(AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                                                       aidlPort, AUDIO_FORMAT_DEFAULT);
+                                                       aidlPort, AUDIO_FORMAT_DEFAULT, false);
         EXPECT_EQ(OK, status);
         if (status != OK) continue;
         deviceState = AudioSystem::getDeviceConnectionState(type, address);
         EXPECT_EQ(AUDIO_POLICY_DEVICE_STATE_AVAILABLE, deviceState);
         status = AudioSystem::setDeviceConnectionState(AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-                                                       aidlPort, AUDIO_FORMAT_DEFAULT);
+                                                       aidlPort, AUDIO_FORMAT_DEFAULT, false);
         EXPECT_EQ(OK, status);
         deviceState = AudioSystem::getDeviceConnectionState(type, address);
         EXPECT_EQ(AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, deviceState);

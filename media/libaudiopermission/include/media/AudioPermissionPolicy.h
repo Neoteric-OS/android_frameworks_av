@@ -17,7 +17,6 @@
 #pragma once
 
 #include <android-base/thread_annotations.h>
-#include <binder/IAppOpsCallback.h>
 #include <cutils/android_filesystem_config.h>
 #include <log/log.h>
 #include <system/audio.h>

@@ -205,15 +205,16 @@ OpRecordAudioMonitor::RecordAudioOpCallback::RecordAudioOpCallback(
         const wp<OpRecordAudioMonitor>& monitor) : mMonitor(monitor)
 { }
 
-void OpRecordAudioMonitor::RecordAudioOpCallback::opChanged(int32_t op,
-            const String16& packageName __unused) {
+binder::Status OpRecordAudioMonitor::RecordAudioOpCallback::opChanged(int32_t op, int32_t,
+            const String16&, const String16&) {
     sp<OpRecordAudioMonitor> monitor = mMonitor.promote();
     if (monitor != NULL) {
         if (op != monitor->getOp()) {
-            return;
+            return binder::Status::ok();
         }
         monitor->checkOp(true);
     }
+    return binder::Status::ok();
 }
 
 }  // namespace android::media::audiopolicy

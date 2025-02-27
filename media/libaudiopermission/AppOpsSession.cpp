@@ -26,13 +26,16 @@ namespace android::media::permission {
 
 // Package name param is unreliable (can be empty), but we should only get valid events based on
 // how we register the listener.
-void DefaultAppOpsFacade::OpMonitor::opChanged(int32_t op, const String16&) {
-    if (mOps.attributedOp != op && mOps.additionalOp != op) return;
+binder::Status DefaultAppOpsFacade::OpMonitor::opChanged(int32_t op, int32_t, const String16&,
+                                                         const String16&) {
+    if (mOps.attributedOp != op && mOps.additionalOp != op) return binder::Status::ok();
     DefaultAppOpsFacade x{};
     const auto allowed = x.checkAccess(mAttr, mOps);
     std::lock_guard l_{mLock};
-    if (mCb == nullptr) return;
-    mCb(allowed);
+    if (mCb != nullptr) {
+        mCb(allowed);
+    }
+    return binder::Status::ok();
 }
 
 bool DefaultAppOpsFacade::startAccess(const ValidatedAttributionSourceState& attr_, Ops ops) {
