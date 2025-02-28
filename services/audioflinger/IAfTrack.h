@@ -46,6 +46,7 @@ class IAfPatchTrack;
 class IAfPlaybackThread;
 class IAfRecordThread;
 class IAfThreadBase;
+class IAfThreadCallback;
 
 struct TeePatch {
     sp<IAfPatchRecord> patchRecord;
@@ -267,16 +268,15 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     using AppOpsSession = media::permission::AppOpsSession<media::permission::DefaultAppOpsFacade>;
 
   public:
-    AfPlaybackCommon(
-            IAfTrackBase & self, float volume, bool muted, const audio_attributes_t& attr,
-            const AttributionSourceState& attributionSource, bool shouldPlaybackHarden = true);
+    AfPlaybackCommon(IAfTrackBase& self, IAfThreadCallback& thread, float volume, bool muted,
+                     const audio_attributes_t& attr,
+                     const AttributionSourceState& attributionSource,
+                     bool shouldPlaybackHarden = true);
 
     /**
-     * Updates the mute state and notifies the audio service. Call this only when holding player
-     * thread lock.
+     * Updates the mute state and notifies the audio service.
      */
-    void processMuteEvent_l(
-            const sp<IAudioManager>& audioManager, mute_state_t muteState);
+    void processMuteEvent(media::IAudioManagerNative& am, mute_state_t muteState);
 
     void maybeLogPlaybackHardening(media::IAudioManagerNative& am) const;
 

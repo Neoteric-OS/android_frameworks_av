@@ -189,6 +189,8 @@ public:
 
     void updateDeviceSelectionCache() override;
 
+    engineConfig::ParsingResult parseAndSetDefaultConfiguration();
+
 protected:
     DeviceVector getPreferredAvailableDevicesForProductStrategy(
         const DeviceVector& availableOutputDevices, product_strategy_t strategy) const;

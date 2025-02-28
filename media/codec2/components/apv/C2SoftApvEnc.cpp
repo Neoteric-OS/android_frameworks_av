@@ -85,17 +85,6 @@ class C2SoftApvEnc::IntfImpl : public SimpleInterface<void>::BaseParams {
                              .withSetter(SizeSetter)
                              .build());
 
-        // matches limits in codec library
-        addParameter(DefineParam(mBitrateMode, C2_PARAMKEY_BITRATE_MODE)
-                             .withDefault(new C2StreamBitrateModeTuning::output(
-                                     0u, C2Config::BITRATE_VARIABLE))
-                             .withFields({C2F(mBitrateMode, value)
-                                                  .oneOf({C2Config::BITRATE_CONST,
-                                                          C2Config::BITRATE_VARIABLE,
-                                                          C2Config::BITRATE_IGNORE})})
-                             .withSetter(Setter<decltype(*mBitrateMode)>::StrictValueWithNoDeps)
-                             .build());
-
         addParameter(DefineParam(mBitrate, C2_PARAMKEY_BITRATE)
                              .withDefault(new C2StreamBitrateInfo::output(0u, 512000))
                              .withFields({C2F(mBitrate, value).inRange(512000, 240000000)})
@@ -718,25 +707,6 @@ class C2SoftApvEnc::IntfImpl : public SimpleInterface<void>::BaseParams {
         return bandIdc;
     }
 
-    int32_t getBitrateMode_l() const {
-        int32_t bitrateMode = C2Config::BITRATE_CONST;
-
-        switch (mBitrateMode->value) {
-            case C2Config::BITRATE_CONST:
-                bitrateMode = OAPV_RC_CQP;
-                break;
-            case C2Config::BITRATE_VARIABLE:
-                bitrateMode = OAPV_RC_ABR;
-                break;
-            case C2Config::BITRATE_IGNORE:
-                bitrateMode = 0;
-                break;
-            default:
-                ALOGE("Unrecognized bitrate mode: %x", mBitrateMode->value);
-        }
-        return bitrateMode;
-    }
-
     std::shared_ptr<C2StreamPictureSizeInfo::input> getSize_l() const { return mSize; }
     std::shared_ptr<C2StreamFrameRateInfo::output> getFrameRate_l() const { return mFrameRate; }
     std::shared_ptr<C2StreamBitrateInfo::output> getBitrate_l() const { return mBitrate; }
@@ -763,7 +733,6 @@ class C2SoftApvEnc::IntfImpl : public SimpleInterface<void>::BaseParams {
     std::shared_ptr<C2StreamPictureSizeInfo::input> mSize;
     std::shared_ptr<C2StreamFrameRateInfo::output> mFrameRate;
     std::shared_ptr<C2StreamBitrateInfo::output> mBitrate;
-    std::shared_ptr<C2StreamBitrateModeTuning::output> mBitrateMode;
     std::shared_ptr<C2StreamQualityTuning::output> mQuality;
     std::shared_ptr<C2StreamColorAspectsInfo::input> mColorAspects;
     std::shared_ptr<C2StreamColorAspectsInfo::output> mCodedColorAspects;
@@ -968,15 +937,9 @@ void C2SoftApvEnc::setParams(oapve_param_t& param) {
     param.fps_num = (int)(mFrameRate->value * 100);
     param.fps_den = 100;
     param.bitrate = (int)(mBitrate->value / 1000);
-    param.rc_type = mIntf->getBitrateMode_l();
+    param.rc_type = OAPV_RC_ABR;
 
-    int ApvQP = kApvDefaultQP;
-    if (param.rc_type == OAPV_RC_CQP) {
-        ApvQP = getQpFromQuality(mQuality->value);
-        ALOGI("Bitrate mode is CQ, so QP value is derived from Quality. Quality is %d, QP is %d",
-              mQuality->value, ApvQP);
-    }
-    param.qp = ApvQP;
+    param.qp = kApvDefaultQP;
     param.band_idc = mIntf->getBandIdc_l();
     param.profile_idc = mIntf->getProfile_l();
     param.level_idc = mIntf->getLevel_l();
@@ -1010,30 +973,42 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
     inputFrames->frm[mReceivedFrames].pbu_type = OAPV_PBU_TYPE_PRIMARY_FRAME;
 
     switch (layout.type) {
-        case C2PlanarLayout::TYPE_RGB:
-            ALOGE("Not supported RGB color format");
-            return C2_BAD_VALUE;
+        case C2PlanarLayout::TYPE_RGB: {
+            uint16_t *dstY  = (uint16_t*)inputFrames->frm[0].imgb->a[0];
+            uint16_t *dstUV = (uint16_t*)inputFrames->frm[0].imgb->a[1];
+            size_t dstYStride = inputFrames->frm[0].imgb->s[0] / 2;
+            size_t dstUVStride = inputFrames->frm[0].imgb->s[1] / 2;
+            convertRGBToP210(dstY, dstUV, (uint32_t*)(input->data()[0]),
+                                        layout.planes[layout.PLANE_Y].rowInc / 4,
+                                        dstYStride, dstUVStride, width, height,
+                                        mColorAspects->matrix, mColorAspects->range);
+            break;
+        }
         case C2PlanarLayout::TYPE_RGBA: {
             [[fallthrough]];
         }
         case C2PlanarLayout::TYPE_YUVA: {
             ALOGV("Convert from ABGR2101010 to P210");
-            uint16_t *dstY, *dstU, *dstV;
-            dstY = (uint16_t*)inputFrames->frm[0].imgb->a[0];
-            dstU = (uint16_t*)inputFrames->frm[0].imgb->a[1];
-            dstV = (uint16_t*)inputFrames->frm[0].imgb->a[2];
-            convertRGBA1010102ToYUV420Planar16(dstY, dstU, dstV, (uint32_t*)(input->data()[0]),
-                                                layout.planes[layout.PLANE_Y].rowInc / 4, width,
-                                                height, mColorAspects->matrix,
-                                                mColorAspects->range);
-            break;
+            if (mColorFormat == OAPV_CF_PLANAR2) {
+                uint16_t *dstY, *dstUV;
+                dstY = (uint16_t*)inputFrames->frm[0].imgb->a[0];
+                dstUV = (uint16_t*)inputFrames->frm[0].imgb->a[1];
+                size_t dstYStride = inputFrames->frm[0].imgb->s[0] / 2;
+                size_t dstUVStride = inputFrames->frm[0].imgb->s[1] / 2;
+                convertRGBA1010102ToP210(dstY, dstUV, (uint32_t*)(input->data()[0]),
+                                                layout.planes[layout.PLANE_Y].rowInc / 4,
+                                                dstYStride, dstUVStride, width, height,
+                                                mColorAspects->matrix, mColorAspects->range);
+                break;
+            } else {
+                ALOGE("Not supported color format. %d", mColorFormat);
+                return C2_BAD_VALUE;
+            }
         }
         case C2PlanarLayout::TYPE_YUV: {
             if (IsP010(*input)) {
                 ALOGV("Convert from P010 to P210");
-                if (mColorFormat == OAPV_CF_YCBCR422) {
-                    ColorConvertP010ToYUV422P10le(input, inputFrames->frm[0].imgb);
-                } else if (mColorFormat == OAPV_CF_PLANAR2) {
+                if (mColorFormat == OAPV_CF_PLANAR2) {
                     uint16_t *srcY  = (uint16_t*)(input->data()[0]);
                     uint16_t *srcUV = (uint16_t*)(input->data()[1]);
                     uint16_t *dstY  = (uint16_t*)inputFrames->frm[0].imgb->a[0];
@@ -1043,12 +1018,12 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
                     convertP010ToP210(dstY, dstUV, srcY, srcUV,
                                       layout.planes[layout.PLANE_Y].rowInc / 2,
                                       layout.planes[layout.PLANE_U].rowInc / 2,
-                                      dstYStride, dstUVStride, input->width(), input->height());
+                                      dstYStride, dstUVStride, width, height);
                 } else {
                     ALOGE("Not supported color format. %d", mColorFormat);
                     return C2_BAD_VALUE;
                 }
-            } else if (IsNV12(*input)) {
+            } else if (IsNV12(*input) || IsNV21(*input)) {
                 ALOGV("Convert from NV12 to P210");
                 uint8_t  *srcY  = (uint8_t*)input->data()[0];
                 uint8_t  *srcUV = (uint8_t*)input->data()[1];
@@ -1060,7 +1035,7 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
                                          layout.planes[layout.PLANE_Y].rowInc,
                                          layout.planes[layout.PLANE_U].rowInc,
                                          dstYStride, dstUVStride,
-                                         input->width(), input->height(), CONV_FORMAT_I420);
+                                         width, height, CONV_FORMAT_I420, IsNV12(*input));
             } else if (IsI420(*input)) {
                 ALOGV("Convert from I420 to P210");
                 uint8_t  *srcY  = (uint8_t*)input->data()[0];
@@ -1075,7 +1050,7 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
                                         layout.planes[C2PlanarLayout::PLANE_U].rowInc,
                                         layout.planes[C2PlanarLayout::PLANE_V].rowInc,
                                         dstYStride, dstUVStride,
-                                        input->width(), input->height(),
+                                        width, height,
                                         CONV_FORMAT_I420);
 
             } else {
@@ -1091,50 +1066,6 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
     }
 
     return C2_OK;
-}
-
-void C2SoftApvEnc::ColorConvertP010ToYUV422P10le(const C2GraphicView* const input,
-                                                 oapv_imgb_t* imgb) {
-    uint32_t width = input->width();
-    uint32_t height = input->height();
-
-    uint8_t* yPlane = (uint8_t*)input->data()[0];
-    auto* uvPlane = (uint8_t*)input->data()[1];
-    uint32_t stride[3];
-    stride[0] = width * 2;
-    stride[1] = stride[2] = width;
-
-    uint8_t *dst, *src;
-    uint16_t tmp;
-    for (int32_t y = 0; y < height; ++y) {
-        src = yPlane + y * stride[0];
-        dst = (uint8_t*)imgb->a[0] + y * stride[0];
-        for (int32_t x = 0; x < stride[0]; x += 2) {
-            tmp = (src[x + 1] << 2) | (src[x] >> 6);
-            dst[x] = tmp & 0xFF;
-            dst[x + 1] = tmp >> 8;
-        }
-    }
-
-    uint8_t *dst_u, *dst_v;
-    for (int32_t y = 0; y < height / 2; ++y) {
-        src = uvPlane + y * stride[1] * 2;
-        dst_u = (uint8_t*)imgb->a[1] + (y * 2) * stride[1];
-        dst_v = (uint8_t*)imgb->a[2] + (y * 2) * stride[2];
-        for (int32_t x = 0; x < stride[1] * 2; x += 4) {
-            tmp = (src[x + 1] << 2) | (src[x] >> 6);  // cb
-            dst_u[x / 2] = tmp & 0xFF;
-            dst_u[x / 2 + 1] = tmp >> 8;
-            dst_u[x / 2 + stride[1]] = dst_u[x / 2];
-            dst_u[x / 2 + stride[1] + 1] = dst_u[x / 2 + 1];
-
-            tmp = (src[x + 3] << 2) | (src[x + 2] >> 6);  // cr
-            dst_v[x / 2] = tmp & 0xFF;
-            dst_v[x / 2 + 1] = tmp >> 8;
-            dst_v[x / 2 + stride[2]] = dst_v[x / 2];
-            dst_v[x / 2 + stride[2] + 1] = dst_v[x / 2 + 1];
-        }
-    }
 }
 
 void C2SoftApvEnc::finishWork(uint64_t workIndex, const std::unique_ptr<C2Work>& work,
@@ -1205,13 +1136,14 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
     uint8_t profile_idc = 0;
     uint8_t level_idc = 0;
     uint8_t band_idc = 0;
-    uint32_t frame_width_minus1 = 0;
-    uint32_t frame_height_minus1 = 0;
+    uint32_t frame_width = 0;
+    uint32_t frame_height = 0;
     uint8_t chroma_format_idc = 0;
     uint8_t bit_depth_minus8 = 0;
     uint8_t capture_time_distance = 0;
     uint8_t color_primaries = 0;
     uint8_t transfer_characteristics = 0;
+    uint8_t full_range_flag = 0;
     uint8_t matrix_coefficients = 0;
 
     /* pbu_header() */
@@ -1226,8 +1158,8 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
     level_idc = reader.getBits(8);              // level_idc
     band_idc = reader.getBits(3);               // band_idc
     reader.skipBits(5);                         // reserved_zero_5bits
-    frame_width_minus1 = reader.getBits(32);    // width
-    frame_height_minus1 = reader.getBits(32);   // height
+    frame_width = reader.getBits(24);           // width
+    frame_height = reader.getBits(24);          // height
     chroma_format_idc = reader.getBits(4);      // chroma_format_idc
     bit_depth_minus8 = reader.getBits(4);       // bit_depth
     capture_time_distance = reader.getBits(8);  // capture_time_distance
@@ -1240,12 +1172,14 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
         color_primaries = reader.getBits(8);           // color_primaries
         transfer_characteristics = reader.getBits(8);  // transfer_characteristics
         matrix_coefficients = reader.getBits(8);       // matrix_coefficients
+        full_range_flag = reader.getBits(1);           // full_range_flag
     }
 
     number_of_configuration_entry = 1;  // The real-time encoding on the device is assumed to be 1.
     number_of_frame_info = 1;  // The real-time encoding on the device is assumed to be 1.
 
     std::vector<uint8_t> csdData;
+
     csdData.push_back((uint8_t)0x1);
     csdData.push_back(number_of_configuration_entry);
 
@@ -1258,14 +1192,14 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
             csdData.push_back(profile_idc);
             csdData.push_back(level_idc);
             csdData.push_back(band_idc);
-            csdData.push_back((uint8_t)((frame_width_minus1 >> 24) & 0xff));
-            csdData.push_back((uint8_t)((frame_width_minus1 >> 16) & 0xff));
-            csdData.push_back((uint8_t)((frame_width_minus1 >> 8) & 0xff));
-            csdData.push_back((uint8_t)(frame_width_minus1 & 0xff));
-            csdData.push_back((uint8_t)((frame_height_minus1 >> 24) & 0xff));
-            csdData.push_back((uint8_t)((frame_height_minus1 >> 16) & 0xff));
-            csdData.push_back((uint8_t)((frame_height_minus1 >> 8) & 0xff));
-            csdData.push_back((uint8_t)(frame_height_minus1 & 0xff));
+            csdData.push_back((uint8_t)((frame_width >> 24) & 0xff));
+            csdData.push_back((uint8_t)((frame_width >> 16) & 0xff));
+            csdData.push_back((uint8_t)((frame_width >> 8) & 0xff));
+            csdData.push_back((uint8_t)(frame_width & 0xff));
+            csdData.push_back((uint8_t)((frame_height >> 24) & 0xff));
+            csdData.push_back((uint8_t)((frame_height >> 16) & 0xff));
+            csdData.push_back((uint8_t)((frame_height >> 8) & 0xff));
+            csdData.push_back((uint8_t)(frame_height & 0xff));
             csdData.push_back((uint8_t)(((chroma_format_idc << 4) & 0xf0) |
                                       (bit_depth_minus8 & 0xf)));
             csdData.push_back((uint8_t)(capture_time_distance));
@@ -1273,6 +1207,7 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
                 csdData.push_back(color_primaries);
                 csdData.push_back(transfer_characteristics);
                 csdData.push_back(matrix_coefficients);
+                csdData.push_back(full_range_flag << 7);
             }
         }
     }
@@ -1384,6 +1319,8 @@ void C2SoftApvEnc::process(const std::unique_ptr<C2Work>& work,
         work->workletsProcessed = 1u;
         return;
     }
+
+    view->setCrop_be(C2Rect(mSize->width, mSize->height));
 
     error = setEncodeArgs(&mInputFrames, view.get(), workIndex);
     if (error != C2_OK) {

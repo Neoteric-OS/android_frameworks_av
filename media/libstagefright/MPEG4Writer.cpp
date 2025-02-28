@@ -1015,7 +1015,7 @@ int64_t MPEG4Writer::estimateMoovBoxSize(int32_t bitRate) {
 
     // Max file size limit is set
     if (mMaxFileSizeLimitBytes != 0 && mIsFileSizeLimitExplicitlyRequested) {
-        size = mMaxFileSizeLimitBytes * 6 / 1000;
+        size = mMaxFileSizeLimitBytes / 1000 * 6;
     }
 
     // Max file duration limit is set
@@ -6183,6 +6183,9 @@ void MPEG4Writer::Track::writeApvcBox() {
     CHECK_GE(mCodecSpecificDataSize, 4u);
 
     mOwner->beginBox("apvC");
+    // apvC extends FullBox and hence the need to write first
+    // 4 bytes here when compared with av1C which extends Box.
+    mOwner->writeInt32(0);  // version=0, flags=0
     mOwner->write(mCodecSpecificData, mCodecSpecificDataSize);
     mOwner->endBox();  // apvC
 }

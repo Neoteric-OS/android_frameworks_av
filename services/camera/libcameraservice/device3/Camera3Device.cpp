@@ -123,6 +123,16 @@ namespace wm_flags = com::android::window::flags;
 
 namespace android {
 
+namespace {
+
+bool shouldInjectFakeStream(const CameraMetadata& info) {
+    // Do not inject fake stream for a virtual camera (i.e., camera belonging to virtual devices),
+    // as it can handle zero streams properly.
+    return getDeviceId(info) == kDefaultDeviceId;
+}
+
+} // namespace
+
 Camera3Device::Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const std::string &id, bool overrideForPerfClass, int rotationOverride,
@@ -134,6 +144,8 @@ Camera3Device::Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraS
         mOperatingMode(NO_MODE),
         mIsConstrainedHighSpeedConfiguration(false),
         mIsCompositeJpegRDisabled(false),
+        mIsCompositeHeicDisabled(false),
+        mIsCompositeHeicUltraHDRDisabled(false),
         mStatus(STATUS_UNINITIALIZED),
         mStatusWaiters(0),
         mUsePartialResult(false),
@@ -2566,11 +2578,13 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
 
     // Workaround for device HALv3.2 or older spec bug - zero streams requires
     // adding a fake stream instead.
-    // TODO: Bug: 17321404 for fixing the HAL spec and removing this workaround.
-    if (mOutputStreams.size() == 0) {
-        addFakeStreamLocked();
-    } else {
-        tryRemoveFakeStreamLocked();
+    // TODO(b/17321404): Fix the HAL spec and remove this workaround.
+    if (shouldInjectFakeStream(mDeviceInfo)) {
+        if (mOutputStreams.size() == 0) {
+            addFakeStreamLocked();
+        } else {
+            tryRemoveFakeStreamLocked();
+        }
     }
 
     // Override stream use case based on "adb shell command"
@@ -5988,4 +6002,4 @@ status_t Camera3Device::deriveAndSetTransformLocked(
     return OK;
 }
 
-}; // namespace android
+} // namespace android

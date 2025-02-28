@@ -1817,7 +1817,8 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // in the background.
     sp<IOProfile> profile;
 // QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
-    if (((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) ||
+    if ((((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) == 0) &&
+            flags != AUDIO_OUTPUT_FLAG_DIRECT) ||
 // QTI_END: 2021-01-27: Audio: audiopolicy: Add support for multipleOffload.
             !(mEffects.isNonOffloadableEffectEnabled() || mMasterMono)) {
         profile = getProfileForOutput(
@@ -3434,6 +3435,7 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes_,
     ret.portId = allocatedPortId;
     ret.virtualDeviceId = permReq.virtualDeviceId;
     ret.config = legacy2aidl_audio_config_base_t_AudioConfigBase(config, true /*isInput*/).value();
+    ret.source = legacy2aidl_audio_source_t_AudioSource(attributes.source).value();
     return ret;
 }
 
