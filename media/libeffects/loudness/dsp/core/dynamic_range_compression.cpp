@@ -22,6 +22,7 @@
 #include "dsp/core/basic.h"
 #include "dsp/core/interpolation.h"
 #include "dsp/core/dynamic_range_compression.h"
+#include <system/audio.h>
 
 #include <android/log.h>
 
@@ -74,64 +75,51 @@ bool AdaptiveDynamicRangeCompression::Initialize(
   return true;
 }
 
-float AdaptiveDynamicRangeCompression::Compress(float x) {
-  const float max_abs_x = std::max(std::fabs(x), kMinLogAbsValue);
-  const float max_abs_x_dB = math::fast_log(max_abs_x);
-  // Subtract Threshold from log-encoded input to get the amount of overshoot
-  const float overshoot = max_abs_x_dB - knee_threshold_;
-  // Hard half-wave rectifier
-  const float rect = std::max(overshoot, 0.0f);
-  // Multiply rectified overshoot with slope
-  const float cv = rect * slope_;
-  const float prev_state = state_;
-  if (cv <= state_) {
-    state_ = alpha_attack_ * state_ + (1.0f - alpha_attack_) * cv;
-  } else {
-    state_ = alpha_release_ * state_ + (1.0f - alpha_release_) * cv;
-  }
-  compressor_gain_ *= expf(state_ - prev_state);
-  x *= compressor_gain_;
-  if (x > kFixedPointLimit) {
-    return kFixedPointLimit;
-  }
-  if (x < -kFixedPointLimit) {
-    return -kFixedPointLimit;
-  }
-  return x;
-}
 
-void AdaptiveDynamicRangeCompression::Compress(float *x1, float *x2) {
-  // Taking the maximum amplitude of both channels
-  const float max_abs_x = std::max(std::fabs(*x1),
-    std::max(std::fabs(*x2), kMinLogAbsValue));
-  const float max_abs_x_dB = math::fast_log(max_abs_x);
-  // Subtract Threshold from log-encoded input to get the amount of overshoot
-  const float overshoot = max_abs_x_dB - knee_threshold_;
-  // Hard half-wave rectifier
-  const float rect = std::max(overshoot, 0.0f);
-  // Multiply rectified overshoot with slope
-  const float cv = rect * slope_;
-  const float prev_state = state_;
-  if (cv <= state_) {
-    state_ = alpha_attack_ * state_ + (1.0f - alpha_attack_) * cv;
-  } else {
-    state_ = alpha_release_ * state_ + (1.0f - alpha_release_) * cv;
-  }
-  compressor_gain_ *= expf(state_ - prev_state);
-  *x1 *= compressor_gain_;
-  if (*x1 > kFixedPointLimit) {
-    *x1 = kFixedPointLimit;
-  }
-  if (*x1 < -kFixedPointLimit) {
-    *x1 = -kFixedPointLimit;
-  }
-  *x2 *= compressor_gain_;
-  if (*x2 > kFixedPointLimit) {
-    *x2 = kFixedPointLimit;
-  }
-  if (*x2 < -kFixedPointLimit) {
-    *x2 = -kFixedPointLimit;
-  }
+// Instantiate Compress for supported channel counts.
+#define INSTANTIATE_COMPRESS(CHANNEL_COUNT) \
+case CHANNEL_COUNT: \
+    if constexpr (CHANNEL_COUNT <= FCC_LIMIT) { \
+        Compress(inputAmp, inverseScale, \
+                reinterpret_cast<internal_array_t<float, CHANNEL_COUNT>*>(buffer), frameCount); \
+        return; \
+    } \
+    break;
+
+ void AdaptiveDynamicRangeCompression::Compress(size_t channelCount,
+        float inputAmp, float inverseScale, float* buffer, size_t frameCount) {
+    using android::audio_utils::intrinsics::internal_array_t;
+    switch (channelCount) {
+        INSTANTIATE_COMPRESS(1);
+        INSTANTIATE_COMPRESS(2);
+        INSTANTIATE_COMPRESS(3);
+        INSTANTIATE_COMPRESS(4);
+        INSTANTIATE_COMPRESS(5);
+        INSTANTIATE_COMPRESS(6);
+        INSTANTIATE_COMPRESS(7);
+        INSTANTIATE_COMPRESS(8);
+        INSTANTIATE_COMPRESS(9);
+        INSTANTIATE_COMPRESS(10);
+        INSTANTIATE_COMPRESS(11);
+        INSTANTIATE_COMPRESS(12);
+        INSTANTIATE_COMPRESS(13);
+        INSTANTIATE_COMPRESS(14);
+        INSTANTIATE_COMPRESS(15);
+        INSTANTIATE_COMPRESS(16);
+        INSTANTIATE_COMPRESS(17);
+        INSTANTIATE_COMPRESS(18);
+        INSTANTIATE_COMPRESS(19);
+        INSTANTIATE_COMPRESS(20);
+        INSTANTIATE_COMPRESS(21);
+        INSTANTIATE_COMPRESS(22);
+        INSTANTIATE_COMPRESS(23);
+        INSTANTIATE_COMPRESS(24);
+        INSTANTIATE_COMPRESS(25);
+        INSTANTIATE_COMPRESS(26);
+        INSTANTIATE_COMPRESS(27);
+        INSTANTIATE_COMPRESS(28);
+    }
+    LOG_ALWAYS_FATAL("%s: channelCount: %zu not supported", __func__, channelCount);
 }
 
 }  // namespace le_fx

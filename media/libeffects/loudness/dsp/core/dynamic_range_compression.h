@@ -23,6 +23,7 @@
 #include "dsp/core/basic.h"
 #include "dsp/core/interpolation.h"
 
+#include <audio_utils/intrinsic_utils.h>
 #include <android/log.h>
 
 namespace le_fx {
@@ -51,19 +52,9 @@ class AdaptiveDynamicRangeCompression {
     // relatively safe choice for many signals.
     bool Initialize(float target_gain, float sampling_rate);
 
-  // A fast version of the algorithm that uses approximate computations for the
-  // log(.) and exp(.).
-  float Compress(float x);
-
-  // Stereo channel version of the compressor
-  void Compress(float *x1, float *x2);
-
-  // This version is slower than Compress(.) but faster than CompressSlow(.)
-  float CompressNormalSpeed(float x);
-
-  // A slow version of the algorithm that is easier for further developement,
-  // tuning and debugging
-  float CompressSlow(float x);
+  // in-place compression.
+  void Compress(size_t channelCount,
+          float inputAmp, float inverseScale, float* buffer, size_t frameCount);
 
   // Sets knee threshold (in decibel).
   void set_knee_threshold(float decibel);
@@ -73,6 +64,34 @@ class AdaptiveDynamicRangeCompression {
   void set_knee_threshold_via_target_gain(float target_gain);
 
  private:
+
+  // Templated Compress routine.
+  template <typename V>
+  void Compress(float inputAmp, float inverseScale, V* buffer, size_t frameCount) {
+    for (size_t i = 0; i < frameCount; ++i) {
+        auto v = android::audio_utils::intrinsics::vmul(buffer[i], inputAmp);
+        const float max_abs_x = android::audio_utils::intrinsics::vmaxv(
+                android::audio_utils::intrinsics::vabs(v));
+        const float max_abs_x_dB = math::fast_log(std::max(max_abs_x, kMinLogAbsValue));
+        // Subtract Threshold from log-encoded input to get the amount of overshoot
+        const float overshoot = max_abs_x_dB - knee_threshold_;
+        // Hard half-wave rectifier
+        const float rect = std::max(overshoot, 0.0f);
+        // Multiply rectified overshoot with slope
+        const float cv = rect * slope_;
+        const float prev_state = state_;
+        if (cv <= state_) {
+            state_ = alpha_attack_ * state_ + (1.0f - alpha_attack_) * cv;
+        } else {
+            state_ = alpha_release_ * state_ + (1.0f - alpha_release_) * cv;
+        }
+        compressor_gain_ *= expf(state_ - prev_state);
+        const auto x = android::audio_utils::intrinsics::vmul(v, compressor_gain_);
+        v = android::audio_utils::intrinsics::vclamp(x, -kFixedPointLimit, kFixedPointLimit);
+        buffer[i] = android::audio_utils::intrinsics::vmul(inverseScale, v);
+    }
+  }
+
   // The minimum accepted absolute input value and it's natural logarithm. This
   // is to prevent numerical issues when the input is close to zero
   static const float kMinAbsValue;
