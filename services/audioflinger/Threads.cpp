@@ -643,6 +643,8 @@ const char* IAfThreadBase::threadTypeToString(ThreadBase::type_t type)
         return "SPATIALIZER";
     case BIT_PERFECT:
         return "BIT_PERFECT";
+    case DIRECT_RECORD:
+        return "DIRECT_RECORD";
     default:
         return "unknown";
     }
@@ -7470,7 +7472,9 @@ void DirectOutputThread::flushHw_l()
 {
     PlaybackThread::flushHw_l();
     mOutput->flush();
+// QTI_BEGIN: 2025-02-10: Audio: set mHwPaused=true for DirectoutputThread
     mHwPaused = false;
+// QTI_END: 2025-02-10: Audio: set mHwPaused=true for DirectoutputThread
     mFlushPending = false;
 // QTI_BEGIN: 2019-10-21: Audio: audioflinger: reset frames written at the time of flush for direct outputs.
     mFramesWritten = 0;
@@ -8418,15 +8422,19 @@ sp<IAfRecordThread> IAfRecordThread::create(const sp<IAfThreadCallback>& afThrea
         AudioStreamIn* input,
         audio_io_handle_t id,
         bool systemReady) {
-    return sp<RecordThread>::make(afThreadCallback, input, id, systemReady);
+    if (input->flags & AUDIO_INPUT_FLAG_DIRECT) {
+        return sp<DirectRecordThread>::make(afThreadCallback, input, id, systemReady);
+    }
+    return sp<RecordThread>::make(afThreadCallback, RECORD, input, id, systemReady);
 }
 
 RecordThread::RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+                                         ThreadBase::type_t type,
                                          AudioStreamIn *input,
                                          audio_io_handle_t id,
                                          bool systemReady
                                          ) :
-    ThreadBase(afThreadCallback, id, RECORD, systemReady, false /* isOut */),
+    ThreadBase(afThreadCallback, id, type, systemReady, false /* isOut */),
     mInput(input),
     mSource(mInput),
     mActiveTracks(&this->mLocalLog),
@@ -9870,6 +9878,18 @@ void RecordThread::setRecordSilenced(audio_port_handle_t portId, bool silenced)
     }
 }
 
+// --------------------------------------------------------------------------------------
+//              DirectRecordThread
+// --------------------------------------------------------------------------------------
+
+DirectRecordThread::DirectRecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+                                     AudioStreamIn* input, audio_io_handle_t id, bool systemReady)
+    : RecordThread(afThreadCallback, DIRECT_RECORD, input, id, systemReady) {
+    ALOGD("%s:", __func__);
+}
+
+DirectRecordThread::~DirectRecordThread() {}
+
 void ResamplerBufferProvider::reset()
 {
     const auto threadBase = mRecordTrack->thread().promote();
@@ -10863,7 +10883,9 @@ status_t MmapThread::start(const AudioClient& client,
         chain->incActiveTrackCnt();
     }
 
-    track->logBeginInterval(patchSinksToString(&mPatch)); // log to MediaMetrics
+    // log to MediaMetrics
+    track->logBeginInterval(
+            isOutput() ? patchSinksToString(&mPatch) : patchSourcesToString(&mPatch));
     *handle = portId;
 
     if (mActiveTracks.size() == 1) {
@@ -11218,6 +11240,16 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
         }
         mPatch = *patch;
         mDeviceIds = deviceIds;
+    }
+
+    const std::string patchSourcesAsString = isOutput() ? "" : patchSourcesToString(patch);
+    const std::string patchSinksAsString = isOutput() ? patchSinksToString(patch) : "";
+    mThreadMetrics.logEndInterval();
+    mThreadMetrics.logCreatePatch(patchSourcesAsString, patchSinksAsString);
+    mThreadMetrics.logBeginInterval();
+    for (const auto &track : mActiveTracks) {
+        track->logEndInterval();
+        track->logBeginInterval(isOutput() ? patchSinksAsString : patchSourcesAsString);
     }
 
     return status;
