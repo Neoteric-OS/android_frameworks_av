@@ -867,7 +867,12 @@ media_status_t AMediaCodec_createInputSurface(AMediaCodec *mData, ANativeWindow 
         return translate_error(err);
     }
 
-    *surface = new Surface(igbp);
+    // This will increment default strongCount on construction.  It will be decremented
+    // on function exit.
+    auto spSurface = sp<Surface>::make(igbp);
+    *surface = spSurface.get();
+    // This will increment a private strongCount.  It will be decremented in
+    // ANativeWindow_release.
     ANativeWindow_acquire(*surface);
     return AMEDIA_OK;
 }
