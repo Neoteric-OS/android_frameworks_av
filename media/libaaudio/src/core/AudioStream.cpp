@@ -206,6 +206,7 @@ aaudio_result_t AudioStream::systemStart() {
 
     aaudio_result_t result = requestStart_l();
     if (result == AAUDIO_OK) {
+        mPlayerBase->baseUpdateDeviceIds(getDeviceIds());
         // We only call this for logging in "dumpsys audio". So ignore return code.
         (void) mPlayerBase->startWithStatus(getDeviceIds());
     }
