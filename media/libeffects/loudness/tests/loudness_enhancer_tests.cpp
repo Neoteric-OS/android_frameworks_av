@@ -17,8 +17,9 @@
 #include "dsp/core/dynamic_range_compression.h"
 #include <audio_effects/effect_loudnessenhancer.h>
 #include <audio_utils/dsp_utils.h>
-#include <system/audio_effects/audio_effects_test.h>
 #include <gtest/gtest.h>
+#include <log/log.h>
+#include <system/audio_effects/audio_effects_test.h>
 
 using status_t = int32_t;
 extern audio_effect_library_t AUDIO_EFFECT_LIBRARY_INFO_SYM;
@@ -28,17 +29,18 @@ effect_uuid_t loudness_uuid = {0xfa415329, 0x2034, 0x4bea, 0xb5dc,
 using namespace android::audio_utils;
 using namespace android::effect::utils;
 
-// Android 16:
-// expectedEnergydB: -24.771212  energyIndB: -24.739433
-// gaindB: 0.000000  measureddB: 0.000000  energyIndB: -24.739433  energyOutdB: -24.739433
-// gaindB: 1.000000  measureddB: 1.000004  energyIndB: -24.739433  energyOutdB: -23.739429
-// gaindB: 2.000000  measureddB: 2.000002  energyIndB: -24.739433  energyOutdB: -22.739431
-// gaindB: 5.000000  measureddB: 5.000006  energyIndB: -24.739433  energyOutdB: -19.739428
-// gaindB: 10.000000  measureddB: 10.000004  energyIndB: -24.739433  energyOutdB: -14.739429
-// -- gain saturates below as the output approaches 0dBov.
-// gaindB: 20.000000  measureddB: 13.444631  energyIndB: -24.739433  energyOutdB: -11.294803
-// gaindB: 50.000000  measureddB: 18.691999  energyIndB: -24.739433  energyOutdB: -6.047434
-// gaindB: 100.000000  measureddB: 22.908695  energyIndB: -24.739433  energyOutdB: -1.830737
+/*
+Android 16:
+expectedEnergydB: -24.771212  energyIndB: -24.739433
+gaindB: 0.000000  measureddB: 0.000000  energyIndB: -24.739433  energyOutdB: -24.739433
+gaindB: 1.000000  measureddB: 1.000004  energyIndB: -24.739433  energyOutdB: -23.739429
+gaindB: 2.000000  measureddB: 2.000002  energyIndB: -24.739433  energyOutdB: -22.739431
+gaindB: 5.000000  measureddB: 5.000006  energyIndB: -24.739433  energyOutdB: -19.739428
+gaindB: 10.000000  measureddB: 10.000004  energyIndB: -24.739433  energyOutdB: -14.739429
+gaindB: 20.000000  measureddB: 13.513464  energyIndB: -24.739433  energyOutdB: -11.225969
+gaindB: 50.000000  measureddB: 18.649250  energyIndB: -24.739433  energyOutdB: -6.090182
+gaindB: 100.000000  measureddB: 22.874735  energyIndB: -24.739433  energyOutdB: -1.864698
+ */
 
 static constexpr audio_channel_mask_t kOutputChannelMasks[] = {
 AUDIO_CHANNEL_OUT_STEREO,

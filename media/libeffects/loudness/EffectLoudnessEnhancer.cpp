@@ -403,7 +403,7 @@ int LE_command(effect_handle_t self, uint32_t cmdCode, uint32_t cmdSize,
         case LOUDNESS_ENHANCER_PARAM_TARGET_GAIN_MB:
             pContext->mTargetGainmB = *((int32_t *)p->data + 1);
             ALOGV("set target gain(mB) = %d", pContext->mTargetGainmB);
-            LE_reset(pContext); // apply parameter update
+            pContext->mCompressor->set_target_gain(pow(10, pContext->mTargetGainmB / 2000.f));
             break;
         default:
             *(int32_t *)pReplyData = -EINVAL;
