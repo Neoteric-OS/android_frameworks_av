@@ -394,6 +394,7 @@ FrameDecoder::FrameDecoder(
       mFirstSample(true),
       mSource(source),
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
+      mSourceStopped(false),
       mComponentName(componentName),
       mTrackMeta(trackMeta),
       mDstFormat(OMX_COLOR_Format16bitRGB565),
@@ -412,7 +413,9 @@ FrameDecoder::~FrameDecoder() {
     }
     if (mDecoder != NULL) {
         mDecoder->release();
-        mSource->stop();
+        if (!mSourceStopped) {
+            mSource->stop();
+        }
     }
 // QTI_BEGIN: 2020-08-20: Video: stagefright: FrameDecoder: set heif decoder hint
     ALOGD("FrameDecoder destroyed");
@@ -730,8 +733,12 @@ status_t FrameDecoder::extractInternalUsingBlockModel() {
 
     // wait for handleOutputBufferAsync() to finish
     std::unique_lock _lk(mMutex);
-    mOutputFramePending.wait_for(_lk, std::chrono::microseconds(kAsyncBufferTimeOutUs),
-                                 [this] { return mHandleOutputBufferAsyncDone; });
+    if (!mOutputFramePending.wait_for(_lk, std::chrono::microseconds(kAsyncBufferTimeOutUs),
+                                 [this] { return mHandleOutputBufferAsyncDone; })) {
+        ALOGE("%s timed out waiting for handleOutputBufferAsync() to complete.", __func__);
+        mSource->stop();
+        mSourceStopped = true;
+    }
     return mHandleOutputBufferAsyncDone ? OK : TIMED_OUT;
 }
 

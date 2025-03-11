@@ -23,7 +23,6 @@
 #include <cutils/properties.h>
 
 #include <aidlcommonsupport/NativeHandle.h>
-#include <android_companion_virtualdevice_flags.h>
 #include <android/binder_manager.h>
 #include <android/hardware/ICameraService.h>
 #include <camera_metadata_hidden.h>
@@ -43,7 +42,6 @@ namespace android {
 
 namespace SessionConfigurationUtils = ::android::camera3::SessionConfigurationUtils;
 namespace flags = com::android::internal::camera::flags;
-namespace vd_flags = android::companion::virtualdevice::flags;
 
 using namespace aidl::android::hardware;
 using namespace hardware::camera;
@@ -140,7 +138,7 @@ status_t AidlProviderInfo::initializeAidlProvider(
             delete binderCookie;
         });
 
-    if (!vd_flags::virtual_camera_service_discovery() || interface->isRemote()) {
+    if (interface->isRemote()) {
         binder_status_t link = AIBinder_linkToDeath(
             interface->asBinder().get(), mDeathRecipient.get(), new AIBinderCookie{this});
         if (link != STATUS_OK) {
