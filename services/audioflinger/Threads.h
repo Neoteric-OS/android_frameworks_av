@@ -1241,6 +1241,8 @@ public:
 
     std::string getLocalLogHeader() const override;
 
+    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
+
 protected:
     // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
@@ -2450,6 +2452,8 @@ public:
             REQUIRES(audio_utils::AudioFlinger_Mutex);
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
+
+    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());

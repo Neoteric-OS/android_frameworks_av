@@ -31,6 +31,7 @@
 #include <audio_utils/StringUtils.h>
 #include <audio_utils/minifloat.h>
 #include <com_android_media_audio.h>
+#include <com_android_media_audioserver.h>
 #include <media/AppOpsSession.h>
 #include <media/AudioPermissionPolicy.h>
 #include <media/AudioValidator.h>
@@ -71,6 +72,8 @@
        if (!_tmp.ok()) return ::android::aidl_utils::binderStatusFromStatusT(_tmp.error()); \
        std::move(_tmp.value());             \
      })
+
+namespace audioserver_flags = com::android::media::audioserver;
 
 namespace android {
 
@@ -1812,7 +1815,21 @@ void Track::copyMetadataTo(MetadataInserter& backInserter) const
     };
 
     metadata.channel_mask = mChannelMask;
-    strncpy(metadata.tags, mAttr.tags, AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
+
+    std::string tagStr(mAttr.tags);
+    const sp<IAfThreadBase> thread = mThread.promote();
+    if (audioserver_flags::enable_gmap_mode() && mAttr.usage == AUDIO_USAGE_GAME
+            && thread != nullptr && thread->afThreadCallback()->hasAlreadyCaptured(uid())
+            && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
+                + (tagStr.size() ? 1 : 0))
+                < AUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
+        if (tagStr.size() != 0) {
+            tagStr.append(1, AUDIO_ATTRIBUTES_TAGS_SEPARATOR);
+        }
+        tagStr.append(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL);
+    }
+    strncpy(metadata.tags, tagStr.c_str(), AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
+    metadata.tags[AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1] = '\0';
     *backInserter++ = metadata;
 }
 
@@ -3323,7 +3340,7 @@ void RecordTrack::copyMetadataTo(MetadataInserter& backInserter) const
     };
     metadata.channel_mask = mChannelMask;
     strncpy(metadata.tags, mAttr.tags, AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
-
+    metadata.tags[AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1] = '\0';
     *backInserter++ = metadata;
 }
 

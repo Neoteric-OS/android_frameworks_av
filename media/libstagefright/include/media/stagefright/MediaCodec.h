@@ -757,6 +757,8 @@ private:
 
     void onReleaseCrypto(const sp<AMessage>& msg);
 
+    void stopCryptoAsync();
+
     // managing time-of-flight aka latency
     typedef struct {
             int64_t presentationUs;

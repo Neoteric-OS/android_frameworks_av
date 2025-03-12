@@ -34,7 +34,6 @@
 #include <audio_utils/MelProcessor.h>
 #include <audio_utils/Metadata.h>
 #include <audio_utils/Trace.h>
-#include <com_android_media_audioserver.h>
 #ifdef DEBUG_CPU_USAGE
 #include <audio_utils/Statistics.h>
 #include <cpustats/ThreadCpuUsage.h>
@@ -2895,6 +2894,15 @@ status_t PlaybackThread::setPortsVolume(
 void PlaybackThread::setVolumeForOutput_l(float left, float right) const
 {
     mOutput->stream->setVolume(left, right);
+}
+
+void PlaybackThread::checkUpdateTrackMetadataForUid(uid_t uid) {
+    audio_utils::lock_guard _l(mutex());
+    for (const sp<IAfTrack>& track : mActiveTracks) {
+        if (track->uid() == uid) {
+            track->setMetadataHasChanged();
+        }
+    }
 }
 
 // addTrack_l() must be called with ThreadBase::mutex() held
@@ -11365,6 +11373,15 @@ status_t MmapPlaybackThread::setPortsVolume(
     return NO_ERROR;
 }
 
+void MmapPlaybackThread::checkUpdateTrackMetadataForUid(uid_t uid) {
+    audio_utils::lock_guard _l(mutex());
+    for (const sp<IAfMmapTrack>& track : mActiveTracks) {
+        if (track->uid() == uid) {
+            track->setMetadataHasChanged();
+        }
+    }
+}
+
 void MmapPlaybackThread::invalidateTracks(audio_stream_type_t streamType)
 {
     audio_utils::lock_guard _l(mutex());
@@ -11506,8 +11523,21 @@ ThreadBase::MetadataUpdate MmapPlaybackThread::updateMetadata_l()
                 .content_type = track->attributes().content_type,
                 .gain = mHalVolFloat, // TODO: propagate from aaudio pre-mix volume
         };
-        trackMetadata.channel_mask = track->channelMask(),
-        strncpy(trackMetadata.tags, track->attributes().tags, AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
+        trackMetadata.channel_mask = track->channelMask();
+        std::string tagStr(track->attributes().tags);
+        if (audioserver_flags::enable_gmap_mode() && track->attributes().usage == AUDIO_USAGE_GAME
+                && afThreadCallback()->hasAlreadyCaptured(track->uid())
+                && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
+                    + (tagStr.size() ? 1 : 0))
+                    < AUDIO_ATTRIBUTES_TAGS_MAX_SIZE) {
+
+            if (tagStr.size() != 0) {
+                tagStr.append(1, AUDIO_ATTRIBUTES_TAGS_SEPARATOR);
+            }
+            tagStr.append(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL);
+        }
+        strncpy(trackMetadata.tags, tagStr.c_str(), AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
+        trackMetadata.tags[AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1] = '\0';
         metadata.tracks.push_back(trackMetadata);
     }
     mOutput->stream->updateSourceMetadata(metadata);
