@@ -70,6 +70,7 @@ Status NativePermissionController::populatePackagesForUids(
 
 Status NativePermissionController::updatePackagesForUid(const UidPackageState& newPackageState) {
     std::lock_guard l{m_};
+    ALOGI("%s, %s", __func__, newPackageState.toString().c_str());
     package_map_.insert_or_assign(newPackageState.uid, newPackageState.packageNames);
     const auto& cursor = package_map_.find(newPackageState.uid);
 
@@ -143,8 +144,12 @@ BinderResult<bool> NativePermissionController::validateUidPackagePair(
                 "NPC::validatedUidPackagePair: controller never populated by system_server");
     }
     const auto cursor = package_map_.find(uid);
-    return (cursor != package_map_.end()) &&
-           (std::find(cursor->second.begin(), cursor->second.end(), packageName) !=
+    if (cursor == package_map_.end()) {
+        return unexpectedExceptionCode(
+                Status::EX_ILLEGAL_ARGUMENT,
+                "NPC::validatedUidPackagePair: unknown uid");
+    }
+    return (std::find(cursor->second.begin(), cursor->second.end(), packageName) !=
             cursor->second.end());
 }
 
