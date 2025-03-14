@@ -711,6 +711,11 @@ CameraDevice::configureStreamsLocked(const ACaptureSessionOutputContainer* outpu
         if (ret != ACAMERA_OK) {
             return ret;
         }
+        // Surface sharing cannot be enabled when a camera has been opened
+        // in shared mode.
+        if (flags::camera_multi_client() && mSharedMode && outConfig.mIsShared) {
+            return ACAMERA_ERROR_INVALID_PARAMETER;
+        }
         ParcelableSurfaceType pSurface = flagtools::convertSurfaceTypeToParcelable(surface);
         outputSet.insert(std::make_pair(
                 anw,
