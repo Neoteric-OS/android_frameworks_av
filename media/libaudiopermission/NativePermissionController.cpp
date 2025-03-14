@@ -39,9 +39,9 @@ static std::optional<std::string> getFixedPackageName(uid_t uid) {
         case AID_ROOT:
             return "root";
         case AID_SYSTEM:
-            return "system";
+            return "android";
         case AID_SHELL:
-            return "shell";
+            return "com.android.shell";
         case AID_MEDIA:
             return "media";
         case AID_AUDIOSERVER:

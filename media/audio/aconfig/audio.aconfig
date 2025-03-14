@@ -102,6 +102,13 @@ flag {
 }
 
 flag {
+    name: "hardening_partial_volume"
+    namespace: "media_audio"
+    description: "Flag for partial enforcement of volume hardening"
+    bug: "376480814"
+}
+
+flag {
     name: "hardening_strict"
     is_exported: true
     namespace: "media_audio"

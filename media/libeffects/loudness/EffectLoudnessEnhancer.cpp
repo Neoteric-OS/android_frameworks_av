@@ -30,25 +30,7 @@
 #include <audio_effects/effect_loudnessenhancer.h>
 #include "dsp/core/dynamic_range_compression.h"
 
-// BUILD_FLOAT targets building a float effect instead of the legacy int16_t effect.
-#define BUILD_FLOAT
-
-#ifdef BUILD_FLOAT
-
 static constexpr audio_format_t kProcessFormat = AUDIO_FORMAT_PCM_FLOAT;
-
-#else
-
-static constexpr audio_format_t kProcessFormat = AUDIO_FORMAT_PCM_16_BIT;
-
-static inline int16_t clamp16(int32_t sample)
-{
-    if ((sample>>15) ^ (sample>>31))
-        sample = 0x7FFF ^ (sample>>31);
-    return sample;
-}
-
-#endif // BUILD_FLOAT
 
 extern "C" {
 
@@ -297,33 +279,20 @@ int LE_process(
 
     //ALOGV("LE about to process %d samples", inBuffer->frameCount);
     uint16_t inIdx;
-#ifdef BUILD_FLOAT
     constexpr float scale = 1 << 15; // power of 2 is lossless conversion to int16_t range
     constexpr float inverseScale = 1.f / scale;
     const float inputAmp = pow(10, pContext->mTargetGainmB/2000.0f) * scale;
-#else
-    float inputAmp = pow(10, pContext->mTargetGainmB/2000.0f);
-#endif
     float leftSample, rightSample;
     for (inIdx = 0 ; inIdx < inBuffer->frameCount ; inIdx++) {
         // makeup gain is applied on the input of the compressor
-#ifdef BUILD_FLOAT
         leftSample  = inputAmp * inBuffer->f32[2*inIdx];
         rightSample = inputAmp * inBuffer->f32[2*inIdx +1];
         pContext->mCompressor->Compress(&leftSample, &rightSample);
         inBuffer->f32[2*inIdx]    = leftSample * inverseScale;
         inBuffer->f32[2*inIdx +1] = rightSample * inverseScale;
-#else
-        leftSample  = inputAmp * (float)inBuffer->s16[2*inIdx];
-        rightSample = inputAmp * (float)inBuffer->s16[2*inIdx +1];
-        pContext->mCompressor->Compress(&leftSample, &rightSample);
-        inBuffer->s16[2*inIdx]    = (int16_t) leftSample;
-        inBuffer->s16[2*inIdx +1] = (int16_t) rightSample;
-#endif // BUILD_FLOAT
     }
 
     if (inBuffer->raw != outBuffer->raw) {
-#ifdef BUILD_FLOAT
         if (pContext->mConfig.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE) {
             for (size_t i = 0; i < outBuffer->frameCount*2; i++) {
                 outBuffer->f32[i] += inBuffer->f32[i];
@@ -331,15 +300,6 @@ int LE_process(
         } else {
             memcpy(outBuffer->raw, inBuffer->raw, outBuffer->frameCount * 2 * sizeof(float));
         }
-#else
-        if (pContext->mConfig.outputCfg.accessMode == EFFECT_BUFFER_ACCESS_ACCUMULATE) {
-            for (size_t i = 0; i < outBuffer->frameCount*2; i++) {
-                outBuffer->s16[i] = clamp16(outBuffer->s16[i] + inBuffer->s16[i]);
-            }
-        } else {
-            memcpy(outBuffer->raw, inBuffer->raw, outBuffer->frameCount * 2 * sizeof(int16_t));
-        }
-#endif // BUILD_FLOAT
     }
     if (pContext->mState != LOUDNESS_ENHANCER_STATE_ACTIVE) {
         return -ENODATA;
