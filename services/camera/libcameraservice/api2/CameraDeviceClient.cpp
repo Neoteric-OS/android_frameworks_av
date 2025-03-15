@@ -1252,8 +1252,8 @@ binder::Status CameraDeviceClient::createStream(
         int i = 0;
         for (auto& surfaceKey : surfaceKeys) {
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-            ALOGV("%s: mStreamMap add surfaceKey %lu streamId %d, surfaceId %d",
-                    __FUNCTION__, surfaceKey, streamId, i);
+            ALOGV("%s: mStreamMap add surfaceKey %" PRIu64 " streamId %d, surfaceId %d",
+                  __FUNCTION__, surfaceKey, streamId, i);
 #else
             ALOGV("%s: mStreamMap add surfaceKey %p streamId %d, surfaceId %d",
                     __FUNCTION__, surfaceKey.get(), streamId, i);
@@ -2008,8 +2008,8 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
                      "Could not get the SurfaceKey");
             }
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-            ALOGV("%s: mStreamMap add surface_key %lu streamId %d, surfaceId %d", __FUNCTION__,
-                    surfaceKey, streamId, consumerSurfaceIds[i]);
+            ALOGV("%s: mStreamMap add surface_key %" PRIu64 " streamId %d, surfaceId %d",
+                  __FUNCTION__, surfaceKey, streamId, consumerSurfaceIds[i]);
 #else
             ALOGV("%s: mStreamMap add surface_key %p streamId %d, surfaceId %d", __FUNCTION__,
                     surfaceKey.get(), streamId, consumerSurfaceIds[i]);
@@ -2512,6 +2512,26 @@ void CameraDeviceClient::detachDevice() {
                     camera2::FrameProcessorBase::FRAME_PROCESSOR_LISTENER_MIN_ID,
                     camera2::FrameProcessorBase::FRAME_PROCESSOR_LISTENER_MAX_ID, /*listener*/this);
     }
+
+    if (flags::camera_multi_client() && mSharedMode) {
+        for (auto streamInfo : mStreamInfoMap) {
+            int streamToDelete = streamInfo.first;
+            std::vector<size_t> removedSurfaceIds;
+            for (size_t i = 0; i < mStreamMap.size(); ++i) {
+                if (streamToDelete == mStreamMap.valueAt(i).streamId()) {
+                    removedSurfaceIds.push_back(mStreamMap.valueAt(i).surfaceId());
+                }
+            }
+            status_t err = mDevice->removeSharedSurfaces(streamToDelete, removedSurfaceIds);
+            if (err != OK) {
+                std::string msg = fmt::sprintf("Camera %s: Unexpected error %s (%d) when removing"
+                        "shared surfaces from stream %d", mCameraIdStr.c_str(), strerror(-err),
+                        err, streamToDelete);
+                ALOGE("%s: %s", __FUNCTION__, msg.c_str());
+            }
+        }
+    }
+
     if (!flags::camera_multi_client() || !mSharedMode ||
             (mSharedMode && sCameraService->isOnlyClient(this))){
         ALOGV("Camera %s: Stopping processors", mCameraIdStr.c_str());

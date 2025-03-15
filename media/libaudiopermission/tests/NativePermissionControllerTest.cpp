@@ -57,7 +57,7 @@ TEST_F(NativePermissionControllerTest, getPackagesForUid_NotPopulated) {
                 IsErrorAnd(BinderStatusMatcher::hasException(EX_ILLEGAL_STATE)));
 
     // fixed uids should work
-    EXPECT_THAT(controller_.getPackagesForUid(1000), IsOkAnd(ElementsAre(std::string{"system"})));
+    EXPECT_THAT(controller_.getPackagesForUid(1000), IsOkAnd(ElementsAre(std::string{"android"})));
 }
 
 TEST_F(NativePermissionControllerTest, validateUidPackagePair_NotPopulated) {
@@ -66,7 +66,7 @@ TEST_F(NativePermissionControllerTest, validateUidPackagePair_NotPopulated) {
                 IsErrorAnd(BinderStatusMatcher::hasException(EX_ILLEGAL_STATE)));
 
     // fixed uids should work
-    EXPECT_THAT(controller_.validateUidPackagePair(1000, "system"), IsOkAnd(IsTrue()));
+    EXPECT_THAT(controller_.validateUidPackagePair(1000, "android"), IsOkAnd(IsTrue()));
 }
 
 // ---  Tests for populatePackagesForUids ----
