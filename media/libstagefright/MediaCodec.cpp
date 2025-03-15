@@ -48,7 +48,10 @@
 #include <binder/IMemory.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
+#include <com_android_graphics_libgui_flags.h>
 #include <cutils/properties.h>
+#include <gui/BufferItem.h>
+#include <gui/BufferItemConsumer.h>
 #include <gui/BufferQueue.h>
 #include <gui/Surface.h>
 #include <hidlmemory/FrameworkUtils.h>
@@ -770,6 +773,42 @@ MediaCodec::BufferInfo::BufferInfo() : mOwnedByClient(false) {}
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
+class MediaCodec::ReleaseSurface {
+    public:
+        explicit ReleaseSurface(uint64_t usage) {
+            std::tie(mConsumer, mSurface) = BufferItemConsumer::create(usage);
+
+            struct FrameAvailableListener : public BufferItemConsumer::FrameAvailableListener {
+                FrameAvailableListener(const sp<BufferItemConsumer> &consumer) {
+                    mConsumer = consumer;
+                }
+                void onFrameAvailable(const BufferItem&) override {
+                    BufferItem buffer;
+                    // consume buffer
+                    sp<BufferItemConsumer> consumer = mConsumer.promote();
+                    if (consumer != nullptr && consumer->acquireBuffer(&buffer, 0) == NO_ERROR) {
+                        consumer->releaseBuffer(buffer.mGraphicBuffer, buffer.mFence);
+                    }
+                }
+
+                wp<BufferItemConsumer> mConsumer;
+            };
+            mFrameAvailableListener = sp<FrameAvailableListener>::make(mConsumer);
+            mConsumer->setFrameAvailableListener(mFrameAvailableListener);
+            mConsumer->setName(String8{"MediaCodec.release"});
+        }
+
+        const sp<Surface> &getSurface() {
+            return mSurface;
+        }
+
+    private:
+        sp<BufferItemConsumer> mConsumer;
+        sp<Surface> mSurface;
+        sp<BufferItemConsumer::FrameAvailableListener> mFrameAvailableListener;
+    };
+#else
 class MediaCodec::ReleaseSurface {
 public:
     explicit ReleaseSurface(uint64_t usage) {
@@ -807,6 +846,7 @@ private:
     sp<IGraphicBufferConsumer> mConsumer;
     sp<Surface> mSurface;
 };
+#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
 
 ////////////////////////////////////////////////////////////////////////////////
 
