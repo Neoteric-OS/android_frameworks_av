@@ -195,6 +195,7 @@ public:
         }
         if (mValid) return mService;
         if (waitMs.count() < 0) waitMs = mWaitMs;
+        auto timepointLimit = std::chrono::steady_clock::now() + waitMs;
         ul.unlock();
 
         // mediautils::getService() installs a persistent new service notification.
@@ -205,6 +206,7 @@ public:
         ul.lock();
         // return the IAudioFlinger interface which is adapted
         // from the media::IAudioFlingerService.
+        mCv.wait_until(ul, timepointLimit, isServiceValid_l);
         return mService;
     }
 
@@ -289,6 +291,7 @@ private:
             mService = service;
             client = mClient;
             mValid = true;
+            mCv.notify_all();
         }
         // TODO(b/375280520) consider registerClient() within mMutex lock.
         const int64_t token = IPCThreadState::self()->clearCallingIdentity();
@@ -303,7 +306,12 @@ private:
         return sp<AudioFlingerClientAdapter>::make(af);
     }
 
+    static bool isServiceValid_l() REQUIRES(mMutex) {
+        return mValid;
+    }
+
     static inline constinit std::mutex mMutex;
+    static inline constinit std::condition_variable mCv;
     static inline constinit sp<AudioSystem::AudioFlingerClient> mClient GUARDED_BY(mMutex);
     static inline constinit sp<IAudioFlinger> mService GUARDED_BY(mMutex);
     static inline constinit std::chrono::milliseconds mWaitMs
@@ -1022,6 +1030,7 @@ public:
             client = mClient;
             mService = aps;
             mValid = true;
+            mCv.notify_all();
         }
         // TODO(b/375280520) consider registerClient() within mMutex lock.
         const int64_t token = IPCThreadState::self()->clearCallingIdentity();
@@ -1082,6 +1091,7 @@ public:
         }
         if (mValid) return mService;
         if (waitMs.count() < 0) waitMs = mWaitMs;
+        auto timepointLimit = std::chrono::steady_clock::now() + waitMs;
         ul.unlock();
 
         auto service = mediautils::getService<
@@ -1092,6 +1102,7 @@ public:
         // (whereupon mService contained the actual local service pointer to use).
         // we should always return mService.
         ul.lock();
+        mCv.wait_until(ul, timepointLimit, isServiceValid_l);
         return mService;
     }
 
@@ -1140,7 +1151,12 @@ public:
     }
 private:
 
+    static bool isServiceValid_l() REQUIRES(mMutex) {
+        return mValid;
+    }
+
     static inline constinit std::mutex mMutex;
+    static inline constinit std::condition_variable mCv;
     static inline constinit sp<AudioSystem::AudioPolicyServiceClient> mClient GUARDED_BY(mMutex);
     static inline constinit sp<IAudioPolicyService> mService GUARDED_BY(mMutex);
     static inline constinit bool mValid GUARDED_BY(mMutex) = false;
