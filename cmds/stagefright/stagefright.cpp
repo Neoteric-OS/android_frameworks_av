@@ -737,9 +737,10 @@ static void dumpCodecDetails(bool queryDecoders) {
                 }
 
                 printf("    owner: \"%s\"\n", info->getOwnerName());
+                printf("    hal name: \"%s\"\n", info->getHalName());
                 printf("    rank: %u\n", info->getRank());
             } else {
-                printf("    aliases, attributes, owner, rank: see above\n");
+                printf("    aliases, attributes, owner, hal name, rank: see above\n");
             }
 
             {

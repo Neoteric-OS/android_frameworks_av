@@ -359,10 +359,12 @@ static void dumpCodecDetails(int fd, const sp<IMediaCodecList> &codecList, bool 
 
                 snprintf(buffer, SIZE - 1, "    owner: \"%s\"\n", info->getOwnerName());
                 result.append(buffer);
+                snprintf(buffer, SIZE - 1, "    hal name: \"%s\"\n", info->getHalName());
+                result.append(buffer);
                 snprintf(buffer, SIZE - 1, "    rank: %u\n", info->getRank());
                 result.append(buffer);
             } else {
-                result.append("    aliases, attributes, owner, rank: see above\n");
+                result.append("    aliases, attributes, owner, hal name, rank: see above\n");
             }
 
             {
