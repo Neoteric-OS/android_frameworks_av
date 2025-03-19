@@ -2299,7 +2299,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
 // QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
-    if (mOutputFormat == OUTPUT_FORMAT_MPEG_4) {
+    if (mOutputFormat == OUTPUT_FORMAT_MPEG_4 && mVideoEncoder != VIDEO_ENCODER_DOLBY_VISION) {
 // QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
 // QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         format->setInt32("feature-nal-length-bitstream", 1);
