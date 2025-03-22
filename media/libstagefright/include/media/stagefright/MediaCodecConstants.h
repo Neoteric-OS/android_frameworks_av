@@ -1025,6 +1025,7 @@ inline constexpr char KEY_VIDEO_QP_P_MAX[] = "video-qp-p-max";
 inline constexpr char KEY_VIDEO_QP_P_MIN[] = "video-qp-p-min";
 inline constexpr char KEY_WIDTH[] = "width";
 inline constexpr char KEY_PICTURE_PROFILE_HANDLE[] = "picture-profile-handle";
+inline constexpr char KEY_PICTURE_PROFILE_ID[] = "picture-profile-id";
 
 // from MediaCodec.java
 inline constexpr int32_t ERROR_INSUFFICIENT_OUTPUT_PROTECTION = 4;

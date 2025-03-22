@@ -33,11 +33,13 @@
 #include "include/SoftwareRenderer.h"
 
 #include <android_media_codec.h>
+#include <android_media_tv_flags.h>
 
 #include <android/api-level.h>
 #include <android/content/pm/IPackageManagerNative.h>
 #include <android/hardware/cas/native/1.0/IDescrambler.h>
 #include <android/hardware/media/omx/1.0/IGraphicBufferSource.h>
+#include <android/media/quality/IMediaQualityManager.h>
 
 #include <aidl/android/media/BnResourceManagerClient.h>
 #include <aidl/android/media/IResourceManagerService.h>
@@ -95,9 +97,10 @@ namespace android {
 
 using Status = ::ndk::ScopedAStatus;
 using aidl::android::media::BnResourceManagerClient;
+using aidl::android::media::ClientInfoParcel;
 using aidl::android::media::IResourceManagerClient;
 using aidl::android::media::IResourceManagerService;
-using aidl::android::media::ClientInfoParcel;
+using media::quality::IMediaQualityManager;
 using server_configurable_flags::GetServerConfigurableFlag;
 using FreezeEvent = VideoRenderQualityTracker::FreezeEvent;
 using JudderEvent = VideoRenderQualityTracker::JudderEvent;
@@ -2088,6 +2091,66 @@ void MediaCodec::updateCodecImportance(const sp<AMessage>& msg) {
     }
 }
 
+void MediaCodec::updatePictureProfile(const sp<AMessage>& msg, bool applyDefaultProfile) {
+    if (!(msg->contains(KEY_PICTURE_PROFILE_HANDLE) || msg->contains(KEY_PICTURE_PROFILE_ID) ||
+          applyDefaultProfile)) {
+        return;
+    }
+
+    sp<IMediaQualityManager> mediaQualityMgr =
+            waitForDeclaredService<IMediaQualityManager>(String16("media_quality"));
+    if (mediaQualityMgr == nullptr) {
+        ALOGE("Media Quality Service not found.");
+        return;
+    }
+
+    int64_t pictureProfileHandle;
+    AString pictureProfileId;
+
+    if (msg->findInt64(KEY_PICTURE_PROFILE_HANDLE, &pictureProfileHandle)) {
+        binder::Status status =
+                mediaQualityMgr->notifyPictureProfileHandleSelection(pictureProfileHandle, 0);
+        if (!status.isOk()) {
+            ALOGE("unexpected status when calling "
+                  "MediaQualityManager.notifyPictureProfileHandleSelection(): %s",
+                  status.toString8().c_str());
+        }
+        msg->setInt64(KEY_PICTURE_PROFILE_HANDLE, pictureProfileHandle);
+        return;
+    } else if (msg->findString(KEY_PICTURE_PROFILE_ID, &pictureProfileId)) {
+        binder::Status status = mediaQualityMgr->getPictureProfileHandleValue(
+                String16(pictureProfileId.c_str()), 0, &pictureProfileHandle);
+        if (status.isOk()) {
+            if (pictureProfileHandle != -1) {
+                msg->setInt64(KEY_PICTURE_PROFILE_HANDLE, pictureProfileHandle);
+            } else {
+                ALOGW("PictureProfileHandle not found for pictureProfileId %s",
+                      pictureProfileId.c_str());
+            }
+        } else {
+            ALOGE("unexpected status when calling "
+                  "MediaQualityManager.getPictureProfileHandleValue(): %s",
+                  status.toString8().c_str());
+        }
+        return;
+    } else {  // applyDefaultProfile
+        binder::Status status =
+                mediaQualityMgr->getDefaultPictureProfileHandleValue(0, &pictureProfileHandle);
+        if (status.isOk()) {
+            if (pictureProfileHandle != -1) {
+                msg->setInt64(KEY_PICTURE_PROFILE_HANDLE, pictureProfileHandle);
+            } else {
+                ALOGW("Default PictureProfileHandle not found");
+            }
+        } else {
+            ALOGE("unexpected status when calling "
+                  "MediaQualityManager.getDefaultPictureProfileHandleValue(): %s",
+                  status.toString8().c_str());
+        }
+        return;
+    }
+}
+
 constexpr const char *MediaCodec::asString(TunnelPeekState state, const char *default_string){
     switch(state) {
         case TunnelPeekState::kLegacyMode:
@@ -2770,6 +2833,10 @@ status_t MediaCodec::configure(
     ScopedTrace trace(ATRACE_TAG, "MediaCodec::configure#native");
     // Update the codec importance.
     updateCodecImportance(format);
+
+    if (android::media::tv::flags::apply_picture_profiles()) {
+        updatePictureProfile(format, true /* applyDefaultProfile */);
+    }
 
     // Create and set up metrics for this codec.
     status_t err = OK;
@@ -7524,6 +7591,9 @@ status_t MediaCodec::onSetParameters(const sp<AMessage> &params) {
     }
     updateLowLatency(params);
     updateCodecImportance(params);
+    if (android::media::tv::flags::apply_picture_profiles()) {
+        updatePictureProfile(params, false /* applyDefaultProfile */);
+    }
     mapFormat(mComponentName, params, nullptr, false);
     updateTunnelPeek(params);
     mCodec->signalSetParameters(params);
