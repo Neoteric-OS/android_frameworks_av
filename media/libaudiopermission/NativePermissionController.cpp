@@ -70,7 +70,7 @@ Status NativePermissionController::populatePackagesForUids(
 
 Status NativePermissionController::updatePackagesForUid(const UidPackageState& newPackageState) {
     std::lock_guard l{m_};
-    ALOGI("%s, %s", __func__, newPackageState.toString().c_str());
+    ALOGD("%s, %s", __func__, newPackageState.toString().c_str());
     package_map_.insert_or_assign(newPackageState.uid, newPackageState.packageNames);
     const auto& cursor = package_map_.find(newPackageState.uid);
 
@@ -162,7 +162,7 @@ BinderResult<bool> NativePermissionController::checkPermission(PermissionEnum pe
     if (!uids.empty()) {
         const bool ret = std::binary_search(uids.begin(), uids.end(), uid);
         // Log locally until all call-sites log errors well
-        ALOGW_IF(!ret, "%s: missing %d for %u", __func__, static_cast<int>(perm), uid);
+        ALOGD_IF(!ret, "%s: missing %d for %u", __func__, static_cast<int>(perm), uid);
         return ret;
     } else {
         return unexpectedExceptionCode(

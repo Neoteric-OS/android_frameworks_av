@@ -124,17 +124,9 @@ private:
     std::mutex mLock;
 
     c2_status_t init() {
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        mBufferItemConsumer =
-                sp<BufferItemConsumer>::make(mUsage, kMaxAcquiredBuffer);
-        mSurface = mBufferItemConsumer->getSurface();
-#else
-        sp<IGraphicBufferProducer> producer;
-        sp<IGraphicBufferConsumer> consumer;
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        mBufferItemConsumer = sp<BufferItemConsumer>::make(consumer, mUsage);
-        mSurface = sp<Surface>::make(producer, false);
-#endif
+        std::tie(mBufferItemConsumer, mSurface) =
+                BufferItemConsumer::create(mUsage, kMaxAcquiredBuffer);
+
         if (mSurface) {
             mSurface->connect(NATIVE_WINDOW_API_MEDIA, nullptr);
             mSurface->setMaxDequeuedBufferCount(kMaxDequeuedBuffer);

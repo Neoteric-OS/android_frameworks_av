@@ -3648,14 +3648,20 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
 
     const DeviceVector devices = mEngine->getOutputDevicesForAttributes(
             attributesToDriveAbs, nullptr /* preferredDevice */, true /* fromCache */);
-    changed &= devices.types().contains(deviceType);
+    audio_devices_t volumeDevice = Volume::getDeviceForVolume(devices.types());
+    changed &= (volumeDevice == deviceType);
     // if something changed on the output device for the changed attributes, apply the stream
     // volumes regarding the new absolute mode to all the outputs without any delay
     if (changed) {
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-            ALOGI("%s: apply stream volumes for portId %d and device type %d", __func__,
-                  desc->getId(), deviceType);
+            DeviceTypeSet curDevices = desc->devices().types();
+            if (volumeDevice != Volume::getDeviceForVolume(curDevices)) {
+                continue;  // skip if not using the target volume device
+            }
+
+            ALOGI("%s: apply stream volumes for %s(curDevices %s) and device type 0x%X", __func__,
+                  desc->info().c_str(), dumpDeviceTypes(curDevices).c_str(), deviceType);
             applyStreamVolumes(desc, {deviceType});
         }
     }

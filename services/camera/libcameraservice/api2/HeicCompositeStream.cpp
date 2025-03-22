@@ -193,26 +193,15 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         return NO_INIT;
     }
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
     if (mAppSegmentSupported) {
-        mAppSegmentConsumer = new CpuConsumer(kMaxAcquiredAppSegment);
+        std::tie(mAppSegmentConsumer, mAppSegmentSurface) =
+                CpuConsumer::create(kMaxAcquiredAppSegment);
         mAppSegmentConsumer->setFrameAvailableListener(this);
         mAppSegmentConsumer->setName(String8("Camera3-HeicComposite-AppSegmentStream"));
-        mAppSegmentSurface = mAppSegmentConsumer->getSurface();
     }
-    sp<IGraphicBufferProducer> producer = mAppSegmentSurface.get() != nullptr ?
-        mAppSegmentSurface->getIGraphicBufferProducer() : nullptr;
-#else
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    if (mAppSegmentSupported) {
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        mAppSegmentConsumer = new CpuConsumer(consumer, kMaxAcquiredAppSegment);
-        mAppSegmentConsumer->setFrameAvailableListener(this);
-        mAppSegmentConsumer->setName(String8("Camera3-HeicComposite-AppSegmentStream"));
-        mAppSegmentSurface = new Surface(producer);
-    }
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+    sp<IGraphicBufferProducer> producer = mAppSegmentSurface.get() != nullptr
+                                                  ? mAppSegmentSurface->getIGraphicBufferProducer()
+                                                  : nullptr;
 
     if (mAppSegmentSupported) {
         std::vector<int> sourceSurfaceId;
@@ -243,13 +232,9 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
             return res;
         }
     } else {
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        mMainImageConsumer = new CpuConsumer(1);
-        producer = mMainImageConsumer->getSurface()->getIGraphicBufferProducer();
-#else
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        mMainImageConsumer = new CpuConsumer(consumer, 1);
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+        sp<Surface> surface;
+        std::tie(mMainImageConsumer, surface) = CpuConsumer::create(1);
+        producer = surface->getIGraphicBufferProducer();
         mMainImageConsumer->setFrameAvailableListener(this);
         mMainImageConsumer->setName(String8("Camera3-HeicComposite-HevcInputYUVStream"));
     }

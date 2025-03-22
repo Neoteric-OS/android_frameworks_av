@@ -95,18 +95,8 @@ status_t Camera3StreamSplitter::connect(const std::unordered_map<size_t, sp<Surf
     // the output's attachBuffer().
     mMaxConsumerBuffers++;
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    mBufferItemConsumer = sp<BufferItemConsumer>::make(consumerUsage, mMaxConsumerBuffers);
-    mSurface = mBufferItemConsumer->getSurface();
-#else
-    // Create BufferQueue for input
-    sp<IGraphicBufferProducer> bqProducer;
-    sp<IGraphicBufferConsumer> bqConsumer;
-    BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
-
-    mBufferItemConsumer = new BufferItemConsumer(bqConsumer, consumerUsage, mMaxConsumerBuffers);
-    mSurface = new Surface(bqProducer);
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+    std::tie(mBufferItemConsumer, mSurface) =
+            BufferItemConsumer::create(consumerUsage, mMaxConsumerBuffers);
 
     if (mBufferItemConsumer == nullptr) {
         return NO_MEMORY;

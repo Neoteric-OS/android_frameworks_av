@@ -446,28 +446,14 @@ void setOutputSurface(const std::shared_ptr<android::Codec2Client::Component>& c
     }
 
     if (surfMode == SURFACE) {
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        texture = new GLConsumer(0 /* tex */, GLConsumer::TEXTURE_EXTERNAL, true /* useFenceSync */,
-                                 false /* isControlledByApp */);
-        sp<Surface> s = texture->getSurface();
+        sp<Surface> s;
+        std::tie(texture, s) =
+                GLConsumer::create(0 /* tex */, GLConsumer::TEXTURE_EXTERNAL,
+                                   true /* useFenceSync */, false /* isControlledByApp */);
         surface = s;
         ASSERT_NE(surface, nullptr) << "failed to create Surface object";
 
         producer = s->getIGraphicBufferProducer();
-#else
-        sp<IGraphicBufferConsumer> consumer = nullptr;
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        ASSERT_NE(producer, nullptr) << "createBufferQueue returned invalid producer";
-        ASSERT_NE(consumer, nullptr) << "createBufferQueue returned invalid consumer";
-
-        texture =
-                new GLConsumer(consumer, 0 /* tex */, GLConsumer::TEXTURE_EXTERNAL,
-                               true /* useFenceSync */, false /* isControlledByApp */);
-
-        surface = new Surface(producer);
-        ASSERT_NE(surface, nullptr) << "failed to create Surface object";
-#endif // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-
         producer->setGenerationNumber(generation);
     }
 
