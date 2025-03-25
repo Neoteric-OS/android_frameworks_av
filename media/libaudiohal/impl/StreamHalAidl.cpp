@@ -166,10 +166,8 @@ status_t StreamHalAidl::setParameters(const String8& kvPairs) {
     AUGMENT_LOG(D, "parameters: %s", parameters.toString().c_str());
 
     (void)VALUE_OR_RETURN_STATUS(filterOutAndProcessParameter<int>(
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             parameters, String8(AudioParameter::keyStreamHwAvSync), [&](int hwAvSyncId) {
                 return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
                         serializeCall(mStream, &Stream::updateHwAvSyncId, hwAvSyncId));
             }));
     return parseAndSetVendorParameters(mVendorExt, mStream, parameters);
@@ -207,9 +205,7 @@ status_t StreamHalAidl::addEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::addEffect, aidlEffect->getIEffect()));
 }
 
@@ -221,7 +217,6 @@ status_t StreamHalAidl::removeEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
             serializeCall(mStream, &Stream::removeEffect, aidlEffect->getIEffect()));
 }
@@ -486,9 +481,7 @@ status_t StreamHalAidl::pause(StreamDescriptor::Reply* reply) {
             AUGMENT_LOG(D,
                         "HAL failed to handle the 'pause' command, but stream state is in one of"
                         " the PAUSED kind of states, current state: %s",
-// QTI_BEGIN: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
                         toString(innerReply->state).c_str());
-// QTI_END: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
             return OK;
         }
         return status;
@@ -832,9 +825,7 @@ status_t StreamOutHalAidl::setVolume(float left, float right) {
 status_t StreamOutHalAidl::selectPresentation(int presentationId, int programId) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::selectPresentation, presentationId, programId));
 }
 
@@ -954,9 +945,7 @@ status_t StreamOutHalAidl::updateSourceMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SourceMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SourceMetadata(sourceMetadata));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
 }
 
@@ -967,9 +956,7 @@ status_t StreamOutHalAidl::getDualMonoMode(audio_dual_mono_mode_t* mode) {
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getDualMonoMode, &aidlMode)));
     *mode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioDualMonoMode_audio_dual_mono_mode_t(aidlMode));
@@ -981,9 +968,7 @@ status_t StreamOutHalAidl::setDualMonoMode(audio_dual_mono_mode_t mode) {
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_dual_mono_mode_t_AudioDualMonoMode(mode));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setDualMonoMode, aidlMode));
 }
 
@@ -993,18 +978,14 @@ status_t StreamOutHalAidl::getAudioDescriptionMixLevel(float* leveldB) {
     if (leveldB == nullptr) {
         return BAD_VALUE;
     }
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getAudioDescriptionMixLevel, leveldB));
 }
 
 status_t StreamOutHalAidl::setAudioDescriptionMixLevel(float leveldB) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setAudioDescriptionMixLevel, leveldB));
 }
 
@@ -1015,9 +996,7 @@ status_t StreamOutHalAidl::getPlaybackRateParameters(audio_playback_rate_t* play
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getPlaybackRateParameters, &aidlRate)));
     *playbackRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(aidlRate));
@@ -1029,9 +1008,7 @@ status_t StreamOutHalAidl::setPlaybackRateParameters(const audio_playback_rate_t
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(playbackRate));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setPlaybackRateParameters, aidlRate));
 }
 
@@ -1060,9 +1037,7 @@ status_t StreamOutHalAidl::getRecommendedLatencyModes(std::vector<audio_latency_
         return BAD_VALUE;
     }
     std::vector<::aidl::android::media::audio::common::AudioLatencyMode> aidlModes;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getRecommendedLatencyModes, &aidlModes)));
     *modes = VALUE_OR_RETURN_STATUS(
             ::aidl::android::convertContainer<std::vector<audio_latency_mode_t>>(
@@ -1159,11 +1134,9 @@ status_t StreamOutHalAidl::filterAndUpdateOffloadMetadata(AudioParameter &parame
     }
     if (updateMetadata) {
         AUGMENT_LOG(D, "set offload metadata %s", mOffloadMetadata.toString().c_str());
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
         if (status_t status = statusTFromBinderStatus(
                     serializeCall(mStream, &Stream::updateOffloadMetadata, mOffloadMetadata));
             status != OK) {
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             AUGMENT_LOG(E, "updateOffloadMetadata failed %d", status);
             return status;
         }
@@ -1234,9 +1207,7 @@ status_t StreamInHalAidl::getActiveMicrophones(std::vector<media::MicrophoneInfo
     auto staticInfo = micInfoProvider->getMicrophoneInfo();
     if (!staticInfo) return INVALID_OPERATION;
     std::vector<MicrophoneDynamicInfo> dynamicInfo;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getActiveMicrophones, &dynamicInfo)));
     std::vector<media::MicrophoneInfoFw> result;
     result.reserve(dynamicInfo.size());
@@ -1267,9 +1238,7 @@ status_t StreamInHalAidl::updateSinkMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SinkMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SinkMetadata(sinkMetadata));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
 }
 
@@ -1280,9 +1249,7 @@ status_t StreamInHalAidl::setPreferredMicrophoneDirection(audio_microphone_direc
               VALUE_OR_RETURN_STATUS(
                       ::aidl::android::legacy2aidl_audio_microphone_direction_t_MicrophoneDirection(
                               direction));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneDirection, aidlDirection));
 }
 
@@ -1290,9 +1257,7 @@ status_t StreamInHalAidl::setPreferredMicrophoneFieldDimension(float zoom) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
     return statusTFromBinderStatus(
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneFieldDimension, zoom));
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
 }
 
 } // namespace android

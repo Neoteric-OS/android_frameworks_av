@@ -1221,14 +1221,6 @@ protected:
 
         void checkVirtualizerClientRoutes();
 
-// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
-        // Internal method checking If direct pcm track's offloadInfo needs to be updated.
-        void checkAndUpdateOffloadInfoForDirectTracks(
-                const audio_attributes_t *attr,
-                audio_stream_type_t *stream,
-                audio_config_t *config,
-                audio_output_flags_t *flags);
-// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
         /**
          * @brief Returns true if at least one device can only be reached via the output passed
          * as argument. Always returns false for duplicated outputs.
