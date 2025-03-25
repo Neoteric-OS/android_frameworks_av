@@ -330,6 +330,9 @@ private:
 
     bool mHDRGainmapEnabled = false;
 
+    // Used to check if dynamic profile is HLG10
+    bool mDynamicProfileHLG10    = false;
+
     // UltraHDR tonemap color and format aspects
     static constexpr uhdr_img_fmt_t kUltraHdrInputFmt = UHDR_IMG_FMT_24bppYCbCrP010;
     static constexpr uhdr_color_gamut kUltraHdrInputGamut = UHDR_CG_BT_2100;
