@@ -1401,7 +1401,6 @@ status_t HevcParameterSets::makeHero(uint8_t *hero) {
 // QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 status_t HevcParameterSets::parseSeiMessage(const uint8_t *data, size_t size) {
     uint32_t payloadType = 0;
-    uint32_t payloadSize = 0;
     size_t byteRead = 0;
     status_t err = OK;
     while (data[0] == 0xff) {
@@ -1413,11 +1412,9 @@ status_t HevcParameterSets::parseSeiMessage(const uint8_t *data, size_t size) {
     ++data;
     ++byteRead;
     while (data[0] == 0xff) {
-        payloadSize += 255;
         ++byteRead;
         ++data;
     }
-    payloadSize += data[0];
     ++data;
     ++byteRead;
 
