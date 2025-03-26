@@ -43,7 +43,7 @@ class AidlCamera3Device :
             std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
             const std::string& id, bool overrideForPerfClass, int rotationOverride,
-            bool legacyClient = false);
+            bool isVendorClient, bool legacyClient = false);
 
     virtual ~AidlCamera3Device() { }
 
