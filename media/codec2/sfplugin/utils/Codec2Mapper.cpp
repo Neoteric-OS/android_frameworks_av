@@ -262,6 +262,7 @@ ALookup<C2Config::profile_t, int32_t> sHevcProfiles = {
     { C2Config::PROFILE_HEVC_MAIN, HEVCProfileMain },
     { C2Config::PROFILE_HEVC_MAIN_10, HEVCProfileMain10 },
     { C2Config::PROFILE_HEVC_MAIN_STILL, HEVCProfileMainStill },
+    { C2Config::PROFILE_HEVC_MAIN_10_STILL, HEVCProfileMain10Still},
     { C2Config::PROFILE_HEVC_MAIN_INTRA, HEVCProfileMain },
     { C2Config::PROFILE_HEVC_MAIN_10_INTRA, HEVCProfileMain10 },
     { C2Config::PROFILE_HEVC_MAIN_10, HEVCProfileMain10HDR10 },
@@ -854,8 +855,9 @@ C2Mapper::GetProfileLevelMapper(std::string mediaType) {
         return std::make_shared<H263ProfileLevelMapper>();
 // QTI_BEGIN: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
     } else if (mediaType == MIMETYPE_VIDEO_HEVC
-                || mediaType == MIMETYPE_VIDEO_MVHEVC) {
+                || mediaType == MIMETYPE_VIDEO_MVHEVC
 // QTI_END: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
+                || mediaType == MIMETYPE_IMAGE_ANDROID_HEIC ) {
         return std::make_shared<HevcProfileLevelMapper>();
     } else if (mediaType == MIMETYPE_VIDEO_MPEG2) {
         return std::make_shared<Mpeg2ProfileLevelMapper>();
