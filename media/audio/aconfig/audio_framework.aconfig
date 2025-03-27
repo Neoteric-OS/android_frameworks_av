@@ -188,6 +188,14 @@ flag {
 }
 
 flag {
+    name: "ringtone_user_uri_check"
+    is_exported: true
+    namespace: "media_audio"
+    description: "check user for RingtonePlayer URIs"
+    bug: "400434060"
+}
+
+flag {
     name: "sco_managed_by_audio"
     is_exported: true
     namespace: "media_audio"

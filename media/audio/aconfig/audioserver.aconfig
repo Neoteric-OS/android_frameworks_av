@@ -38,6 +38,13 @@ flag {
     bug: "364923030"
 }
 
+flag {
+    name: "enable_gmap_mode"
+    namespace: "media_audio"
+    description: "enable track metadata tag generation for GMAP."
+    bug: "366456949"
+}
+
 # shipped 24Q3
 flag {
     name: "fdtostring_timeout_fix"

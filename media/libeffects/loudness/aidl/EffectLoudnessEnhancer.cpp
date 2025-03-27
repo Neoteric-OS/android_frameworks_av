@@ -139,7 +139,8 @@ std::shared_ptr<EffectContext> LoudnessEnhancerImpl::createContext(
         LOG(DEBUG) << __func__ << " context already exist";
         return mContext;
     }
-    if (2 < getChannelCount(common.input.base.channelMask)) {
+    const int channelCount = getChannelCount(common.input.base.channelMask);
+    if (FCC_LIMIT < channelCount) {
         LOG(ERROR) << __func__
                    << " channelCount not supported: " << common.input.base.channelMask.toString();
         return nullptr;

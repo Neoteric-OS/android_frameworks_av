@@ -391,6 +391,8 @@ private:
     // constant resource counts.
     std::vector<InstanceResourceInfo> computeDynamicResources(
             const std::vector<InstanceResourceInfo>& resources);
+    void updateResourceUsage(const std::vector<InstanceResourceInfo>& oldResources,
+                             const std::vector<InstanceResourceInfo>& newResources);
 
 private:
     enum State {
