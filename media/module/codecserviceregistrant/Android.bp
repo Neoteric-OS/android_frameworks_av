@@ -68,7 +68,7 @@ cc_library {
     ],
 
     defaults: [
-        "libcodec2-aidl-defaults",
+        "libcodec2-aidl-noisurface-defaults",
         "libcodec2-hidl-defaults",
         "libcodec2-runtime-libs",
     ],

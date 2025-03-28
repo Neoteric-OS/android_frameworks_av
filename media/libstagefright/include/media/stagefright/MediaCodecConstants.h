@@ -431,6 +431,7 @@ inline static const char *asString_AV1Level(int32_t i, const char *def = "??") {
 inline constexpr int32_t HEVCProfileMain        = 0x01;
 inline constexpr int32_t HEVCProfileMain10      = 0x02;
 inline constexpr int32_t HEVCProfileMainStill   = 0x04;
+inline constexpr int32_t HEVCProfileMain10Still = 0x08;
 inline constexpr int32_t HEVCProfileMain10HDR10 = 0x1000;
 inline constexpr int32_t HEVCProfileMain10HDR10Plus = 0x2000;
 
@@ -439,6 +440,7 @@ inline static const char *asString_HEVCProfile(int32_t i, const char *def = "??"
         case HEVCProfileMain:               return "Main";
         case HEVCProfileMain10:             return "Main10";
         case HEVCProfileMainStill:          return "MainStill";
+        case HEVCProfileMain10Still:        return "Main10Still";
         case HEVCProfileMain10HDR10:        return "Main10HDR10";
         case HEVCProfileMain10HDR10Plus:    return "Main10HDR10Plus";
         default:                            return def;
@@ -862,11 +864,13 @@ inline constexpr char FEATURE_DynamicTimestamp[]       = "dynamic-timestamp";
 inline constexpr char FEATURE_EncodingStatistics[]     = "encoding-statistics";
 inline constexpr char FEATURE_FrameParsing[]           = "frame-parsing";
 inline constexpr char FEATURE_HdrEditing[]             = "hdr-editing";
+inline constexpr char FEATURE_HlgEditing[]             = "hlg-editing";
 inline constexpr char FEATURE_IntraRefresh[] = "intra-refresh";
 inline constexpr char FEATURE_LowLatency[]             = "low-latency";
 inline constexpr char FEATURE_MultipleFrames[] = "multiple-frames";
 inline constexpr char FEATURE_PartialFrame[] = "partial-frame";
 inline constexpr char FEATURE_QpBounds[] = "qp-bounds";
+inline constexpr char FEATURE_Roi[]                    = "region-of-interest";
 inline constexpr char FEATURE_SecurePlayback[]         = "secure-playback";
 inline constexpr char FEATURE_SpecialCodec[]           = "special-codec";
 inline constexpr char FEATURE_TunneledPlayback[]       = "tunneled-playback";
