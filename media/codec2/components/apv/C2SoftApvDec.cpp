@@ -517,6 +517,11 @@ C2SoftApvDec::C2SoftApvDec(const char* name, c2_node_id_t id,
     memset(&mOutFrames, 0, sizeof(oapv_frms_t));
 }
 
+C2SoftApvDec::C2SoftApvDec(const char* name, c2_node_id_t id,
+                           const std::shared_ptr<C2ReflectorHelper>& helper)
+    : C2SoftApvDec(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftApvDec::~C2SoftApvDec() {
     onRelease();
 }

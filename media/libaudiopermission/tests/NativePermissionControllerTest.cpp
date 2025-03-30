@@ -170,7 +170,8 @@ TEST_F(NativePermissionControllerTest, validateUidPackagePair_UnknownUid) {
 
     EXPECT_THAT(controller_.populatePackagesForUids(input), BinderStatusMatcher::isOk());
 
-    EXPECT_THAT(controller_.validateUidPackagePair(12000, "any.package"), IsOkAnd(IsFalse()));
+    EXPECT_THAT(controller_.validateUidPackagePair(12000, "any.package"),
+            IsErrorAnd(BinderStatusMatcher::hasException(EX_ILLEGAL_ARGUMENT)));
 }
 
 TEST_F(NativePermissionControllerTest, populatePermissionState_InvalidPermission) {

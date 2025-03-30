@@ -49,9 +49,6 @@
 
 #include <com_android_graphics_libgui_flags.h>
 #include <gui/BufferItemConsumer.h>
-#if not COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-#include <gui/IGraphicBufferProducer.h>
-#endif
 #include <gui/Surface.h>
 
 #include <gtest/gtest.h>
@@ -529,8 +526,7 @@ TEST_F(CameraClientBinderTest, CheckBinderCameraDeviceUser) {
 
         // Setup a buffer queue; I'm just using the vendor opaque format here as that is
         // guaranteed to be present
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        sp<BufferItemConsumer> opaqueConsumer = new BufferItemConsumer(
+        auto [opaqueConsumer, surface] = BufferItemConsumer::create(
                 GRALLOC_USAGE_SW_READ_NEVER, /*maxImages*/ 2, /*controlledByApp*/ true);
         EXPECT_TRUE(opaqueConsumer.get() != nullptr);
         opaqueConsumer->setName(String8("nom nom nom"));
@@ -540,28 +536,9 @@ TEST_F(CameraClientBinderTest, CheckBinderCameraDeviceUser) {
         EXPECT_EQ(OK,
                   opaqueConsumer->setDefaultBufferFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED));
 
-        sp<Surface> surface = opaqueConsumer->getSurface();
         ParcelableSurfaceType pSurface = flagtools::surfaceToParcelableSurfaceType(surface);
         std::string noPhysicalId;
         OutputConfiguration output(pSurface, /*rotation*/ 0, noPhysicalId);
-#else
-        sp<IGraphicBufferProducer> gbProducer;
-        sp<IGraphicBufferConsumer> gbConsumer;
-        BufferQueue::createBufferQueue(&gbProducer, &gbConsumer);
-        sp<BufferItemConsumer> opaqueConsumer = new BufferItemConsumer(gbConsumer,
-                GRALLOC_USAGE_SW_READ_NEVER, /*maxImages*/2, /*controlledByApp*/true);
-        EXPECT_TRUE(opaqueConsumer.get() != nullptr);
-        opaqueConsumer->setName(String8("nom nom nom"));
-
-        // Set to VGA dimens for default, as that is guaranteed to be present
-        EXPECT_EQ(OK, gbConsumer->setDefaultBufferSize(640, 480));
-        EXPECT_EQ(OK, gbConsumer->setDefaultBufferFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED));
-
-        sp<Surface> surface(new Surface(gbProducer, /*controlledByApp*/false));
-
-        std::string noPhysicalId;
-        OutputConfiguration output(gbProducer, /*rotation*/0, noPhysicalId);
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
 
         // Can we configure?
         res = device->beginConfigure();
@@ -698,18 +675,10 @@ TEST_F(CameraClientBinderTest, CheckBinderCameraDeviceUser) {
 TEST_F(CameraClientBinderTest, CheckBinderCaptureRequest) {
     sp<CaptureRequest> requestOriginal, requestParceled;
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    sp<BufferItemConsumer> opaqueConsumer = new BufferItemConsumer(
+    auto [opaqueConsumer, surface] = BufferItemConsumer::create(
             GRALLOC_USAGE_SW_READ_NEVER, /*maxImages*/ 2, /*controlledByApp*/ true);
     EXPECT_TRUE(opaqueConsumer.get() != nullptr);
     opaqueConsumer->setName(String8("nom nom nom"));
-    sp<Surface> surface = opaqueConsumer->getSurface();
-#else
-    sp<IGraphicBufferProducer> gbProducer;
-    sp<IGraphicBufferConsumer> gbConsumer;
-    BufferQueue::createBufferQueue(&gbProducer, &gbConsumer);
-    sp<Surface> surface(new Surface(gbProducer, /*controlledByApp*/false));
-#endif
 
     Vector<sp<Surface>> surfaceList;
     surfaceList.push_back(surface);

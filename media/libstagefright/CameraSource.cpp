@@ -498,13 +498,6 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
         ALOGE("%s: Buffer queue already exists", __FUNCTION__);
         return ALREADY_EXISTS;
     }
-#if !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    // Create a buffer queue.
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-#endif // !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-
 
     uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN;
     if (format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
@@ -513,33 +506,15 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
 
     bufferCount += kConsumerBufferCount;
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    mVideoBufferConsumer = new BufferItemConsumer(usage, bufferCount);
+    sp<Surface> surface;
+    std::tie(mVideoBufferConsumer, surface) =
+            BufferItemConsumer::create(usage, bufferCount);
     mVideoBufferConsumer->setName(String8::format("StageFright-CameraSource"));
-
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-    mVideoBufferProducer = mVideoBufferConsumer->getSurface();
+    mVideoBufferProducer = surface;
 #else
-    mVideoBufferProducer = mVideoBufferConsumer->getSurface()->getIGraphicBufferProducer();
+    mVideoBufferProducer = surface->getIGraphicBufferProducer();
 #endif  // WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-
-#else
-    mVideoBufferConsumer = new BufferItemConsumer(consumer, usage, bufferCount);
-// QTI_BEGIN: 2021-12-07: Video: Stagefright: add NULL check before accessing param
-    if (mVideoBufferConsumer == nullptr) {
-        return -1;
-    }
-
-// QTI_END: 2021-12-07: Video: Stagefright: add NULL check before accessing param
-    mVideoBufferConsumer->setName(String8::format("StageFright-CameraSource"));
-
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-    mVideoBufferProducer = new Surface(producer);
-#else
-    mVideoBufferProducer = producer;
-#endif  // WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
 
     status_t res = mVideoBufferConsumer->setDefaultBufferSize(width, height);
     if (res != OK) {

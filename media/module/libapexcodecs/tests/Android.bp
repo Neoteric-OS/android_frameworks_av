@@ -22,9 +22,16 @@ package {
 cc_test {
     name: "libcom.android.media.swcodec.apexcodecs-tests",
     shared_libs: [
-        "libcom.android.media.swcodec.apexcodecs-testing",
+        "libbinder_ndk",
         "libcodec2",
+        "libnativewindow",
+    ],
+
+    static_libs: [
+        "libcom.android.media.swcodec.apexcodecs-testing",
     ],
 
     srcs: ["ApexCodecsTest.cpp"],
+
+    test_suites: ["general-tests"],
 }

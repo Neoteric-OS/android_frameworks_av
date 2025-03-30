@@ -20,6 +20,7 @@
 #include <atomic>
 #include <inttypes.h>
 #include <SimpleC2Component.h>
+#include <util/C2InterfaceHelper.h>
 
 #include <media/stagefright/foundation/ColorUtils.h>
 
@@ -92,6 +93,8 @@ struct C2SoftMpeg2Dec : public SimpleC2Component {
 
     C2SoftMpeg2Dec(const char* name, c2_node_id_t id,
                    const std::shared_ptr<IntfImpl>& intfImpl);
+    C2SoftMpeg2Dec(const char* name, c2_node_id_t id,
+                   const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2SoftMpeg2Dec();
 
     // From SimpleC2Component

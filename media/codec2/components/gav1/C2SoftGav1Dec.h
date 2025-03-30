@@ -23,8 +23,10 @@
 
 #include <media/stagefright/foundation/ColorUtils.h>
 
-#include <SimpleC2Component.h>
 #include <C2Config.h>
+#include <SimpleC2Component.h>
+#include <util/C2InterfaceHelper.h>
+
 #include <gav1/decoder.h>
 #include <gav1/decoder_settings.h>
 
@@ -35,6 +37,8 @@ struct C2SoftGav1Dec : public SimpleC2Component {
 
   C2SoftGav1Dec(const char* name, c2_node_id_t id,
                 const std::shared_ptr<IntfImpl>& intfImpl);
+  C2SoftGav1Dec(const char* name, c2_node_id_t id,
+                const std::shared_ptr<C2ReflectorHelper>& helper);
   ~C2SoftGav1Dec();
 
   // Begin SimpleC2Component overrides.

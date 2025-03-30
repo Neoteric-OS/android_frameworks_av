@@ -1299,7 +1299,9 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
                                         bool directOnly) {
-    sp<IOProfile> profile;
+    sp<IOProfile> directOnlyProfile = nullptr;
+    sp<IOProfile> compressOffloadProfile = nullptr;
+    sp<IOProfile> profile = nullptr;
     for (const auto& hwModule : hwModules) {
         for (const auto& curProfile : hwModule->getOutputProfiles()) {
              if (curProfile->getCompatibilityScore(devices,
@@ -1321,19 +1323,21 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
                 return curProfile;
              }
 
-             // when searching for direct outputs, if several profiles are compatible, give priority
-             // to one with offload capability
-             if (profile != 0 &&
-                 ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
-                continue;
-             }
              profile = curProfile;
-             if ((profile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
-                 break;
+             if ((flags == AUDIO_OUTPUT_FLAG_DIRECT) &&
+                 curProfile->getFlags() == AUDIO_OUTPUT_FLAG_DIRECT) {
+                 directOnlyProfile = curProfile;
+             }
+
+             if ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+                 compressOffloadProfile = curProfile;
              }
         }
     }
-    return profile;
+
+    return directOnlyProfile ? directOnlyProfile
+                            : (compressOffloadProfile ? compressOffloadProfile : profile);
+
 }
 
 sp<IOProfile> AudioPolicyManager::getSpatializerOutputProfile(
@@ -2856,8 +2860,15 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
                 // a volume ramp if there is no mute.
                 requiresMuteCheck |= sharedDevice && isActive;
 
-                if (needToCloseBitPerfectOutput && desc->isBitPerfect()) {
-                    outputsToReopen.push_back(desc);
+                if (desc->isBitPerfect()) {
+                    if (needToCloseBitPerfectOutput) {
+                        outputsToReopen.push_back(desc);
+                    } else if (!desc->devices().filter(devices).isEmpty()) {
+                        // There is an active bit-perfect playback on one of the targeted device,
+                        // the client should be reattached to the bit-perfect thread.
+                        ALOGD("%s, fails as there is bit-perfect playback active", __func__);
+                        return DEAD_OBJECT;
+                    }
                 }
             }
         }
@@ -3873,14 +3884,20 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
 
     const DeviceVector devices = mEngine->getOutputDevicesForAttributes(
             attributesToDriveAbs, nullptr /* preferredDevice */, true /* fromCache */);
-    changed &= devices.types().contains(deviceType);
+    audio_devices_t volumeDevice = Volume::getDeviceForVolume(devices.types());
+    changed &= (volumeDevice == deviceType);
     // if something changed on the output device for the changed attributes, apply the stream
     // volumes regarding the new absolute mode to all the outputs without any delay
     if (changed) {
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-            ALOGI("%s: apply stream volumes for portId %d and device type %d", __func__,
-                  desc->getId(), deviceType);
+            DeviceTypeSet curDevices = desc->devices().types();
+            if (volumeDevice != Volume::getDeviceForVolume(curDevices)) {
+                continue;  // skip if not using the target volume device
+            }
+
+            ALOGI("%s: apply stream volumes for %s(curDevices %s) and device type 0x%X", __func__,
+                  desc->info().c_str(), dumpDeviceTypes(curDevices).c_str(), deviceType);
             applyStreamVolumes(desc, {deviceType});
         }
     }
@@ -8599,6 +8616,7 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
               devices.toString().c_str());
         // restore previous device after evaluating strategy mute state
         outputDesc->setDevices(prevDevices);
+        applyStreamVolumes(outputDesc, prevDevices.types(), delayMs, true /*force*/);
         return muteWaitMs;
     }
 

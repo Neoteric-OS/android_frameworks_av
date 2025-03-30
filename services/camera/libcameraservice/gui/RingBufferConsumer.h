@@ -179,6 +179,7 @@ class RingBufferConsumer
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
     Mutex mMutex;
 
+    sp<Surface> mSurface;
     sp<BufferItemConsumer> mBufferItemConsumer;
 #endif
 

@@ -44,10 +44,7 @@
 #include <fakeservicemanager/FakeServiceManager.h>
 #include <fuzzbinder/random_binder.h>
 #include <gui/BufferItemConsumer.h>
-#include <gui/Flags.h> // remove with COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-#if not COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
 #include <gui/IGraphicBufferProducer.h>
-#endif
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <media/IAudioFlinger.h>
@@ -838,8 +835,7 @@ void Camera2Fuzzer::process() {
             continue;
         }
         device->beginConfigure();
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        sp<BufferItemConsumer> opaqueConsumer = new BufferItemConsumer(
+        auto [opaqueConsumer, surface] = BufferItemConsumer::create(
                 GRALLOC_USAGE_SW_READ_NEVER, /*maxImages*/ 8, /*controlledByApp*/ true);
         opaqueConsumer->setName(String8("Roger"));
 
@@ -847,34 +843,14 @@ void Camera2Fuzzer::process() {
         opaqueConsumer->setDefaultBufferSize(640, 480);
         opaqueConsumer->setDefaultBufferFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED);
 
-        sp<Surface> surface = opaqueConsumer->getSurface();
-
         std::string noPhysicalId;
         size_t rotations = sizeof(kRotations) / sizeof(int32_t) - 1;
         ParcelableSurfaceType pSurface = flagtools::surfaceToParcelableSurfaceType(surface);
         OutputConfiguration output(
-            pSurface, kRotations[mFuzzedDataProvider->ConsumeIntegralInRange<size_t>(0, rotations)],
-            noPhysicalId);
-#else
-        sp<IGraphicBufferProducer> gbProducer;
-        sp<IGraphicBufferConsumer> gbConsumer;
-        BufferQueue::createBufferQueue(&gbProducer, &gbConsumer);
-        sp<BufferItemConsumer> opaqueConsumer = new BufferItemConsumer(gbConsumer,
-                GRALLOC_USAGE_SW_READ_NEVER, /*maxImages*/8, /*controlledByApp*/true);
-        opaqueConsumer->setName(String8("Roger"));
-
-        // Set to VGA dimension for default, as that is guaranteed to be present
-        gbConsumer->setDefaultBufferSize(640, 480);
-        gbConsumer->setDefaultBufferFormat(HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED);
-
-        sp<Surface> surface(new Surface(gbProducer, /*controlledByApp*/false));
-
-        std::string noPhysicalId;
-        size_t rotations = sizeof(kRotations) / sizeof(int32_t) - 1;
-        OutputConfiguration output(gbProducer,
+                pSurface,
                 kRotations[mFuzzedDataProvider->ConsumeIntegralInRange<size_t>(0, rotations)],
                 noPhysicalId);
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+
         int streamId;
         device->createStream(output, &streamId);
         CameraMetadata sessionParams;

@@ -354,6 +354,10 @@ status_t AidlCamera3Device::initialize(sp<CameraProviderManager> manager,
     return initializeCommonLocked(manager);
 }
 
+int32_t AidlCamera3Device::getCaptureResultFMQSize() {
+    return Camera3Device::calculateFMQSize<AidlResultMetadataQueue>(mResultMetadataQueue);
+}
+
 ::ndk::ScopedAStatus AidlCamera3Device::AidlCameraDeviceCallbacks::processCaptureResult(
             const std::vector<camera::device::CaptureResult>& results) {
     sp<AidlCamera3Device> p = mParent.promote();

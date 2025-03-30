@@ -21,7 +21,6 @@
 
 #include <camera/CameraMetadata.h>
 
-#include <gui/BufferItemConsumer.h>
 #include <gui/IConsumerListener.h>
 #include <gui/Surface.h>
 
@@ -248,7 +247,6 @@ class DeprecatedCamera3StreamSplitter : public IConsumerListener {
 
     sp<IGraphicBufferProducer> mProducer;
     sp<IGraphicBufferConsumer> mConsumer;
-    sp<BufferItemConsumer> mBufferItemConsumer;
     sp<Surface> mSurface;
 
     // Map graphic buffer ids -> buffer items
@@ -291,7 +289,7 @@ class DeprecatedCamera3StreamSplitter : public IConsumerListener {
     std::atomic<status_t> mOnFrameAvailableRes{0};
 
     // Currently acquired input buffers
-    size_t mAcquiredInputBuffers;
+    size_t mAcquiredInputBuffers = 0;
 
     std::string mConsumerName;
 

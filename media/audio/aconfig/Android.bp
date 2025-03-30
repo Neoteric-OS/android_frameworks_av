@@ -149,6 +149,7 @@ aconfig_declarations {
 java_aconfig_library {
     name: "android.media.audio-aconfig-java",
     aconfig_declarations: "android.media.audio-aconfig",
+    host_supported: true,
     defaults: ["framework-minus-apex-aconfig-java-defaults"],
 }
 

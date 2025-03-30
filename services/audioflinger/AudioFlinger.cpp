@@ -82,6 +82,8 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
+namespace audioserver_flags = com::android::media::audioserver;
+
 namespace android {
 
 using namespace std::string_view_literals;
@@ -627,6 +629,11 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
         }
     }
     if (ret != NO_ERROR) {
+        if (audioserver_flags::enable_gmap_mode()
+                && direction == MmapStreamInterface::DIRECTION_INPUT) {
+            audio_utils::lock_guard _l(mutex());
+            setHasAlreadyCaptured_l(adjAttributionSource.uid);
+        }
         return ret;
     }
 
@@ -2541,6 +2548,9 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
             audio_utils::lock_guard _l2(thread->mutex());
             thread->addEffectChain_l(chain);
         }
+        if (audioserver_flags::enable_gmap_mode()) {
+            setHasAlreadyCaptured_l(adjAttributionSource.uid);
+        }
         break;
     }
     // End of retry loop.
@@ -2576,6 +2586,26 @@ Exit:
 
 
 // ----------------------------------------------------------------------------
+
+void AudioFlinger::setHasAlreadyCaptured_l(uid_t uid) {
+    {
+        const std::lock_guard _l(mCapturingClientsMutex);
+        if (mCapturingClients.count(uid)) return;
+        mCapturingClients.emplace(uid);
+    }
+    for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
+        IAfPlaybackThread* const playbackThread = mPlaybackThreads.valueAt(i).get();
+        playbackThread->checkUpdateTrackMetadataForUid(uid);
+    }
+    for (size_t i = 0; i < mMmapThreads.size(); i++) {
+        IAfMmapThread* const mmapThread = mMmapThreads.valueAt(i).get();
+        if (mmapThread->isOutput()) {
+            IAfMmapPlaybackThread* const mmapPlaybackThread =
+                    mmapThread->asIAfMmapPlaybackThread().get();
+            mmapPlaybackThread->checkUpdateTrackMetadataForUid(uid);
+        }
+    }
+}
 
 status_t AudioFlinger::getAudioPolicyConfig(media::AudioPolicyConfig *config)
 {

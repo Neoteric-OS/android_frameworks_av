@@ -417,7 +417,14 @@ private:
 
     bool isHardeningOverrideEnabled() const final;
 
+    bool hasAlreadyCaptured(uid_t uid) const final {
+        const std::lock_guard _l(mCapturingClientsMutex);
+        return mCapturingClients.contains(uid);
+    }
+
     // ---- end of IAfThreadCallback interface
+
+    void setHasAlreadyCaptured_l(uid_t uid) REQUIRES(mutex());
 
     /* List available audio ports and their attributes */
     status_t listAudioPorts(unsigned int* num_ports, struct audio_port* ports) const
@@ -788,6 +795,12 @@ private:
     const int64_t mStartTime = audio_utils_get_real_time_ns();
     // Late-inited from main()
     std::atomic<int64_t> mStartupFinishedTime {};
+
+    // List of client UIDs having already captured audio in the past.
+    // This is used to control GMAP bidirectional mode track metadata tag
+    // generation.
+    std::set<uid_t> mCapturingClients GUARDED_BY(mCapturingClientsMutex);
+    mutable std::mutex  mCapturingClientsMutex; // only for mCapturingClients
 };
 
 // ----------------------------------------------------------------------------

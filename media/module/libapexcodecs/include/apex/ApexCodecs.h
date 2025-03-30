@@ -455,7 +455,7 @@ ApexCodec_BufferType ApexCodec_Buffer_getType(
  *                          input buffer's frame index.
  * \param outTimestampUs    the timestamp for the buffer in microseconds
  * \return  APEXCODEC_STATUS_OK         if successful
- * \return  APEXCODEC_STATUS_BAD_STATE  if |buffer| is empty
+ * \return  APEXCODEC_STATUS_BAD_STATE  if buffer info was never set
  */
 ApexCodec_Status ApexCodec_Buffer_getBufferInfo(
         ApexCodec_Buffer *_Nonnull buffer,

@@ -18,6 +18,7 @@
 #define ANDROID_C2_SOFT_APV_ENC_H_
 
 #include <SimpleC2Component.h>
+#include <util/C2InterfaceHelper.h>
 #include <utils/Vector.h>
 #include <map>
 #include "oapv.h"
@@ -35,6 +36,8 @@ struct C2SoftApvEnc final : public SimpleC2Component {
     class IntfImpl;
 
     C2SoftApvEnc(const char* name, c2_node_id_t id, const std::shared_ptr<IntfImpl>& intfImpl);
+    C2SoftApvEnc(const char* name, c2_node_id_t id,
+                 const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2SoftApvEnc();
 
     // From SimpleC2Component

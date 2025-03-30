@@ -40,6 +40,7 @@
 #include <system/audio.h>
 #include <android/media/GetInputForAttrResponse.h>
 #include <android/media/AudioMixerAttributesInternal.h>
+#include <android/media/audio/common/AudioVolumeGroupChangeEvent.h>
 
 #define VALUE_OR_RETURN_BINDER_STATUS(x) \
     ({ auto _tmp = (x); \
@@ -66,6 +67,7 @@ using media::audio::common::AudioOffloadInfo;
 using media::audio::common::AudioSource;
 using media::audio::common::AudioStreamType;
 using media::audio::common::AudioUsage;
+using media::audio::common::AudioVolumeGroupChangeEvent;
 using media::audio::common::Int;
 
 std::mutex AudioSystem::gMutex;
@@ -195,6 +197,7 @@ public:
         }
         if (mValid) return mService;
         if (waitMs.count() < 0) waitMs = mWaitMs;
+        auto timepointLimit = std::chrono::steady_clock::now() + waitMs;
         ul.unlock();
 
         // mediautils::getService() installs a persistent new service notification.
@@ -205,6 +208,7 @@ public:
         ul.lock();
         // return the IAudioFlinger interface which is adapted
         // from the media::IAudioFlingerService.
+        mCv.wait_until(ul, timepointLimit, isServiceValid_l);
         return mService;
     }
 
@@ -289,6 +293,7 @@ private:
             mService = service;
             client = mClient;
             mValid = true;
+            mCv.notify_all();
         }
         // TODO(b/375280520) consider registerClient() within mMutex lock.
         const int64_t token = IPCThreadState::self()->clearCallingIdentity();
@@ -303,7 +308,12 @@ private:
         return sp<AudioFlingerClientAdapter>::make(af);
     }
 
+    static bool isServiceValid_l() REQUIRES(mMutex) {
+        return mValid;
+    }
+
     static inline constinit std::mutex mMutex;
+    static inline constinit std::condition_variable mCv;
     static inline constinit sp<AudioSystem::AudioFlingerClient> mClient GUARDED_BY(mMutex);
     static inline constinit sp<IAudioFlinger> mService GUARDED_BY(mMutex);
     static inline constinit std::chrono::milliseconds mWaitMs
@@ -1022,6 +1032,7 @@ public:
             client = mClient;
             mService = aps;
             mValid = true;
+            mCv.notify_all();
         }
         // TODO(b/375280520) consider registerClient() within mMutex lock.
         const int64_t token = IPCThreadState::self()->clearCallingIdentity();
@@ -1082,6 +1093,7 @@ public:
         }
         if (mValid) return mService;
         if (waitMs.count() < 0) waitMs = mWaitMs;
+        auto timepointLimit = std::chrono::steady_clock::now() + waitMs;
         ul.unlock();
 
         auto service = mediautils::getService<
@@ -1092,6 +1104,7 @@ public:
         // (whereupon mService contained the actual local service pointer to use).
         // we should always return mService.
         ul.lock();
+        mCv.wait_until(ul, timepointLimit, isServiceValid_l);
         return mService;
     }
 
@@ -1140,7 +1153,12 @@ public:
     }
 private:
 
+    static bool isServiceValid_l() REQUIRES(mMutex) {
+        return mValid;
+    }
+
     static inline constinit std::mutex mMutex;
+    static inline constinit std::condition_variable mCv;
     static inline constinit sp<AudioSystem::AudioPolicyServiceClient> mClient GUARDED_BY(mMutex);
     static inline constinit sp<IAudioPolicyService> mService GUARDED_BY(mMutex);
     static inline constinit bool mValid GUARDED_BY(mMutex) = false;
@@ -1965,7 +1983,8 @@ status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callb
     return (ret < 0) ? INVALID_OPERATION : NO_ERROR;
 }
 
-status_t AudioSystem::addAudioVolumeGroupCallback(const sp<AudioVolumeGroupCallback>& callback) {
+status_t AudioSystem::addAudioVolumeGroupCallback(
+        const sp<media::INativeAudioVolumeGroupCallback>& callback) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = AudioSystem::getAudioPolicyClient();
@@ -1979,7 +1998,8 @@ status_t AudioSystem::addAudioVolumeGroupCallback(const sp<AudioVolumeGroupCallb
     return (ret < 0) ? INVALID_OPERATION : NO_ERROR;
 }
 
-status_t AudioSystem::removeAudioVolumeGroupCallback(const sp<AudioVolumeGroupCallback>& callback) {
+status_t AudioSystem::removeAudioVolumeGroupCallback(
+        const sp<media::INativeAudioVolumeGroupCallback>& callback) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = AudioSystem::getAudioPolicyClient();
@@ -2997,14 +3017,14 @@ Status AudioSystem::AudioPolicyServiceClient::onAudioPatchListUpdate() {
 
 // ----------------------------------------------------------------------------
 int AudioSystem::AudioPolicyServiceClient::addAudioVolumeGroupCallback(
-        const sp<AudioVolumeGroupCallback>& callback) {
+        const sp<media::INativeAudioVolumeGroupCallback>& callback) {
     std::lock_guard _l(mMutex);
     return mAudioVolumeGroupCallbacks.insert(callback).second
             ? mAudioVolumeGroupCallbacks.size() : -1;
 }
 
 int AudioSystem::AudioPolicyServiceClient::removeAudioVolumeGroupCallback(
-        const sp<AudioVolumeGroupCallback>& callback) {
+        const sp<media::INativeAudioVolumeGroupCallback>& callback) {
     std::lock_guard _l(mMutex);
     return mAudioVolumeGroupCallbacks.erase(callback) > 0
             ? mAudioVolumeGroupCallbacks.size() : -1;
@@ -3012,13 +3032,12 @@ int AudioSystem::AudioPolicyServiceClient::removeAudioVolumeGroupCallback(
 
 Status AudioSystem::AudioPolicyServiceClient::onAudioVolumeGroupChanged(int32_t group,
                                                                         int32_t flags) {
-    volume_group_t groupLegacy = VALUE_OR_RETURN_BINDER_STATUS(
-            aidl2legacy_int32_t_volume_group_t(group));
-    int flagsLegacy = VALUE_OR_RETURN_BINDER_STATUS(convertReinterpret<int>(flags));
-
+    AudioVolumeGroupChangeEvent aidlEvent;
+    aidlEvent.groupId = group;
+    aidlEvent.flags = flags;
     std::lock_guard _l(mMutex);
     for (const auto& callback : mAudioVolumeGroupCallbacks) {
-        callback->onAudioVolumeGroupChanged(groupLegacy, flagsLegacy);
+        callback->onAudioVolumeGroupChanged(aidlEvent);
     }
     return Status::ok();
 }
@@ -3112,9 +3131,6 @@ Status AudioSystem::AudioPolicyServiceClient::onVolumeRangeInitRequest() {
 void AudioSystem::AudioPolicyServiceClient::onServiceDied() {
     std::lock_guard _l(mMutex);
     for (const auto& callback : mAudioPortCallbacks) {
-        callback->onServiceDied();
-    }
-    for (const auto& callback : mAudioVolumeGroupCallbacks) {
         callback->onServiceDied();
     }
 }

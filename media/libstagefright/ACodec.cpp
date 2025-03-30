@@ -7203,11 +7203,18 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     sp<RefBase> obj;
     CHECK(msg->findObject("codecInfo", &obj));
     sp<MediaCodecInfo> info = (MediaCodecInfo *)obj.get();
+    if (info == nullptr) {
+        ALOGE("Unexpected nullptr for codec information");
+        mCodec->signalError(OMX_ErrorUndefined, UNKNOWN_ERROR);
+        return false;
+    }
 // QTI_BEGIN: 2018-03-29: Audio: Fix audio extended formats playback and record.
     AString owner = "default";
 // QTI_END: 2018-03-29: Audio: Fix audio extended formats playback and record.
-    AString componentName;
-    CHECK(msg->findString("componentName", &componentName));
+    AString componentName = info->getCodecName();
+    // we are no longer using "componentName" as we always pass the codec info for owner.
+    // CHECK(msg->findString("componentName", &componentName));
+    AString halName = info->getHalName();
 
 // QTI_BEGIN: 2018-03-29: Audio: Fix audio extended formats playback and record.
     //make sure if the component name contains qcom/qti, we don't return error
@@ -7251,11 +7258,12 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
     pid_t tid = gettid();
     int prevPriority = androidGetThreadPriority(tid);
     androidSetThreadPriority(tid, ANDROID_PRIORITY_FOREGROUND);
-    err = omx->allocateNode(componentName.c_str(), observer, &omxNode);
+    err = omx->allocateNode(halName.c_str(), observer, &omxNode);
     androidSetThreadPriority(tid, prevPriority);
 
     if (err != OK) {
-        ALOGE("Unable to instantiate codec '%s' with err %#x.", componentName.c_str(), err);
+        ALOGE("Unable to instantiate codec '%s' for '%s' with err %#x.",
+                halName.c_str(), componentName.c_str(), err);
 
         mCodec->signalError((OMX_ERRORTYPE)err, makeNoSideEffectStatus(err));
         return false;

@@ -74,6 +74,7 @@ class AidlCamera3Device :
 
     virtual status_t initialize(sp<CameraProviderManager> manager, const std::string& monitorTags)
             override;
+    virtual int32_t getCaptureResultFMQSize() override;
 
     class AidlHalInterface : public Camera3Device::HalInterface {
      public:

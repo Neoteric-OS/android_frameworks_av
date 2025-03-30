@@ -58,16 +58,7 @@ PixelFormat kFormat = HAL_PIXEL_FORMAT_YCBCR_420_888;
 int64_t kDynamicRangeProfile = 0;
 
 std::tuple<sp<BufferItemConsumer>, sp<Surface>> createConsumerAndSurface() {
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    sp<BufferItemConsumer> consumer = sp<BufferItemConsumer>::make(kConsumerUsage);
-    return {consumer, consumer->getSurface()};
-#else
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-
-    return {sp<BufferItemConsumer>::make(consumer, kConsumerUsage), sp<Surface>::make(producer)};
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+    return BufferItemConsumer::create(kConsumerUsage);
 }
 
 class Camera3StreamSplitterTest : public testing::Test {

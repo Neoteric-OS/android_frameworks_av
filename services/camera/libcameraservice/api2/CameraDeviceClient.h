@@ -272,7 +272,7 @@ private:
             int8_t, android::hardware::common::fmq::SynchronizedReadWrite>;
     using CameraMetadataInfo = android::hardware::camera2::CameraMetadataInfo;
     status_t CreateMetadataQueue(
-            std::unique_ptr<MetadataQueue>* metadata_queue, uint32_t default_size);
+            std::unique_ptr<MetadataQueue>* metadata_queue, size_t size_bytes);
     // StreamSurfaceId encapsulates streamId + surfaceId for a particular surface.
     // streamId specifies the index of the stream the surface belongs to, and the
     // surfaceId specifies the index of the surface within the stream. (one stream
