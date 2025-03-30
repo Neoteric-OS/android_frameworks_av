@@ -289,3 +289,13 @@ flag {
     bug: "296232417"
     is_fixed_read_only: true
 }
+
+flag {
+    name: "register_volume_callback_api_hardening"
+    namespace: "media_audio"
+    description:
+            "Add modify audio settings privilege permission to un/register volume group "
+            "callback APIs"
+    bug: "402502314"
+    is_fixed_read_only: true
+}

@@ -63,6 +63,8 @@ class HidlCamera3Device :
 
     status_t initialize(sp<CameraProviderManager> manager, const std::string& monitorTags) override;
 
+    virtual int32_t getCaptureResultFMQSize() override;
+
     /**
      * Implementation of android::hardware::camera::device::V3_5::ICameraDeviceCallback
      */

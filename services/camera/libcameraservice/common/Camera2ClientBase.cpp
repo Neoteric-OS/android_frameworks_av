@@ -24,7 +24,8 @@
 #include <utils/Trace.h>
 
 #include <cutils/properties.h>
-#include <gui/Surface.h>
+#include <gui/BufferItem.h>
+#include <gui/BufferItemConsumer.h>
 #include <gui/Surface.h>
 
 #include <android/hardware/ICameraService.h>

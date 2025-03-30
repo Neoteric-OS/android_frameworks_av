@@ -269,6 +269,12 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     using AppOpsSession = media::permission::AppOpsSession<media::permission::DefaultAppOpsFacade>;
 
   public:
+    enum class EnforcementLevel {
+        NONE, // no enforcement
+        PARTIAL, // enforcement for CONTROL_PARTIAL
+        FULL, // enforcement for CONTROL
+    };
+
     AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread, float volume, bool muted,
                      const audio_attributes_t& attr,
                      const AttributionSourceState& attributionSource,
@@ -284,11 +290,25 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
 
     // Restricted due to OP_AUDIO_CONTROL_PARTIAL
     bool hasOpControlPartial() const {
-        return mOpControlSession ? mHasOpControlPartial.load(std::memory_order_acquire) : true;
+        return mOpControlPartialSession ? mHasOpControlPartial.load(std::memory_order_acquire)
+                                        : true;
+    }
+
+    // Restricted due to OP_AUDIO_CONTROL
+    bool hasOpControlFull() const {
+        return mOpControlFullSession ? mHasOpControlFull.load(std::memory_order_acquire) : true;
     }
 
     bool isPlaybackRestrictedControl() const {
-        return !(mIsExemptedFromOpControl || hasOpControlPartial());
+        using enum EnforcementLevel;
+        switch (mEnforcementLevel) {
+            case NONE:
+                return false;
+            case PARTIAL:
+                return !hasOpControlPartial();
+            case FULL:
+                return !hasOpControlFull();
+        }
     }
 
     // VolumePortInterface implementation
@@ -323,13 +343,15 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     // associated with port
     std::atomic<float> mVolume = 0.0f;
 
-    const bool mIsExemptedFromOpControl;
+    const EnforcementLevel mEnforcementLevel;
 
     std::atomic<bool> mHasOpControlPartial {true};
+    std::atomic<bool> mHasOpControlFull {true};
     mutable std::atomic<bool> mPlaybackHardeningLogged {false};
     // the ref behind the optional is const
-    // this member is last in decl order to ensure it is destroyed first
-    std::optional<AppOpsSession> mOpControlSession;
+    // these members are last in decl order to ensure it is destroyed first
+    std::optional<AppOpsSession> mOpControlPartialSession;
+    std::optional<AppOpsSession> mOpControlFullSession;
 };
 
 // Common interface for audioflinger Playback tracks.

@@ -45,11 +45,13 @@
     } \
   } while (0)
 
+#include <gui/BufferItemConsumer.h>
 #include <utils/Log.h>
 #include <utils/Trace.h>
 #include <cstring>
 #include "../../common/aidl/AidlProviderInfo.h"
 #include "utils/SessionConfigurationUtils.h"
+
 #include "AidlCamera3SharedDevice.h"
 
 using namespace android::camera3;
@@ -247,20 +249,10 @@ status_t AidlCamera3SharedDevice::beginConfigure() {
             return INVALID_OPERATION;
         }
 
-        #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-            sp<BufferItemConsumer> consumer = sp<BufferItemConsumer>::make(
-                    AHARDWAREBUFFER_USAGE_CAMERA_READ);
-            mOpaqueConsumers.push_back(consumer);
-            mSharedSurfaces.push_back(consumer->getSurface());
-        #else
-            sp<IGraphicBufferProducer> producer;
-            sp<IGraphicBufferConsumer> consumer;
-            BufferQueue::createBufferQueue(&producer, &consumer);
-            sp<BufferItemConsumer> opaqueConsumer = sp<BufferItemConsumer>::make(consumer,
-                    AHARDWAREBUFFER_USAGE_CAMERA_READ);
-            mOpaqueConsumers.push_back(opaqueConsumer);
-            mSharedSurfaces.push_back(new Surface(producer));
-        #endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+        auto [consumer, surface] = BufferItemConsumer::create(AHARDWAREBUFFER_USAGE_CAMERA_READ);
+        mOpaqueConsumers.push_back(consumer);
+        mSharedSurfaces.push_back(surface);
+
         sp<OpaqueConsumerListener> consumerListener = sp<OpaqueConsumerListener>::make(
                 mOpaqueConsumers[i]);
         mOpaqueConsumers[i]->setFrameAvailableListener(consumerListener);
