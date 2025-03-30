@@ -71,7 +71,7 @@ Camera2Client::Camera2Client(
                         false /*systemNativeClient - since no ndk for api1*/, cameraDeviceId,
                         api1CameraId, cameraFacing, sensorOrientation, servicePid,
                         overrideForPerfClass, rotationOverride, sharedMode,
-                        /*legacyClient*/ true),
+                        /*isVendorClient*/ false, /*legacyClient*/ true),
       mParameters(api1CameraId, cameraFacing),
       mInitialized(false),
       mLatestRequestIds(kMaxRequestIds),

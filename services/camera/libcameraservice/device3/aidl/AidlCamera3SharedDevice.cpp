@@ -92,12 +92,12 @@ sp<AidlCamera3SharedDevice> AidlCamera3SharedDevice::getInstance(
         std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const std::string& id, bool overrideForPerfClass, int rotationOverride,
-        bool legacyClient) {
+        bool isVendorClient, bool legacyClient) {
     Mutex::Autolock l(sSharedClientsLock);
     if (sClientsPid[id].empty()) {
         AidlCamera3SharedDevice* sharedDevice = new AidlCamera3SharedDevice(
                 cameraServiceProxyWrapper, attributionAndPermissionUtils, id, overrideForPerfClass,
-                rotationOverride, legacyClient);
+                rotationOverride, isVendorClient, legacyClient);
         sSharedDevices[id] = sharedDevice;
     }
     if (attributionAndPermissionUtils != nullptr) {
