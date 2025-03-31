@@ -104,6 +104,11 @@ C2SoftAmrNbEnc::C2SoftAmrNbEnc(const char* name, c2_node_id_t id,
       mSidState(nullptr) {
 }
 
+C2SoftAmrNbEnc::C2SoftAmrNbEnc(const char* name, c2_node_id_t id,
+                               const std::shared_ptr<C2ReflectorHelper>& helper)
+    : C2SoftAmrNbEnc(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftAmrNbEnc::~C2SoftAmrNbEnc() {
     onRelease();
 }

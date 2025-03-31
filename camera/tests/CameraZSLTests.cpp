@@ -93,7 +93,7 @@ void CameraZSLTests::SetUp() {
             &numCameras);
     EXPECT_TRUE(rc.isOk());
 
-    mComposerClient = new SurfaceComposerClient;
+    mComposerClient = sp<SurfaceComposerClient>::make();
     ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 }
 

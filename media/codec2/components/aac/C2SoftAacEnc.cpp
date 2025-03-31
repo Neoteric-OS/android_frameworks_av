@@ -160,6 +160,13 @@ C2SoftAacEnc::C2SoftAacEnc(
       mRemainderLen(0u) {
 }
 
+C2SoftAacEnc::C2SoftAacEnc(
+        const char *name,
+        c2_node_id_t id,
+        const std::shared_ptr<C2ReflectorHelper> &helper)
+    : C2SoftAacEnc(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftAacEnc::~C2SoftAacEnc() {
     onReset();
 }

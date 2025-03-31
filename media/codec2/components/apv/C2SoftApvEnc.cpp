@@ -754,6 +754,11 @@ C2SoftApvEnc::C2SoftApvEnc(const char* name, c2_node_id_t id,
     resetEncoder();
 }
 
+C2SoftApvEnc::C2SoftApvEnc(const char* name, c2_node_id_t id,
+                           const std::shared_ptr<C2ReflectorHelper>& helper)
+    : C2SoftApvEnc(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftApvEnc::~C2SoftApvEnc() {
     onRelease();
 }

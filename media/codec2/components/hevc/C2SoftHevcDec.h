@@ -22,6 +22,7 @@
 #include <atomic>
 #include <inttypes.h>
 #include <SimpleC2Component.h>
+#include <util/C2InterfaceHelper.h>
 
 #include "ihevc_typedefs.h"
 #include "ihevcd_cxa.h"
@@ -49,6 +50,8 @@ struct C2SoftHevcDec : public SimpleC2Component {
 
     C2SoftHevcDec(const char* name, c2_node_id_t id,
                   const std::shared_ptr<IntfImpl>& intfImpl);
+    C2SoftHevcDec(const char* name, c2_node_id_t id,
+                  const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2SoftHevcDec();
 
     // From SimpleC2Component

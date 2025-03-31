@@ -106,6 +106,11 @@ C2SoftAmrWbEnc::C2SoftAmrWbEnc(const char* name, c2_node_id_t id,
       mMemOperator(nullptr) {
 }
 
+C2SoftAmrWbEnc::C2SoftAmrWbEnc(const char* name, c2_node_id_t id,
+                               const std::shared_ptr<C2ReflectorHelper>& helper)
+    : C2SoftAmrWbEnc(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftAmrWbEnc::~C2SoftAmrWbEnc() {
     onRelease();
 }
