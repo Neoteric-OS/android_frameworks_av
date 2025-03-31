@@ -136,7 +136,7 @@ bool shouldInjectFakeStream(const CameraMetadata& info) {
 Camera3Device::Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const std::string &id, bool overrideForPerfClass, int rotationOverride,
-        bool legacyClient):
+        bool isVendorClient, bool legacyClient):
         AttributionAndPermissionUtilsEncapsulator(attributionAndPermissionUtils),
         mCameraServiceProxyWrapper(cameraServiceProxyWrapper),
         mId(id),
@@ -172,6 +172,9 @@ Camera3Device::Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraS
 {
     ATRACE_CALL();
     ALOGV("%s: Created device for camera %s", __FUNCTION__, mId.c_str());
+    int callingUid = getCallingUid();
+    bool isCalledByNativeService = (callingUid == AID_MEDIA);
+    mIsNativeClient = isCalledByNativeService || isVendorClient;
 }
 
 Camera3Device::~Camera3Device()
@@ -304,7 +307,8 @@ status_t Camera3Device::initializeCommonLocked(sp<CameraProviderManager> manager
 
     /** Start watchdog thread */
     mCameraServiceWatchdog = new CameraServiceWatchdog(
-            manager->getProviderPids(), mId, mCameraServiceProxyWrapper);
+            manager->getProviderPids(), mAttributionAndPermissionUtils->getCallingPid(),
+            mIsNativeClient, mId, mCameraServiceProxyWrapper);
     res = mCameraServiceWatchdog->run("CameraServiceWatchdog");
     if (res != OK) {
         SET_ERR_L("Unable to start camera service watchdog thread: %s (%d)",

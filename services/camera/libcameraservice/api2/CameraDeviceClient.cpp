@@ -92,7 +92,7 @@ CameraDeviceClient::CameraDeviceClient(
                         attributionAndPermissionUtils, clientAttribution, callingPid,
                         systemNativeClient, cameraId, /*API1 camera ID*/ -1, cameraFacing,
                         sensorOrientation, servicePid, overrideForPerfClass, rotationOverride,
-                        sharedMode),
+                        sharedMode, isVendorClient),
       mInputStream(),
       mStreamingRequestId(REQUEST_ID_NONE),
       mStreamingRequestLastFrameNumber(NO_IN_FLIGHT_REPEATING_FRAMES),
