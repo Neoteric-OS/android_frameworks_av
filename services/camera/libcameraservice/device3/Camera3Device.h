@@ -93,7 +93,7 @@ class Camera3Device :
     explicit Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
             const std::string& id, bool overrideForPerfClass, int rotationOverride,
-            bool legacyClient = false);
+            bool isVendorClient, bool legacyClient = false);
 
     virtual ~Camera3Device();
     // Delete and optionally close native handles and clear the input vector afterward
@@ -1647,6 +1647,10 @@ class Camera3Device :
 
     // Flag to indicate that we shouldn't forward extension related metadata
     bool mSupportsExtensionKeys = false;
+
+    // If the client is a native client, either opened through vndk, or caling
+    // Pid is a platform service.
+    bool mIsNativeClient;
 
     // Injection camera related methods.
     class Camera3DeviceInjectionMethods : public virtual RefBase {
