@@ -52,9 +52,6 @@
 // TODO: remove BLOCKSIZE unit of processing - it isn't needed anymore.
 static constexpr int BLOCKSIZE = 16;
 
-#ifdef QTI_RESAMPLER
-#define QTI_RESAMPLER_MAX_SAMPLERATE 192000
-#endif
 namespace android {
 
 // ----------------------------------------------------------------------------
@@ -512,14 +509,6 @@ bool AudioMixerBase::TrackBase::setResampler(uint32_t trackSampleRate, uint32_t 
                 // TODO: Remove MONO_HACK. Resampler sees #channels after the downmixer
                 // but if none exists, it is the channel count (1 for mono).
                 const int resamplerChannelCount = getOutputChannelCount();
-#ifdef QTI_RESAMPLER
-                if ((trackSampleRate <= QTI_RESAMPLER_MAX_SAMPLERATE) &&
-                       (trackSampleRate > devSampleRate * 2) &&
-                       ((devSampleRate == 48000)||(devSampleRate == 44100)) &&
-                       (resamplerChannelCount <= 2)) {
-                    quality = AudioResampler::QTI_QUALITY;
-                }
-#endif
                 ALOGVV("Creating resampler:"
                         " format(%#x) channels(%d) devSampleRate(%u) quality(%d)\n",
                         mMixerInFormat, resamplerChannelCount, devSampleRate, quality);
