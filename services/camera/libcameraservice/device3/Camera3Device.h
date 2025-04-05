@@ -93,7 +93,7 @@ class Camera3Device :
     explicit Camera3Device(std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
             const std::string& id, bool overrideForPerfClass, int rotationOverride,
-            bool legacyClient = false);
+            bool isVendorClient, bool legacyClient = false);
 
     virtual ~Camera3Device();
     // Delete and optionally close native handles and clear the input vector afterward
@@ -123,6 +123,24 @@ class Camera3Device :
     virtual status_t initialize(sp<CameraProviderManager> /*manager*/,
             const std::string& /*monitorTags*/) = 0;
 
+    static constexpr int32_t METADATA_QUEUE_SIZE = 1 << 20;
+
+    template <typename FMQType>
+    static size_t calculateFMQSize(const std::unique_ptr<FMQType> &fmq) {
+        if (fmq == nullptr) {
+            ALOGE("%s: result metadata queue hasn't been initialized", __FUNCTION__);
+            return METADATA_QUEUE_SIZE;
+        }
+        size_t quantumSize = fmq->getQuantumSize();
+        size_t quantumCount = fmq->getQuantumCount();
+        if ((quantumSize == 0) || (quantumCount == 0) ||
+                ((std::numeric_limits<size_t>::max() / quantumSize) < quantumCount)) {
+            ALOGE("%s: Error with FMQ quantum count / quantum size, quantum count %zu"
+                    "quantum count %zu", __FUNCTION__, quantumSize, quantumCount);
+            return METADATA_QUEUE_SIZE;
+        }
+        return fmq->getQuantumSize() * fmq->getQuantumCount();
+    }
     status_t disconnect() override;
     status_t dump(int fd, const Vector<String16> &args) override;
     status_t startWatchingTags(const std::string &tags) override;
@@ -232,8 +250,6 @@ class Camera3Device :
     virtual status_t startStreaming(const int32_t /*reqId*/, const SurfaceMap& /*surfaceMap*/,
             int32_t* /*sharedReqID*/, int64_t* /*lastFrameNumber = NULL*/)
             override {return INVALID_OPERATION;};
-
-
     status_t configureStreams(const CameraMetadata& sessionParams,
             int operatingMode =
             camera_stream_configuration_mode_t::CAMERA_STREAM_CONFIGURATION_NORMAL_MODE) override;
@@ -1631,6 +1647,10 @@ class Camera3Device :
 
     // Flag to indicate that we shouldn't forward extension related metadata
     bool mSupportsExtensionKeys = false;
+
+    // If the client is a native client, either opened through vndk, or caling
+    // Pid is a platform service.
+    bool mIsNativeClient;
 
     // Injection camera related methods.
     class Camera3DeviceInjectionMethods : public virtual RefBase {

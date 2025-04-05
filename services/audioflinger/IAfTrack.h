@@ -22,6 +22,7 @@
 #include <audiomanager/IAudioManager.h>
 #include <binder/IMemory.h>
 #include <media/AppOpsSession.h>
+#include <mediautils/SingleThreadExecutor.h>
 #include <datapath/VolumePortInterface.h>
 #include <fastpath/FastMixerDumpState.h>
 #include <media/AudioSystem.h>
@@ -268,9 +269,16 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     using AppOpsSession = media::permission::AppOpsSession<media::permission::DefaultAppOpsFacade>;
 
   public:
-    AfPlaybackCommon(IAfTrackBase& self, IAfThreadCallback& thread, float volume, bool muted,
+    enum class EnforcementLevel {
+        NONE, // no enforcement
+        PARTIAL, // enforcement for CONTROL_PARTIAL
+        FULL, // enforcement for CONTROL
+    };
+
+    AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread, float volume, bool muted,
                      const audio_attributes_t& attr,
                      const AttributionSourceState& attributionSource,
+                     bool isOffloadOrMmap,
                      bool shouldPlaybackHarden = true);
 
     /**
@@ -282,11 +290,25 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
 
     // Restricted due to OP_AUDIO_CONTROL_PARTIAL
     bool hasOpControlPartial() const {
-        return mOpControlSession ? mHasOpControlPartial.load(std::memory_order_acquire) : true;
+        return mOpControlPartialSession ? mHasOpControlPartial.load(std::memory_order_acquire)
+                                        : true;
+    }
+
+    // Restricted due to OP_AUDIO_CONTROL
+    bool hasOpControlFull() const {
+        return mOpControlFullSession ? mHasOpControlFull.load(std::memory_order_acquire) : true;
     }
 
     bool isPlaybackRestrictedControl() const {
-        return !(mIsExemptedFromOpControl || hasOpControlPartial());
+        using enum EnforcementLevel;
+        switch (mEnforcementLevel) {
+            case NONE:
+                return false;
+            case PARTIAL:
+                return !hasOpControlPartial();
+            case FULL:
+                return !hasOpControlFull();
+        }
     }
 
     // VolumePortInterface implementation
@@ -312,23 +334,24 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     void endPlaybackDelivery();
 
   private:
-    // non-const for signal
-    IAfTrackBase& mSelf;
-    // TODO: replace PersistableBundle with own struct
-    // access these two variables only when holding player thread lock.
-    std::unique_ptr<os::PersistableBundle> mMuteEventExtras;
+    const IAfTrackBase& mSelf;
+
+    std::optional<mediautils::SingleThreadExecutor> mExecutor;
     // TODO: atomic necessary if underneath thread lock?
     std::atomic<mute_state_t> mMuteState;
     std::atomic<bool> mMutedFromPort;
     // associated with port
     std::atomic<float> mVolume = 0.0f;
 
-    const bool mIsExemptedFromOpControl;
+    const EnforcementLevel mEnforcementLevel;
 
     std::atomic<bool> mHasOpControlPartial {true};
+    std::atomic<bool> mHasOpControlFull {true};
     mutable std::atomic<bool> mPlaybackHardeningLogged {false};
     // the ref behind the optional is const
-    std::optional<AppOpsSession> mOpControlSession;
+    // these members are last in decl order to ensure it is destroyed first
+    std::optional<AppOpsSession> mOpControlPartialSession;
+    std::optional<AppOpsSession> mOpControlFullSession;
 };
 
 // Common interface for audioflinger Playback tracks.

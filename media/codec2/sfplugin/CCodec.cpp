@@ -1043,11 +1043,12 @@ void CCodec::allocate(const sp<MediaCodecInfo> &codecInfo) {
         mCallback->onError(UNKNOWN_ERROR, ACTION_CODE_FATAL);
         return;
     }
-    ALOGD("allocate(%s)", codecInfo->getCodecName());
     mClientListener.reset(new ClientListener(this));
 
     AString componentName = codecInfo->getCodecName();
+    AString halName = codecInfo->getHalName();
     std::shared_ptr<Codec2Client> client;
+    ALOGD("allocate(%s)", componentName.c_str());
 
     // set up preferred component store to access vendor store parameters
     client = Codec2Client::CreateFromService("default");
@@ -1059,12 +1060,12 @@ void CCodec::allocate(const sp<MediaCodecInfo> &codecInfo) {
 
     std::shared_ptr<Codec2Client::Component> comp;
     c2_status_t status = Codec2Client::CreateComponentByName(
-            componentName.c_str(),
+            halName.c_str(),
             mClientListener,
             &comp,
             &client);
     if (status != C2_OK) {
-        ALOGE("Failed Create component: %s, error=%d", componentName.c_str(), status);
+        ALOGE("Failed Create component: %s, error=%d", halName.c_str(), status);
         Mutexed<State>::Locked state(mState);
         state->set(RELEASED);
         state.unlock();
@@ -1072,7 +1073,7 @@ void CCodec::allocate(const sp<MediaCodecInfo> &codecInfo) {
         state.lock();
         return;
     }
-    ALOGI("Created component [%s]", componentName.c_str());
+    ALOGI("Created component [%s] for [%s]", halName.c_str(), componentName.c_str());
     mChannel->setComponent(comp);
     auto setAllocated = [this, comp, client] {
         Mutexed<State>::Locked state(mState);
@@ -2923,6 +2924,21 @@ void CCodec::onMessageReceived(const sp<AMessage> &msg) {
                     for (const std::unique_ptr<C2Param> &param
                             : work->worklets.front()->output.configUpdate) {
                         updates.push_back(C2Param::Copy(*param));
+                    }
+                    // Check for change in resources required.
+                    if (!updates.empty() && android::media::codec::codec_availability_support()) {
+                        for (const std::unique_ptr<C2Param>& param : updates) {
+                            if (param->index() == C2ResourcesNeededTuning::PARAM_TYPE) {
+                                // Update the required resources.
+                                if (mCodecResources) {
+                                    mCodecResources->updateRequiredResources(
+                                            C2ResourcesNeededTuning::From(param.get()));
+                                }
+                                // Report to MediaCodec
+                                mCallback->onRequiredResourcesChanged();
+                                break;
+                            }
+                        }
                     }
                     unsigned stream = 0;
                     std::vector<std::shared_ptr<C2Buffer>> &outputBuffers =

@@ -188,6 +188,14 @@ flag {
 }
 
 flag {
+    name: "ringtone_user_uri_check"
+    is_exported: true
+    namespace: "media_audio"
+    description: "check user for RingtonePlayer URIs"
+    bug: "400434060"
+}
+
+flag {
     name: "sco_managed_by_audio"
     is_exported: true
     namespace: "media_audio"
@@ -279,5 +287,15 @@ flag {
     namespace: "media_audio"
     description: "Limit access to volume and ringer SDK APIs in AudioManager"
     bug: "296232417"
+    is_fixed_read_only: true
+}
+
+flag {
+    name: "register_volume_callback_api_hardening"
+    namespace: "media_audio"
+    description:
+            "Add modify audio settings privilege permission to un/register volume group "
+            "callback APIs"
+    bug: "402502314"
     is_fixed_read_only: true
 }

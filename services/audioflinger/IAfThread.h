@@ -130,6 +130,8 @@ public:
             getPermissionProvider() = 0;
 
     virtual bool isHardeningOverrideEnabled() const = 0;
+
+    virtual bool hasAlreadyCaptured(uid_t uid) const = 0;
 };
 
 class IAfThreadBase : public virtual RefBase {
@@ -539,6 +541,8 @@ public:
 
     virtual IAfTrack* getTrackById_l(audio_port_handle_t trackId) REQUIRES(mutex()) = 0;
 
+    virtual std::vector<sp<IAfTrack>> getTracks_l() REQUIRES(mutex()) = 0;
+
     virtual bool hasMixer() const = 0;
 
     virtual status_t setRequestedLatencyMode(audio_latency_mode_t mode) = 0;
@@ -563,6 +567,7 @@ public:
 
     virtual status_t setPortsVolume(const std::vector<audio_port_handle_t> &portIds, float volume,
                                     bool muted) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual void checkUpdateTrackMetadataForUid(uid_t uid) EXCLUDES_ThreadBase_Mutex = 0;
 };
 
 class IAfDirectOutputThread : public virtual IAfPlaybackThread {
@@ -708,6 +713,7 @@ public:
 
     virtual status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
                                     bool muted) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual void checkUpdateTrackMetadataForUid(uid_t uid) EXCLUDES_ThreadBase_Mutex = 0;
 };
 
 class IAfMmapCaptureThread : public virtual IAfMmapThread {

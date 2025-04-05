@@ -120,6 +120,7 @@ HeicCompositeStream::~HeicCompositeStream() {
     mMainImageSurfaceId = -1;
     mMainImageConsumer.clear();
     mMainImageSurface.clear();
+    mDynamicProfileHLG10 = false;
 }
 
 bool HeicCompositeStream::isHeicCompositeStreamInfo(const OutputStreamInfo& streamInfo,
@@ -167,7 +168,7 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
 // QTI_BEGIN: 2023-05-09: Camera: Propagate colorspace to heic composite stream
         int /*streamSetId*/, bool /*isShared*/, int32_t colorSpace,
 // QTI_END: 2023-05-09: Camera: Propagate colorspace to heic composite stream
-        int64_t /*dynamicProfile*/, int64_t /*streamUseCase*/, bool useReadoutTimestamp) {
+        int64_t dynamicProfile, int64_t /*streamUseCase*/, bool useReadoutTimestamp) {
 
     sp<CameraDeviceBase> device = mDevice.promote();
     if (!device.get()) {
@@ -188,6 +189,10 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         mInternalDataSpace = static_cast<android_dataspace_t>(HAL_DATASPACE_BT2020_HLG);
     }
 
+    if (dynamicProfile == ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10) {
+        mDynamicProfileHLG10 = true;
+    }
+
     res = initializeCodec(width, height, device);
     if (res != OK) {
         ALOGE("%s: Failed to initialize HEIC/HEVC codec: %s (%d)",
@@ -195,26 +200,15 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         return NO_INIT;
     }
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
     if (mAppSegmentSupported) {
-        mAppSegmentConsumer = new CpuConsumer(kMaxAcquiredAppSegment);
+        std::tie(mAppSegmentConsumer, mAppSegmentSurface) =
+                CpuConsumer::create(kMaxAcquiredAppSegment);
         mAppSegmentConsumer->setFrameAvailableListener(this);
         mAppSegmentConsumer->setName(String8("Camera3-HeicComposite-AppSegmentStream"));
-        mAppSegmentSurface = mAppSegmentConsumer->getSurface();
     }
-    sp<IGraphicBufferProducer> producer = mAppSegmentSurface.get() != nullptr ?
-        mAppSegmentSurface->getIGraphicBufferProducer() : nullptr;
-#else
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    if (mAppSegmentSupported) {
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        mAppSegmentConsumer = new CpuConsumer(consumer, kMaxAcquiredAppSegment);
-        mAppSegmentConsumer->setFrameAvailableListener(this);
-        mAppSegmentConsumer->setName(String8("Camera3-HeicComposite-AppSegmentStream"));
-        mAppSegmentSurface = new Surface(producer);
-    }
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+    sp<IGraphicBufferProducer> producer = mAppSegmentSurface.get() != nullptr
+                                                  ? mAppSegmentSurface->getIGraphicBufferProducer()
+                                                  : nullptr;
 
     if (mAppSegmentSupported) {
         std::vector<int> sourceSurfaceId;
@@ -245,13 +239,9 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
             return res;
         }
     } else {
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-        mMainImageConsumer = new CpuConsumer(1);
-        producer = mMainImageConsumer->getSurface()->getIGraphicBufferProducer();
-#else
-        BufferQueue::createBufferQueue(&producer, &consumer);
-        mMainImageConsumer = new CpuConsumer(consumer, 1);
-#endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
+        sp<Surface> surface;
+        std::tie(mMainImageConsumer, surface) = CpuConsumer::create(1);
+        producer = surface->getIGraphicBufferProducer();
         mMainImageConsumer->setFrameAvailableListener(this);
         mMainImageConsumer->setName(String8("Camera3-HeicComposite-HevcInputYUVStream"));
     }
@@ -274,13 +264,21 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
     }
 
     //Use YUV_420 format if framework tiling is needed.
-    int srcStreamFmt = mHDRGainmapEnabled ?
-        static_cast<android_pixel_format_t>(HAL_PIXEL_FORMAT_YCBCR_P010) : mUseGrid ?
-        HAL_PIXEL_FORMAT_YCbCr_420_888 : HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+    int srcStreamFmt = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
+
+    if ((TRUE == mHDRGainmapEnabled) || (TRUE == mDynamicProfileHLG10))
+    {
+        srcStreamFmt = static_cast<android_pixel_format_t>(HAL_PIXEL_FORMAT_YCBCR_P010);
+    }
+    else if (TRUE == mUseGrid)
+    {
+        srcStreamFmt = HAL_PIXEL_FORMAT_YCbCr_420_888;
+    }
+
     res = device->createStream(mMainImageSurface, width, height, srcStreamFmt, mInternalDataSpace,
             rotation, id, physicalCameraId, sensorPixelModesUsed, surfaceIds,
             camera3::CAMERA3_STREAM_SET_ID_INVALID, /*isShared*/false, /*isMultiResolution*/false,
-            /*consumerUsage*/0, mHDRGainmapEnabled ?
+            /*consumerUsage*/0, (mHDRGainmapEnabled || mDynamicProfileHLG10) ?
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10 :
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
             ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT,
@@ -2021,6 +2019,11 @@ status_t HeicCompositeStream::initializeCodec(uint32_t width, uint32_t height,
     outputFormat->setInt32(KEY_I_FRAME_INTERVAL, 0);
     outputFormat->setInt32(KEY_COLOR_FORMAT,
             useGrid || mHDRGainmapEnabled ? COLOR_FormatYUV420Flexible : COLOR_FormatSurface);
+    if (mDynamicProfileHLG10) {
+        outputFormat->setInt32(KEY_PROFILE, HEVCProfileMain10Still);
+        outputFormat->setInt32(KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
+        ALOGV("%s KEY_PROFILE: HEVCProfileMain10Still, KEY_COLOR_FORMAT: COLOR_FormatYUVP010", __FUNCTION__);
+    }
     outputFormat->setInt32(KEY_FRAME_RATE, useGrid ? gridRows * gridCols : kNoGridOpRate);
     // This only serves as a hint to encoder when encoding is not real-time.
     outputFormat->setInt32(KEY_OPERATING_RATE, useGrid ? kGridOpRate : kNoGridOpRate);
@@ -2591,6 +2594,17 @@ void HeicCompositeStream::CodecCallbackHandler::onMessageReceived(const sp<AMess
                      break;
                  }
 
+                 case MediaCodec::CB_METRICS_FLUSHED:
+                 case MediaCodec::CB_REQUIRED_RESOURCES_CHANGED:
+                 {
+                    // Nothing to do. Informational. Safe to ignore.
+                    break;
+                 }
+
+                 case MediaCodec::CB_CRYPTO_ERROR:
+                 // unexpected as we are not using crypto
+                 case MediaCodec::CB_LARGE_FRAME_OUTPUT_AVAILABLE:
+                 // unexpected as we are not using large frames
                  default: {
                      ALOGE("kWhatCallbackNotify: callbackID(%d) is unexpected.", cbID);
                      break;

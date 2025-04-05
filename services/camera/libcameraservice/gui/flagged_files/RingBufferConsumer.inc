@@ -19,14 +19,16 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <inttypes.h>
+#include <tuple>
 
 #include <utils/Log.h>
 
 #include <camera/StringUtils.h>
 #include <com_android_graphics_libgui_flags.h>
-#include <gui/Surface.h>
-#include <gui/RingBufferConsumer.h>
+#include <gui/BufferItemConsumer.h>
 #include <gui/Flags.h>
+#include <gui/RingBufferConsumer.h>
+#include <gui/Surface.h>
 
 #define BI_LOGV(x, ...) ALOGV(" " x, ##__VA_ARGS__)
 #define BI_LOGD(x, ...) ALOGD(" " x, ##__VA_ARGS__)
@@ -49,7 +51,8 @@ RingBufferConsumer::RingBufferConsumer(const sp<IGraphicBufferConsumer>& consume
                                        uint64_t consumerUsage, int bufferCount)
     : mBufferCount(bufferCount), mLatestTimestamp(0) {
 #endif  // COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-    mBufferItemConsumer = sp<BufferItemConsumer>::make(consumerUsage, bufferCount);
+    std::tie(mBufferItemConsumer, mSurface) =
+            BufferItemConsumer::create(consumerUsage, bufferCount);
     assert(bufferCount > 0);
 }
 
@@ -164,7 +167,7 @@ nsecs_t RingBufferConsumer::getLatestTimestamp() {
 }
 
 sp<Surface> RingBufferConsumer::getSurface() const {
-    return mBufferItemConsumer->getSurface();
+    return mSurface;
 }
 
 void RingBufferConsumer::pinBufferLocked(const BufferItem& item) {

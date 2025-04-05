@@ -1299,7 +1299,9 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
                                         bool directOnly) {
-    sp<IOProfile> profile;
+    sp<IOProfile> directOnlyProfile = nullptr;
+    sp<IOProfile> compressOffloadProfile = nullptr;
+    sp<IOProfile> profile = nullptr;
     for (const auto& hwModule : hwModules) {
         for (const auto& curProfile : hwModule->getOutputProfiles()) {
              if (curProfile->getCompatibilityScore(devices,
@@ -1321,19 +1323,21 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
                 return curProfile;
              }
 
-             // when searching for direct outputs, if several profiles are compatible, give priority
-             // to one with offload capability
-             if (profile != 0 &&
-                 ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0)) {
-                continue;
-             }
              profile = curProfile;
-             if ((profile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
-                 break;
+             if ((flags == AUDIO_OUTPUT_FLAG_DIRECT) &&
+                 curProfile->getFlags() == AUDIO_OUTPUT_FLAG_DIRECT) {
+                 directOnlyProfile = curProfile;
+             }
+
+             if ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+                 compressOffloadProfile = curProfile;
              }
         }
     }
-    return profile;
+
+    return directOnlyProfile ? directOnlyProfile
+                            : (compressOffloadProfile ? compressOffloadProfile : profile);
+
 }
 
 sp<IOProfile> AudioPolicyManager::getSpatializerOutputProfile(
@@ -1677,32 +1681,6 @@ status_t AudioPolicyManager::getOutputForAttrInt(
     return NO_ERROR;
 }
 
-// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
-void AudioPolicyManager::checkAndUpdateOffloadInfoForDirectTracks(
-        const audio_attributes_t *attr,
-        audio_stream_type_t *stream,
-        audio_config_t *config,
-        audio_output_flags_t *flags)
-{
-    audio_offload_info_t tOffloadInfo = AUDIO_INFO_INITIALIZER;
-    // set offloadInfo for directTracks, If already not set.
-    if (!memcmp(&config->offload_info, &tOffloadInfo, sizeof(audio_offload_info_t))) {
-        bool trackDirectPCM = false;
-        if (*flags == AUDIO_OUTPUT_FLAG_NONE)
-            trackDirectPCM = property_get_bool("vendor.audio.offload.track.enable", true);
-        if (*flags == AUDIO_OUTPUT_FLAG_DIRECT || trackDirectPCM) {
-            ALOGV("Update offload config for direct track");
-            config->offload_info.sample_rate  = config->sample_rate;
-            config->offload_info.channel_mask = config->channel_mask;
-            config->offload_info.format = config->format;
-            config->offload_info.stream_type = *stream;
-            config->offload_info.bit_width = audio_bytes_per_sample(config->format) * 8;
-            config->offload_info.usage = attr != NULL ? attr->usage : config->offload_info.usage;
-        }
-    }
-}
-
-// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
 status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                               audio_io_handle_t *output,
                                               audio_session_t session,
@@ -1739,13 +1717,8 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     }
     *selectedDeviceIds = sanitizedRequestedPortIds;
 
-// QTI_BEGIN: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
-    audio_config_t directConfig = *config;
-    checkAndUpdateOffloadInfoForDirectTracks(attr, stream, &directConfig, flags);
-
-// QTI_END: 2021-02-02: Audio: audiopolicy: Change offload info for direct tracks.
     status_t status = getOutputForAttrInt(&resultAttr, output, session, attr, stream, uid,
-            &directConfig, flags, selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
+            config, flags, selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
             secondaryOutputs != nullptr ? &secondaryMixes : nullptr, outputType, isSpatialized,
             isBitPerfect);
     if (status != NO_ERROR) {
@@ -2008,39 +1981,16 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     if ((*flags & AUDIO_OUTPUT_FLAG_HW_AV_SYNC) != 0) {
         *flags = (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
 
-    // Force direct flags for PCM data, this can help to maintain audio bitstream
-    // quality by avoiding resampling/downmixing by using direct track when hal/DSP
-    // support is available. DSP PP can be applied directly on track data instead of
-    // mixed output. To some extent, it can help save some power.
-    const bool trackDirectPCM =
-            property_get_bool("vendor.audio.offload.track.enable", true /* default_value */);
-// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
-// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
     const bool offloadDisable =
             property_get_bool("audio.offload.disable", false /* default_value */);
-    if (trackDirectPCM && !offloadDisable && stream == AUDIO_STREAM_MUSIC) {
-       if ((*flags == AUDIO_OUTPUT_FLAG_NONE) &&
-            (config->offload_info.usage == AUDIO_USAGE_MEDIA ||
-             config->offload_info.usage == AUDIO_USAGE_GAME)) {
-            ALOGV("Force direct flags to use pcm offload, original flags(0x%x)", *flags);
-            *flags = AUDIO_OUTPUT_FLAG_DIRECT;
-// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
-        }
-// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
-// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
-    } else if (audio_is_linear_pcm(config->format) &&
-            *flags == AUDIO_OUTPUT_FLAG_DIRECT) {
-        ALOGV("%s Remove direct flags stream %d,orginal flags %0x", __func__, stream, *flags);
+    if ((offloadDisable || stream != AUDIO_STREAM_MUSIC) &&
+        (audio_is_linear_pcm(config->format) && *flags == AUDIO_OUTPUT_FLAG_DIRECT)) {
+        ALOGV("%s Remove direct flags stream %d,orginal flags %0x, offload disabled %d ", __func__,
+              stream, *flags, offloadDisable);
         *flags = AUDIO_OUTPUT_FLAG_NONE;
-// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
     }
 
-// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
-// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     bool forceDeepBuffer = false;
 // QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     // only allow deep buffering for music stream type
@@ -2910,8 +2860,15 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
                 // a volume ramp if there is no mute.
                 requiresMuteCheck |= sharedDevice && isActive;
 
-                if (needToCloseBitPerfectOutput && desc->isBitPerfect()) {
-                    outputsToReopen.push_back(desc);
+                if (desc->isBitPerfect()) {
+                    if (needToCloseBitPerfectOutput) {
+                        outputsToReopen.push_back(desc);
+                    } else if (!desc->devices().filter(devices).isEmpty()) {
+                        // There is an active bit-perfect playback on one of the targeted device,
+                        // the client should be reattached to the bit-perfect thread.
+                        ALOGD("%s, fails as there is bit-perfect playback active", __func__);
+                        return DEAD_OBJECT;
+                    }
                 }
             }
         }
@@ -3927,14 +3884,20 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
 
     const DeviceVector devices = mEngine->getOutputDevicesForAttributes(
             attributesToDriveAbs, nullptr /* preferredDevice */, true /* fromCache */);
-    changed &= devices.types().contains(deviceType);
+    audio_devices_t volumeDevice = Volume::getDeviceForVolume(devices.types());
+    changed &= (volumeDevice == deviceType);
     // if something changed on the output device for the changed attributes, apply the stream
     // volumes regarding the new absolute mode to all the outputs without any delay
     if (changed) {
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-            ALOGI("%s: apply stream volumes for portId %d and device type %d", __func__,
-                  desc->getId(), deviceType);
+            DeviceTypeSet curDevices = desc->devices().types();
+            if (volumeDevice != Volume::getDeviceForVolume(curDevices)) {
+                continue;  // skip if not using the target volume device
+            }
+
+            ALOGI("%s: apply stream volumes for %s(curDevices %s) and device type 0x%X", __func__,
+                  desc->info().c_str(), dumpDeviceTypes(curDevices).c_str(), deviceType);
             applyStreamVolumes(desc, {deviceType});
         }
     }
@@ -8653,6 +8616,7 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
               devices.toString().c_str());
         // restore previous device after evaluating strategy mute state
         outputDesc->setDevices(prevDevices);
+        applyStreamVolumes(outputDesc, prevDevices.types(), delayMs, true /*force*/);
         return muteWaitMs;
     }
 

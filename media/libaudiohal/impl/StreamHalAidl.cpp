@@ -46,13 +46,43 @@ using ::aidl::android::hardware::audio::core::IStreamIn;
 using ::aidl::android::hardware::audio::core::IStreamOut;
 using ::aidl::android::hardware::audio::core::MmapBufferDescriptor;
 using ::aidl::android::hardware::audio::core::StreamDescriptor;
+using ::aidl::android::hardware::audio::core::VendorParameter;
 using ::aidl::android::media::audio::common::MicrophoneDynamicInfo;
 using ::aidl::android::media::audio::IHalAdapterVendorExtension;
+
+/**
+ * Notes on the position handling implementation. First, please consult
+ * "On position reporting" comment in StreamHalInterface.h for the context.
+ *
+ * The adaptation layer for AIDL HALs needs to emulate the HIDL HAL behavior
+ * (that's until some future release when the framework stops supporting HIDL
+ * HALs and it will be possible to remove the code in the framework which
+ * translates resetting positions into continuous) by resetting the reported
+ * position after certain events, depending on the kind of the audio data
+ * stream. Unlike the AIDL interface, the interface between the HAL adaptation
+ * layer and the framework uses separate method calls for controlling the stream
+ * state and retrieving the position. Because of that, the code which implements
+ * position reporting (methods 'getRenderPosition' and 'getObservablePosition')
+ * needs to use stored stream positions which it had at certain state changing
+ * events, like flush or drain. These are stored in the field called
+ * 'mStatePositions'. This field is updated in the code which changes the stream
+ * state. There are two places for that: the 'sendCommand' method, which is used
+ * for all streams, and handlers of asynchronous stream events called
+ * 'onAsync...'.
+ */
 
 namespace android {
 
 using HalCommand = StreamDescriptor::Command;
+
 namespace {
+
+static constexpr int32_t kAidlVersion1 = 1;
+static constexpr int32_t kAidlVersion2 = 2;
+static constexpr int32_t kAidlVersion3 = 3;
+
+static constexpr const char* kCreateMmapBuffer = "aosp.createMmapBuffer";
+
 template<HalCommand::Tag cmd> HalCommand makeHalCommand() {
     return HalCommand::make<cmd>(::aidl::android::media::audio::common::Void{});
 }
@@ -114,15 +144,27 @@ StreamHalAidl::StreamHalAidl(std::string_view className, bool isInput, const aud
         mStreamPowerLog.init(config.sample_rate, config.channel_mask, config.format);
     }
 
-    if (mStream != nullptr) {
-        mContext.getCommandMQ()->setErrorHandler(
-                fmqErrorHandler<StreamContextAidl::CommandMQ::Error>("CommandMQ"));
-        mContext.getReplyMQ()->setErrorHandler(
-                fmqErrorHandler<StreamContextAidl::ReplyMQ::Error>("ReplyMQ"));
-        if (mContext.getDataMQ() != nullptr) {
-            mContext.getDataMQ()->setErrorHandler(
-                    fmqErrorHandler<StreamContextAidl::DataMQ::Error>("DataMQ"));
+    if (mStream == nullptr) return;
+
+    mContext.getCommandMQ()->setErrorHandler(
+            fmqErrorHandler<StreamContextAidl::CommandMQ::Error>("CommandMQ"));
+    mContext.getReplyMQ()->setErrorHandler(
+            fmqErrorHandler<StreamContextAidl::ReplyMQ::Error>("ReplyMQ"));
+    if (mContext.getDataMQ() != nullptr) {
+        mContext.getDataMQ()->setErrorHandler(
+                fmqErrorHandler<StreamContextAidl::DataMQ::Error>("DataMQ"));
+    }
+
+    if (auto status = mStream->getInterfaceVersion(&mAidlInterfaceVersion); status.isOk()) {
+        if (mAidlInterfaceVersion > kAidlVersion3) {
+            mSupportsCreateMmapBuffer = true;
+        } else {
+            VendorParameter createMmapBuffer{.id = kCreateMmapBuffer};
+            mSupportsCreateMmapBuffer =
+                    mStream->setVendorParameters({createMmapBuffer}, false).isOk();
         }
+    } else {
+        AUGMENT_LOG(E, "failed to retrieve stream interface version: %s", status.getMessage());
     }
 }
 
@@ -166,10 +208,8 @@ status_t StreamHalAidl::setParameters(const String8& kvPairs) {
     AUGMENT_LOG(D, "parameters: %s", parameters.toString().c_str());
 
     (void)VALUE_OR_RETURN_STATUS(filterOutAndProcessParameter<int>(
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             parameters, String8(AudioParameter::keyStreamHwAvSync), [&](int hwAvSyncId) {
                 return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
                         serializeCall(mStream, &Stream::updateHwAvSyncId, hwAvSyncId));
             }));
     return parseAndSetVendorParameters(mVendorExt, mStream, parameters);
@@ -207,9 +247,7 @@ status_t StreamHalAidl::addEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::addEffect, aidlEffect->getIEffect()));
 }
 
@@ -221,7 +259,6 @@ status_t StreamHalAidl::removeEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
             serializeCall(mStream, &Stream::removeEffect, aidlEffect->getIEffect()));
 }
@@ -276,15 +313,10 @@ status_t StreamHalAidl::standby() {
     }
 }
 
-status_t StreamHalAidl::dump(int fd, const Vector<String16>& args) {
+status_t StreamHalAidl::dump(int fd, const Vector<String16>& args __unused) {
     AUGMENT_LOG(D);
-    TIME_CHECK();
-    if (!mStream) return NO_INIT;
-    Vector<String16> newArgs = args;
-    newArgs.push(String16(kDumpFromAudioServerArgument));
-    status_t status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
     mStreamPowerLog.dump(fd);
-    return status;
+    return OK;
 }
 
 status_t StreamHalAidl::start() {
@@ -389,12 +421,17 @@ status_t StreamHalAidl::getHardwarePosition(int64_t *frames, int64_t *timestamp)
     AUGMENT_LOG(V);
     if (!mStream) return NO_INIT;
     StreamDescriptor::Reply reply;
-    RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply));
+    StatePositions statePositions{};
+    RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply, &statePositions));
     if (reply.hardware.frames == StreamDescriptor::Position::UNKNOWN ||
         reply.hardware.timeNs == StreamDescriptor::Position::UNKNOWN) {
+        AUGMENT_LOG(W, "No position was reported by the HAL");
         return INVALID_OPERATION;
     }
-    *frames = reply.hardware.frames;
+    int64_t mostRecentResetPoint = std::max(statePositions.hardware.framesAtStandby,
+                                            statePositions.hardware.framesAtFlushOrDrain);
+    int64_t aidlFrames = reply.hardware.frames;
+    *frames = aidlFrames <= mostRecentResetPoint ? 0 : aidlFrames - mostRecentResetPoint;
     *timestamp = reply.hardware.timeNs;
     return OK;
 }
@@ -486,9 +523,7 @@ status_t StreamHalAidl::pause(StreamDescriptor::Reply* reply) {
             AUGMENT_LOG(D,
                         "HAL failed to handle the 'pause' command, but stream state is in one of"
                         " the PAUSED kind of states, current state: %s",
-// QTI_BEGIN: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
                         toString(innerReply->state).c_str());
-// QTI_END: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
             return OK;
         }
         return status;
@@ -577,7 +612,17 @@ void StreamHalAidl::onAsyncTransferReady() {
         std::lock_guard l(mCommandReplyLock);
         state = getState();
     }
+    bool isCallbackExpected = false;
     if (state == StreamDescriptor::State::TRANSFERRING) {
+        isCallbackExpected = true;
+    } else if (mContext.hasClipTransitionSupport() && state == StreamDescriptor::State::DRAINING) {
+        std::lock_guard l(mLock);
+        isCallbackExpected = mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED;
+        if (!isCallbackExpected) {
+            AUGMENT_LOG(W, "drainState %d", static_cast<int>(mStatePositions.drainState));
+        }
+    }
+    if (isCallbackExpected) {
         // Retrieve the current state together with position counters unconditionally
         // to ensure that the state on our side gets updated.
         sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
@@ -595,17 +640,27 @@ void StreamHalAidl::onAsyncDrainReady() {
         std::lock_guard l(mCommandReplyLock);
         state = getState();
     }
-    if (state == StreamDescriptor::State::DRAINING) {
+    if (state == StreamDescriptor::State::DRAINING ||
+            (mContext.hasClipTransitionSupport() &&
+                    (state == StreamDescriptor::State::TRANSFERRING ||
+                            state == StreamDescriptor::State::IDLE))) {
         // Retrieve the current state together with position counters unconditionally
         // to ensure that the state on our side gets updated.
         sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(), nullptr,
                     true /*safeFromNonWorkerThread */);
         // For compatibility with HIDL behavior, apply a "soft" position reset
-        // after receiving the "drain ready" callback.
+        // after receiving the "drain ready" callback for the clip end.
         std::lock_guard l(mLock);
-        if (mLastReply.observable.frames != StreamDescriptor::Position::UNKNOWN) {
-            mStatePositions.framesAtFlushOrDrain = mLastReply.observable.frames;
+        if (mLastReply.observable.frames != StreamDescriptor::Position::UNKNOWN &&
+                (!mContext.hasClipTransitionSupport() ||
+                        (mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED
+                                || mStatePositions.drainState == StatePositions::DrainState::ALL))) {
+            AUGMENT_LOG(D, "setting position %lld as clip end",
+                    (long long)mLastReply.observable.frames);
+            mStatePositions.observable.framesAtFlushOrDrain = mLastReply.observable.frames;
         }
+        mStatePositions.drainState = mStatePositions.drainState == StatePositions::DrainState::EN ?
+                StatePositions::DrainState::EN_RECEIVED : StatePositions::DrainState::NONE;
     } else {
         AUGMENT_LOG(W, "unexpected onDrainReady in the state %s", toString(state).c_str());
     }
@@ -625,12 +680,25 @@ status_t StreamHalAidl::createMmapBuffer(int32_t minSizeFrames __unused,
     if (!mContext.isMmapped()) {
         return BAD_VALUE;
     }
+    if (mSupportsCreateMmapBuffer && (mAidlInterfaceVersion <= kAidlVersion3)) {
+        std::vector<VendorParameter> parameters;
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+                        mStream->getVendorParameters({kCreateMmapBuffer}, &parameters)));
+        if (parameters.size() == 1) {
+            std::optional<MmapBufferDescriptor> result;
+            RETURN_STATUS_IF_ERROR(parameters[0].ext.getParcelable(&result));
+            mContext.updateMmapBufferDescriptor(std::move(*result));
+        } else {
+            AUGMENT_LOG(E, "invalid output from 'createMmapBuffer' via 'getVendorParameters': %s",
+                        internal::ToString(parameters).c_str());
+            return INVALID_OPERATION;
+        }
+    }
     const MmapBufferDescriptor& bufferDescriptor = mContext.getMmapBufferDescriptor();
     info->shared_memory_fd = bufferDescriptor.sharedMemory.fd.get();
     info->buffer_size_frames = mContext.getBufferSizeFrames();
     info->burst_size_frames = bufferDescriptor.burstSizeFrames;
     info->flags = static_cast<audio_mmap_buffer_flag>(bufferDescriptor.flags);
-
     return OK;
 }
 
@@ -705,20 +773,31 @@ status_t StreamHalAidl::sendCommand(
             }
             mLastReply = *reply;
             mLastReplyExpirationNs = uptimeNanos() + mLastReplyLifeTimeNs;
-            if (!mIsInput && reply->status == STATUS_OK &&
-                    reply->observable.frames != StreamDescriptor::Position::UNKNOWN) {
-                if (command.getTag() == StreamDescriptor::Command::standby &&
-                        reply->state == StreamDescriptor::State::STANDBY) {
-                    mStatePositions.framesAtStandby = reply->observable.frames;
-                } else if (command.getTag() == StreamDescriptor::Command::flush &&
-                           reply->state == StreamDescriptor::State::IDLE) {
-                    mStatePositions.framesAtFlushOrDrain = reply->observable.frames;
-                } else if (!mContext.isAsynchronous() &&
-                        command.getTag() == StreamDescriptor::Command::drain &&
-                        (reply->state == StreamDescriptor::State::IDLE ||
-                                reply->state == StreamDescriptor::State::DRAINING)) {
-                    mStatePositions.framesAtFlushOrDrain = reply->observable.frames;
-                } // for asynchronous drain, the frame count is saved in 'onAsyncDrainReady'
+            if (!mIsInput && reply->status == STATUS_OK) {
+                if (reply->observable.frames != StreamDescriptor::Position::UNKNOWN) {
+                    if (command.getTag() == StreamDescriptor::Command::standby &&
+                            reply->state == StreamDescriptor::State::STANDBY) {
+                        mStatePositions.observable.framesAtStandby = reply->observable.frames;
+                        mStatePositions.hardware.framesAtStandby = reply->hardware.frames;
+                    } else if (command.getTag() == StreamDescriptor::Command::flush &&
+                            reply->state == StreamDescriptor::State::IDLE) {
+                        mStatePositions.observable.framesAtFlushOrDrain = reply->observable.frames;
+                        mStatePositions.hardware.framesAtFlushOrDrain = reply->observable.frames;
+                    } else if (!mContext.isAsynchronous() &&
+                            command.getTag() == StreamDescriptor::Command::drain &&
+                            (reply->state == StreamDescriptor::State::IDLE ||
+                                    reply->state == StreamDescriptor::State::DRAINING)) {
+                        mStatePositions.observable.framesAtFlushOrDrain = reply->observable.frames;
+                        mStatePositions.hardware.framesAtFlushOrDrain = reply->observable.frames;
+                    } // for asynchronous drain, the frame count is saved in 'onAsyncDrainReady'
+                }
+                if (mContext.isAsynchronous() &&
+                        command.getTag() == StreamDescriptor::Command::drain) {
+                    mStatePositions.drainState =
+                            command.get<StreamDescriptor::Command::drain>() ==
+                            StreamDescriptor::DrainMode::DRAIN_ALL ?
+                            StatePositions::DrainState::ALL : StatePositions::DrainState::EN;
+                }
             }
             if (statePositions != nullptr) {
                 *statePositions = mStatePositions;
@@ -741,15 +820,19 @@ status_t StreamHalAidl::updateCountersIfNeeded(
         ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply,
         StatePositions* statePositions) {
     bool doUpdate = false;
+    HalCommand cmd;
     {
         std::lock_guard l(mLock);
         doUpdate = uptimeNanos() > mLastReplyExpirationNs;
+        cmd = mContext.isMmapped() && mSupportsCreateMmapBuffer
+                && mLastReply.state == StreamDescriptor::State::ACTIVE
+                ? makeHalCommand<HalCommand::Tag::burst>(0)
+                : makeHalCommand<HalCommand::Tag::getStatus>();
     }
     if (doUpdate) {
         // Since updates are paced, it is OK to perform them from any thread, they should
         // not interfere with I/O operations of the worker.
-        return sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
-                reply, true /*safeFromNonWorkerThread */, statePositions);
+        return sendCommand(cmd, reply, true /*safeFromNonWorkerThread */, statePositions);
     } else if (reply != nullptr) {  // provide cached reply
         std::lock_guard l(mLock);
         *reply = mLastReply;
@@ -832,9 +915,7 @@ status_t StreamOutHalAidl::setVolume(float left, float right) {
 status_t StreamOutHalAidl::selectPresentation(int presentationId, int programId) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::selectPresentation, presentationId, programId));
 }
 
@@ -858,10 +939,10 @@ status_t StreamOutHalAidl::getRenderPosition(uint64_t *dspFrames) {
     // See the table at the start of 'StreamHalInterface' on when it needs to reset.
     int64_t mostRecentResetPoint;
     if (!mContext.isAsynchronous() && audio_has_proportional_frames(mConfig.format)) {
-        mostRecentResetPoint = statePositions.framesAtStandby;
+        mostRecentResetPoint = statePositions.observable.framesAtStandby;
     } else {
-        mostRecentResetPoint =
-                std::max(statePositions.framesAtStandby, statePositions.framesAtFlushOrDrain);
+        mostRecentResetPoint = std::max(statePositions.observable.framesAtStandby,
+                statePositions.observable.framesAtFlushOrDrain);
     }
     *dspFrames = aidlFrames <= mostRecentResetPoint ? 0 : aidlFrames - mostRecentResetPoint;
     return OK;
@@ -910,9 +991,12 @@ status_t StreamOutHalAidl::supportsDrain(bool *supportsDrain) {
 status_t StreamOutHalAidl::drain(bool earlyNotify) {
     if (!mStream) return NO_INIT;
 
-    if (const auto state = getState(); isInDrainedState(state)) {
+    if (const auto state = getState();
+            state == StreamDescriptor::State::DRAINING || isInDrainedState(state)) {
         AUGMENT_LOG(D, "stream already in %s state", toString(state).c_str());
-        if (mContext.isAsynchronous()) onDrainReady();
+        if (mContext.isAsynchronous() && isInDrainedState(state)) {
+            onDrainReady();
+        }
         return OK;
     }
 
@@ -934,8 +1018,8 @@ status_t StreamOutHalAidl::getPresentationPosition(uint64_t *frames, struct time
     if (!mContext.isAsynchronous() && audio_has_proportional_frames(mConfig.format)) {
         *frames = aidlFrames;
     } else {
-        const int64_t mostRecentResetPoint =
-                std::max(statePositions.framesAtStandby, statePositions.framesAtFlushOrDrain);
+        const int64_t mostRecentResetPoint = std::max(statePositions.observable.framesAtStandby,
+                statePositions.observable.framesAtFlushOrDrain);
         *frames = aidlFrames <= mostRecentResetPoint ? 0 : aidlFrames - mostRecentResetPoint;
     }
     timestamp->tv_sec = aidlTimestamp / NANOS_PER_SECOND;
@@ -954,9 +1038,7 @@ status_t StreamOutHalAidl::updateSourceMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SourceMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SourceMetadata(sourceMetadata));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
 }
 
@@ -967,9 +1049,7 @@ status_t StreamOutHalAidl::getDualMonoMode(audio_dual_mono_mode_t* mode) {
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getDualMonoMode, &aidlMode)));
     *mode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioDualMonoMode_audio_dual_mono_mode_t(aidlMode));
@@ -981,9 +1061,7 @@ status_t StreamOutHalAidl::setDualMonoMode(audio_dual_mono_mode_t mode) {
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_dual_mono_mode_t_AudioDualMonoMode(mode));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setDualMonoMode, aidlMode));
 }
 
@@ -993,18 +1071,14 @@ status_t StreamOutHalAidl::getAudioDescriptionMixLevel(float* leveldB) {
     if (leveldB == nullptr) {
         return BAD_VALUE;
     }
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getAudioDescriptionMixLevel, leveldB));
 }
 
 status_t StreamOutHalAidl::setAudioDescriptionMixLevel(float leveldB) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setAudioDescriptionMixLevel, leveldB));
 }
 
@@ -1015,9 +1089,7 @@ status_t StreamOutHalAidl::getPlaybackRateParameters(audio_playback_rate_t* play
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getPlaybackRateParameters, &aidlRate)));
     *playbackRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(aidlRate));
@@ -1029,9 +1101,7 @@ status_t StreamOutHalAidl::setPlaybackRateParameters(const audio_playback_rate_t
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(playbackRate));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setPlaybackRateParameters, aidlRate));
 }
 
@@ -1060,9 +1130,7 @@ status_t StreamOutHalAidl::getRecommendedLatencyModes(std::vector<audio_latency_
         return BAD_VALUE;
     }
     std::vector<::aidl::android::media::audio::common::AudioLatencyMode> aidlModes;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getRecommendedLatencyModes, &aidlModes)));
     *modes = VALUE_OR_RETURN_STATUS(
             ::aidl::android::convertContainer<std::vector<audio_latency_mode_t>>(
@@ -1159,16 +1227,26 @@ status_t StreamOutHalAidl::filterAndUpdateOffloadMetadata(AudioParameter &parame
     }
     if (updateMetadata) {
         AUGMENT_LOG(D, "set offload metadata %s", mOffloadMetadata.toString().c_str());
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
         if (status_t status = statusTFromBinderStatus(
                     serializeCall(mStream, &Stream::updateOffloadMetadata, mOffloadMetadata));
             status != OK) {
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             AUGMENT_LOG(E, "updateOffloadMetadata failed %d", status);
             return status;
         }
     }
     return OK;
+}
+
+status_t StreamOutHalAidl::dump(int fd, const Vector<String16>& args) {
+    AUGMENT_LOG(D);
+    TIME_CHECK();
+    if (!mStream) return NO_INIT;
+    Vector<String16> newArgs = args;
+    newArgs.push(String16(kDumpFromAudioServerArgument));
+    // Do not serialize the dump call with mCallLock
+    status_t status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
+    StreamHalAidl::dump(fd, args);
+    return status;
 }
 
 // static
@@ -1234,9 +1312,7 @@ status_t StreamInHalAidl::getActiveMicrophones(std::vector<media::MicrophoneInfo
     auto staticInfo = micInfoProvider->getMicrophoneInfo();
     if (!staticInfo) return INVALID_OPERATION;
     std::vector<MicrophoneDynamicInfo> dynamicInfo;
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getActiveMicrophones, &dynamicInfo)));
     std::vector<media::MicrophoneInfoFw> result;
     result.reserve(dynamicInfo.size());
@@ -1267,9 +1343,7 @@ status_t StreamInHalAidl::updateSinkMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SinkMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SinkMetadata(sinkMetadata));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
 }
 
@@ -1280,9 +1354,7 @@ status_t StreamInHalAidl::setPreferredMicrophoneDirection(audio_microphone_direc
               VALUE_OR_RETURN_STATUS(
                       ::aidl::android::legacy2aidl_audio_microphone_direction_t_MicrophoneDirection(
                               direction));
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneDirection, aidlDirection));
 }
 
@@ -1290,9 +1362,19 @@ status_t StreamInHalAidl::setPreferredMicrophoneFieldDimension(float zoom) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
     return statusTFromBinderStatus(
-// QTI_BEGIN: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneFieldDimension, zoom));
-// QTI_END: 2025-02-13: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
+}
+
+status_t StreamInHalAidl::dump(int fd, const Vector<String16>& args) {
+    AUGMENT_LOG(D);
+    TIME_CHECK();
+    if (!mStream) return NO_INIT;
+    Vector<String16> newArgs = args;
+    newArgs.push(String16(kDumpFromAudioServerArgument));
+    // Do not serialize the dump call with mCallLock
+    status_t status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
+    StreamHalAidl::dump(fd, args);
+    return status;
 }
 
 } // namespace android

@@ -754,6 +754,11 @@ C2SoftApvEnc::C2SoftApvEnc(const char* name, c2_node_id_t id,
     resetEncoder();
 }
 
+C2SoftApvEnc::C2SoftApvEnc(const char* name, c2_node_id_t id,
+                           const std::shared_ptr<C2ReflectorHelper>& helper)
+    : C2SoftApvEnc(name, id, std::make_shared<IntfImpl>(helper)) {
+}
+
 C2SoftApvEnc::~C2SoftApvEnc() {
     onRelease();
 }
@@ -1050,6 +1055,33 @@ c2_status_t C2SoftApvEnc::setEncodeArgs(oapv_frms_t* inputFrames, const C2Graphi
                                       layout.planes[layout.PLANE_Y].rowInc / 2,
                                       layout.planes[layout.PLANE_U].rowInc / 2,
                                       dstYStride, dstUVStride, width, height);
+                } else {
+                    ALOGE("Not supported color format. %d", mColorFormat);
+                    return C2_BAD_VALUE;
+                }
+            } else if (IsP210(*input)) {
+                ALOGV("Convert from P210 to P210");
+                if (mColorFormat == OAPV_CF_PLANAR2) {
+                    uint16_t *srcY  = (uint16_t*)(input->data()[0]);
+                    uint16_t *srcUV = (uint16_t*)(input->data()[1]);
+                    uint16_t *dstY  = (uint16_t*)inputFrames->frm[0].imgb->a[0];
+                    uint16_t *dstUV = (uint16_t*)inputFrames->frm[0].imgb->a[1];
+                    size_t srcYStride = layout.planes[layout.PLANE_Y].rowInc / 2;
+                    size_t srcUVStride = layout.planes[layout.PLANE_U].rowInc / 2;
+                    size_t dstYStride = inputFrames->frm[0].imgb->s[0] / 2;
+                    size_t dstUVStride = inputFrames->frm[0].imgb->s[1] / 2;
+
+                    for (size_t y = 0; y < height; ++y) {
+                        std::memcpy(dstY, srcY, width * sizeof(uint16_t));
+                        dstY += dstYStride;
+                        srcY += srcYStride;
+                    }
+
+                    for (size_t y = 0; y < height; ++y) {
+                        std::memcpy(dstUV, srcUV, width * sizeof(uint16_t));
+                        srcUV += srcUVStride;
+                        dstUV += dstUVStride;
+                    }
                 } else {
                     ALOGE("Not supported color format. %d", mColorFormat);
                     return C2_BAD_VALUE;

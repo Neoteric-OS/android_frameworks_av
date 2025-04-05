@@ -20,6 +20,7 @@
 #include <media/stagefright/foundation/ColorUtils.h>
 
 #include <SimpleC2Component.h>
+#include <util/C2InterfaceHelper.h>
 #include <inttypes.h>
 #include <atomic>
 
@@ -32,6 +33,8 @@ struct C2SoftApvDec final : public SimpleC2Component {
     class IntfImpl;
 
     C2SoftApvDec(const char* name, c2_node_id_t id, const std::shared_ptr<IntfImpl>& intfImpl);
+    C2SoftApvDec(const char* name, c2_node_id_t id,
+                 const std::shared_ptr<C2ReflectorHelper>& helper);
     virtual ~C2SoftApvDec();
 
     // From SimpleC2Component
@@ -146,7 +149,7 @@ struct C2SoftApvDec final : public SimpleC2Component {
 
     int mOutCsp;
 
-    void getVuiParams();
+    void getVuiParams(const std::unique_ptr<C2Work> &work);
     void getHdrInfo(struct ApvHdrInfo *buffer, int id);
     void getHDRStaticParams(const struct ApvHdrInfo *buffer, const std::unique_ptr<C2Work>& work);
     void getHDR10PlusInfoData(const struct ApvHdrInfo *buffer, const std::unique_ptr<C2Work>& work);

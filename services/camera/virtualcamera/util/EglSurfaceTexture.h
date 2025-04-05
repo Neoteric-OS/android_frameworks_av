@@ -29,11 +29,6 @@
 
 namespace android {
 
-#if !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-class IGraphicBufferProducer;
-class IGraphicBufferConsumer;
-#endif  // !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-
 class GLConsumer;
 
 namespace companion {
@@ -105,10 +100,6 @@ class EglSurfaceTexture {
   };
 
  private:
-#if !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
-  sp<IGraphicBufferProducer> mBufferProducer;
-  sp<IGraphicBufferConsumer> mBufferConsumer;
-#endif  // !COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_CONSUMER_BASE_OWNS_BQ)
   sp<GLConsumer> mGlConsumer;
   sp<Surface> mSurface;
   GLuint mTextureId;
