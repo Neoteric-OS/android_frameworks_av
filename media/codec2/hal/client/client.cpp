@@ -26,9 +26,10 @@
 #include <codec2/common/HalSelection.h>
 #include <codec2/hidl/client.h>
 
-#include <C2Debug.h>
 #include <C2BufferPriv.h>
+#include <C2Component.h>
 #include <C2Config.h> // for C2StreamUsageTuning
+#include <C2Debug.h>
 #include <C2PlatformSupport.h>
 
 #include <android/hardware/media/bufferpool/2.0/IClientManager.h>
@@ -2222,6 +2223,21 @@ c2_status_t Codec2Client::createComponent_hidl(
 c2_status_t Codec2Client::createInterface(
         const C2String& name,
         std::shared_ptr<Codec2Client::Interface>* const interface) {
+    if (mApexBase) {
+        if (__builtin_available(android 36, *)) {
+            ApexCodec_Component *comp = nullptr;
+            c2_status_t status =
+                (c2_status_t)ApexCodec_Component_create(mApexBase, name.c_str(), &comp);
+            if (status != C2_OK) {
+                return status;
+            }
+            // interface owns |comp| and will release it in the destructor.
+            interface->reset(new Codec2Client::Interface(comp, name));
+            return C2_OK;
+        } else {
+            return C2_OMITTED;
+        }
+    }
     if (mAidlBase) {
         std::shared_ptr<c2_aidl::IComponentInterface> aidlInterface;
         ::ndk::ScopedAStatus transStatus = mAidlBase->createInterface(
@@ -2271,6 +2287,10 @@ c2_status_t Codec2Client::createInterface(
 
 c2_status_t Codec2Client::createInputSurface(
         std::shared_ptr<InputSurface>* const inputSurface) {
+    if (mApexBase) {
+        // Not supported for APEX.
+        return C2_OMITTED;
+    }
     if (mAidlBase) {
         // FIXME
         return C2_OMITTED;
@@ -2306,6 +2326,28 @@ std::vector<C2Component::Traits> Codec2Client::_listComponents(
     std::vector<C2Component::Traits> traits;
     std::string const& serviceName = getServiceName();
 
+    if (mApexBase) {
+        if (__builtin_available(android 36, *)) {
+            for (size_t i = 0; ; ++i) {
+                ApexCodec_ComponentTraits *apexTraits = ApexCodec_Traits_get(mApexBase, i);
+                if (!apexTraits) {
+                    break;
+                }
+                traits.emplace_back();
+                C2Component::Traits& trait = traits.back();
+                trait.name      = apexTraits->name;
+                trait.mediaType = apexTraits->mediaType;
+                trait.domain    = (C2Component::domain_t)apexTraits->domain;
+                trait.kind      = (C2Component::kind_t)apexTraits->kind;
+                trait.owner     = serviceName;
+            }
+            *success = true;
+        } else {
+            *success = false;
+            LOG(WARNING) << "ApexCodecs not supported on Android version older than 36";
+        }
+        return traits;
+    }
     if (mAidlBase) {
         std::vector<c2_aidl::IComponentStore::ComponentTraits> aidlTraits;
         ::ndk::ScopedAStatus transStatus = mAidlBase->listComponents(&aidlTraits);
@@ -2819,6 +2861,27 @@ Codec2Client::Interface::Interface(const std::shared_ptr<AidlBase>& base)
             }()
         },
         mAidlBase{base} {
+}
+
+Codec2Client::Interface::Interface(
+        ApexCodec_Component *base, const C2String &name)
+      : Configurable{[base]() -> ApexCodec_Configurable * {
+            if (__builtin_available(android 36, *)) {
+                return ApexCodec_Component_getConfigurable(base);
+            } else {
+                return nullptr;
+            }
+        }(), name},
+        mApexBase{base} {
+}
+
+Codec2Client::Interface::~Interface() {
+    if (mApexBase) {
+        if (__builtin_available(android 36, *)) {
+            ApexCodec_Component_destroy(mApexBase);
+        }
+        mApexBase = nullptr;
+    }
 }
 
 // Codec2Client::Component
