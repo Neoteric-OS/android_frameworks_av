@@ -410,7 +410,7 @@ Status AudioPolicyService::getOutputForAttr(const media::audio::common::AudioAtt
                                              aidl2legacy_int32_t_audio_port_handle_t));
 
     audio_io_handle_t output;
-    audio_port_handle_t portId;
+    audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
     std::vector<audio_io_handle_t> secondaryOutputs;
 
     if (mAudioPolicyManager == NULL) {

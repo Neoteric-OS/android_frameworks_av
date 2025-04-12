@@ -51,6 +51,7 @@
 #include <Serializer.h>
 #include <android/media/audio/common/AudioMMapPolicy.h>
 #include <android/media/audio/common/AudioPort.h>
+#include <android_media_audio.h>
 #include <com_android_media_audio.h>
 #include <android_media_audiopolicy.h>
 #include <com_android_media_audioserver.h>
@@ -1141,6 +1142,20 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         }
     }
 
+    if (state != AUDIO_MODE_NORMAL && oldState == AUDIO_MODE_NORMAL) {
+        std::map<audio_io_handle_t, DeviceVector> outputsToReopen;
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
+            if (desc->mPreferredAttrInfo != nullptr) {
+                DeviceVector newDevices = getNewOutputDevices(desc, true /*fromCache*/);
+                // If the output is using preferred mixer attributes and the audio mode is not
+                // normal, the output need to reopen with default configuration.
+                outputsToReopen.emplace(mOutputs.keyAt(i), newDevices);
+            }
+        }
+        reopenOutputsWithDevices(outputsToReopen);
+    }
+
     if (state == AUDIO_MODE_IN_CALL) {
         (void)updateCallRouting(false /*fromCache*/, delayMs);
     } else {
@@ -1159,25 +1174,16 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         }
     }
 
-    std::map<audio_io_handle_t, DeviceVector> outputsToReopen;
     // reevaluate routing on all outputs in case tracks have been started during the call
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
         DeviceVector newDevices = getNewOutputDevices(desc, true /*fromCache*/);
-        if (state != AUDIO_MODE_NORMAL && oldState == AUDIO_MODE_NORMAL
-                && desc->mPreferredAttrInfo != nullptr) {
-            // If the output is using preferred mixer attributes and the audio mode is not normal,
-            // the output need to reopen with default configuration.
-            outputsToReopen.emplace(mOutputs.keyAt(i), newDevices);
-            continue;
-        }
         if (state != AUDIO_MODE_IN_CALL || (desc != mPrimaryOutput && !isTelephonyRxOrTx(desc))) {
             bool forceRouting = !newDevices.isEmpty();
             setOutputDevices(__func__, desc, newDevices, forceRouting, 0 /*delayMs*/, nullptr,
                              true /*requiresMuteCheck*/, !forceRouting /*requiresVolumeCheck*/);
         }
     }
-    reopenOutputsWithDevices(outputsToReopen);
 
     checkLeBroadcastRoutes(wasLeUnicastActive, nullptr, delayMs);
 
@@ -9088,12 +9094,14 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
 
     float volumeDb = computeVolume(curves, volumeSource, index, deviceTypes);
     const VolumeSource dtmfVolSrc = toVolumeSource(AUDIO_STREAM_DTMF, false);
-    if (outputDesc->isFixedVolume(deviceTypes) ||
-            // Force VoIP volume to max for bluetooth SCO/BLE device except if muted
-            (index != 0 && (isVoiceVolSrc || isBtScoVolSrc
-                        || (isInCall() && (dtmfVolSrc == volumeSource))) &&
-                    (isSingleDeviceType(deviceTypes, audio_is_bluetooth_out_sco_device)
-                    || isSingleDeviceType(deviceTypes, audio_is_ble_out_device)))) {
+    // Force VoIP volume to max for bluetooth SCO/BLE device except if muted
+    bool isAbsVolumeType = !android_media_audio_unify_absolute_volume_management()
+            && (index != 0
+            && (isVoiceVolSrc || isBtScoVolSrc || (isInCall() && (dtmfVolSrc == volumeSource)))
+            && (isSingleDeviceType(deviceTypes, audio_is_bluetooth_out_sco_device)
+                    || isSingleDeviceType(deviceTypes, audio_is_ble_out_device)));
+
+    if (outputDesc->isFixedVolume(deviceTypes) || isAbsVolumeType) {
         volumeDb = 0.0f;
     }
 
