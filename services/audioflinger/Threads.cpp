@@ -1819,7 +1819,7 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
 // QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 }
 
-void ThreadBase::onEffectDisable() {
+void ThreadBase::onEffectDisable([[maybe_unused]] const sp<IAfEffectModule>& effect) {
     if (isOffloadOrMmap() || mType == DIRECT) {
         audio_utils::lock_guard _l(mutex());
         broadcast_l();

@@ -493,6 +493,10 @@ void AAudioServiceEndpointMMAP::onTearDown(audio_port_handle_t portHandle) {
 
 void AAudioServiceEndpointMMAP::onVolumeChanged(float volume) {
     ALOGD("%s() volume = %f", __func__, volume);
+    if (std::isnan(volume)) {
+        ALOGE("%s reject to set volume as nan", __func__);
+        return;
+    }
     const std::lock_guard<std::mutex> lock(mLockStreams);
     for(const auto& stream : mRegisteredStreams) {
         stream->onVolumeChanged(volume);

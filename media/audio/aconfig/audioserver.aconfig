@@ -45,6 +45,13 @@ flag {
     bug: "366456949"
 }
 
+flag {
+    name: "enable_strict_port_routing_checks"
+    namespace: "media_audio"
+    description: "Enables strict routing checks on associating ports"
+    bug: "367117623"
+}
+
 # shipped 24Q3
 flag {
     name: "fdtostring_timeout_fix"

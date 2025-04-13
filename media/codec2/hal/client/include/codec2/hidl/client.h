@@ -358,10 +358,13 @@ struct Codec2Client::Interface : public Codec2Client::Configurable {
 
     Interface(const sp<HidlBase>& base);
     Interface(const std::shared_ptr<AidlBase>& base);
+    Interface(ApexCodec_Component* base, const C2String& name);
+    ~Interface();
 
 protected:
     sp<HidlBase> mHidlBase;
     std::shared_ptr<AidlBase> mAidlBase;
+    ApexCodec_Component *mApexBase{nullptr};
 };
 
 struct Codec2Client::Listener {

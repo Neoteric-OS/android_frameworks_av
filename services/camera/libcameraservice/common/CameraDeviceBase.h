@@ -361,6 +361,9 @@ class CameraDeviceBase : public virtual FrameProducer {
     virtual status_t startStreaming(const int32_t reqId, const SurfaceMap &surfaceMap,
             int32_t *sharedReqID, int64_t *lastFrameNumber = NULL) = 0;
 
+    /**
+     * Get the HAL's CaptureResult FMQ Size.
+     */
     virtual int32_t getCaptureResultFMQSize() = 0;
 
     /**

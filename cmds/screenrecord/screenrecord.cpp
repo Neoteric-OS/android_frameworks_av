@@ -897,8 +897,8 @@ static status_t recordScreen(const char* fileName) {
         return err;
     }
 
-    if (displayState.layerStack == ui::INVALID_LAYER_STACK) {
-        fprintf(stderr, "ERROR: INVALID_LAYER_STACK, please check your display state.\n");
+    if (displayState.layerStack == ui::UNASSIGNED_LAYER_STACK) {
+        fprintf(stderr, "ERROR: UNASSIGNED_LAYER_STACK, please check your display state.\n");
         return INVALID_OPERATION;
     }
 
