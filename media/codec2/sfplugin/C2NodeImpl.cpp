@@ -223,11 +223,12 @@ void C2NodeImpl::getConsumerUsageBits(uint64_t *usage) {
 
 void C2NodeImpl::getInputBufferParams(IAidlNode::InputBufferParams *params) {
     params->bufferCountActual = 16;
+    uint32_t compBufferCountActual = 0;
 
     // WORKAROUND: having more slots improve performance while consuming
     // more memory. This is a temporary workaround to reduce memory for
     // larger-than-4K scenario.
-    if (mWidth * mHeight > 4096 * 2340) {
+    {
         std::shared_ptr<Codec2Client::Component> comp = mComp.lock();
         C2PortActualDelayTuning::input inputDelay(0);
         C2ActualPipelineDelayTuning pipelineDelay(0);
@@ -237,14 +238,30 @@ void C2NodeImpl::getInputBufferParams(IAidlNode::InputBufferParams *params) {
                     {&inputDelay, &pipelineDelay}, {}, C2_DONT_BLOCK, nullptr);
         }
         if (c2err == C2_OK || c2err == C2_BAD_INDEX) {
-            params->bufferCountActual = 4;
-            params->bufferCountActual += (inputDelay ? inputDelay.value : 0u);
-            params->bufferCountActual += (pipelineDelay ? pipelineDelay.value : 0u);
+            compBufferCountActual = 4;
+            compBufferCountActual += (inputDelay ? inputDelay.value : 0u);
+            compBufferCountActual += (pipelineDelay ? pipelineDelay.value : 0u);
+        } else {
+            ALOGW("getInputBufferParams: component query failed with error %d", c2err);
+        }
+
+        if (mWidth * mHeight > 4096 * 2340) {
+            if (compBufferCountActual > 0) {
+                params->bufferCountActual = compBufferCountActual;
+            }
+        } else {
+            // overwrite component buffer count if it is more than
+            // params->bufferCountActual (16) for 4k or lower resolutions
+            if (compBufferCountActual > params->bufferCountActual) {
+                params->bufferCountActual = compBufferCountActual;
+            }
         }
     }
 
     params->frameWidth = mWidth;
     params->frameHeight = mHeight;
+    ALOGD("getInputBufferParams: wxh %dx%d, delay %d",
+        params->frameWidth, params->frameHeight, params->bufferCountActual);
 }
 
 void C2NodeImpl::setConsumerUsageBits(uint64_t usage) {
