@@ -3700,6 +3700,10 @@ static AfPlaybackCommon::EnforcementLevel getOpControlEnforcementLevel(audio_usa
         return NONE;
     }
     if (hardening_strict()) {
+        // TODO (b/407607395)
+        if (usage == AUDIO_USAGE_ASSISTANCE_ACCESSIBILITY) {
+            return PARTIAL;
+        }
         return FULL;
     } else if (hardening_partial()) {
         return PARTIAL;

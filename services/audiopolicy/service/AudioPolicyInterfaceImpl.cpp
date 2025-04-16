@@ -895,7 +895,9 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
                                 ? CHECK_PERM(CAPTURE_AUDIO_OUTPUT, attributionSource.uid)
                                 : captureAudioOutputAllowed(attributionSource);
     if (concurrent_audio_record_bypass_permission()) {
-        canBypassConcurrentPolicy = audioserver_permissions() ?
+        // TODO(b/374751406): allow either capture output or bypass permission until
+        // all system apps have migrated to new permission.
+        canBypassConcurrentPolicy |= audioserver_permissions() ?
                             CHECK_PERM(BYPASS_CONCURRENT_RECORD_AUDIO_RESTRICTION,
                                        attributionSource.uid)
                             : bypassConcurrentPolicyAllowed(attributionSource);

@@ -1185,7 +1185,7 @@ void C2SoftApvEnc::finishWork(uint64_t workIndex, const std::unique_ptr<C2Work>&
 void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
                                  oapv_bitb_t* bitb,
                                  uint32_t encodedSize) {
-    if (encodedSize < 31) {
+    if (encodedSize < 35) {
         ALOGE("the first frame size is too small, so no csd data will be created.");
         return;
     }
@@ -1211,6 +1211,7 @@ void C2SoftApvEnc::createCsdData(const std::unique_ptr<C2Work>& work,
 
     /* pbu_header() */
     reader.skipBits(32);           // pbu_size
+    reader.skipBits(32);           // signature
     reader.skipBits(32);           // currReadSize
     pbu_type = reader.getBits(8);  // pbu_type
     reader.skipBits(16);           // group_id

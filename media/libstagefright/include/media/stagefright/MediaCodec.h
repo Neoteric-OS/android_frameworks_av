@@ -65,6 +65,7 @@ struct CodecCryptoInfo;
 struct CodecParameterDescriptor;
 class IBatteryStats;
 struct ICrypto;
+struct Tracer;
 class CryptoAsync;
 class MediaCodecBuffer;
 class IMemory;
@@ -613,6 +614,8 @@ private:
         int32_t resolutionChangeCount;
     } mReliabilityContextMetrics;
     int32_t mSubsessionCount;
+
+    std::shared_ptr<Tracer> mTracer;
 
     // initial create parameters
     AString mInitName;
