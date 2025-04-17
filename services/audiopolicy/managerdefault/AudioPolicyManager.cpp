@@ -9060,7 +9060,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     static std::set<IVolumeCurves*> invalidCurvesReported;
 
     // do not change actual attributes volume if the attributes is muted
-    if (!com_android_media_audio_ring_my_car() && outputDesc->isMutedInternally(volumeSource)) {
+    if (outputDesc->isMutedInternally(volumeSource)) {
         ALOGVV("%s: volume source %d muted count %d active=%d", __func__, volumeSource,
                outputDesc->getMuteCount(volumeSource), outputDesc->isActive(volumeSource));
         return NO_ERROR;
