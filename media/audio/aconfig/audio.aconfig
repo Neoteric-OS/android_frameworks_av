@@ -52,6 +52,15 @@ flag {
 }
 
 flag {
+    name: "check_route_in_get_audio_mix_port"
+    namespace: "media_audio"
+    description: "Checks routing in the API getAudioMixPort to respect"
+                 "connectivity between mix ports and device ports as"
+                 "indicated by getAudioRoutes."
+    bug: "367117623"
+}
+
+flag {
     name: "defer_wear_permission_updates"
     namespace: "media_audio"
     description:

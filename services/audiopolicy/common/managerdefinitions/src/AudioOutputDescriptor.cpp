@@ -552,7 +552,8 @@ bool SwAudioOutputDescriptor::setVolume(float volumeDb, bool mutedByGroup,
     StreamTypeVector streams = streamTypes;
     if (!AudioOutputDescriptor::setVolume(
             volumeDb, mutedByGroup, vs, streamTypes, deviceTypes, delayMs, force, isVoiceVolSrc)) {
-        if (hasStream(streamTypes, AUDIO_STREAM_BLUETOOTH_SCO)) {
+        if (hasStream(streamTypes, AUDIO_STREAM_BLUETOOTH_SCO) &&
+                !com_android_media_audio_replace_stream_bt_sco()) {
             VolumeSource callVolSrc = getVoiceSource();
             const bool mutedChanged =
                     com_android_media_audio_ring_my_car() && hasVolumeSource(callVolSrc) &&
@@ -624,7 +625,8 @@ bool SwAudioOutputDescriptor::setVolume(float volumeDb, bool mutedByGroup,
     }
     // Force VOICE_CALL to track BLUETOOTH_SCO stream volume when bluetooth audio is enabled
     float volumeAmpl = Volume::DbToAmpl(getCurVolume(vs));
-    if (hasStream(streams, AUDIO_STREAM_BLUETOOTH_SCO)) {
+    if (hasStream(streams, AUDIO_STREAM_BLUETOOTH_SCO) &&
+            !com_android_media_audio_replace_stream_bt_sco()) {
         VolumeSource callVolSrc = getVoiceSource();
         if (audioserver_flags::portid_volume_management()) {
             if (callVolSrc != VOLUME_SOURCE_NONE) {

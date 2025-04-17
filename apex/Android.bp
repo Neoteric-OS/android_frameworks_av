@@ -185,6 +185,7 @@ apex_defaults {
         "com.android.media.swcodec-ld.config.txt",
         "mediaswcodec.policy",
         "code_coverage.policy",
+        "crash_dump.no_mmap_mprotect_prctl.policy",
         "crash_dump.policy",
         "mediaswcodec.xml",
     ],
