@@ -6946,9 +6946,12 @@ bool AudioPolicyManager::canBeSpatializedInt(const audio_attributes_t *attr,
         if (!audio_is_linear_pcm(config->format)) {
             return false;
         }
-        if (config->channel_mask == AUDIO_CHANNEL_OUT_STEREO
-                && ((attr->flags & AUDIO_FLAG_LOW_LATENCY) != 0)) {
-            return false;
+        if (config->channel_mask == AUDIO_CHANNEL_OUT_STEREO) {
+            if (attr != nullptr &&
+                (((attr->flags & AUDIO_FLAG_LOW_LATENCY) != 0) ||
+                (attr->content_type == AUDIO_CONTENT_TYPE_SPEECH))) {
+                return false;
+            }
         }
     }
 
