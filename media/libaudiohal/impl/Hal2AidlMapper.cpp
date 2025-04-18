@@ -839,6 +839,16 @@ std::set<int32_t> Hal2AidlMapper::getPatchIdsByPortId(int32_t portId) {
     return result;
 }
 
+void Hal2AidlMapper::insertConnectedPort(
+      int32_t portId, const ::aidl::android::media::audio::common::AudioPort& devicePort) {
+    const auto [it, inserted] = mPorts.insert(std::make_pair(portId, devicePort));
+    LOG_ALWAYS_FATAL_IF(
+        !inserted, "%s duplicate port ID received from HAL: %s, existing port: %s",
+        __func__, devicePort.toString().c_str(), it->second.toString().c_str());
+    mConnectedPorts.insert(portId);
+    updateDynamicMixPorts();
+}
+
 status_t Hal2AidlMapper::prepareToDisconnectExternalDevice(const AudioPort& devicePort) {
     auto portsIt = findPort(devicePort.ext.get<AudioPortExt::device>().device);
     if (portsIt == mPorts.end()) {
@@ -1102,11 +1112,9 @@ status_t Hal2AidlMapper::setDevicePortConnectedState(const AudioPort& devicePort
         connectedPort.id = templatePort->id;
         RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mModule->connectExternalDevice(
                                 connectedPort, &connectedPort)));
-        const auto [it, inserted] = mPorts.insert(std::make_pair(connectedPort.id, connectedPort));
-        LOG_ALWAYS_FATAL_IF(
-                !inserted, "%s duplicate port ID received from HAL: %s, existing port: %s",
-                __func__, connectedPort.toString().c_str(), it->second.toString().c_str());
-        mConnectedPorts.insert(connectedPort.id);
+
+        insertConnectedPort(connectedPort.id, connectedPort);
+
         if (erasePortAfterConnectionIt != mPorts.end()) {
             mPorts.erase(erasePortAfterConnectionIt);
         }

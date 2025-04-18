@@ -689,7 +689,7 @@ protected:
         virtual status_t checkAndSetVolume(IVolumeCurves &curves,
                                            VolumeSource volumeSource, int index,
                                            const sp<AudioOutputDescriptor>& outputDesc,
-                                           DeviceTypeSet deviceTypes,
+                                           DeviceTypeSet deviceTypes, bool adjustAttenuation,
                                            int delayMs = 0, bool force = false);
 
         void setVoiceVolume(int index, IVolumeCurves &curves, bool isVoiceVolSrc, int delayMs);

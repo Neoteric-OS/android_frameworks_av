@@ -19,6 +19,8 @@
 
 #include <android-base/strings.h>
 
+#include <android_media_codec.h>
+
 #include <media/CodecCapabilities.h>
 #include <media/VideoCapabilities.h>
 #include <media/stagefright/foundation/ADebug.h>
@@ -1429,8 +1431,8 @@ void VideoCapabilities::applyLevelLimits() {
                 minAlignment /* widthAlignment */, minAlignment /* heightAlignment */);
         mFrameRateRange = Range(1, maxRate);
     } else if (base::EqualsIgnoreCase(mMediaType, MIMETYPE_VIDEO_VP8)) {
-        maxBlocks = INT_MAX;
-        maxBlocksPerSecond = INT_MAX;
+        maxBlocks = INT32_MAX;
+        maxBlocksPerSecond = INT32_MAX;
 
         // TODO: set to 100Mbps for now, need a number for VP8
         maxBps = 100000000;
@@ -1718,6 +1720,149 @@ void VideoCapabilities::applyLevelLimits() {
                 maxBlocks, maxBlocksPerSecond,
                 blockSize, blockSize,
                 1 /* widthAlignment */, 1 /* heightAlignment */);
+    } else if (android::media::codec::apv_support()
+            && base::EqualsIgnoreCase(mMediaType, MIMETYPE_VIDEO_APV)) {
+        maxBlocksPerSecond = 11880;
+        maxBps = 7000000;
+
+        // Sample rate, and Bit rate for APV Codec,
+        // corresponding to the definitions in
+        // "10.1.4. Levels and bands"
+        // found at https://www.ietf.org/archive/id/draft-lim-apv-03.html
+        for (ProfileLevel profileLevel: mProfileLevels) {
+            int64_t SR = 0; // luma sample rate
+            int32_t BR = 0;  // bit rate bps
+            switch (profileLevel.mLevel) {
+                case APVLevel1Band0:
+                    SR =      3041280; BR =    7000000; break;
+                case APVLevel1Band1:
+                    SR =      3041280; BR =   11000000; break;
+                case APVLevel1Band2:
+                    SR =      3041280; BR =   14000000; break;
+                case APVLevel1Band3:
+                    SR =      3041280; BR =   21000000; break;
+                case APVLevel11Band0:
+                    SR =      6082560; BR =   14000000; break;
+                case APVLevel11Band1:
+                    SR =      6082560; BR =   21000000; break;
+                case APVLevel11Band2:
+                    SR =      6082560; BR =   28000000; break;
+                case APVLevel11Band3:
+                    SR =      6082560; BR =   42000000; break;
+                case APVLevel2Band0:
+                    SR =     15667200; BR =   36000000; break;
+                case APVLevel2Band1:
+                    SR =     15667200; BR =   53000000; break;
+                case APVLevel2Band2:
+                    SR =     15667200; BR =   71000000; break;
+                case APVLevel2Band3:
+                    SR =     15667200; BR =  106000000; break;
+                case APVLevel21Band0:
+                    SR =     31334400; BR =   71000000; break;
+                case APVLevel21Band1:
+                    SR =     31334400; BR =  106000000; break;
+                case APVLevel21Band2:
+                    SR =     31334400; BR =  141000000; break;
+                case APVLevel21Band3:
+                    SR =     31334400; BR =  212000000; break;
+                case APVLevel3Band0:
+                    SR =     66846720; BR =  101000000; break;
+                case APVLevel3Band1:
+                    SR =     66846720; BR =  151000000; break;
+                case APVLevel3Band2:
+                    SR =     66846720; BR =  201000000; break;
+                case APVLevel3Band3:
+                    SR =     66846720; BR =  301000000; break;
+                case APVLevel31Band0:
+                    SR =    133693440; BR =  201000000; break;
+                case APVLevel31Band1:
+                    SR =    133693440; BR =  301000000; break;
+                case APVLevel31Band2:
+                    SR =    133693440; BR =  401000000; break;
+                case APVLevel31Band3:
+                    SR =    133693440; BR =  602000000; break;
+                case APVLevel4Band0:
+                    SR =    265420800; BR =  401000000; break;
+                case APVLevel4Band1:
+                    SR =    265420800; BR =  602000000; break;
+                case APVLevel4Band2:
+                    SR =    265420800; BR =  780000000; break;
+                case APVLevel4Band3:
+                    SR =    265420800; BR = 1170000000; break;
+                case APVLevel41Band0:
+                    SR =    530841600; BR =  780000000; break;
+                case APVLevel41Band1:
+                    SR =    530841600; BR = 1170000000; break;
+                case APVLevel41Band2:
+                    SR =    530841600; BR = 1560000000; break;
+                case APVLevel41Band3:
+                    // Current API allows bitrates only up to Max Integer
+                    // Hence we are limiting internal limits to INT32_MAX
+                    // even when actual Level/Band limits are higher
+                    SR =    530841600; BR = INT32_MAX; break;
+                case APVLevel5Band0:
+                    SR =   1061683200; BR = 1560000000; break;
+                case APVLevel5Band1:
+                    SR =   1061683200; BR = INT32_MAX; break;
+                case APVLevel5Band2:
+                    SR =   1061683200; BR = INT32_MAX; break;
+                case APVLevel5Band3:
+                    SR =   1061683200; BR = INT32_MAX; break;
+                case APVLevel51Band0:
+                case APVLevel51Band1:
+                case APVLevel51Band2:
+                case APVLevel51Band3:
+                    SR =   2123366400; BR = INT32_MAX; break;
+                case APVLevel6Band0:
+                case APVLevel6Band1:
+                case APVLevel6Band2:
+                case APVLevel6Band3:
+                    SR =  4777574400L; BR = INT32_MAX; break;
+                case APVLevel61Band0:
+                case APVLevel61Band1:
+                case APVLevel61Band2:
+                case APVLevel61Band3:
+                    SR =  8493465600L; BR = INT32_MAX; break;
+                case APVLevel7Band0:
+                case APVLevel7Band1:
+                case APVLevel7Band2:
+                case APVLevel7Band3:
+                    SR = 16986931200L; BR = INT32_MAX; break;
+                case APVLevel71Band0:
+                case APVLevel71Band1:
+                case APVLevel71Band2:
+                case APVLevel71Band3:
+                    SR = 33973862400L; BR = INT32_MAX; break;
+                default:
+                    ALOGW("Unrecognized level %d for %s", profileLevel.mLevel, mediaType);
+                    errors |= ERROR_CAPABILITIES_UNRECOGNIZED;
+            }
+            switch (profileLevel.mProfile) {
+                case APVProfile422_10:
+                case APVProfile422_10HDR10:
+                case APVProfile422_10HDR10Plus:
+                    break;
+                default:
+                    ALOGW("Unrecognized profile %d for %s", profileLevel.mProfile, mediaType);
+                    errors |= ERROR_CAPABILITIES_UNRECOGNIZED;
+            }
+            errors &= ~ERROR_CAPABILITIES_NONE_SUPPORTED;
+            maxBlocksPerSecond = std::max(SR, maxBlocksPerSecond);
+            maxBps = std::max(BR, maxBps);
+        }
+
+        const int32_t blockSize = 16;
+        maxBlocks = INT32_MAX;
+        maxBlocksPerSecond = divUp(maxBlocksPerSecond, blockSize * (int64_t)blockSize);
+        maxBlocks = (int32_t)std::min((int64_t)maxBlocks, maxBlocksPerSecond);
+        // Max frame size in APV is 2^24
+        int32_t maxLengthInBlocks = divUp(1 << 24, blockSize);
+        maxLengthInBlocks = std::min(maxLengthInBlocks, maxBlocks);
+        applyMacroBlockLimits(
+            maxLengthInBlocks, maxLengthInBlocks,
+            maxBlocks, maxBlocksPerSecond,
+            blockSize, blockSize,
+            2 /* widthAlignment */, 1 /* heightAlignment */);
     } else {
         ALOGW("Unsupported mime %s", mediaType);
         // using minimal bitrate here.  should be overridden by

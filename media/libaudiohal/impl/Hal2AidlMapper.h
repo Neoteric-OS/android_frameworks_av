@@ -215,6 +215,9 @@ class Hal2AidlMapper : public ConversionHelperAidl {
             const std::optional<::aidl::android::media::audio::common::AudioIoFlags>& flags,
             int32_t ioHandle);
     std::set<int32_t> getPatchIdsByPortId(int32_t portId);
+    void insertConnectedPort(
+            int32_t portId,
+            const ::aidl::android::media::audio::common::AudioPort& devicePort);
     status_t prepareToOpenStreamHelper(
         int32_t ioHandle, int32_t mixPortHalId, int32_t devicePortId, int32_t devicePortConfigId,
         const ::aidl::android::media::audio::common::AudioIoFlags& flags,
