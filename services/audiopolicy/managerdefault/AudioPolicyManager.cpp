@@ -85,6 +85,7 @@ using android::media::audio::common::AudioPortExt;
 using android::media::audio::common::AudioConfigBase;
 using binder::Status;
 using com::android::media::audioserver::fix_call_audio_patch;
+using com::android::media::audioserver::use_bt_sco_for_media;
 using content::AttributionSourceState;
 
 //FIXME: workaround for truncated touch sounds
@@ -8217,7 +8218,8 @@ void AudioPolicyManager::checkA2dpSuspend()
     audio_io_handle_t a2dpOutput = mOutputs.getA2dpOutput();
 
 // QTI_BEGIN: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
-    if (a2dpOutput == 0 || mOutputs.isA2dpOffloadedOnPrimary()) {
+    if (use_bt_sco_for_media()
+            || a2dpOutput == 0 || mOutputs.isA2dpOffloadedOnPrimary()) {
 // QTI_END: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
         mA2dpSuspended = false;
         return;
