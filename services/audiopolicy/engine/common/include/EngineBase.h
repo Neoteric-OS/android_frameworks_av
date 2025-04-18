@@ -84,8 +84,11 @@ public:
                    mVolumeGroups.at(group)->getVolumeCurves() : nullptr;
     }
 
-    VolumeGroupVector getVolumeGroups() const override;
+    bool isValidVolumeGroup(volume_group_t group) const override;
 
+    VolumeGroupVector getVolumeGroups() const override;
+    audio_attributes_t getAttributesForVolumeGroup(
+            volume_group_t group, bool fallbackOnDefault = true) const override;
     volume_group_t getVolumeGroupForAttributes(
             const audio_attributes_t &attr, bool fallbackOnDefault = true) const override;
 

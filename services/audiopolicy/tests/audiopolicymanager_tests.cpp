@@ -4378,6 +4378,209 @@ TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
     setVolumeIndexForDtmfAttributesOnSco(/*withPortApi=*/false);
 }
 
+class AudioPolicyManagerTestVolumeGroupID : public AudioPolicyManagerTestWithConfigurationFile {
+public:
+    static constexpr int sMinIndex = 5;
+    static constexpr int sMaxIndex = 10;
+    static const std::vector<audio_stream_type_t> sStreams;
+protected:
+    void SetUp() override;
+    void TearDown() override;
+};
+
+const std::vector<audio_stream_type_t> AudioPolicyManagerTestVolumeGroupID::sStreams{
+        AUDIO_STREAM_VOICE_CALL,
+        AUDIO_STREAM_SYSTEM,
+        AUDIO_STREAM_RING,
+        AUDIO_STREAM_MUSIC,
+        AUDIO_STREAM_ALARM,
+        AUDIO_STREAM_NOTIFICATION,
+        AUDIO_STREAM_BLUETOOTH_SCO,
+        AUDIO_STREAM_ENFORCED_AUDIBLE,
+        AUDIO_STREAM_DTMF,
+        AUDIO_STREAM_TTS,
+        AUDIO_STREAM_ACCESSIBILITY,
+        AUDIO_STREAM_ASSISTANT,
+        AUDIO_STREAM_CALL_ASSISTANT,
+};
+
+void AudioPolicyManagerTestVolumeGroupID::SetUp() {
+    ASSERT_NO_FATAL_FAILURE(AudioPolicyManagerTestWithConfigurationFile::SetUp());
+    for (audio_stream_type_t stream : sStreams) {
+        mManager->initStreamVolume(stream, sMinIndex, sMaxIndex);
+    }
+}
+
+void AudioPolicyManagerTestVolumeGroupID::TearDown() {
+    ASSERT_NO_FATAL_FAILURE(AudioPolicyManagerTestWithConfigurationFile::TearDown());
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, GetMinMaxVolumeWithId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        int minIndex;
+        int maxIndex;
+
+        EXPECT_EQ(OK, mManager->getMinVolumeIndexForGroup(vg, minIndex));
+        EXPECT_EQ(OK, mManager->getMaxVolumeIndexForGroup(vg, maxIndex));
+
+        EXPECT_EQ(sMinIndex, minIndex) << "Min index for group " << group.getName().c_str();
+        EXPECT_EQ(sMaxIndex, maxIndex) << "Max index for group " << group.getName().c_str();
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetMinMaxVolumeWithId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    int testMinIndex = sMinIndex + 1;
+    int testMaxIndex = sMaxIndex - 1;
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+
+        EXPECT_EQ(OK, mManager->setMinVolumeIndexForGroup(vg, testMinIndex));
+        EXPECT_EQ(OK, mManager->setMaxVolumeIndexForGroup(vg, testMaxIndex));
+
+        int minIndex;
+        int maxIndex;
+        EXPECT_EQ(OK, mManager->getMinVolumeIndexForGroup(vg, minIndex));
+        EXPECT_EQ(OK, mManager->getMaxVolumeIndexForGroup(vg, maxIndex));
+        EXPECT_EQ(testMinIndex, minIndex) << "Min index for group after setting it "
+            << group.getName().c_str();
+        EXPECT_EQ(testMaxIndex, maxIndex) << "Max index for group after setting it "
+            << group.getName().c_str();
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetAndGetVolumeWithId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+    int testIndex = 7;
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        int setIndex;
+
+        EXPECT_EQ(OK, mManager->setVolumeIndexForGroup(vg, testIndex, /* muted= */ false, type));
+        EXPECT_EQ(OK, mManager->getVolumeIndexForGroup(vg, setIndex, type));
+
+        EXPECT_EQ(testIndex, setIndex) << "Set index for group " << group.getName().c_str();
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetAndGetVolumeWithStream,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+    int testIndex = 8;
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        int setIndex;
+        EXPECT_EQ(OK,
+                  mManager->setStreamVolumeIndex(streamType, testIndex, /* muted= */ false, type));
+
+        EXPECT_EQ(OK, mManager->getVolumeIndexForGroup(vg, setIndex, type));
+
+        EXPECT_EQ(testIndex, setIndex) << "Set index for stream in " << group.getName().c_str();
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetWithIDAndGetVolumeWithStream,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+    int testIndex = 9;
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        int setIndex;
+
+        EXPECT_EQ(OK, mManager->setVolumeIndexForGroup(vg, testIndex, /* muted= */ false, type));
+
+        EXPECT_EQ(OK, mManager->getStreamVolumeIndex(streamType, &setIndex, type));
+        EXPECT_EQ(testIndex, setIndex) << "Get index for stream in " << group.getName().c_str();
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetWithInvalidIndexVolumeWithId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    AudioVolumeGroupVector groups;
+    EXPECT_EQ(OK, mManager->listAudioVolumeGroups(groups));
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+    int testIndex = sMaxIndex + 1;
+    for (const auto& group : groups) {
+        if (group.getStreamTypes().empty()) continue;
+        volume_group_t vg = group.getId();
+        audio_stream_type_t streamType = group.getStreamTypes()[0];
+        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+
+        EXPECT_EQ(BAD_VALUE,
+                  mManager->setVolumeIndexForGroup(vg, testIndex, /* muted= */ false, type));
+    }
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetWithInvalidId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+
+    EXPECT_EQ(BAD_VALUE, mManager->setVolumeIndexForGroup(VOLUME_GROUP_NONE, sMaxIndex,
+                                                          /* muted= */ false, type));
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, GetWithInvalidId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    audio_devices_t type = AUDIO_DEVICE_OUT_SPEAKER;
+    int index;
+
+    EXPECT_EQ(BAD_VALUE, mManager->getVolumeIndexForGroup(VOLUME_GROUP_NONE, index, type));
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, GetMinMaxWithInvalidId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    int index;
+
+    EXPECT_EQ(BAD_VALUE, mManager->getMinVolumeIndexForGroup(VOLUME_GROUP_NONE, index));
+    EXPECT_EQ(BAD_VALUE, mManager->getMaxVolumeIndexForGroup(VOLUME_GROUP_NONE, index));
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestVolumeGroupID, SetMinMaxWithInvalidId,
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy,
+                                            volume_group_management_update))) {
+    int index = sMinIndex;
+
+    EXPECT_EQ(BAD_VALUE, mManager->setMinVolumeIndexForGroup(VOLUME_GROUP_NONE, index));
+    EXPECT_EQ(BAD_VALUE, mManager->setMaxVolumeIndexForGroup(VOLUME_GROUP_NONE, index));
+}
+
 class AudioPolicyManagerTestBitPerfectBase : public AudioPolicyManagerTestWithConfigurationFile {
 protected:
     void SetUp() override;

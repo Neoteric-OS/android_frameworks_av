@@ -124,20 +124,20 @@ void AudioStreamInternalPlay::prepareBuffersForStop() {
     int64_t validFramesInBuffer =
             mAudioEndpoint->getDataWriteCounter() - mAudioEndpoint->getDataReadCounter();
     if (validFramesInBuffer >= 0) {
-        int64_t emptyFramesInBuffer = ((int64_t) getBufferCapacity()) - validFramesInBuffer;
+        int64_t emptyFramesInBuffer = ((int64_t) getDeviceBufferCapacity()) - validFramesInBuffer;
 
         // Prevent stale data from being played if the DSP is still running.
         // Erase some of the FIFO memory in front of the DSP read cursor.
         // Subtract one burst so we do not accidentally erase data that the DSP might be using.
         int64_t framesToErase = std::max((int64_t) 0,
-                                         emptyFramesInBuffer - getFramesPerBurst());
+                                         emptyFramesInBuffer - getDeviceFramesPerBurst());
         mAudioEndpoint->eraseEmptyDataMemory(framesToErase);
 
         // Sleep until we are confident the DSP has consumed all of the valid data.
         // Sleep for one extra burst as a safety margin because the IsochronousClockModel
         // is not perfectly accurate.
         // The ClockModel uses the server frame position so do not use getFramesWritten().
-        int64_t positionInEmptyMemory = mAudioEndpoint->getDataWriteCounter() + getFramesPerBurst();
+        int64_t positionInEmptyMemory = mAudioEndpoint->getDataWriteCounter() + getDeviceFramesPerBurst();
         int64_t timeAllConsumed = mClockModel.convertPositionToTime(positionInEmptyMemory);
         int64_t durationAllConsumed = timeAllConsumed - AudioClock::getNanoseconds();
         // Prevent sleeping for too long.
@@ -232,7 +232,7 @@ aaudio_result_t AudioStreamInternalPlay::processDataNow(void *buffer, int32_t nu
         // This will avoid initial underruns caused by a slow cold start.
         // We add a one burst margin in case the DSP advances before we can write the data.
         // This can help prevent the beginning of the stream from being skipped.
-        advanceClientToMatchServerPosition(getFramesPerBurst());
+        advanceClientToMatchServerPosition(getDeviceFramesPerBurst());
         mNeedCatchUp.acknowledge();
     }
 

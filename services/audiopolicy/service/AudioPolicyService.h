@@ -153,6 +153,14 @@ public:
                                                   int32_t* _aidl_return) override;
     binder::Status getMinVolumeIndexForAttributes(const media::audio::common::AudioAttributes& attr,
                                                   int32_t* _aidl_return) override;
+    binder::Status setVolumeIndexForGroup(int32_t groupId, const AudioDeviceDescription& device,
+            int32_t index, bool muted) override;
+    binder::Status getVolumeIndexForGroup(int32_t groupId, const AudioDeviceDescription& device,
+        int32_t* _aidl_return) override;
+    binder::Status getMaxVolumeIndexForGroup(int32_t groupId, int32_t* _aidl_return) override;
+    binder::Status setMaxVolumeIndexForGroup(int32_t groupId, int32_t index) override;
+    binder::Status getMinVolumeIndexForGroup(int32_t groupId, int32_t* _aidl_return) override;
+    binder::Status setMinVolumeIndexForGroup(int32_t groupId, int32_t index) override;
     binder::Status getStrategyForStream(AudioStreamType stream,
                                         int32_t* _aidl_return) override;
     binder::Status getDevicesForAttributes(const media::audio::common::AudioAttributes& attr,
