@@ -61,3 +61,11 @@ flag {
     bug: "291737188"
     is_fixed_read_only: true
 }
+
+flag {
+    name: "volume_group_management_update"
+    namespace: "media_audio"
+    description: "Improves volume group management to remove usage of legacy audio attributes and "
+                 "stream types and control by identifier."
+    bug: "270049944"
+}

@@ -235,6 +235,65 @@ public:
     virtual status_t getMinVolumeIndexForAttributes(const audio_attributes_t &attr,
                                                     int &index) = 0;
 
+    /**
+    * Set the volume index for a given volume group and device.
+    *
+    * @param groupId the volume group id
+    * @param index the volume index to set
+    * @param muted state of the volume group
+    * @param device the device to set the volume index for
+    * @return NO_ERROR if the call is successful, otherwise an error code
+    */
+    virtual status_t setVolumeIndexForGroup(volume_group_t groupId, int index,
+            bool muted, audio_devices_t device) = 0;
+
+    /**
+     * Get the volume index for a given volume group and device.
+     *
+     * @param groupId the volume group id
+     * @param index the volume index to get
+     * @param device the device to get the volume index for
+     * @return NO_ERROR if the call is successful, otherwise an error code
+     */
+    virtual status_t getVolumeIndexForGroup(volume_group_t groupId, int &index,
+            audio_devices_t device) = 0;
+
+    /**
+     * Get the maximum volume index for a given volume group
+     *
+     * @param groupId the volume group id
+     * @param index the max volume index to get
+     * @return NO_ERROR if the call is successful, otherwise an error code
+     */
+    virtual status_t getMaxVolumeIndexForGroup(volume_group_t groupId, int &index) = 0;
+
+    /**
+     * Set the maximum volume index for a given volume group
+     *
+     * @param groupId the volume group id
+     * @param index the max volume index to set
+     * @return NO_ERROR if the call is successful, otherwise an error code
+     */
+    virtual status_t setMaxVolumeIndexForGroup(volume_group_t groupId, int index) = 0;
+
+    /**
+     * Get the minimum volume index for a given volume group.
+     *
+     * @param groupId
+     * @param index the min volume index to get
+     * @return NO_ERROR if the call is successful, otherwise an error code
+     */
+    virtual status_t getMinVolumeIndexForGroup(volume_group_t groupId, int &index) = 0;
+
+    /**
+     * Set the minimum volume index for a given volume group.
+     *
+     * @param groupId
+     * @param index the min volume index to set
+     * @return NO_ERROR if the call is successful, otherwise an error code
+     */
+    virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index) = 0;
+
     // return the strategy corresponding to a given stream type
     virtual product_strategy_t getStrategyForStream(audio_stream_type_t stream) = 0;
 
