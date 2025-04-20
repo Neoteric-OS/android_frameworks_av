@@ -69,15 +69,6 @@ flag {
 }
 
 flag {
-    name: "fix_concurrent_playback_behavior_with_bit_perfect_client"
-    namespace: "media_audio"
-    description:
-        "Treat playback use cases differently when bit-perfect client is active to improve the "
-        "user experience with bit-perfect playback."
-    bug: "339515899"
-}
-
-flag {
     name: "fix_input_sharing_logic"
     namespace: "media_audio"
     description:
@@ -97,6 +88,14 @@ flag {
 }
 
 flag {
+    name: "mmap_pcm_offload_support"
+    namespace: "media_audio"
+    description:
+        "Add pcm offload support on mmap path."
+    bug: "409798445"
+}
+
+flag {
     name: "portid_volume_management"
     namespace: "media_audio"
     description:
@@ -110,6 +109,13 @@ flag {
     description:
         "Add power stats tracking and management."
     bug: "350114693"
+}
+
+flag {
+    name: "remove_stream_suspend"
+    namespace: "media_audio"
+    description: "Remove the output stream suspend state and control mechanism"
+    bug: "409706525"
 }
 
 flag {

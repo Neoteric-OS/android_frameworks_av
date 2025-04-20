@@ -60,6 +60,11 @@
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                              samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
                 </mixPort>
+                <mixPort name="mmap_offload" role="source"
+                    flags="AUDIO_OUTPUT_FLAG_DIRECT AUDIO_OUTPUT_FLAG_MMAP_NOIRQ AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD">
+                    <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
+                        samplingRates="48000" channelMasks="AUDIO_CHANNEL_OUT_STEREO"/>
+                </mixPort>
                 <mixPort name="mixport_bus_input" role="sink">
                     <profile name="" format="AUDIO_FORMAT_PCM_16_BIT"
                         samplingRates="48000"
@@ -119,7 +124,7 @@
                 <route type="mix" sink="BT A2DP Out"
                        sources="primary output,hifi_output"/>
                 <route type="mix" sink="USB Device Out"
-                       sources="primary output,hifi_output,mmap_no_irq_out"/>
+                       sources="primary output,hifi_output,mmap_no_irq_out,mmap_offload"/>
                 <route type="mix" sink="mixport_bus_input"
                     sources="BUS Device In"/>
                 <route type="mix" sink="hifi_input"

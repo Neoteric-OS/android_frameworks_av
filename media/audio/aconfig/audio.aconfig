@@ -6,14 +6,6 @@ package: "com.android.media.audio"
 container: "system"
 
 flag {
-    name: "abs_volume_index_fix"
-    namespace: "media_audio"
-    description:
-        "Fix double attenuation and index jumps in absolute volume mode"
-    bug: "340693050"
-}
-
-flag {
     name: "alarm_min_volume_zero"
     namespace: "media_audio"
     description: "Support configuring alarm min vol to zero"
@@ -140,14 +132,6 @@ flag {
 }
 
 flag {
-    name: "port_to_piid_simplification"
-    namespace: "media_audio"
-    description: "PAM only needs for each piid the last portId mapping"
-    bug: "335747248"
-
-}
-
-flag {
     name: "replace_stream_bt_sco"
     namespace: "media_audio"
     description:
@@ -172,15 +156,6 @@ flag {
 }
 
 flag {
-    name: "set_stream_volume_order"
-    namespace: "media_audio"
-    description:
-        "Fix race condition by adjusting the order when"
-        "setStreamVolume is calling into the BT stack"
-    bug: "329202581"
-}
-
-flag {
     name: "spatializer_offload"
     namespace: "media_audio"
     description: "Enable spatializer offload"
@@ -199,15 +174,6 @@ flag {
     namespace: "media_audio"
     description: "Enable stereo channel mask for spatialization."
     bug: "303920722"
-}
-
-flag {
-    name: "vgs_vss_sync_mute_order"
-    namespace: "media_audio"
-    description:
-        "When syncing the VGS to VSS we need to first adjust the"
-        "mute state before the index."
-    bug: "331849188"
 }
 
 flag {

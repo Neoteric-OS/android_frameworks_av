@@ -15,15 +15,6 @@ flag {
 }
 
 flag {
-    name: "automatic_bt_device_type"
-    namespace: "media_audio"
-    description:
-        "Enable the automatic Bluetooth audio device type "
-        "categorization based on BluetoothDevice class metadata."
-    bug: "302323921"
-}
-
-flag {
     name: "cache_get_stream_min_max_volume"
     namespace: "media_audio"
     description:
