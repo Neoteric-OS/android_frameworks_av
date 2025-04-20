@@ -25,6 +25,7 @@
 #include <binder/MemoryHeapBase.h>
 #include <gui/Surface.h>
 #include <inttypes.h>
+#include <media/IMediaCodecList.h>
 #include <media/IMediaSource.h>
 #include <media/MediaCodecBuffer.h>
 #include <media/stagefright/CodecBase.h>
@@ -33,6 +34,7 @@
 #include <media/stagefright/MediaBuffer.h>
 #include <media/stagefright/MediaCodec.h>
 #include <media/stagefright/MediaCodecConstants.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
@@ -59,6 +61,12 @@ static const int64_t kDefaultSampleDurationUs = 33333LL; // 33ms
 // For codec, 0 is the highest importance; higher the number lesser important.
 // To make codec for thumbnail less important, give it a value more than 0.
 static const int kThumbnailImportance = 1;
+
+enum HeifMode : uint32_t {
+    DISABLE     = 0,
+    TILE        = 1,
+    ROW         = 2,
+};
 
 sp<IMemory> allocVideoFrame(const sp<MetaData>& trackMeta,
         int32_t width, int32_t height, int32_t tileWidth, int32_t tileHeight,
@@ -242,6 +250,42 @@ bool getDstColorFormat(
     return false;
 }
 
+bool isFeatureSupported(const char *mimeType, const char *featureName) {
+    sp<IMediaCodecList> list = MediaCodecList::getInstance();
+    if (list == nullptr) {
+        return false;
+    }
+    size_t index = 0;
+    for (;;) {
+        ssize_t matchIndex = list->findCodecByType(mimeType, false, index);
+        if (matchIndex < 0) {
+            break;
+        }
+        index = matchIndex + 1;
+        const sp<MediaCodecInfo> info = list->getCodecInfo(matchIndex);
+        CHECK(info != nullptr);
+        sp<MediaCodecInfo::Capabilities> capabilities
+                = info->getCapabilitiesFor(mimeType);
+        if (capabilities == nullptr) {
+            continue;
+        }
+        const sp<AMessage> &details = capabilities->getDetails();
+        if (details->contains(featureName)) {
+            ALOGV("found %s support %s", info->getCodecName(), featureName);
+            return true;
+        }
+    }
+    return false;
+}
+
+uint32_t getHeifMode() {
+    constexpr const char *FEATURE_ROW_BY_ROW = "feature-heic-row-by-row-decode";
+    static uint32_t sHeifMode
+            = isFeatureSupported(MEDIA_MIMETYPE_VIDEO_HEVC, FEATURE_ROW_BY_ROW)
+                ? HeifMode::ROW : HeifMode::TILE;
+    return sHeifMode;
+}
+
 AsyncCodecHandler::AsyncCodecHandler(const wp<FrameDecoder>& frameDecoder) {
     mFrameDecoder = frameDecoder;
 }
@@ -376,6 +420,14 @@ sp<IMemory> FrameDecoder::getMetadataOnly(
         int32_t gridRows, gridCols;
         if (!findGridInfo(trackMeta, &tileWidth, &tileHeight, &gridRows, &gridCols)) {
             tileWidth = tileHeight = 0;
+        }
+
+        if (!isAvif(trackMeta) && (getHeifMode() == HeifMode::ROW)) {
+            // In HEIF row-by-row mode, the basic output is a row.
+            // All tiles on a row are stitched into one output, so the display
+            // info notified to Skia needs to be updated to the row size.
+            tileWidth *= gridCols;
+            gridCols = 1;
         }
     }
 
@@ -1333,11 +1385,6 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
     } else {
         videoFormat->setInt32("color-format", COLOR_FormatYUV420Flexible);
     }
-// QTI_BEGIN: 2022-10-06: Video: FrameDecoder: do not set HEIF mode for avif
-    if (!isAvif(trackMeta())) {
-        videoFormat->setInt32("vendor.qti-ext-dec-heif-mode.value", 1);
-    }
-// QTI_END: 2022-10-06: Video: FrameDecoder: do not set HEIF mode for avif
 
     if ((mGridRows == 1) && (mGridCols == 1)) {
         videoFormat->setInt32("android._num-input-buffers", 1);
@@ -1355,6 +1402,19 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
         ALOGD("Enable multi-thread for Heif");
         mUseMultiThread = true;
 // QTI_END: 2021-10-06: Video: "Stagefright: Restructure HEIF decode multi-threading"
+    }
+
+    if (!isAvif(trackMeta())) {
+        auto mode = getHeifMode();
+        ALOGD("Setting HEIF mode %u", mode);
+        if (mode == HeifMode::ROW) {
+            mTileWidth *= mGridCols;
+            mGridCols = 1;
+            videoFormat->setInt32("vendor.qti-ext-heif-resolution.width", mWidth);
+            videoFormat->setInt32("vendor.qti-ext-heif-resolution.height", mHeight);
+        }
+        videoFormat->setInt32("vendor.qti-ext-dec-heif-mode.value", mode);
+        mTargetTiles = mGridCols * mGridRows;
     }
 
     /// Set the importance for thumbnail.

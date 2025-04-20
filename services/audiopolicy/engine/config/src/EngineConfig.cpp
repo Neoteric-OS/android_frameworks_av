@@ -55,21 +55,17 @@ namespace {
 static bool gIsConfigurableEngine = false;
 
 ConversionResult<std::string> aidl2legacy_AudioHalProductStrategy_ProductStrategyType(int id) {
-    /**
-     * The hard coded id must be in sync with policy.h definition of legacy
-     * strategy ids.
-     */
-#define STRATEGY_ENTRY(id, name) {static_cast<int>(id), "STRATEGY_" #name}
-    static const std::unordered_map<int, std::string> productStrategyMap = {
-                STRATEGY_ENTRY(5, MEDIA),
-                STRATEGY_ENTRY(0, PHONE),
-                STRATEGY_ENTRY(1, SONIFICATION),
-                STRATEGY_ENTRY(4, SONIFICATION_RESPECTFUL),
-                STRATEGY_ENTRY(6, DTMF),
-                STRATEGY_ENTRY(2, ENFORCED_AUDIBLE),
-                STRATEGY_ENTRY(7, CALL_ASSISTANT),
-                STRATEGY_ENTRY(8, TRANSMITTED_THROUGH_SPEAKER),
-                STRATEGY_ENTRY(3, ACCESSIBILITY)};
+    using AudioProductStrategyType = media::audio::common::AudioProductStrategyType;
+
+#define STRATEGY_ENTRY(name) {static_cast<int>(AudioProductStrategyType::name), "STRATEGY_" #name}
+    static const std::unordered_map<int, std::string> productStrategyMap = {STRATEGY_ENTRY(MEDIA),
+                            STRATEGY_ENTRY(PHONE),
+                            STRATEGY_ENTRY(SONIFICATION),
+                            STRATEGY_ENTRY(SONIFICATION_RESPECTFUL),
+                            STRATEGY_ENTRY(DTMF),
+                            STRATEGY_ENTRY(ENFORCED_AUDIBLE),
+                            STRATEGY_ENTRY(TRANSMITTED_THROUGH_SPEAKER),
+                            STRATEGY_ENTRY(ACCESSIBILITY)};
 #undef STRATEGY_ENTRY
 
     if (id >= media::audio::common::AudioHalProductStrategy::VENDOR_STRATEGY_ID_START) {

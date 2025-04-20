@@ -8655,9 +8655,15 @@ typedef enum acamera_metadata_enum_acamera_control_ae_mode {
      * (triggered by ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER) and
      * may be fired for captures for which the
      * ACAMERA_CONTROL_CAPTURE_INTENT field is set to
-     * STILL_CAPTURE</p>
+     * STILL_CAPTURE.</p>
+     * <p>It's important to wait for the precapture sequence
+     * to complete (i.e., ACAMERA_CONTROL_AE_STATE reaches
+     * FLASH_REQUIRED, CONVERGED, or LOCKED) before submitting a
+     * STILL_CAPTURE request. Otherwise, in low-light conditions,
+     * the image captures with flash fired won't have correct exposures.</p>
      *
      * @see ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER
+     * @see ACAMERA_CONTROL_AE_STATE
      * @see ACAMERA_CONTROL_CAPTURE_INTENT
      */
     ACAMERA_CONTROL_AE_MODE_ON_AUTO_FLASH                            = 2,
@@ -8670,9 +8676,15 @@ typedef enum acamera_metadata_enum_acamera_control_ae_mode {
      * (triggered by ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER) and
      * will always be fired for captures for which the
      * ACAMERA_CONTROL_CAPTURE_INTENT field is set to
-     * STILL_CAPTURE</p>
+     * STILL_CAPTURE.</p>
+     * <p>It's important to wait for the precapture sequence
+     * to complete (i.e., ACAMERA_CONTROL_AE_STATE reaches
+     * FLASH_REQUIRED, CONVERGED, or LOCKED) Dbefore submitting a
+     * STILL_CAPTURE request. Otherwise, in low-light conditions,
+     * the image captures with flash fired won't have correct exposures.</p>
      *
      * @see ACAMERA_CONTROL_AE_PRECAPTURE_TRIGGER
+     * @see ACAMERA_CONTROL_AE_STATE
      * @see ACAMERA_CONTROL_CAPTURE_INTENT
      */
     ACAMERA_CONTROL_AE_MODE_ON_ALWAYS_FLASH                          = 3,

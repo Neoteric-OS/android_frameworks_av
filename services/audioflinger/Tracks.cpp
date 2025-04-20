@@ -538,7 +538,8 @@ TrackHandle::~TrackHandle() {
 
 Status TrackHandle::getCblk(
         std::optional<media::SharedFileRegion>* _aidl_return) {
-    *_aidl_return = legacy2aidl_NullableIMemory_SharedFileRegion(mTrack->getCblk()).value();
+    *_aidl_return = VALUE_OR_RETURN_BINDER_STATUS(
+                legacy2aidl_NullableIMemory_SharedFileRegion(mTrack->getCblk()));
     return Status::ok();
 }
 

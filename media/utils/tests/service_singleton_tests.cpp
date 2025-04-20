@@ -121,11 +121,11 @@ struct TestServiceTraits2 : public mediautils::DefaultServiceTraits<Service> {
  * The WorkerThread is used to launch and kill the ServiceThread in a remote process.
  */
 static void ServiceThread(audio_utils::RunRemote& runRemote) {
-    int c = runRemote.getc();  // requires any character to launch
+    int c = runRemote.getChar();  // requires any character to launch
     auto service = sp<IServiceSingletonTest>::cast(sp<ServiceSingletonTestCpp>::make());
     mediautils::addService(service);
     ProcessState::self()->startThreadPool();
-    runRemote.putc(c);  // echo character.
+    runRemote.putChar(c);  // echo character.
     IPCThreadState::self()->joinThreadPool();
 }
 
@@ -136,23 +136,23 @@ static void ServiceThread(audio_utils::RunRemote& runRemote) {
 static void WorkerThread(audio_utils::RunRemote& runRemote) {
     std::shared_ptr<audio_utils::RunRemote> remoteService;
     while (true) {
-        const int c = runRemote.getc();
+        const int c = runRemote.getChar();
         switch (c) {
             case 'a':  // launch a new service.
                 // if the old service isn't destroyed, it will be destroyed here
                 // when the RunRemote is replaced.
                 remoteService = std::make_shared<audio_utils::RunRemote>(ServiceThread);
                 remoteService->run();
-                remoteService->putc('a');  // create service.
-                (void)remoteService->getc(); // ensure it is created.
-                runRemote.putc(c);  // echo
+                remoteService->putChar('a');  // create service.
+                (void)remoteService->getChar(); // ensure it is created.
+                runRemote.putChar(c);  // echo
                 break;
             case 'b':  // destroys the old service.
                 remoteService.reset();  // this kills the service.
-                runRemote.putc(c);  // echo
+                runRemote.putChar(c);  // echo
                 break;
             default:  // respond that we don't know what happened!
-                runRemote.putc('?');
+                runRemote.putChar('?');
                 break;
         }
     }
@@ -225,8 +225,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     EXPECT_EQ(0, sServiceDied);
 
     // now spawn the service.
-    mRemoteWorker->putc('a');
-    EXPECT_EQ('a', mRemoteWorker->getc());
+    mRemoteWorker->putChar('a');
+    EXPECT_EQ('a', mRemoteWorker->getChar());
 
     sleep(1);  // In the background, 2 services were fetched.
 
@@ -265,8 +265,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     EXPECT_EQ(0, sServiceDied);
 
     // destroy the service.
-    mRemoteWorker->putc('b');
-    EXPECT_EQ('b', mRemoteWorker->getc());
+    mRemoteWorker->putChar('b');
+    EXPECT_EQ('b', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -284,8 +284,8 @@ TEST_F(ServiceSingletonTests, Basic) {
                 ++listenerServiceCreated; });
 
     // Spawn the service again.
-    mRemoteWorker->putc('a');
-    EXPECT_EQ('a', mRemoteWorker->getc());
+    mRemoteWorker->putChar('a');
+    EXPECT_EQ('a', mRemoteWorker->getChar());
 
     sleep(1);  // In the background, 2 services were fetched.
 
@@ -343,8 +343,8 @@ TEST_F(ServiceSingletonTests, Basic) {
 
     // destroy the service.
 
-    mRemoteWorker->putc('b');
-    EXPECT_EQ('b', mRemoteWorker->getc());
+    mRemoteWorker->putChar('b');
+    EXPECT_EQ('b', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -364,8 +364,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     mediautils::skipService<aidl::IServiceSingletonTest>();
 
     // Spawn the service again.
-    mRemoteWorker->putc('a');
-    EXPECT_EQ('a', mRemoteWorker->getc());
+    mRemoteWorker->putChar('a');
+    EXPECT_EQ('a', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -411,8 +411,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     }
 
     // remove service
-    mRemoteWorker->putc('b');
-    EXPECT_EQ('b', mRemoteWorker->getc());
+    mRemoteWorker->putChar('b');
+    EXPECT_EQ('b', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -453,8 +453,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     EXPECT_EQ(0, sServiceDied2);
 
     // Spawn the service again.
-    mRemoteWorker->putc('a');
-    EXPECT_EQ('a', mRemoteWorker->getc());
+    mRemoteWorker->putChar('a');
+    EXPECT_EQ('a', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -473,8 +473,8 @@ TEST_F(ServiceSingletonTests, Basic) {
     EXPECT_TRUE(stale_service2);  // not stale yet.
 
     // Release the service.
-    mRemoteWorker->putc('b');
-    EXPECT_EQ('b', mRemoteWorker->getc());
+    mRemoteWorker->putChar('b');
+    EXPECT_EQ('b', mRemoteWorker->getChar());
 
     sleep(1);
 
@@ -588,8 +588,8 @@ TEST_F(ServiceSingletonTests, ConcurrentWait) {
             ConcurrentServiceTraits<aidl::IServiceSingletonTest>>({});
 
     // Spawn the service again.
-    mRemoteWorker->putc('a');
-    EXPECT_EQ('a', mRemoteWorker->getc());
+    mRemoteWorker->putChar('a');
+    EXPECT_EQ('a', mRemoteWorker->getChar());
 
     constexpr size_t kThreads = 4;
     std::vector<std::shared_ptr<std::thread>> threads;
@@ -627,8 +627,8 @@ TEST_F(ServiceSingletonTests, ConcurrentWait) {
     EXPECT_EQ(0, ConcurrentServiceTraits<aidl::IServiceSingletonTest>::diedCounter);
 
     // Release the service.
-    mRemoteWorker->putc('b');
-    EXPECT_EQ('b', mRemoteWorker->getc());
+    mRemoteWorker->putChar('b');
+    EXPECT_EQ('b', mRemoteWorker->getChar());
 
     sleep(1);
 

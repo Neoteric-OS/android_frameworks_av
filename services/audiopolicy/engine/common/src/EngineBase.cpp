@@ -398,6 +398,10 @@ status_t EngineBase::restoreOriginVolumeCurve(audio_stream_type_t stream)
     return curves != nullptr ? curves->switchCurvesFrom(*curves) : BAD_VALUE;
 }
 
+bool EngineBase::isValidVolumeGroup(volume_group_t group) const {
+    return mVolumeGroups.find(group) != end(mVolumeGroups);
+}
+
 VolumeGroupVector EngineBase::getVolumeGroups() const
 {
     VolumeGroupVector group;
@@ -411,6 +415,16 @@ volume_group_t EngineBase::getVolumeGroupForAttributes(
         const audio_attributes_t &attr, bool fallbackOnDefault) const
 {
     return mProductStrategies.getVolumeGroupForAttributes(attr, fallbackOnDefault);
+}
+
+audio_attributes_t EngineBase::getAttributesForVolumeGroup(
+        volume_group_t group, bool fallbackOnDefault) const {
+    const auto &iter = mVolumeGroups.find(group);
+    if (iter != std::end(mVolumeGroups)) {
+        return mVolumeGroups.at(group)->getSupportedAttributes().front();
+    }
+    return fallbackOnDefault ?
+            attributes_initializer(AUDIO_USAGE_MEDIA) : AUDIO_ATTRIBUTES_INITIALIZER;
 }
 
 volume_group_t EngineBase::getVolumeGroupForStreamType(

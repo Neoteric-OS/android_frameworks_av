@@ -96,6 +96,8 @@ class Hal2AidlMapper : public ConversionHelperAidl {
     void resetUnusedPatchesAndPortConfigs();
     status_t setDevicePortConnectedState(
             const ::aidl::android::media::audio::common::AudioPort& devicePort, bool connected);
+    status_t updateAudioPort(
+            int32_t portId, ::aidl::android::media::audio::common::AudioPort* port);
 
     // Methods to work with FwkPatches.
     void eraseFwkPatch(int32_t fwkPatchId) { mFwkPatches.erase(fwkPatchId); }
@@ -215,6 +217,9 @@ class Hal2AidlMapper : public ConversionHelperAidl {
             const std::optional<::aidl::android::media::audio::common::AudioIoFlags>& flags,
             int32_t ioHandle);
     std::set<int32_t> getPatchIdsByPortId(int32_t portId);
+    void insertConnectedPort(
+            int32_t portId,
+            const ::aidl::android::media::audio::common::AudioPort& devicePort);
     status_t prepareToOpenStreamHelper(
         int32_t ioHandle, int32_t mixPortHalId, int32_t devicePortId, int32_t devicePortConfigId,
         const ::aidl::android::media::audio::common::AudioIoFlags& flags,
@@ -232,8 +237,6 @@ class Hal2AidlMapper : public ConversionHelperAidl {
     void resetPatch(int32_t patchId) { (void)releaseAudioPatch(patchId); }
     void resetPortConfig(int32_t portConfigId);
     void resetUnusedPortConfigs();
-    status_t updateAudioPort(
-            int32_t portId, ::aidl::android::media::audio::common::AudioPort* port);
     status_t updateRoutes();
     void updateDynamicMixPorts();
 

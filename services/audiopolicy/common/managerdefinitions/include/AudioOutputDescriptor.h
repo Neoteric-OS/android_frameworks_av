@@ -315,6 +315,11 @@ public:
         return false;
     }
 // QTI_END: 2023-07-20: Audio: audiopolicy: use tempMuteDurationMs to adjust the sleep period of direct output
+
+    sp<TrackClientDescriptor> getHighestPriorityClientForVolumeSource(
+            VolumeSource vs, bool activeOnly = false) const;
+    bool canSetVolumeForVolumeSource(VolumeSource vs) const;
+
     TrackClientVector clientsList(bool activeOnly = false,
                                   product_strategy_t strategy = PRODUCT_STRATEGY_NONE,
                                   bool preferredDeviceOnly = false) const;
