@@ -112,7 +112,8 @@ public:
                                              audio_channel_mask_t channelMask,
                                              audio_channel_mask_t *updatedChannelMask,
                                              // FIXME parameter type
-                                             uint32_t flags) const;
+                                             uint32_t flags,
+                                             uint32_t additionalMandatoryFlags = 0) const;
 
     /**
      * @brief areAllDevicesSupported: Checks if the given devices are supported by the IO profile.
@@ -241,7 +242,8 @@ public:
 
 private:
     void refreshMixerBehaviors();
-    CompatibilityScore getFlagsCompatibleScore(uint32_t flags) const;
+    CompatibilityScore getFlagsCompatibleScore(uint32_t flags,
+                                               uint32_t additionalMandatoryFlags = 0) const;
 
     DeviceVector mSupportedDevices; // supported devices: this input/output can be routed from/to
 

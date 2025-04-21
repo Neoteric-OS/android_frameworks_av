@@ -137,18 +137,16 @@ void PreviewFrameSpacer::queueBufferToClientLocked(
 
 status_t PreviewFrameSpacer::run(const char* name, int32_t priority, size_t stack) {
     auto ret = Thread::run(name, priority, stack);
-    if (flags::bump_preview_frame_space_priority()) {
-        // Boost priority of the preview frame spacer thread to SCHED_FIFO.
-        pid_t previewFrameSpacerTid = getTid();
-        auto res = SchedulingPolicyUtils::requestPriorityDirect(getpid(), previewFrameSpacerTid,
-                RunThreadWithRealtimePriority::kRequestThreadPriority);
-        if (res != OK) {
-            ALOGW("Can't set realtime priority for preview frame spacer thread: %s (%d)",
-                    strerror(-res), res);
-        } else {
-            ALOGV("Set real time priority for preview frame spacer thread (tid %d)",
-                    previewFrameSpacerTid);
-        }
+    // Boost priority of the preview frame spacer thread to SCHED_FIFO.
+    pid_t previewFrameSpacerTid = getTid();
+    auto res = SchedulingPolicyUtils::requestPriorityDirect(getpid(), previewFrameSpacerTid,
+            RunThreadWithRealtimePriority::kRequestThreadPriority);
+    if (res != OK) {
+        ALOGW("Can't set realtime priority for preview frame spacer thread: %s (%d)",
+                strerror(-res), res);
+    } else {
+        ALOGV("Set real time priority for preview frame spacer thread (tid %d)",
+                previewFrameSpacerTid);
     }
     return ret;
 }

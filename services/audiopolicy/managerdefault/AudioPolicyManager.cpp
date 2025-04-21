@@ -1309,13 +1309,18 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
     sp<IOProfile> directOnlyProfile = nullptr;
     sp<IOProfile> compressOffloadProfile = nullptr;
     sp<IOProfile> profile = nullptr;
+    uint32_t additionalMandatoryFlags = 0;
+    if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) != 0) {
+        // For mmap, only select mmap offload if offload is explicitly requested.
+        additionalMandatoryFlags = AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD;
+    }
     for (const auto& hwModule : hwModules) {
         for (const auto& curProfile : hwModule->getOutputProfiles()) {
              if (curProfile->getCompatibilityScore(devices,
                      samplingRate, NULL /*updatedSamplingRate*/,
                      format, NULL /*updatedFormat*/,
                      channelMask, NULL /*updatedChannelMask*/,
-                     flags) == IOProfile::NO_MATCH) {
+                     flags, additionalMandatoryFlags) == IOProfile::NO_MATCH) {
                  continue;
              }
              // reject profiles not corresponding to a device currently available
@@ -1616,19 +1621,16 @@ status_t AudioPolicyManager::getOutputForAttrInt(
                 return BAD_VALUE;
             }
 
-            if (com::android::media::audioserver::
-                    fix_concurrent_playback_behavior_with_bit_perfect_client()) {
-                if (info != nullptr && info->getUid() == uid &&
-                    info->configMatches(*config) &&
-                    (mEngine->getPhoneState() != AUDIO_MODE_NORMAL ||
-                            std::any_of(gHighPriorityUseCases.begin(), gHighPriorityUseCases.end(),
-                                        [this, &outputDevices](audio_usage_t usage) {
-                                            return mOutputs.isUsageActiveOnDevice(
-                                                    usage, outputDevices[0]); }))) {
-                    // Bit-perfect request is not allowed when the phone mode is not normal or
-                    // there is any higher priority user case active.
-                    return INVALID_OPERATION;
-                }
+            if (info != nullptr && info->getUid() == uid &&
+                info->configMatches(*config) &&
+                (mEngine->getPhoneState() != AUDIO_MODE_NORMAL ||
+                        std::any_of(gHighPriorityUseCases.begin(), gHighPriorityUseCases.end(),
+                                    [this, &outputDevices](audio_usage_t usage) {
+                                        return mOutputs.isUsageActiveOnDevice(
+                                                usage, outputDevices[0]); }))) {
+                // Bit-perfect request is not allowed when the phone mode is not normal or
+                // there is any higher priority user case active.
+                return INVALID_OPERATION;
             }
         }
         *output = getOutputForDevices(outputDevices, session, resultAttr, config,
@@ -2109,22 +2111,19 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
                     (*flags == AUDIO_OUTPUT_FLAG_NONE) ? AUDIO_OUTPUT_FLAG_PRIMARY : *flags;
             ALOGV("%s forced deep-buffer (%s) flags (%0x)", __func__,
                     forceDeepBuffer ? "yes": "no" , *flags);
-            if (com::android::media::audioserver::
-                    fix_concurrent_playback_behavior_with_bit_perfect_client()) {
-                // If the preferred mixer attributes is null, do not select the bit-perfect output
-                // unless the bit-perfect output is the only output.
-                // The bit-perfect output can exist while the passed in preferred mixer attributes
-                // info is null when it is a high priority client. The high priority clients are
-                // ringtone or alarm, which is not a bit-perfect use case.
-                size_t i = 0;
-                while (i < outputs.size() && outputs.size() > 1) {
-                    auto desc = mOutputs.valueFor(outputs[i]);
-                    // The output descriptor must not be null here.
-                    if (desc->isBitPerfect()) {
-                        outputs.removeItemsAt(i);
-                    } else {
-                        i += 1;
-                    }
+            // If the preferred mixer attributes is null, do not select the bit-perfect output
+            // unless the bit-perfect output is the only output.
+            // The bit-perfect output can exist while the passed in preferred mixer attributes
+            // info is null when it is a high priority client. The high priority clients are
+            // ringtone or alarm, which is not a bit-perfect use case.
+            size_t i = 0;
+            while (i < outputs.size() && outputs.size() > 1) {
+                auto desc = mOutputs.valueFor(outputs[i]);
+                // The output descriptor must not be null here.
+                if (desc->isBitPerfect()) {
+                    outputs.removeItemsAt(i);
+                } else {
+                    i += 1;
                 }
             }
             output = selectOutput(
@@ -2609,8 +2608,7 @@ status_t AudioPolicyManager::startOutput(audio_port_handle_t portId)
     ALOGV("startOutput() output %d, stream %d, session %d",
           outputDesc->mIoHandle, client->stream(), client->session());
 
-    if (com::android::media::audioserver::fix_concurrent_playback_behavior_with_bit_perfect_client()
-            && gHighPriorityUseCases.count(client->attributes().usage) != 0
+    if (gHighPriorityUseCases.count(client->attributes().usage) != 0
             && outputDesc->isBitPerfect()) {
         // Usually, APM selects bit-perfect output for high priority use cases only when
         // bit-perfect output is the only output that can be routed to the selected device.
@@ -2709,9 +2707,7 @@ status_t AudioPolicyManager::startOutput(audio_port_handle_t portId)
 
     if (status == NO_ERROR &&
         outputDesc->mPreferredAttrInfo != nullptr &&
-        outputDesc->isBitPerfect() &&
-        com::android::media::audioserver::
-                fix_concurrent_playback_behavior_with_bit_perfect_client()) {
+        outputDesc->isBitPerfect()) {
         // A new client is started on bit-perfect output, update all clients internal mute.
         updateClientsInternalMute(outputDesc);
     }
@@ -2826,9 +2822,7 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
              (beaconMuteLatency > 0));
         uint32_t waitMs = beaconMuteLatency;
         const bool needToCloseBitPerfectOutput =
-                (com::android::media::audioserver::
-                        fix_concurrent_playback_behavior_with_bit_perfect_client() &&
-                gHighPriorityUseCases.count(clientAttr.usage) != 0);
+                (gHighPriorityUseCases.count(clientAttr.usage) != 0);
         std::vector<sp<SwAudioOutputDescriptor>> outputsToReopen;
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
@@ -3022,9 +3016,7 @@ status_t AudioPolicyManager::stopOutput(audio_port_handle_t portId)
                 outputReopened = true;
             }
         }
-        if (com::android::media::audioserver::
-                    fix_concurrent_playback_behavior_with_bit_perfect_client() &&
-            !outputReopened && outputDesc->isBitPerfect()) {
+        if (!outputReopened && outputDesc->isBitPerfect()) {
             // Only need to update the clients' internal mute when the output is bit-perfect and it
             // is not reopened.
             updateClientsInternalMute(outputDesc);
@@ -9937,9 +9929,7 @@ void AudioPolicyManager::invalidateStreams(StreamTypeVector streams) const {
 
 void AudioPolicyManager::updateClientsInternalMute(
         const sp<android::SwAudioOutputDescriptor> &desc) {
-    if (!desc->isBitPerfect() ||
-        !com::android::media::audioserver::
-                fix_concurrent_playback_behavior_with_bit_perfect_client()) {
+    if (!desc->isBitPerfect()) {
         // This is only used for bit perfect output now.
         return;
     }
