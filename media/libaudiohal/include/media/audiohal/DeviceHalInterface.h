@@ -164,8 +164,12 @@ class DeviceHalInterface : public virtual RefBase
 
     virtual status_t prepareToDisconnectExternalDevice(const struct audio_port_v7* port) = 0;
 
+    // Finds the `mixPort` when associated with `devicePort`.
+    // If `mixPortHalId` is specified, AIDL HAL wrapper will use it for finding the port by ID
+    // directly. Otherwise, mixPort.ext.mix.handle will be used.
     virtual status_t getAudioMixPort(const struct audio_port_v7* devicePort,
-                                     struct audio_port_v7* mixPort) = 0;
+                                     struct audio_port_v7* mixPort,
+                                     int32_t mixPortHalId) = 0;
 
   protected:
     // Subclasses can not be constructed directly by clients.

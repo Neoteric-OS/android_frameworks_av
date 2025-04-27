@@ -1709,8 +1709,7 @@ TEST_F(AudioPolicyManagerTestDynamicPolicy, RegisterPolicyWithInconsistentMixFai
 TEST_F_WITH_FLAGS(
         AudioPolicyManagerTestDynamicPolicy,
         RegisterInvalidMixesDoesNotImpactPriorMixes,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api),
-                               ACONFIG_FLAG(android::media::audiopolicy, audio_mix_ownership))
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
 ) {
     audio_config_t audioConfig = AUDIO_CONFIG_INITIALIZER;
     audioConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
@@ -1752,8 +1751,7 @@ TEST_F_WITH_FLAGS(
 TEST_F_WITH_FLAGS(
         AudioPolicyManagerTestDynamicPolicy,
         UnregisterInvalidMixesReturnsError,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api),
-                               ACONFIG_FLAG(android::media::audiopolicy, audio_mix_ownership))
+        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
 ) {
     audio_config_t audioConfig = AUDIO_CONFIG_INITIALIZER;
     audioConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;

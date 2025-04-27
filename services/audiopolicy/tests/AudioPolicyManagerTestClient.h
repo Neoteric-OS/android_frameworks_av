@@ -243,7 +243,8 @@ public:
     }
 
     status_t getAudioMixPort(const struct audio_port_v7 *devicePort __unused,
-                             struct audio_port_v7 *mixPort) override {
+                             struct audio_port_v7 *mixPort,
+                             int32_t mixPortHalId __unused) override {
         mixPort->num_audio_profiles = 0;
         for (auto format : mSupportedFormats) {
             const int i = mixPort->num_audio_profiles;

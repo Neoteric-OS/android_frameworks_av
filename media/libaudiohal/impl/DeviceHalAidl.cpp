@@ -23,6 +23,7 @@
 #include <aidl/android/hardware/audio/core/BnStreamOutEventCallback.h>
 #include <aidl/android/hardware/audio/core/StreamDescriptor.h>
 #include <android/binder_ibinder_platform.h>
+#include <com_android_media_audio.h>
 #include <error/expected_utils.h>
 #include <media/AidlConversionCppNdk.h>
 #include <media/AidlConversionNdk.h>
@@ -824,7 +825,8 @@ status_t DeviceHalAidl::getAudioPort(struct audio_port_v7 *port) {
 }
 
 status_t DeviceHalAidl::getAudioMixPort(const struct audio_port_v7 *devicePort,
-                                        struct audio_port_v7 *mixPort) {
+                                        struct audio_port_v7 *mixPort,
+                                        int32_t mixPortHalId) {
     AUGMENT_LOG(D);
     TIME_CHECK();
     RETURN_IF_MODULE_NOT_INIT(NO_INIT);
@@ -834,6 +836,43 @@ status_t DeviceHalAidl::getAudioMixPort(const struct audio_port_v7 *devicePort,
         AUGMENT_LOG(E, "invalid device or mix port");
         return BAD_VALUE;
     }
+
+    if (com::android::media::audio::check_route_in_get_audio_mix_port()) {
+        std::lock_guard l(mLock);
+
+        const bool isInput = VALUE_OR_RETURN_STATUS(
+                ::aidl::android::portDirection(devicePort->role, devicePort->type)) ==
+                ::aidl::android::AudioPortDirection::INPUT;
+
+        AudioPort aidlDevicePort;
+        auto aidlPort = VALUE_OR_RETURN_STATUS(
+                ::aidl::android::legacy2aidl_audio_port_v7_AudioPort(*devicePort, isInput));
+        const auto& matchDevice = aidlPort.ext.get<AudioPortExt::device>().device;
+        RETURN_STATUS_IF_ERROR(mMapper.getAudioPortCached(matchDevice, &aidlDevicePort));
+
+        AudioPort aidlMixPort;
+        if (mixPortHalId != AUDIO_PORT_HANDLE_NONE) {
+            RETURN_STATUS_IF_ERROR(mMapper.updateAudioPort(mixPortHalId, &aidlMixPort));
+        } else {
+            const int32_t aidlHandle = VALUE_OR_RETURN_STATUS(
+                  ::aidl::android::legacy2aidl_audio_io_handle_t_int32_t(mixPort->ext.mix.handle));
+            if (aidlHandle == AUDIO_IO_HANDLE_NONE) {
+                AUGMENT_LOG(E, "mix port has neither handle nor port ID");
+                return BAD_VALUE;
+            }
+            RETURN_STATUS_IF_ERROR(mMapper.getAudioMixPort(aidlHandle, &aidlMixPort));
+        }
+
+        if (!mMapper.isRoutable(aidlDevicePort.id, aidlMixPort.id)) {
+            return INVALID_OPERATION;
+        }
+
+        *mixPort = VALUE_OR_RETURN_STATUS(::aidl::android::aidl2legacy_AudioPort_audio_port_v7(
+                aidlMixPort, isInput));
+
+        return OK;
+    }
+
     const int32_t aidlHandle = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_io_handle_t_int32_t(mixPort->ext.mix.handle));
     AudioPort port;

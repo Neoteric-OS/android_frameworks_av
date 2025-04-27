@@ -1545,7 +1545,7 @@ void Track::stop()
         if (state == RESUMING || state == ACTIVE || state == PAUSING || state == PAUSED) {
             // If the track is not active (PAUSED and buffers full), flush buffers
             auto* const playbackThread = thread->asIAfPlaybackThread().get();
-            if (!playbackThread->isTrackActive(this)) {
+            if (!playbackThread->isTrackActive_l(this)) {
                 reset();
                 mState = STOPPED;
             } else if (isPatchTrack() || (!isFastTrack() && !isOffloaded() && !isDirect())) {
@@ -1644,7 +1644,7 @@ void Track::flush()
         // Flush the ring buffer now if the track is not active in the PlaybackThread.
         // Otherwise the flush would not be done until the track is resumed.
         // Requires FastTrack removal be BLOCK_UNTIL_ACKED
-        if (!playbackThread->isTrackActive(this)) {
+        if (!playbackThread->isTrackActive_l(this)) {
             (void)mServerProxy->flushBufferIfNeeded();
         }
 
@@ -1683,7 +1683,7 @@ void Track::flush()
             if (isDirect()) {
                 mFlushHwPending = true;
             }
-            if (!playbackThread->isTrackActive(this)) {
+            if (!playbackThread->isTrackActive_l(this)) {
                 reset();
             }
         }

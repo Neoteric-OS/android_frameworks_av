@@ -979,7 +979,8 @@ private:
         status_t invalidateTracks(const std::vector<audio_port_handle_t>& portIds) override;
 
         status_t getAudioMixPort(const struct audio_port_v7 *devicePort,
-                                 struct audio_port_v7 *port) override;
+                                 struct audio_port_v7 *port,
+                                 int32_t mixPortHalId) override;
 
         status_t setTracksInternalMute(
                 const std::vector<media::TrackInternalMuteInfo>& tracksInternalMute) override;

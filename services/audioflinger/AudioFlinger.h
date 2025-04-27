@@ -267,8 +267,11 @@ private:
             EXCLUDES_AudioFlinger_Mutex;
 
     // Get the attributes of the mix port when connecting to the given device port.
+    // If `mixPortHalId` is not `AUDIO_PORT_HANDLE_NONE`, it will be used to determine
+    // the mix port. Otherwise, `mixPort->ext.mix.handle` will be used.
     status_t getAudioMixPort(const struct audio_port_v7* devicePort,
-                             struct audio_port_v7* mixPort) const final EXCLUDES_AudioFlinger_Mutex;
+                             struct audio_port_v7* mixPort,
+                             int32_t mixPortHalId) const final EXCLUDES_AudioFlinger_Mutex;
 
     status_t setTracksInternalMute(
             const std::vector<media::TrackInternalMuteInfo>& tracksInternalMute) final
@@ -587,7 +590,7 @@ private:
     IAfThreadBase* hapticPlaybackThread_l() const REQUIRES(mutex());
 
               void updateSecondaryOutputsForTrack_l(
-                      IAfTrack* track,
+            const sp<IAfTrack>& track,
                       IAfPlaybackThread* thread,
             const std::vector<audio_io_handle_t>& secondaryOutputs) const REQUIRES(mutex());
 

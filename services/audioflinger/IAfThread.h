@@ -414,6 +414,10 @@ public:
     // processing period cycle).
     virtual audio_utils::DeferredExecutor& getThreadloopExecutor() = 0;
 
+    virtual sp<IAfTrackBase> getTrackById_l(audio_port_handle_t trackId) REQUIRES(mutex()) = 0;
+
+    virtual std::vector<sp<IAfTrackBase>> getTracks_l() REQUIRES(mutex()) = 0;
+
     // Dynamic cast to derived interface
     virtual sp<IAfDirectOutputThread> asIAfDirectOutputThread() { return nullptr; }
     virtual sp<IAfDuplicatingThread> asIAfDuplicatingThread() { return nullptr; }
@@ -491,7 +495,7 @@ public:
 
     virtual status_t addTrack_l(const sp<IAfTrack>& track) REQUIRES(mutex()) = 0;
     virtual bool destroyTrack_l(const sp<IAfTrack>& track) REQUIRES(mutex()) = 0;
-    virtual bool isTrackActive(const sp<IAfTrack>& track) const REQUIRES(mutex()) = 0;
+    virtual bool isTrackActive_l(const sp<IAfTrack>& track) const REQUIRES(mutex()) = 0;
     virtual void addOutputTrack_l(const sp<IAfTrack>& track) REQUIRES(mutex()) = 0;
 
     virtual AudioStreamOut* getOutput_l() const REQUIRES(mutex()) = 0;
@@ -538,10 +542,6 @@ public:
 
     virtual void setDownStreamPatch(const struct audio_patch* patch)
             EXCLUDES_ThreadBase_Mutex = 0;
-
-    virtual IAfTrack* getTrackById_l(audio_port_handle_t trackId) REQUIRES(mutex()) = 0;
-
-    virtual std::vector<sp<IAfTrack>> getTracks_l() REQUIRES(mutex()) = 0;
 
     virtual bool hasMixer() const = 0;
 

@@ -898,7 +898,7 @@ void AudioPolicyService::updateUidStates_l()
 //    NOTE: a client can capture calls if it either:
 //       has CAPTURE_AUDIO_OUTPUT privileged permission (temporarily until
 //            all system apps are updated)
-//       or has CONCURRENT_AUDIO_RECORD_BYPASS privileged permission
+//       or has BYPASS_CONCURRENT_RECORD_AUDIO_RESTRICTION privileged permission
 
 
     sp<AudioRecordClient> topActive;

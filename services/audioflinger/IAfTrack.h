@@ -42,12 +42,81 @@ class ResamplerBufferProvider;
 struct Source;
 
 class IAfDuplicatingThread;
+class IAfMmapTrack;
+class IAfOutputTrack;
 class IAfPatchRecord;
 class IAfPatchTrack;
 class IAfPlaybackThread;
 class IAfRecordThread;
+class IAfRecordTrack;
 class IAfThreadBase;
 class IAfThreadCallback;
+class IAfTrack;
+
+/**
+ * Create an iterable view on an existing container of sp<IAfTrackBase>
+ * that automatically converts to a derived interface (i.e. sp<IAfTrack>)
+ * suitable for range based fors.
+ *
+ * We place this view in derived Thread classes (ie. PlaybackThread), where we
+ * know that the Track interface must be compatible with a given Track type
+ * (i.e. IAfTrack).
+ */
+template <typename C, typename T>
+class ContainerView {
+public:
+    using I = std::decay_t<decltype(std::begin(std::declval<C&>()))>;
+
+    explicit ContainerView(C& container) : mContainer(container) {}
+
+    class Iterator {
+    public:
+        explicit Iterator(const I& it) : mIterator(it) {}
+
+        bool operator==(const Iterator& it) const = default;
+
+        bool operator!=(const Iterator& it) const = default;
+
+        Iterator& operator++() {
+             ++mIterator;
+             return *this;
+        }
+
+        // There is no automatic casting here as we use virtual base classes.
+        auto operator*() {
+            if constexpr (std::is_same_v<std::decay_t<T>, sp<IAfTrack>>) {
+                return (*mIterator)->asIAfTrack();
+            } else if constexpr (std::is_same_v<std::decay_t<T>, sp<IAfRecordTrack>>) {
+                return (*mIterator)->asIAfRecordTrack();
+            } else if constexpr (std::is_same_v<std::decay_t<T>, sp<IAfMmapTrack>>) {
+                return (*mIterator)->asIAfMmapTrack();
+            }
+            // Omit IAfOutputTrack, IAfPatchRecord, IAfPatchTrack as not needed at the moment.
+        }
+
+    private:
+        I mIterator;
+    };
+
+    auto begin() {
+        return Iterator(mContainer.begin());
+    }
+
+    auto end() {
+        return Iterator(mContainer.end());
+    }
+
+    auto begin() const {
+        return Iterator(mContainer.begin());
+    }
+
+    auto end() const {
+        return Iterator(mContainer.end());
+    }
+
+private:
+    C& mContainer;
+};
 
 struct TeePatch {
     sp<IAfPatchRecord> patchRecord;
@@ -260,6 +329,13 @@ public:
     virtual bool isStopping() const = 0;
     virtual bool isStopping_1() const = 0;
     virtual bool isStopping_2() const = 0;
+
+    virtual sp<IAfTrack> asIAfTrack() { return {}; }
+    virtual sp<IAfMmapTrack> asIAfMmapTrack() { return {}; }
+    virtual sp<IAfOutputTrack> asIAfOutputTrack() { return {}; }
+    virtual sp<IAfPatchTrack> asIAfPatchTrack() { return {}; }
+    virtual sp<IAfPatchRecord> asIAfPatchRecord() { return {}; }
+    virtual sp<IAfRecordTrack> asIAfRecordTrack() { return {}; }
 };
 
 // Functionality shared between MMAP and audioflinger datapath playback tracks. Note that MMAP
@@ -403,6 +479,8 @@ public:
                         "  Server FrmCnt  FrmRdy F Underruns  Flushed BitPerfect InternalMute"
                         "   Latency\n"sv;
     }
+
+    sp<IAfTrack> asIAfTrack() final { return this; }
 
     virtual void pause() = 0;
     virtual void flush() = 0;
@@ -551,6 +629,8 @@ public:
             audio_format_t format, audio_channel_mask_t channelMask, size_t frameCount,
             const AttributionSourceState& attributionSource);
 
+    sp<IAfOutputTrack> asIAfOutputTrack() final { return this; }
+
     virtual ssize_t write(void* data, uint32_t frames) = 0;
     virtual bool bufferQueueEmpty() const = 0;
     virtual bool isActive() const = 0;
@@ -581,6 +661,8 @@ public:
         return "Client(pid/uid) Session Port Id"
                 "   Format Chn mask  SRate Flags Usg/Src PortVol dB PortMuted\n"sv;
     };
+
+    sp<IAfMmapTrack> asIAfMmapTrack() final { return this; }
 
     // protected by MMapThread::mLock
     virtual void setSilenced_l(bool silenced) = 0;
@@ -624,6 +706,8 @@ public:
                         " Format Chn mask  SRate Source  "
                         " Server FrmCnt FrmRdy Sil   Latency\n"sv;
     }
+
+    sp<IAfRecordTrack> asIAfRecordTrack() final { return this; }
 
     // clear the buffer overflow flag
     virtual void clearOverflow() = 0;
@@ -704,6 +788,8 @@ public:
             float speed = 1.0f,
             float volume = 1.0f,
             bool muted = false);
+
+    sp<IAfPatchTrack> asIAfPatchTrack() final { return this; }
 };
 
 class IAfPatchRecord : public virtual IAfRecordTrack, public virtual IAfPatchTrackBase {
@@ -728,6 +814,8 @@ public:
             size_t frameCount,
             audio_input_flags_t flags,
             audio_source_t source = AUDIO_SOURCE_DEFAULT);
+
+    sp<IAfPatchRecord> asIAfPatchRecord() final { return this; }
 
     virtual Source* getSource() = 0;
     virtual size_t writeFrames(const void* src, size_t frameCount, size_t frameSize) = 0;

@@ -37,7 +37,6 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/bufferqueue/1.0/WGraphicBufferProducer.h>
-#include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <media/hardware/HardwareAPI.h>
@@ -406,12 +405,6 @@ GraphicBufferSource::getHGraphicBufferProducer_V1_0() const {
         ::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer>;
 
     return new TWGraphicBufferProducer(getIGraphicBufferProducer());
-}
-
-sp<::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer>
-GraphicBufferSource::getHGraphicBufferProducer() const {
-    return new ::android::hardware::graphics::bufferqueue::V2_0::utils::
-                    B2HGraphicBufferProducer(getIGraphicBufferProducer());
 }
 
 status_t GraphicBufferSource::start() {

@@ -116,7 +116,8 @@ public:
         return NO_INIT;
     }
     status_t getAudioMixPort(const struct audio_port_v7 *devicePort __unused,
-                             struct audio_port_v7 *mixPort __unused) override {
+                             struct audio_port_v7 *mixPort __unused,
+                             int32_t mixPortHalId __unused) override {
         return INVALID_OPERATION;
     }
 

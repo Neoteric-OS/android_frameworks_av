@@ -765,7 +765,13 @@ status_t getParametersFromStream(
 } // namespace
 
 status_t DeviceHalHidl::getAudioMixPort(const struct audio_port_v7 *devicePort,
-                                        struct audio_port_v7 *mixPort) {
+                                        struct audio_port_v7 *mixPort,
+                                        int32_t mixPortHalId __unused) {
+    if (mixPort->ext.mix.handle == AUDIO_IO_HANDLE_NONE) {
+        ALOGW("%s: ext.mix.handle is not specified", __func__);
+        return BAD_VALUE;
+    }
+
     // For HIDL HAL, querying mix port information is not supported. If the HAL supports
     // `getAudioPort` API to query the device port attributes, use the structured audio profiles
     // that have the same attributes reported by the `getParameters` API. Otherwise, only use
