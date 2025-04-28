@@ -203,8 +203,9 @@ int32_t AudioHwDevice::getAAudioHardwareBurstMinUsec() const {
 }
 
 status_t AudioHwDevice::getAudioMixPort(const struct audio_port_v7 *devicePort,
-                                        struct audio_port_v7 *mixPort) const {
-    return mHwDevice->getAudioMixPort(devicePort, mixPort);
+                                        struct audio_port_v7 *mixPort,
+                                        int32_t mixPortHalId) const {
+    return mHwDevice->getAudioMixPort(devicePort, mixPort, mixPortHalId);
 }
 
 

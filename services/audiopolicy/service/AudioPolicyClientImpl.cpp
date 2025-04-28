@@ -361,12 +361,13 @@ status_t AudioPolicyService::AudioPolicyClient::invalidateTracks(
 
 status_t AudioPolicyService::AudioPolicyClient::getAudioMixPort(
         const struct audio_port_v7 *devicePort,
-        struct audio_port_v7 *port) {
+        struct audio_port_v7 *port,
+        int32_t mixPortHalId) {
     sp<IAudioFlinger> af = AudioSystem::get_audio_flinger();
     if (af == 0) {
         return PERMISSION_DENIED;
     }
-    return af->getAudioMixPort(devicePort, port);
+    return af->getAudioMixPort(devicePort, port, mixPortHalId);
 }
 
 status_t AudioPolicyService::AudioPolicyClient::setTracksInternalMute(

@@ -151,7 +151,8 @@ class DeviceHalHidl : public DeviceHalInterface, public CoreConversionHelperHidl
     status_t prepareToDisconnectExternalDevice(const struct audio_port_v7* port) override;
 
     status_t getAudioMixPort(const struct audio_port_v7* devicePort,
-                             struct audio_port_v7* mixPort) override;
+                             struct audio_port_v7* mixPort,
+                             int32_t mixPortHalId) override;
 
   private:
     friend class DevicesFactoryHalHidl;

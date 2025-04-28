@@ -308,10 +308,13 @@ public:
 
     /**
      * Get the attributes of the mix port when connecting to the given device port.
+     * If `mixPortHalId` is not `AUDIO_PORT_HANDLE_NONE`, it will be used to determine
+     * the mix port. Otherwise, `mixPort->ext.mix.handle` will be used.
      */
     virtual status_t getAudioMixPort_l(
             const struct audio_port_v7* devicePort,
-            struct audio_port_v7* mixPort) REQUIRES(audio_utils::AudioFlinger_Mutex) = 0;
+            struct audio_port_v7* mixPort,
+            int32_t mixPortHalId) REQUIRES(audio_utils::AudioFlinger_Mutex) = 0;
 };
 
 }  // namespace android

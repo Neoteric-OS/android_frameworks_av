@@ -13,6 +13,14 @@ flag {
 }
 
 flag {
+    name: "abs_volume_prioritizes_abs_device"
+    namespace: "media_audio"
+    description: "When receiving a volume command from an absolute volume device we "
+                 "prioritize selecting the available absolute device for volume change"
+    bug: "399307939"
+}
+
+flag {
     name: "as_device_connection_failure"
     namespace: "media_audio"
     description: "AudioService handles device connection failures."

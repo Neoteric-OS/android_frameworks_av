@@ -890,7 +890,7 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
 
     //TODO(b/374751406): remove forcing canBypassConcurrentPolicy to canCaptureOutput
     // once all system apps using CAPTURE_AUDIO_OUTPUT to capture during calls
-    // are updated to use the new CONCURRENT_AUDIO_RECORD_BYPASS permission.
+    // are updated to use the new BYPASS_CONCURRENT_RECORD_AUDIO_RESTRICTION permission.
     bool canBypassConcurrentPolicy = audioserver_permissions()
                                 ? CHECK_PERM(CAPTURE_AUDIO_OUTPUT, attributionSource.uid)
                                 : captureAudioOutputAllowed(attributionSource);

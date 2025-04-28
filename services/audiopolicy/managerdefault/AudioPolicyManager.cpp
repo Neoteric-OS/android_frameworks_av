@@ -2891,8 +2891,8 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
         auto &curves = getVolumeCurves(client->attributes());
         if (NO_ERROR != checkAndSetVolume(curves, client->volumeSource(),
                           curves.getVolumeIndex(outputDesc->devices().types()),
-                          outputDesc, outputDesc->devices().types(), 0 /*delay*/,
-                          outputDesc->useHwGain() /*force*/)) {
+                          outputDesc, outputDesc->devices().types(), true /*adjustAttenuation*/,
+                          0 /*delay*/, outputDesc->useHwGain() /*force*/)) {
             // request AudioService to reinitialize the volume curves asynchronously
             ALOGE("checkAndSetVolume failed, requesting volume range init");
             mpClientInterface->onVolumeRangeInitRequest();
@@ -4549,14 +4549,10 @@ status_t AudioPolicyManager::registerPolicyMixes(const Vector<AudioMix>& mixes)
         }
     }
     if (res != NO_ERROR) {
-        if (audio_flags::audio_mix_ownership()) {
-            // Only unregister mixes that were actually registered to not accidentally unregister
-            // mixes that already existed previously.
-            unregisterPolicyMixes(registeredMixes);
-            registeredMixes.clear();
-        } else {
-            unregisterPolicyMixes(mixes);
-        }
+        // Only unregister mixes that were actually registered to not accidentally unregister
+        // mixes that already existed previously.
+        unregisterPolicyMixes(registeredMixes);
+        registeredMixes.clear();
     } else if (checkOutputs) {
         checkForDeviceAndOutputChanges();
         changeOutputDevicesMuteState(devices);
@@ -4603,9 +4599,6 @@ status_t AudioPolicyManager::unregisterPolicyMixes(Vector<AudioMix> mixes)
                                                         address.c_str(),
                                                         "remote-submix",
                                                         AUDIO_FORMAT_DEFAULT);
-                    if (!audio_flags::audio_mix_ownership()) {
-                        res = currentRes;
-                    }
                     if (currentRes != OK) {
                         ALOGE("Error making RemoteSubmix device unavailable for mix "
                               "with type %d, address %s", device, address.c_str());
@@ -9496,7 +9489,8 @@ void AudioPolicyManager::updateAudioProfiles(const sp<DeviceDescriptor>& devDesc
     profile->toAudioPort(&mixPort);
     mixPort.ext.mix.handle = ioHandle;
 
-    status_t status = mpClientInterface->getAudioMixPort(&devicePort, &mixPort);
+    status_t status = mpClientInterface->getAudioMixPort(&devicePort, &mixPort,
+                                                         AUDIO_PORT_HANDLE_NONE);
     if (status != NO_ERROR) {
         ALOGE("%s failed to query the attributes of the mix port", __func__);
         return;

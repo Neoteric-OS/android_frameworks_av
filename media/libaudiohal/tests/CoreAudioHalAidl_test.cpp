@@ -35,6 +35,8 @@
 #include <aidl/android/media/audio/BnHalAdapterVendorExtension.h>
 #include <aidl/android/media/audio/common/AudioGainMode.h>
 #include <aidl/android/media/audio/common/Int.h>
+#include <com_android_media_audio.h>
+#include <flag_macros.h>
 #include <media/AidlConversionCppNdk.h>
 #include <utils/Log.h>
 
@@ -102,6 +104,11 @@ struct Configuration {
     std::vector<AudioRoute> routes;
     std::vector<AudioPatch> patches;
     std::map<int32_t, std::vector<AudioProfile>> connectedProfiles;
+    // In this test, by default, all routes will be enabled (i.e., fully-connected)
+    // w.r.t. the template, but the actual routing can be different and updated per
+    // `dis/connectExternalDevice`, in which case this allows to configure
+    // the exclusive endpoints of such ports in specific test cases.
+    std::map<int32_t, std::vector<int32_t>> exclusiveRoutingForDeviceTemplate;
     int32_t nextPortId = 1;
     int32_t nextPatchId = 1;
 };
@@ -221,6 +228,23 @@ Configuration getTestConfiguration() {
     c.ports.push_back(usbOutDevice);
     c.connectedProfiles[usbOutDevice.id] = standardPcmAudioProfiles;
 
+    // Simulates the edge case where a detachable device with non-standard audio profiles
+    // whose template port routes to multiple mix ports ultimately routes to exactly
+    // one endpoint on `connectExternalDevice`, determined by the HAL.
+    //
+    // Note that this is using `OUT_HEADSET` instead of `OUT_DEVICE` because the latter
+    // is being used to test non-dynamic port behaviors. This makes a difference in
+    // the mapper determining the template port, which makes them independent to each other.
+    AudioPort usbDynamicHeadset =
+            createPort(c.nextPortId++, "USB Dynamic Out", 0, false,
+                       createPortDeviceExt(AudioDeviceType::OUT_HEADSET, 0,
+                                           AudioDeviceDescription::CONNECTION_USB));
+    c.ports.push_back(usbDynamicHeadset);
+    // The profiles are unknown until the HAL queries the device in practice.
+    // For testing, this will be set right before `connectExternalDevice` to
+    // simulate generating the unknown (until connection in the HAL) profile.
+    c.connectedProfiles[usbDynamicHeadset.id] = {};
+
     AudioPort hifiOutMix1 =
             createPort(c.nextPortId++, "hifi_out_1", 0, false, createPortMixExt(1, 1));
     c.ports.push_back(hifiOutMix1);
@@ -230,6 +254,17 @@ Configuration getTestConfiguration() {
             createPort(c.nextPortId++, "hifi_out_2", 0, false, createPortMixExt(1, 1));
     c.ports.push_back(hifiOutMix2);
     c.connectedProfiles[hifiOutMix2.id] = standardPcmAudioProfiles;
+
+    AudioPort dynamicOutMix1 =
+            createPort(c.nextPortId++, "dynamic_out_1", 0, false, createPortMixExt(1, 1));
+    c.ports.push_back(dynamicOutMix1);
+    // The profiles are only populated by the HAL after `connectExternalDevice`
+    c.connectedProfiles[dynamicOutMix1.id] = {};
+
+    AudioPort dynamicOutMix2 =
+            createPort(c.nextPortId++, "dynamic_out_2", 0, false, createPortMixExt(1, 1));
+    c.ports.push_back(dynamicOutMix2);
+    c.connectedProfiles[dynamicOutMix2.id] = {};
 
     AudioPort usbInDevice = createPort(c.nextPortId++, "USB In", 0, true,
                                        createPortDeviceExt(AudioDeviceType::IN_DEVICE, 0,
@@ -249,6 +284,7 @@ Configuration getTestConfiguration() {
     c.routes.push_back(createRoute({primaryOutMix}, speakerOutDevice));
     c.routes.push_back(createRoute({btOutMix}, btOutDevice));
     c.routes.push_back(createRoute({hifiOutMix1, hifiOutMix2}, usbOutDevice));
+    c.routes.push_back(createRoute({dynamicOutMix1, dynamicOutMix2}, usbDynamicHeadset));
     c.routes.push_back(createRoute({usbInDevice}, hifiInMix1));
     c.routes.push_back(createRoute({usbInDevice}, hifiInMix2));
 
@@ -518,6 +554,43 @@ class ModuleMock : public ::aidl::android::hardware::audio::core::BnModule,
         return 0;
     }
 
+    // Finds IDs of all device ports matching `deviceDesc`.
+    std::vector<int32_t> getDevicePortIds(const AudioDeviceDescription& deviceDesc) {
+        std::vector<int32_t> ids;
+        for (auto& port : mConfig.ports) {
+            if (port.ext.getTag() != AudioPortExt::Tag::device) continue;
+            if (port.ext.get<AudioPortExt::Tag::device>().device.type != deviceDesc) continue;
+            ids.push_back(port.id);
+        }
+        return ids;
+    }
+
+    // Finds device port ID by address for the specified direction.
+    // Returns -1 if not found.
+    int32_t getDevicePortIdWithAddress(const std::string& address, bool isInput) {
+        const auto directionFlag = isInput ? AudioIoFlags::Tag::input : AudioIoFlags::Tag::output;
+        for (auto& port : mConfig.ports) {
+            if (port.flags.getTag() != directionFlag) continue;
+            if (port.ext.getTag() != AudioPortExt::Tag::device) continue;
+            if (port.ext.get<AudioPortExt::Tag::device>().device.address != address) continue;
+            return port.id;
+        }
+        return -1;
+    }
+
+    // This updates the dynamic port referred to by the `id` so as if it, or the next
+    // device that refers to it as a template, will claim to support `profile`.
+    void setConnectedProfileForPort(int32_t id, const AudioProfile& profile) {
+        mConfig.connectedProfiles[id].clear();
+        mConfig.connectedProfiles[id].push_back(profile);
+    }
+
+    // If set, this determines the endpoints of the routes for upcoming connected
+    // devices referring to the template port identified by `id`.
+    void setExclusiveRoutingForPort(int32_t id, const std::vector<int32_t>& endpoints) {
+        mConfig.exclusiveRoutingForDeviceTemplate[id] = endpoints;
+    }
+
   private:
     ndk::ScopedAStatus setModuleDebug(
             const ::aidl::android::hardware::audio::core::ModuleDebug&) override {
@@ -578,11 +651,27 @@ class ModuleMock : public ::aidl::android::hardware::audio::core::BnModule,
         std::vector<AudioRoute> newRoutes;
         for (auto& r : mConfig.routes) {
             if (r.sinkPortId == src.id) {
-                newRoutes.push_back(AudioRoute{.sourcePortIds = r.sourcePortIds,
+                const auto& routableSourcePortIds =
+                        mConfig.exclusiveRoutingForDeviceTemplate.count(src.id)
+                                ? mConfig.exclusiveRoutingForDeviceTemplate[src.id]
+                                : r.sourcePortIds;
+
+                if (routableSourcePortIds.empty()) continue;
+
+                newRoutes.push_back(AudioRoute{.sourcePortIds = routableSourcePortIds,
                                                .sinkPortId = port->id,
                                                .isExclusive = r.isExclusive});
             } else if (std::find(r.sourcePortIds.begin(), r.sourcePortIds.end(), src.id) !=
                        r.sourcePortIds.end()) {
+                auto it = mConfig.exclusiveRoutingForDeviceTemplate.find(src.id);
+                if (it != mConfig.exclusiveRoutingForDeviceTemplate.end()) {
+                    const auto& routableSinkPortIds = it->second;
+                    if (std::find(routableSinkPortIds.begin(), routableSinkPortIds.end(),
+                                  r.sinkPortId) == routableSinkPortIds.end()) {
+                        continue;
+                    }
+                }
+
                 r.sourcePortIds.push_back(port->id);
             }
         }
@@ -1224,6 +1313,79 @@ TEST_F(DeviceHalAidlTest, MultipleInputMixePortWithSameCapabilities) {
     ASSERT_EQ(OK, mDevice->setConnectedState(&usbDevice, false /*connected*/));
 }
 
+// Note `OUT_USB_HEADSET` is configured to be dynamic, see `getTestConfiguration`.
+TEST_F_WITH_FLAGS(DeviceHalAidlTest, MultipleDynamicConnectionsWithExclusiveRouting,
+                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::media::audio,
+                                                      check_route_in_get_audio_mix_port))) {
+    ASSERT_EQ(OK, mDevice->initCheck());
+
+    const size_t NUM_DEVICES = 2;
+
+    const std::vector<AudioProfile> pcmAudioProfiles = {
+            createProfile(PcmType::INT_24_BIT, {AudioChannelLayout::LAYOUT_STEREO}, {96000}),
+            createProfile(PcmType::INT_16_BIT, {AudioChannelLayout::LAYOUT_STEREO}, {16000}),
+    };
+
+    AudioDeviceDescription usbDeviceDesc = {
+            .type = AudioDeviceType::OUT_HEADSET,
+            .connection = AudioDeviceDescription::CONNECTION_USB,
+    };
+
+    std::vector<media::AudioRoute> routes;
+    ASSERT_EQ(OK, mDevice->getAudioRoutes(&routes));
+
+    // Find routable mix ports specified by the template.
+    const auto routablePortIds = mModule->getRoutableMixPortIdsFor(usbDeviceDesc);
+
+    // We will map the mix ports to device ports 1:1 to test routing.
+    ASSERT_EQ(NUM_DEVICES, routablePortIds.size());
+
+    const auto templatePortIds = mModule->getDevicePortIds(usbDeviceDesc);
+    ASSERT_EQ(1u, templatePortIds.size());
+    const int32_t templatePortId = templatePortIds[0];
+
+    std::vector<struct audio_port_v7> devices;
+    for (size_t i = 0; i < NUM_DEVICES; ++i) {
+        const std::string deviceAddress =
+                std::string("card=") + std::to_string(i + 1) + std::string(";device=0");
+
+        struct audio_port_device_ext usbDeviceExt{};
+        usbDeviceExt.type = AUDIO_DEVICE_OUT_USB_HEADSET;
+        strcpy(usbDeviceExt.address, deviceAddress.c_str());
+
+        struct audio_port_v7 usbDevice{};
+        usbDevice.id = AUDIO_PORT_HANDLE_NONE, usbDevice.role = AUDIO_PORT_ROLE_SINK,
+        usbDevice.type = AUDIO_PORT_TYPE_DEVICE, usbDevice.ext.device = usbDeviceExt;
+
+        // Override config so that the HAL would act as if this device
+        // is discovered to support the given profile and route.
+        mModule->setExclusiveRoutingForPort(templatePortId,
+                                            std::vector<int32_t>(1, routablePortIds[i]));
+        mModule->setConnectedProfileForPort(templatePortId, pcmAudioProfiles[i]);
+        mModule->setConnectedProfileForPort(routablePortIds[i], pcmAudioProfiles[i]);
+
+        ASSERT_EQ(OK, mDevice->setConnectedState(&usbDevice, /* connected= */ true));
+
+        devices.push_back(usbDevice);
+    }
+
+    for (size_t i_device = 0; i_device < NUM_DEVICES; ++i_device) {
+        for (size_t i_mix = 0; i_mix < NUM_DEVICES; ++i_mix) {
+            struct audio_port_v7 devicePort = devices[i_device];
+            struct audio_port_v7 mixPort = {.type = AUDIO_PORT_TYPE_MIX};
+            int32_t mixPortHalId = routablePortIds[i_mix];
+
+            status_t expected_status = i_device == i_mix ? OK : INVALID_OPERATION;
+            ASSERT_EQ(expected_status,
+                      mDevice->getAudioMixPort(&devicePort, &mixPort, mixPortHalId));
+        }
+    }
+
+    for (const auto& device : devices) {
+        ASSERT_EQ(OK, mDevice->setConnectedState(&device, /* connected= */ false));
+    }
+}
+
 class DeviceHalAidlVendorParametersTest : public testing::Test {
   public:
     void SetUp() override {
@@ -1770,4 +1932,62 @@ TEST_F(Hal2AidlMapperTest, SetAudioPortConfigGainChangeFromScratch) {
     ASSERT_TRUE(portConfig.has_value());
     ASSERT_TRUE(portConfig->gain.has_value());
     EXPECT_EQ(gainConfig, portConfig->gain);
+}
+
+// Note `OUT_USB_HEADSET` is configured to be dynamic, see `getTestConfiguration`.
+TEST_F_WITH_FLAGS(Hal2AidlMapperTest, MultipleDynamicConnectionsWithExclusiveRouting,
+                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::media::audio,
+                                                      check_route_in_get_audio_mix_port))) {
+    const size_t NUM_DEVICES = 2;
+    const std::vector<AudioProfile> pcmAudioProfiles = {
+            createProfile(PcmType::INT_24_BIT, {AudioChannelLayout::LAYOUT_STEREO}, {96000}),
+            createProfile(PcmType::INT_16_BIT, {AudioChannelLayout::LAYOUT_STEREO}, {16000}),
+    };
+
+    AudioDeviceDescription usbDeviceDesc = {
+            .type = AudioDeviceType::OUT_HEADSET,
+            .connection = AudioDeviceDescription::CONNECTION_USB,
+    };
+
+    const auto routablePortIds = mModule->getRoutableMixPortIdsFor(usbDeviceDesc);
+
+    // We will map the mix ports to device ports 1:1 to test routing.
+    ASSERT_EQ(NUM_DEVICES, routablePortIds.size());
+
+    const auto templatePortIds = mModule->getDevicePortIds(usbDeviceDesc);
+    ASSERT_EQ(1u, templatePortIds.size());
+    const int32_t templatePortId = templatePortIds[0];
+
+    std::vector<int32_t> devicePortIds;
+    for (size_t i = 0; i < NUM_DEVICES; ++i) {
+        const std::string deviceAddress =
+                std::string("card=") + std::to_string(i + 1) + std::string(";device=0");
+
+        AudioPort usbDevicePort;
+        usbDevicePort.ext = createPortDeviceExt(AudioDeviceType::OUT_HEADSET, 0,
+                                                AudioDeviceDescription::CONNECTION_USB);
+        usbDevicePort.ext.get<AudioPortExt::device>().device.address = deviceAddress;
+
+        // Override config so that the HAL would act as if this device
+        // is discovered to support the given profile and route.
+        mModule->setExclusiveRoutingForPort(templatePortId,
+                                            std::vector<int32_t>(1, routablePortIds[i]));
+        mModule->setConnectedProfileForPort(routablePortIds[i], pcmAudioProfiles[i]);
+        mModule->setConnectedProfileForPort(templatePortId, pcmAudioProfiles[i]);
+
+        ASSERT_EQ(OK, mMapper->setDevicePortConnectedState(usbDevicePort, /* connected= */ true));
+
+        int32_t portId = mModule->getDevicePortIdWithAddress(deviceAddress, /* isInput= */ false);
+        ASSERT_NE(-1, portId);
+        devicePortIds.push_back(portId);
+    }
+
+    for (size_t i_device = 0; i_device < NUM_DEVICES; ++i_device) {
+        for (size_t i_mix = 0; i_mix < NUM_DEVICES; ++i_mix) {
+            int32_t devicePortId = devicePortIds[i_device];
+            int32_t mixPortId = routablePortIds[i_mix];
+            bool is_routable = i_device == i_mix;
+            ASSERT_EQ(is_routable, mMapper->isRoutable(devicePortId, mixPortId));
+        }
+    }
 }

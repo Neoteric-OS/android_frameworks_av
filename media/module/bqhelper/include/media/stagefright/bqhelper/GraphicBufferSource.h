@@ -27,7 +27,6 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/bqhelper/ComponentWrapper.h>
 #include <android/hardware/graphics/bufferqueue/1.0/IGraphicBufferProducer.h>
-#include <android/hardware/graphics/bufferqueue/2.0/IGraphicBufferProducer.h>
 
 namespace android {
 
@@ -88,11 +87,6 @@ public:
     // Buffers queued on this will be received by GraphicBufferSource.
     sp<::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer>
         getHGraphicBufferProducer_V1_0() const;
-
-    // Returns the handle to the bufferqueue HAL producer side of the BufferQueue.
-    // Buffers queued on this will be received by GraphicBufferSource.
-    sp<::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer>
-        getHGraphicBufferProducer() const;
 
     // This is called when component transitions to running state, which means
     // we can start handing it buffers.  If we already have buffers of data

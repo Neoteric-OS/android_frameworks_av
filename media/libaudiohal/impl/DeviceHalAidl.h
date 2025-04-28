@@ -184,7 +184,8 @@ class DeviceHalAidl : public DeviceHalInterface, public ConversionHelperAidl,
     status_t setSimulateDeviceConnections(bool enabled) override;
 
     status_t getAudioMixPort(const struct audio_port_v7* devicePort,
-                             struct audio_port_v7* mixPort) override;
+                             struct audio_port_v7* mixPort,
+                             int32_t mixPortHalId) override;
 
     status_t dump(int fd, const Vector<String16>& args) override;
 

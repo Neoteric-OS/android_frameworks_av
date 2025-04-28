@@ -588,15 +588,16 @@ status_t StreamHalAidl::flush(StreamDescriptor::Reply* reply) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
 
+    if (const auto state = getState(); isInPlayOrRecordState(state)) {
+        RETURN_STATUS_IF_ERROR(pause(reply));
+    }
+
     if (const auto state = getState(); isInPausedState(state)) {
         return sendCommand(
                 makeHalCommand<HalCommand::Tag::flush>(), reply,
                 true /*safeFromNonWorkerThread*/);  // The workers stops its I/O activity first.
-    } else if (isInPlayOrRecordState(state)) {
-        AUGMENT_LOG(E, "found stream in non-flushable state: %s", toString(state).c_str());
-        return INVALID_OPERATION;
     } else {
-        AUGMENT_LOG(D, "already stream in one of the flushable state: current state: %s",
+        AUGMENT_LOG(D, "already stream in one of the flushed state: current state: %s",
                     toString(state).c_str());
         return OK;
     }

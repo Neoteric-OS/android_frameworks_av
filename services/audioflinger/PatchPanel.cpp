@@ -486,7 +486,8 @@ exit:
 }
 
 status_t PatchPanel::getAudioMixPort_l(const audio_port_v7 *devicePort,
-                                       audio_port_v7 *mixPort) {
+                                       audio_port_v7 *mixPort,
+                                       int32_t mixPortHalId) {
     if (devicePort->type != AUDIO_PORT_TYPE_DEVICE) {
         ALOGE("%s the type of given device port is not DEVICE", __func__);
         return INVALID_OPERATION;
@@ -500,7 +501,7 @@ status_t PatchPanel::getAudioMixPort_l(const audio_port_v7 *devicePort,
         ALOGW("%s cannot find hw module %d", __func__, devicePort->ext.device.hw_module);
         return BAD_VALUE;
     }
-    return hwDevice->getAudioMixPort(devicePort, mixPort);
+    return hwDevice->getAudioMixPort(devicePort, mixPort, mixPortHalId);
 }
 
 PatchPanel::Patch::~Patch()

@@ -109,6 +109,10 @@ class Hal2AidlMapper : public ConversionHelperAidl {
         mFwkPatches[fwkPatchId] = halPatchId;
     }
 
+    bool isRoutable(int32_t devicePortId, int32_t mixPortId) {
+        return mRoutingMatrix.count(std::make_pair(devicePortId, mixPortId)) > 0;
+    }
+
   private:
     // 'FwkPatches' is used to store patches that diverge from the framework's state.
     // Uses framework patch ID (aka audio_patch_handle_t) values for indexing.
