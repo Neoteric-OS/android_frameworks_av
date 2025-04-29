@@ -133,7 +133,7 @@ validateAttributionFromContextOrTrustedCaller(AttributionSourceState attr,
         // Legacy paths may not properly populate package name, so we attempt to handle.
         if (!attr.packageName.has_value() || attr.packageName.value() == "") {
             ALOGW("Trusted client %d provided attr with missing package name" , callingUid);
-            attr.packageName = VALUE_OR_RETURN(provider.getPackagesForUid(callingUid))[0];
+            attr.packageName = VALUE_OR_RETURN(provider.getPackagesForUid(attr.uid))[0];
         }
         // Behavior change: In the case of delegation, if pid is invalid,
         // filling it in with the callingPid will cause a mismatch between the
