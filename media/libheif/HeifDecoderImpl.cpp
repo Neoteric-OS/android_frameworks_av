@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+/*
+ * Changes from Qualcomm Innovation Center, Inc. are provided under the following license:
+ * Copyright (c) 2025 Qualcomm Innovation Center, Inc. All rights reserved.
+ * SPDX-License-Identifier: BSD-3-Clause-Clear
+ */
 
 //#define LOG_NDEBUG 0
 #include "include/HeifDecoderAPI.h"
@@ -34,6 +39,13 @@
 #include <utils/RefBase.h>
 #include <algorithm>
 #include <vector>
+
+/* QTI_BEGIN */
+#include <sys/system_properties.h>
+extern const char* __progname;
+#define UI_PERFMODE "debug.ui.perfmode.enable"
+#define UI_PERFMODE_PROCESS "debug.ui.perfmode.process"
+/* QTI_END */
 
 HeifDecoder* createHeifDecoder() {
     return new android::HeifDecoderImpl();
@@ -587,9 +599,29 @@ bool HeifDecoderImpl::decode(HeifFrameInfo* frameInfo) {
     // scanline processing in parallel with decode. If this fails
     // we fallback to decoding the full frame.
     if (mHasImage) {
+        /* QTI_BEGIN */
+        bool useUIperf = false;
         if (mSliceHeight >= 512 &&
+                 mImageInfo.mWidth >= 1280 &&
+                 mImageInfo.mHeight >= 720 &&
+                 mImageInfo.mWidth < 3000 &&
+                 mImageInfo.mHeight < 2000) {
+            char value[PROP_VALUE_MAX];
+            memset(value, 0 , sizeof(char)*PROP_VALUE_MAX);
+            if (__system_property_get(UI_PERFMODE, value) > 0 &&
+                    strncmp(value, "true", 4) == 0) {
+                memset(value, 0 , sizeof(char)*PROP_VALUE_MAX);
+                if (__system_property_get(UI_PERFMODE_PROCESS, value) > 0 &&
+                        strncmp(__progname, value, 10) == 0) {
+                    useUIperf = true;
+                }
+            }
+        }
+        /* QTI_END */
+        if ((mSliceHeight >= 512 &&
                 mImageInfo.mWidth >= 3000 &&
-                mImageInfo.mHeight >= 2000 ) {
+                mImageInfo.mHeight >= 2000) ||
+                useUIperf) {
             // Try decoding in slices only if the image has tiles and is big enough.
             mNumSlices = (mImageInfo.mHeight + mSliceHeight - 1) / mSliceHeight;
             ALOGV("mSliceHeight %u, mNumSlices %zu", mSliceHeight, mNumSlices);
