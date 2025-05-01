@@ -418,6 +418,11 @@ public:
 
     virtual std::vector<sp<IAfTrackBase>> getTracks_l() REQUIRES(mutex()) = 0;
 
+    virtual status_t setPortsVolume(const std::vector<audio_port_handle_t> &portIds, float volume,
+            bool muted) EXCLUDES_ThreadBase_Mutex = 0;
+
+    virtual void checkUpdateTrackMetadataForUid(uid_t uid) EXCLUDES_ThreadBase_Mutex = 0;
+
     // Dynamic cast to derived interface
     virtual sp<IAfDirectOutputThread> asIAfDirectOutputThread() { return nullptr; }
     virtual sp<IAfDuplicatingThread> asIAfDuplicatingThread() { return nullptr; }
@@ -565,9 +570,6 @@ public:
     virtual void setTracksInternalMute(std::map<audio_port_handle_t, bool>* tracksInternalMute)
             EXCLUDES_ThreadBase_Mutex = 0;
 
-    virtual status_t setPortsVolume(const std::vector<audio_port_handle_t> &portIds, float volume,
-                                    bool muted) EXCLUDES_ThreadBase_Mutex = 0;
-    virtual void checkUpdateTrackMetadataForUid(uid_t uid) EXCLUDES_ThreadBase_Mutex = 0;
 };
 
 class IAfDirectOutputThread : public virtual IAfPlaybackThread {
@@ -710,10 +712,6 @@ public:
             AudioHwDevice* hwDev, AudioStreamOut* output, bool systemReady);
 
     virtual AudioStreamOut* clearOutput() EXCLUDES_ThreadBase_Mutex = 0;
-
-    virtual status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
-                                    bool muted) EXCLUDES_ThreadBase_Mutex = 0;
-    virtual void checkUpdateTrackMetadataForUid(uid_t uid) EXCLUDES_ThreadBase_Mutex = 0;
 };
 
 class IAfMmapCaptureThread : public virtual IAfMmapThread {

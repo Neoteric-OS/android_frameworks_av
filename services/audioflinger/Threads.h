@@ -643,7 +643,8 @@ protected:
                     std::vector<playback_track_metadata_v7_t> playbackMetadataUpdate;
                     std::vector<record_track_metadata_v7_t>   recordMetadataUpdate;
                 };
-    // NO_THREAD_SAFETY_ANALYSIS, updateMetadata_l() should include ThreadBase_ThreadLoop
+    // NO_THREAD_SAFETY_ANALYSIS, the ThreadBase::updateMetadata_l()
+    // should include ThreadBase_ThreadLoop
     // but MmapThread::start() -> exitStandby_l() -> updateMetadata_l() prevents this.
     virtual MetadataUpdate updateMetadata_l() REQUIRES(mutex()) = 0;
 
@@ -946,6 +947,11 @@ protected:
 
     std::vector<sp<IAfTrackBase>> getTracks_l() final REQUIRES(mutex());
 
+    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
+                            bool muted) final EXCLUDES_ThreadBase_Mutex;
+
+    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
+
     // mThreadloopExecutor contains deferred functors and object (dtors) to
     // be executed at the end of the processing period, without any
     // mutexes held.
@@ -1081,8 +1087,6 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     void setStreamMute(audio_stream_type_t stream, bool muted) final EXCLUDES_ThreadBase_Mutex;
     float streamVolume(audio_stream_type_t stream) const final EXCLUDES_ThreadBase_Mutex;
-    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
-                            bool muted) final EXCLUDES_ThreadBase_Mutex;
 
     void setVolumeForOutput_l(float left, float right) const final;
 
@@ -1293,7 +1297,6 @@ public:
 
     std::string getLocalLogHeader() const override;
 
-    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
 protected:
     // updated by readOutputParameters_l()
@@ -1449,9 +1452,9 @@ protected:
     virtual uint32_t correctLatency_l(uint32_t latency) const REQUIRES(mutex());
 
     virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
-            audio_patch_handle_t *handle) REQUIRES(mutex());
+            audio_patch_handle_t *handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
     virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle)
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     // NO_THREAD_SAFETY_ANALYSIS - fix this to use atomics
     bool usesHwAvSync() const final { return mType == DIRECT && mOutput != nullptr
@@ -1475,9 +1478,9 @@ protected:
     std::set<audio_port_handle_t> getTrackPortIds();
 
     void readOutputParameters_l() REQUIRES(mutex());
-    MetadataUpdate updateMetadata_l() final REQUIRES(mutex());
+    MetadataUpdate updateMetadata_l() final REQUIRES(mutex(), ThreadBase_ThreadLoop);
     virtual void sendMetadataToBackend_l(const StreamOutHalInterface::SourceMetadata& metadata)
-            REQUIRES(mutex()) ;
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     void collectTimestamps_l() REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
@@ -1679,8 +1682,8 @@ protected:
 
     status_t createAudioPatch_l(
             const struct audio_patch* patch, audio_patch_handle_t* handle)
-            final REQUIRES(mutex());
-    status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final REQUIRES(mutex());
+            final REQUIRES(mutex(), ThreadBase_ThreadLoop);
+    status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
                 AudioMixer* mAudioMixer;    // normal mixer
 
@@ -1937,7 +1940,8 @@ public:
     uint32_t waitTimeMs() const final { return mWaitTimeMs; }
 
                 void        sendMetadataToBackend_l(
-            const StreamOutHalInterface::SourceMetadata& metadata) final REQUIRES(mutex());
+            const StreamOutHalInterface::SourceMetadata& metadata) final
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 protected:
     virtual     uint32_t    activeSleepTimeUs() const;
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
@@ -1962,9 +1966,10 @@ protected:
 private:
 
                 uint32_t    mWaitTimeMs;
-    // NO_THREAD_SAFETY_ANALYSIS  GUARDED_BY(ThreadBase_ThreadLoop)
-    SortedVector <sp<IAfOutputTrack>> outputTracks;
-    SortedVector <sp<IAfOutputTrack>> mOutputTracks GUARDED_BY(mutex());
+
+    // tlOutputTracks is a copy of mOutputTracks accessed only by the worker thread.
+    std::set<sp<IAfOutputTrack>> tlOutputTracks GUARDED_BY(ThreadBase_ThreadLoop);
+    std::set<sp<IAfOutputTrack>> mOutputTracks GUARDED_BY(mutex());
 public:
     virtual     bool        hasFastMixer() const { return false; }
                 status_t    threadloop_getHalTimestamp_l(
@@ -1972,7 +1977,7 @@ public:
         if (mOutputTracks.size() > 0) {
             // forward the first OutputTrack's kernel information for timestamp.
             const ExtendedTimestamp trackTimestamp =
-                    mOutputTracks[0]->getClientProxyTimestamp();
+                    (*mOutputTracks.begin())->getClientProxyTimestamp();
             if (trackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] > 0) {
                 timestamp->mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
                         trackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
@@ -2086,8 +2091,8 @@ public:
     void ioConfigChanged_l(audio_io_config_event_t event, pid_t pid = 0,
             audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE) final;
     virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
-            audio_patch_handle_t *handle) REQUIRES(mutex());
-    virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle) REQUIRES(mutex());
+            audio_patch_handle_t *handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
+    virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
     void updateOutDevices(const DeviceDescriptorBaseVector& outDevices) override
             EXCLUDES_ThreadBase_Mutex;
     void resizeInputBuffer_l(int32_t maxSharedAudioHistoryMs) override REQUIRES(mutex());
@@ -2140,7 +2145,7 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     status_t setPreferredMicrophoneFieldDimension(float zoom) final EXCLUDES_ThreadBase_Mutex;
 
-    MetadataUpdate updateMetadata_l() override REQUIRES(mutex());
+    MetadataUpdate updateMetadata_l() override REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     bool fastTrackAvailable() const final { return mFastTrackAvail; }
     void setFastTrackAvailable(bool available) final { mFastTrackAvail = available; }
@@ -2328,9 +2333,9 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void cacheParameters_l() final REQUIRES(mutex(), ThreadBase_ThreadLoop) {}
     status_t createAudioPatch_l(
             const struct audio_patch* patch, audio_patch_handle_t* handle) final
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
     status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
     // NO_THREAD_SAFETY_ANALYSIS
     void toAudioPortConfig(struct audio_port_config* config) override;
 
@@ -2445,8 +2450,6 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     void setStreamMute(audio_stream_type_t stream, bool muted) final EXCLUDES_ThreadBase_Mutex;
     float streamVolume(audio_stream_type_t stream) const final EXCLUDES_ThreadBase_Mutex;
-    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
-                            bool muted) final EXCLUDES_ThreadBase_Mutex;
 
     void setMasterMute_l(bool muted) REQUIRES(mutex()) { mMasterMute = muted; }
 
@@ -2475,8 +2478,6 @@ public:
             REQUIRES(audio_utils::AudioFlinger_Mutex);
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
-
-    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
