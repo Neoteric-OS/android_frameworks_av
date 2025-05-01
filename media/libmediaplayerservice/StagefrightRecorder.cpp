@@ -2047,6 +2047,12 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
         sp<Surface> surface = new Surface(mPreviewSurface);
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
@@ -2063,6 +2069,12 @@ status_t StagefrightRecorder::setupCameraSource(
         *cameraSource = mCameraSourceTimeLapse;
     } else {
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
         sp<Surface> surface = new Surface(mPreviewSurface);
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
