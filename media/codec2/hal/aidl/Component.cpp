@@ -21,6 +21,7 @@
 #include <codec2/aidl/Component.h>
 #include <codec2/aidl/ComponentStore.h>
 #include <codec2/aidl/InputBufferManager.h>
+#include <codec2/aidl/InputSink.h>
 
 #ifndef __ANDROID_APEX__
 #include <FilterWrapper.h>
@@ -489,7 +490,8 @@ ScopedAStatus Component::configureVideoTunnel(
 ScopedAStatus Component::connectToInputSurface(
         const std::shared_ptr<IInputSurface>& inputSurface,
         std::shared_ptr<IInputSurfaceConnection> *connection) {
-    // TODO
+    // Obsolete.
+    // IInputSurface::connect instead of this interface.
     (void)inputSurface;
     (void)connection;
     return ScopedAStatus::fromServiceSpecificError(Status::OMITTED);
@@ -497,9 +499,8 @@ ScopedAStatus Component::connectToInputSurface(
 
 ScopedAStatus Component::asInputSink(
         std::shared_ptr<IInputSink> *sink) {
-    // TODO
-    (void)sink;
-    return ScopedAStatus::fromServiceSpecificError(Status::OMITTED);
+    *sink = SharedRefBase::make<InputSink>(this->ref<Component>());
+    return ScopedAStatus::ok();
 }
 
 void Component::initListener(const std::shared_ptr<Component>& self) {
