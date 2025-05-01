@@ -1278,7 +1278,7 @@ void ThreadBase::getPowerManager_l() {
     }
 }
 
-void ThreadBase::updateWakeLockUids_l(const SortedVector<uid_t>& uids) {
+void ThreadBase::updateWakeLockUids_l(const std::vector<uid_t>& uids) {
     getPowerManager_l();
 
 #if !LOG_NDEBUG
@@ -2056,11 +2056,11 @@ void ThreadBase::ActiveTracks::logTrack(
     }
 }
 
-ssize_t ThreadBase::Tracks::remove(const sp<IAfTrackBase>& track)
+bool ThreadBase::Tracks::remove(const sp<IAfTrackBase>& track)
 {
     const int trackId = track->id();
-    const ssize_t index = mTracks.remove(track);
-    if (index >= 0) {
+    const bool removed = mTracks.erase(track) > 0;
+    if (removed) {
         if (mSaveDeletedTrackIds) {
             // We can't directly access mAudioMixer since the caller may be outside of threadLoop.
             // Instead, we add to mDeletedTrackIds which is solely used for mAudioMixer update,
@@ -2068,7 +2068,7 @@ ssize_t ThreadBase::Tracks::remove(const sp<IAfTrackBase>& track)
             mDeletedTrackIds.emplace(trackId);
         }
     }
-    return index;
+    return removed;
 }
 
 // getTrackById_l must be called with holding thread lock
