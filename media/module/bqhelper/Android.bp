@@ -28,6 +28,14 @@ cc_defaults {
         "media_plugin_headers",
     ],
 
+    static_libs: [
+        "libguiflags",
+    ],
+
+    export_static_lib_headers: [
+        "libguiflags",
+    ],
+
     shared_libs: [
         "libbase",
         "libcutils",

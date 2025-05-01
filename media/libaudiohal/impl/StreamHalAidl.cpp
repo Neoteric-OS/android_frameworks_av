@@ -48,6 +48,7 @@ using ::aidl::android::hardware::audio::core::MmapBufferDescriptor;
 using ::aidl::android::hardware::audio::core::StreamDescriptor;
 using ::aidl::android::hardware::audio::core::VendorParameter;
 using ::aidl::android::media::audio::common::MicrophoneDynamicInfo;
+using ::aidl::android::hardware::audio::core::VendorParameter;
 using ::aidl::android::media::audio::IHalAdapterVendorExtension;
 
 /**
@@ -212,7 +213,8 @@ status_t StreamHalAidl::setParameters(const String8& kvPairs) {
                 return statusTFromBinderStatus(
                         serializeCall(mStream, &Stream::updateHwAvSyncId, hwAvSyncId));
             }));
-    return parseAndSetVendorParameters(mVendorExt, mStream, parameters);
+
+    return parseAndSetVendorParameters(parameters);
 }
 
 status_t StreamHalAidl::getParameters(const String8& keys __unused, String8 *values) {
@@ -224,7 +226,7 @@ status_t StreamHalAidl::getParameters(const String8& keys __unused, String8 *val
     }
     AudioParameter parameterKeys(keys), result;
     *values = result.toString();
-    return parseAndGetVendorParameters(mVendorExt, mStream, parameterKeys, values);
+    return parseAndGetVendorParameters(parameterKeys, values);
 }
 
 status_t StreamHalAidl::getFrameSize(size_t *size) {
@@ -736,6 +738,39 @@ status_t StreamHalAidl::legacyCreateAudioPatch(const struct audio_port_config& p
 status_t StreamHalAidl::legacyReleaseAudioPatch() {
     // Obsolete since 'DeviceHalAidl.supportsAudioPatches' always returns 'true'.
     return INVALID_OPERATION;
+}
+
+status_t StreamHalAidl::parseAndGetVendorParameters(const AudioParameter& parameterKeys,
+                                                    String8* values) {
+    std::vector<std::string> vendorParameterIds;
+    RETURN_STATUS_IF_ERROR(
+            fillVendorParameterIds(mVendorExt, IHalAdapterVendorExtension::ParameterScope::STREAM,
+                                   parameterKeys, vendorParameterIds));
+    if (vendorParameterIds.empty()) {
+        return OK;
+    }
+    std::vector<VendorParameter> vendorParameters;
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(serializeCall(
+            mStream, &Stream::getVendorParameters, vendorParameterIds, &vendorParameters)));
+
+    RETURN_STATUS_IF_ERROR(fillKeyValuePairsFromVendorParameters(
+            mVendorExt, IHalAdapterVendorExtension::ParameterScope::STREAM, vendorParameters,
+            values));
+    return OK;
+}
+
+status_t StreamHalAidl::parseAndSetVendorParameters(const AudioParameter& parameters) {
+    std::vector<VendorParameter> syncParameters, asyncParameters;
+    RETURN_STATUS_IF_ERROR(fillVendorParameters(mVendorExt,
+                                                IHalAdapterVendorExtension::ParameterScope::STREAM,
+                                                parameters, syncParameters, asyncParameters));
+    if (!syncParameters.empty())
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(serializeCall(
+                mStream, &Stream::setVendorParameters, syncParameters, false /*async*/)));
+    if (!asyncParameters.empty())
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(serializeCall(
+                mStream, &Stream::setVendorParameters, asyncParameters, true /*async*/)));
+    return OK;
 }
 
 status_t StreamHalAidl::sendCommand(

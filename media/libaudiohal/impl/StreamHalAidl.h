@@ -291,6 +291,9 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
     void onAsyncDrainReady();
     void onAsyncError();
 
+    status_t parseAndGetVendorParameters(const AudioParameter& parameterKeys, String8* values);
+    status_t parseAndSetVendorParameters(const AudioParameter& parameters);
+
     const bool mIsInput;
     const audio_config_base_t mConfig;
     StreamContextAidl mContext;

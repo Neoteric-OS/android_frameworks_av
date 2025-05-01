@@ -43,6 +43,7 @@
 #include "DepthCompositeStream.h"
 #include "HeicCompositeStream.h"
 #include "JpegRCompositeStream.h"
+#include "utils/Utils.h"
 
 // Convenience methods for constructing binder::Status objects for error returns
 constexpr int32_t METADATA_QUEUE_SIZE = 1 << 20;
@@ -208,7 +209,7 @@ status_t CameraDeviceClient::initializeImpl(TProviderPtr providerPtr,
     }
     size_t fmqHalSize = mDevice->getCaptureResultFMQSize();
     size_t resultMQSize =
-            property_get_int32("ro.camera.resultFmqSize", /*default*/0);
+            property_get_int32(FMQ_SIZE_PROP.c_str(), /*default*/0);
     resultMQSize = resultMQSize > 0 ? resultMQSize : fmqHalSize;
     res = CreateMetadataQueue(&mResultMetadataQueue, resultMQSize);
     if (res != OK) {
@@ -2590,7 +2591,9 @@ size_t CameraDeviceClient::writeResultMetadataIntoResultQueue(
         return resultSize;
     }
     resultMetadata.unlock(resultMetadataP);
-    ALOGE(" %s couldn't write metadata into result queue ", __FUNCTION__);
+    ALOGE(" %s couldn't write metadata into result queue, result size %zu, "
+        "fmq availableToWrite %zu ", __FUNCTION__, resultSize,
+        mResultMetadataQueue->availableToWrite());
     return 0;
 }
 
