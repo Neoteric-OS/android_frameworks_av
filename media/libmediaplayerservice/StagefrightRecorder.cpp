@@ -2047,6 +2047,12 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
         sp<Surface> surface = new Surface(mPreviewSurface);
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
@@ -2063,6 +2069,12 @@ status_t StagefrightRecorder::setupCameraSource(
         *cameraSource = mCameraSourceTimeLapse;
     } else {
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
         sp<Surface> surface = new Surface(mPreviewSurface);
         *cameraSource = CameraSource::CreateFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
@@ -2282,12 +2294,6 @@ status_t StagefrightRecorder::setupVideoEncoder(
     if (tsLayers > 1 && mIFramesIntervalSec != 0) {
 // QTI_END: 2018-04-20: Video: StagefrightRecorder: don't enable temporal layers in all Intra case
         uint32_t bLayers = std::min(2u, tsLayers - 1); // use up-to 2 B-layers
-        // TODO(b/341121900): Remove this once B frames are handled correctly in screen recorder
-        // use case in case of mic only
-        if (!com::android::media::editing::flags::stagefrightrecorder_enable_b_frames()
-                && mAudioSource == AUDIO_SOURCE_MIC && mVideoSource == VIDEO_SOURCE_SURFACE) {
-            bLayers = 0;
-        }
         uint32_t pLayers = tsLayers - bLayers;
         format->setString(
                 "ts-schema", AStringPrintf("android.generic.%u+%u", pLayers, bLayers));

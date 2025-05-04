@@ -123,10 +123,27 @@ struct TeePatch {
     sp<IAfPatchTrack> patchTrack;
 };
 
+class VolumePortImpl {
+public:
+    // VolumePortInterface implementation
+    // for now the secondary patch tracks will always be not muted
+    // TODO(b/388241142): use volume capture rules to forward the vol/mute to patch tracks
+
+    void setPortVolume(float volume) { mVolume = volume; }
+    float getPortVolume() const { return mVolume; }
+
+    void setPortMute(bool muted) { mMuted = muted; }
+    bool getPortMute() const { return mMuted; }
+
+private:
+    std::atomic<bool> mMuted = false;
+    std::atomic<float> mVolume = 0.f;
+};
+
 using TeePatches = std::vector<TeePatch>;
 
 // Common interface to all Playback and Record tracks.
-class IAfTrackBase : public virtual RefBase {
+class IAfTrackBase : public VolumePortInterface {
 public:
     enum track_state : int32_t {
         IDLE,
@@ -341,7 +358,7 @@ public:
 // Functionality shared between MMAP and audioflinger datapath playback tracks. Note that MMAP
 // tracks don't implement the IAfTrack, just IAfTrackBase
 // Not a pure interface since no forward declaration necessary.
-class AfPlaybackCommon : public virtual VolumePortInterface {
+class AfPlaybackCommon : public virtual RefBase {
     using AppOpsSession = media::permission::AppOpsSession<media::permission::DefaultAppOpsFacade>;
 
   public:
@@ -351,7 +368,7 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
         FULL, // enforcement for CONTROL
     };
 
-    AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread, float volume, bool muted,
+    AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
                      const audio_attributes_t& attr,
                      const AttributionSourceState& attributionSource,
                      bool isOffloadOrMmap,
@@ -387,20 +404,6 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
         }
     }
 
-    // VolumePortInterface implementation
-    // for now the secondary patch tracks will always be not muted
-    // TODO(b/388241142): use volume capture rules to forward the vol/mute to patch tracks
-
-    void setPortVolume(float volume) final { mVolume = volume; }
-
-    void setPortMute(bool muted) final {
-        mMutedFromPort = muted;
-    }
-
-    float getPortVolume() const final { return mVolume; }
-
-    bool getPortMute() const final { return mMutedFromPort; }
-
   protected:
     // The following methods are for notifying that sonifying playback intends to begin/end
     // for playback hardening purposes.
@@ -415,9 +418,6 @@ class AfPlaybackCommon : public virtual VolumePortInterface {
     std::optional<mediautils::SingleThreadExecutor> mExecutor;
     // TODO: atomic necessary if underneath thread lock?
     std::atomic<mute_state_t> mMuteState;
-    std::atomic<bool> mMutedFromPort;
-    // associated with port
-    std::atomic<float> mVolume = 0.0f;
 
     const EnforcementLevel mEnforcementLevel;
 

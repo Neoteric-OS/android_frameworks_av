@@ -100,7 +100,7 @@ private:
 };
 
 ApexCodec_ComponentStore *ApexCodec_GetComponentStore() {
-    ::android::base::NoDestructor<ApexCodec_ComponentStore> store;
+    static ::android::base::NoDestructor<ApexCodec_ComponentStore> store;
     return store.get();
 }
 

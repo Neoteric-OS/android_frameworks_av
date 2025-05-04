@@ -593,7 +593,7 @@ protected:
     virtual void acquireWakeLock_l() REQUIRES(mutex());
     void releaseWakeLock() EXCLUDES_ThreadBase_Mutex;
     void releaseWakeLock_l() REQUIRES(mutex());
-    void updateWakeLockUids_l(const SortedVector<uid_t> &uids) REQUIRES(mutex());
+    void updateWakeLockUids_l(const std::vector<uid_t>& uids) REQUIRES(mutex());
     void getPowerManager_l() REQUIRES(mutex());
                 // suspend or restore effects of the specified type (or all if type is NULL)
                 // on a given session. The number of suspend requests is counted and restore
@@ -643,7 +643,8 @@ protected:
                     std::vector<playback_track_metadata_v7_t> playbackMetadataUpdate;
                     std::vector<record_track_metadata_v7_t>   recordMetadataUpdate;
                 };
-    // NO_THREAD_SAFETY_ANALYSIS, updateMetadata_l() should include ThreadBase_ThreadLoop
+    // NO_THREAD_SAFETY_ANALYSIS, the ThreadBase::updateMetadata_l()
+    // should include ThreadBase_ThreadLoop
     // but MmapThread::start() -> exitStandby_l() -> updateMetadata_l() prevents this.
     virtual MetadataUpdate updateMetadata_l() REQUIRES(mutex()) = 0;
 
@@ -871,10 +872,10 @@ protected:
                 private:
                     void logTrack(const char* funcName, const sp<IAfTrackBase>& track) const;
 
-                    SortedVector<uid_t> getWakeLockUids() {
-                        SortedVector<uid_t> wakeLockUids;
+                    std::vector<uid_t> getWakeLockUids() {
+                        std::vector<uid_t> wakeLockUids;
                         for (const auto& track : mActiveTracks) {
-                            wakeLockUids.add(track->uid());
+                            wakeLockUids.push_back(track->uid());
                         }
                         return wakeLockUids; // moved by underlying SharedBuffer
                     }
@@ -895,40 +896,33 @@ protected:
         // The Tracks class manages tracks added and removed from the Thread.
 
     class Tracks {
-        using T = IAfTrackBase;
     public:
         explicit Tracks(bool saveDeletedTrackIds) :
                 mSaveDeletedTrackIds(saveDeletedTrackIds) { }
 
-        // SortedVector methods
-        ssize_t add(const sp<T>& track) {
-            const ssize_t index = mTracks.add(track);
-            LOG_ALWAYS_FATAL_IF(index < 0, "cannot add track");
-            return index;
+        bool add(const sp<IAfTrackBase>& track) {
+            return mTracks.insert(track).second;  // ignore the iterator.
         }
-        ssize_t remove(const sp<T>& track);
+        bool remove(const sp<IAfTrackBase>& track);
         size_t size() const {
             return mTracks.size();
         }
         bool empty() const {
-            return mTracks.isEmpty();
+            return mTracks.empty();
         }
-        size_t count(const sp<T>& track) const {
-            for (const sp<T> &t : mTracks) {
-                if (track == t) return 1;
-            }
-            return 0;
+        size_t count(const sp<IAfTrackBase>& track) const {
+            return mTracks.count(track);
         }
-        SortedVector<sp<T>>::iterator begin() {
+        auto begin() {
             return mTracks.begin();
         }
-        SortedVector<sp<T>>::iterator end() {
+        auto end() {
             return mTracks.end();
         }
-        SortedVector<const sp<T>>::iterator begin() const {
+        auto begin() const {
             return mTracks.begin();
         }
-        SortedVector<const sp<T>>::iterator end() const  {
+        auto end() const {
             return mTracks.end();
         }
         size_t processDeletedTrackIds(const std::function<void(int)>& f) {
@@ -943,8 +937,7 @@ protected:
         // Tracks pending deletion for MIXER type threads
         const bool mSaveDeletedTrackIds; // true to enable tracking
         std::set<int> mDeletedTrackIds;
-
-        SortedVector<sp<T>> mTracks; // wrapped SortedVector.
+        std::set<sp<IAfTrackBase>> mTracks;
     };
 
     // TODO(b/410038399) should be any mixer enabled thread.
@@ -953,6 +946,11 @@ protected:
     sp<IAfTrackBase> getTrackById_l(audio_port_handle_t trackId) final REQUIRES(mutex());
 
     std::vector<sp<IAfTrackBase>> getTracks_l() final REQUIRES(mutex());
+
+    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
+                            bool muted) final EXCLUDES_ThreadBase_Mutex;
+
+    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
     // mThreadloopExecutor contains deferred functors and object (dtors) to
     // be executed at the end of the processing period, without any
@@ -1089,8 +1087,6 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     void setStreamMute(audio_stream_type_t stream, bool muted) final EXCLUDES_ThreadBase_Mutex;
     float streamVolume(audio_stream_type_t stream) const final EXCLUDES_ThreadBase_Mutex;
-    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
-                            bool muted) final EXCLUDES_ThreadBase_Mutex;
 
     void setVolumeForOutput_l(float left, float right) const final;
 
@@ -1301,7 +1297,6 @@ public:
 
     std::string getLocalLogHeader() const override;
 
-    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
 protected:
     // updated by readOutputParameters_l()
@@ -1457,9 +1452,9 @@ protected:
     virtual uint32_t correctLatency_l(uint32_t latency) const REQUIRES(mutex());
 
     virtual     status_t    createAudioPatch_l(const struct audio_patch *patch,
-            audio_patch_handle_t *handle) REQUIRES(mutex());
+            audio_patch_handle_t *handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
     virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle)
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     // NO_THREAD_SAFETY_ANALYSIS - fix this to use atomics
     bool usesHwAvSync() const final { return mType == DIRECT && mOutput != nullptr
@@ -1483,9 +1478,9 @@ protected:
     std::set<audio_port_handle_t> getTrackPortIds();
 
     void readOutputParameters_l() REQUIRES(mutex());
-    MetadataUpdate updateMetadata_l() final REQUIRES(mutex());
+    MetadataUpdate updateMetadata_l() final REQUIRES(mutex(), ThreadBase_ThreadLoop);
     virtual void sendMetadataToBackend_l(const StreamOutHalInterface::SourceMetadata& metadata)
-            REQUIRES(mutex()) ;
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     void collectTimestamps_l() REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
@@ -1687,8 +1682,8 @@ protected:
 
     status_t createAudioPatch_l(
             const struct audio_patch* patch, audio_patch_handle_t* handle)
-            final REQUIRES(mutex());
-    status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final REQUIRES(mutex());
+            final REQUIRES(mutex(), ThreadBase_ThreadLoop);
+    status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
                 AudioMixer* mAudioMixer;    // normal mixer
 
@@ -1945,7 +1940,8 @@ public:
     uint32_t waitTimeMs() const final { return mWaitTimeMs; }
 
                 void        sendMetadataToBackend_l(
-            const StreamOutHalInterface::SourceMetadata& metadata) final REQUIRES(mutex());
+            const StreamOutHalInterface::SourceMetadata& metadata) final
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
 protected:
     virtual     uint32_t    activeSleepTimeUs() const;
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
@@ -1970,9 +1966,10 @@ protected:
 private:
 
                 uint32_t    mWaitTimeMs;
-    // NO_THREAD_SAFETY_ANALYSIS  GUARDED_BY(ThreadBase_ThreadLoop)
-    SortedVector <sp<IAfOutputTrack>> outputTracks;
-    SortedVector <sp<IAfOutputTrack>> mOutputTracks GUARDED_BY(mutex());
+
+    // tlOutputTracks is a copy of mOutputTracks accessed only by the worker thread.
+    std::set<sp<IAfOutputTrack>> tlOutputTracks GUARDED_BY(ThreadBase_ThreadLoop);
+    std::set<sp<IAfOutputTrack>> mOutputTracks GUARDED_BY(mutex());
 public:
     virtual     bool        hasFastMixer() const { return false; }
                 status_t    threadloop_getHalTimestamp_l(
@@ -1980,7 +1977,7 @@ public:
         if (mOutputTracks.size() > 0) {
             // forward the first OutputTrack's kernel information for timestamp.
             const ExtendedTimestamp trackTimestamp =
-                    mOutputTracks[0]->getClientProxyTimestamp();
+                    (*mOutputTracks.begin())->getClientProxyTimestamp();
             if (trackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] > 0) {
                 timestamp->mTimeNs[ExtendedTimestamp::LOCATION_KERNEL] =
                         trackTimestamp.mTimeNs[ExtendedTimestamp::LOCATION_KERNEL];
@@ -2094,8 +2091,8 @@ public:
     void ioConfigChanged_l(audio_io_config_event_t event, pid_t pid = 0,
             audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE) final;
     virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
-            audio_patch_handle_t *handle) REQUIRES(mutex());
-    virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle) REQUIRES(mutex());
+            audio_patch_handle_t *handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
+    virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
     void updateOutDevices(const DeviceDescriptorBaseVector& outDevices) override
             EXCLUDES_ThreadBase_Mutex;
     void resizeInputBuffer_l(int32_t maxSharedAudioHistoryMs) override REQUIRES(mutex());
@@ -2148,7 +2145,7 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     status_t setPreferredMicrophoneFieldDimension(float zoom) final EXCLUDES_ThreadBase_Mutex;
 
-    MetadataUpdate updateMetadata_l() override REQUIRES(mutex());
+    MetadataUpdate updateMetadata_l() override REQUIRES(mutex(), ThreadBase_ThreadLoop);
 
     bool fastTrackAvailable() const final { return mFastTrackAvail; }
     void setFastTrackAvailable(bool available) final { mFastTrackAvail = available; }
@@ -2336,9 +2333,9 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void cacheParameters_l() final REQUIRES(mutex(), ThreadBase_ThreadLoop) {}
     status_t createAudioPatch_l(
             const struct audio_patch* patch, audio_patch_handle_t* handle) final
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
     status_t releaseAudioPatch_l(const audio_patch_handle_t handle) final
-            REQUIRES(mutex());
+            REQUIRES(mutex(), ThreadBase_ThreadLoop);
     // NO_THREAD_SAFETY_ANALYSIS
     void toAudioPortConfig(struct audio_port_config* config) override;
 
@@ -2453,8 +2450,6 @@ public:
             EXCLUDES_ThreadBase_Mutex;
     void setStreamMute(audio_stream_type_t stream, bool muted) final EXCLUDES_ThreadBase_Mutex;
     float streamVolume(audio_stream_type_t stream) const final EXCLUDES_ThreadBase_Mutex;
-    status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
-                            bool muted) final EXCLUDES_ThreadBase_Mutex;
 
     void setMasterMute_l(bool muted) REQUIRES(mutex()) { mMasterMute = muted; }
 
@@ -2483,8 +2478,6 @@ public:
             REQUIRES(audio_utils::AudioFlinger_Mutex);
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
-
-    void checkUpdateTrackMetadataForUid(uid_t uid) final EXCLUDES_ThreadBase_Mutex;
 
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());

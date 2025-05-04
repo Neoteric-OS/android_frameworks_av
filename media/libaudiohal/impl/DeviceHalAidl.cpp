@@ -179,18 +179,21 @@ status_t DeviceHalAidl::initCheck() {
     AUGMENT_LOG(D);
     TIME_CHECK();
     RETURN_IF_MODULE_NOT_INIT(NO_INIT);
-    std::lock_guard l(mLock);
     int32_t aidlVersion = 0;
-    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mModule->getInterfaceVersion(&aidlVersion)));
+    {
+        std::lock_guard l(mLock);
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mModule->getInterfaceVersion(&aidlVersion)));
+    }
     if (aidlVersion > kAidlVersion3) {
         mHasClipTransitionSupport = true;
     } else {
         AudioParameter parameterKeys;
         parameterKeys.addKey(String8(AudioParameter::keyClipTransitionSupport));
         String8 values;
-        auto status = parseAndGetVendorParameters(mVendorExt, mModule, parameterKeys, &values);
+        auto status = parseAndGetVendorParameters(parameterKeys, &values);
         mHasClipTransitionSupport = status == OK && !values.empty();
     }
+    std::lock_guard l(mLock);
     return mMapper.initialize();
 }
 
@@ -315,8 +318,7 @@ status_t DeviceHalAidl::setParameters(const String8& kvPairs) {
     if (status_t status = filterAndUpdateTelephonyParameters(parameters); status != OK) {
         AUGMENT_LOG(W, "filterAndUpdateTelephonyParameters failed: %d", status);
     }
-    std::lock_guard l(mLock);
-    return parseAndSetVendorParameters(mVendorExt, mModule, parameters);
+    return parseAndSetVendorParameters(parameters);
 }
 
 status_t DeviceHalAidl::getParameters(const String8& keys, String8 *values) {
@@ -336,8 +338,7 @@ status_t DeviceHalAidl::getParameters(const String8& keys, String8 *values) {
         AUGMENT_LOG(W, "filterAndRetrieveBtLeParameters failed: %d", status);
     }
     *values = result.toString();
-    std::lock_guard l(mLock);
-    return parseAndGetVendorParameters(mVendorExt, mModule, parameterKeys, values);
+    return parseAndGetVendorParameters(parameterKeys, values);
 }
 
 status_t DeviceHalAidl::getInputBufferSize(struct audio_config* config, size_t* size) {
@@ -371,6 +372,42 @@ status_t DeviceHalAidl::getInputBufferSize(struct audio_config* config, size_t* 
     *size = aidlConfig.frameCount *
             getFrameSizeInBytes(aidlConfig.base.format, aidlConfig.base.channelMask);
     // Do not disarm cleanups to release temporary port configs.
+    return OK;
+}
+
+status_t DeviceHalAidl::parseAndGetVendorParameters(const AudioParameter& parameterKeys,
+                                                    String8* values) {
+    std::vector<std::string> vendorParameterIds;
+    RETURN_STATUS_IF_ERROR(
+            fillVendorParameterIds(mVendorExt, IHalAdapterVendorExtension::ParameterScope::MODULE,
+                                   parameterKeys, vendorParameterIds));
+    if (vendorParameterIds.empty()) {
+        return OK;
+    }
+    std::vector<VendorParameter> vendorParameters;
+    {
+        std::lock_guard l(mLock);
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+                mModule->getVendorParameters(vendorParameterIds, &vendorParameters)));
+    }
+    RETURN_STATUS_IF_ERROR(fillKeyValuePairsFromVendorParameters(
+            mVendorExt, IHalAdapterVendorExtension::ParameterScope::MODULE, vendorParameters,
+            values));
+    return OK;
+}
+
+status_t DeviceHalAidl::parseAndSetVendorParameters(const AudioParameter& parameters) {
+    std::vector<VendorParameter> syncParameters, asyncParameters;
+    RETURN_STATUS_IF_ERROR(fillVendorParameters(mVendorExt,
+                                                IHalAdapterVendorExtension::ParameterScope::MODULE,
+                                                parameters, syncParameters, asyncParameters));
+    std::lock_guard l(mLock);
+    if (!syncParameters.empty())
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+                mModule->setVendorParameters(syncParameters, false /*async*/)));
+    if (!asyncParameters.empty())
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+                mModule->setVendorParameters(asyncParameters, true /*async*/)));
     return OK;
 }
 

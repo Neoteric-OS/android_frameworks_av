@@ -219,6 +219,8 @@ class DeviceHalAidl : public DeviceHalInterface, public ConversionHelperAidl,
     status_t filterAndUpdateBtScoParameters(AudioParameter &parameters);
     status_t filterAndUpdateScreenParameters(AudioParameter &parameters);
     status_t filterAndUpdateTelephonyParameters(AudioParameter &parameters);
+    status_t parseAndGetVendorParameters(const AudioParameter& parameterKeys, String8* values);
+    status_t parseAndSetVendorParameters(const AudioParameter& parameters);
 
     // CallbackBroker implementation
     void clearCallbacks(void* cookie) override;

@@ -86,6 +86,7 @@ using android::media::audio::common::AudioConfigBase;
 using binder::Status;
 using com::android::media::audioserver::fix_call_audio_patch;
 using com::android::media::audioserver::use_bt_sco_for_media;
+using com::android::media::audioserver::remove_stream_suspend;
 using content::AttributionSourceState;
 
 //FIXME: workaround for truncated touch sounds
@@ -7909,10 +7910,14 @@ void AudioPolicyManager::checkForDeviceAndOutputChanges(std::function<bool()> on
 {
     // checkA2dpSuspend must run before checkOutputForAllStrategies so that A2DP
     // output is suspended before any tracks are moved to it
-    checkA2dpSuspend();
+    if (!remove_stream_suspend()) {
+        checkA2dpSuspend();
+    }
     checkOutputForAllStrategies();
     checkSecondaryOutputs();
-    if (onOutputsChecked != nullptr && onOutputsChecked()) checkA2dpSuspend();
+    if (!remove_stream_suspend() && onOutputsChecked != nullptr && onOutputsChecked()) {
+        checkA2dpSuspend();
+    }
     updateDevicesAndOutputs();
     if (mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_MSD) != 0) {
         // TODO: The MSD patches to be established here may differ to current MSD patches due to how

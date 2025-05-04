@@ -628,11 +628,14 @@ status_t Camera2Client::setPreviewWindowL(const view::Surface& viewSurface,
     ATRACE_CALL();
     status_t res;
 
-    uint64_t viewSurfaceID;
-    res = viewSurface.getUniqueId(&viewSurfaceID);
-    if (res != OK) {
-        ALOGE("%s: Camera %d: Could not getUniqueId.", __FUNCTION__, mCameraId);
-        return res;
+    // We will get empty view surfaces here when the client wants to clear it.
+    uint64_t viewSurfaceID = 0;
+    if (!viewSurface.isEmpty()) {
+        res = viewSurface.getUniqueId(&viewSurfaceID);
+        if (res != OK) {
+            ALOGE("%s: Camera %d: Could not getUniqueId.", __FUNCTION__, mCameraId);
+            return res;
+        }
     }
 
     if (viewSurfaceID == mPreviewViewSurfaceID) {

@@ -31,6 +31,8 @@
 
 namespace aidl::android::hardware::media::c2::utils {
 
+using implementation::InputSurfaceSource;
+
 using ImageConfig = InputSurface::ImageConfig;
 using StreamConfig = InputSurface::StreamConfig;
 using WorkStatusConfig = InputSurface::WorkStatusConfig;
@@ -351,20 +353,46 @@ private:
     mutable std::mutex mConfigLock;
 };
 
+struct InputSurface::SourceEventCallback : public InputSurfaceSource::EventCallback {
+    explicit SourceEventCallback(std::shared_ptr<InputSurface> surface) : mSurface{surface} {}
+
+    virtual ~SourceEventCallback() override {}
+
+    void onDataspaceChanged(int32_t dataspace, int32_t pixelFormat) override {
+        // TODO, tricky since this might be called with a lock being held.
+        (void) dataspace;
+        (void) pixelFormat;
+    }
+
+    void onComponentReleased() override {
+        // TODO
+    }
+
+    std::weak_ptr<InputSurface> mSurface;
+};
+
 InputSurface::InputSurface() {
     mIntf = std::make_shared<Interface>(
             std::make_shared<C2ReflectorHelper>());
-
-    // mConfigurable is initialized lazily.
-    // mInit indicates the initialization status of mConfigurable.
-    mInit = C2_NO_INIT;
+    mSource = new InputSurfaceSource();
+    // mConfigurable, mSourceEventcallback are initialized lazily.
 }
 
 InputSurface::~InputSurface() {
     release();
 }
 
+void InputSurface::init() {
+    std::call_once(mInit, [this]() {
+        mConfigurable = SharedRefBase::make<CachedConfigurable>(
+                std::make_unique<ConfigurableIntf>(mIntf, this->ref<InputSurface>()));
+        mSourceEventCallback = std::make_shared<SourceEventCallback>(this->ref<InputSurface>());
+        mSource->setEventCallback(mSourceEventCallback);
+    });
+}
+
 ::ndk::ScopedAStatus InputSurface::getSurface(::aidl::android::view::Surface* surface) {
+    init();
     std::lock_guard<std::mutex> l(mLock);
     ANativeWindow *window = mSource->getNativeWindow();
     if (window) {
@@ -376,11 +404,7 @@ InputSurface::~InputSurface() {
 
 ::ndk::ScopedAStatus InputSurface::getConfigurable(
         std::shared_ptr<IConfigurable>* configurable) {
-    if (mInit == C2_NO_INIT) {
-        mConfigurable = SharedRefBase::make<CachedConfigurable>(
-                std::make_unique<ConfigurableIntf>(mIntf, this->ref<InputSurface>()));
-        mInit = C2_OK;
-    }
+    init();
     if (mConfigurable) {
         *configurable = mConfigurable;
         return ::ndk::ScopedAStatus::ok();
@@ -394,6 +418,22 @@ InputSurface::~InputSurface() {
     std::unique_lock<std::mutex> l(mLock);
     mConnection = SharedRefBase::make<InputSurfaceConnection>(sink, mSource);
     *connection = mConnection;
+    c2_status_t c2Res = mSource->configure(
+            mConnection,
+            mImageConfig.mDataspace,
+            mImageConfig.mNumBuffers,
+            mImageConfig.mWidth,
+            mImageConfig.mHeight,
+            mImageConfig.mUsage);
+    if (c2Res != C2_OK) {
+        ALOGE("InputSurface connect: configuring source failed(%d)", c2Res);
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(c2Res);
+    }
+    c2Res = mSource->start();
+    if (c2Res != C2_OK) {
+        ALOGE("InputSurface connect: starting source failed(%d)", c2Res);
+        return ::ndk::ScopedAStatus::fromServiceSpecificError(c2Res);
+    }
     return ::ndk::ScopedAStatus::ok();
 }
 
