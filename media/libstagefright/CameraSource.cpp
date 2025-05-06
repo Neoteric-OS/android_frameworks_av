@@ -516,6 +516,10 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
     mVideoBufferProducer = surface->getIGraphicBufferProducer();
 #endif  // WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
 
+    if (mVideoBufferConsumer == nullptr) {
+        return -1;
+    }
+
     status_t res = mVideoBufferConsumer->setDefaultBufferSize(width, height);
     if (res != OK) {
         ALOGE("%s: Could not set buffer dimensions %dx%d: %s (%d)", __FUNCTION__, width, height,
