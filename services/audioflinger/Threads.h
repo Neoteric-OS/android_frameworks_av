@@ -1112,9 +1112,7 @@ public:
                                 const sp<media::IAudioTrackCallback>& callback,
                                 bool isSpatialized,
                                 bool isBitPerfect,
-                                audio_output_flags_t* afTrackFlags,
-                                float volume,
-                                bool muted) final
+                                audio_output_flags_t* afTrackFlags) final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
 
     bool isTrackActive_l(const sp<IAfTrack>& track) const final REQUIRES(mutex()) {
@@ -2092,7 +2090,8 @@ public:
             audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE) final;
     virtual status_t    createAudioPatch_l(const struct audio_patch *patch,
             audio_patch_handle_t *handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
-    virtual status_t releaseAudioPatch_l(const audio_patch_handle_t handle) REQUIRES(mutex(), ThreadBase_ThreadLoop);
+    status_t releaseAudioPatch_l(const audio_patch_handle_t handle)
+            override REQUIRES(mutex(), ThreadBase_ThreadLoop);
     void updateOutDevices(const DeviceDescriptorBaseVector& outDevices) override
             EXCLUDES_ThreadBase_Mutex;
     void resizeInputBuffer_l(int32_t maxSharedAudioHistoryMs) override REQUIRES(mutex());

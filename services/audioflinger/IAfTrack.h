@@ -466,9 +466,7 @@ public:
             size_t frameCountToBeReady = SIZE_MAX,
             float speed = 1.0f,
             bool isSpatialized = false,
-            bool isBitPerfect = false,
-            float volume = 0.0f,
-            bool muted = false);
+            bool isBitPerfect = false);
 
     static constexpr std::string_view getLogHeader() {
         using namespace std::literals;
@@ -652,9 +650,7 @@ public:
             bool isOut,
             const android::content::AttributionSourceState& attributionSource,
             pid_t creatorPid,
-            audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE,
-            float volume = 0.0f,
-            bool muted = false);
+            audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE);
 
     static constexpr std::string_view getLogHeader() {
         using namespace std::literals;
@@ -785,9 +781,7 @@ public:
                                              *  as soon as possible to have
                                              *  the lowest possible latency
                                              *  even if it might glitch. */
-            float speed = 1.0f,
-            float volume = 1.0f,
-            bool muted = false);
+            float speed = 1.0f);
 
     sp<IAfPatchTrack> asIAfPatchTrack() final { return this; }
 };

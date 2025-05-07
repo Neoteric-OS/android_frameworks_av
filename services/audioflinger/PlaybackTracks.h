@@ -96,9 +96,7 @@ public:
                                 size_t frameCountToBeReady = SIZE_MAX,
                                 float speed = 1.0f,
                                 bool isSpatialized = false,
-                                bool isBitPerfect = false,
-                                float volume = 0.0f,
-                                bool muted = false);
+                                bool isBitPerfect = false);
     ~Track() override;
     status_t initCheck() const final;
     void appendDumpHeader(String8& result) const final;
@@ -504,9 +502,7 @@ public:
                                                                     *  as soon as possible to have
                                                                     *  the lowest possible latency
                                                                     *  even if it might glitch. */
-                                   float speed = 1.0f,
-                                   float volume = 1.0f,
-                                   bool muted = false);
+                                   float speed = 1.0f);
     ~PatchTrack() override;
 
     size_t framesReady() const final;

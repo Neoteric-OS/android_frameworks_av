@@ -79,6 +79,44 @@ cc_library_shared {
     },
 }
 
+cc_library_shared {
+    name: "libstagefright_persistentsurface",
+
+    export_include_dirs: ["include"],
+
+    srcs: [
+        "PersistentSurface.cpp",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
+    header_libs: [
+        "libstagefright_foundation_headers",
+    ],
+
+    shared_libs: [
+        "android.hardware.media.c2-V1-ndk",
+        "android.hidl.token@1.0-utils",
+        "libbinder",
+        "libbinder_ndk",
+        "libgui",
+        "liblog",
+        "libnativewindow",
+        "libutils",
+    ],
+
+    sanitize: {
+        cfi: true,
+        misc_undefined: [
+            "signed-integer-overflow",
+            "unsigned-integer-overflow",
+        ],
+    },
+}
+
 cc_library_static {
     name: "libstagefright_mpeg2extractor",
     apex_available: [
@@ -325,6 +363,7 @@ cc_library {
 // QTI_BEGIN: 2018-04-12: Video: httplive: refactor for HLS customization
         "android.hidl.memory@1.0",
 // QTI_END: 2018-04-12: Video: httplive: refactor for HLS customization
+        "libstagefright_persistentsurface",
         "libui",
         "libutils",
         "packagemanager_aidl-cpp",

@@ -152,12 +152,11 @@ public:
                                       std::vector<audio_io_handle_t> *secondaryOutputs,
                                       output_type_t *outputType,
                                       bool *isSpatialized,
-                                      bool *isBitPerfect,
-                                      float *volume,
-                                      bool *muted) = 0;
+                                      bool *isBitPerfect) = 0;
     // indicates to the audio policy manager that the output starts being used by corresponding
     // stream.
-    virtual status_t startOutput(audio_port_handle_t portId) = 0;
+    virtual status_t startOutput(
+            audio_port_handle_t portId, float* volume, bool* muted) = 0;
     // indicates to the audio policy manager that the output stops being used by corresponding
     // stream.
     virtual status_t stopOutput(audio_port_handle_t portId) = 0;

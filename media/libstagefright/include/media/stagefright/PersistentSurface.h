@@ -19,7 +19,6 @@
 #define PERSISTENT_SURFACE_H_
 
 #include <android/binder_auto_utils.h>
-#include <android/binder_libbinder.h>
 #include <binder/Parcel.h>
 #include <hidl/HidlSupport.h>
 #include <hidl/HybridInterface.h>
@@ -29,116 +28,70 @@
 namespace android {
 
 struct PersistentSurface : public RefBase {
-    PersistentSurface() {}
 
-    // create a persistent surface in HIDL
+    enum SurfaceType : int {
+        TYPE_UNKNOWN = 0,
+        TYPE_HIDLSOURCE,    // android::hardware::media::omx::V1_0::IGraphicBufferSource
+        TYPE_AIDLSOURCE,    // aidl::android::media::IAidlGraphicBufferSource
+        TYPE_INPUTSURFACE,  // aidl::android::hardware::media::c2::IInputSurface
+    };
+
+    PersistentSurface() : mType(TYPE_UNKNOWN) {}
+
+    // create a persistent surface with HIDL IGraphicBufferSource.
     PersistentSurface(
             const sp<IGraphicBufferProducer>& bufferProducer,
-            const sp<hidl::base::V1_0::IBase>& hidlTarget) :
+            const sp<hidl::base::V1_0::IBase>& hidlSource) :
+        mType(TYPE_HIDLSOURCE),
         mBufferProducer(bufferProducer),
-        mHidlTarget(hidlTarget),
-        mAidlTarget(nullptr),
-        mAidl(false) { }
+        mHidlGraphicBufferSource(hidlSource),
+        mAidlGraphicBufferSource(nullptr),
+        mHalInputSurface(nullptr) {}
 
-    // create a persistent surface in AIDL
+    // create a persistent surface with AIDL IAidlGraphicBufferSource.
     PersistentSurface(
             const sp<IGraphicBufferProducer>& bufferProducer,
-            const ::ndk::SpAIBinder& aidlTarget) :
+            const ::ndk::SpAIBinder& aidlSource) :
+        mType(TYPE_AIDLSOURCE),
         mBufferProducer(bufferProducer),
-        mHidlTarget(nullptr),
-        mAidlTarget(aidlTarget),
-        mAidl(true) { }
+        mHidlGraphicBufferSource(nullptr),
+        mAidlGraphicBufferSource(aidlSource),
+        mHalInputSurface(nullptr) {}
 
-    sp<IGraphicBufferProducer> getBufferProducer() const {
-        return mBufferProducer;
+    // create a persistent surface with Codec2 AIDL IInputSurface.
+    PersistentSurface(
+            const ::ndk::SpAIBinder& inputSurface) :
+        mType(TYPE_INPUTSURFACE),
+        mBufferProducer(nullptr),
+        mHidlGraphicBufferSource(nullptr),
+        mAidlGraphicBufferSource(nullptr),
+        mHalInputSurface(inputSurface) {}
+
+    sp<IGraphicBufferProducer> getBufferProducer();
+
+    SurfaceType getType() const {
+        return mType;
     }
 
-    bool isTargetAidl() const {
-        return mAidl;
-    }
+    sp<hidl::base::V1_0::IBase> getHidlTarget() const;
 
-    sp<hidl::base::V1_0::IBase> getHidlTarget() const {
-        return mAidl ? nullptr : mHidlTarget;
-    }
+    ::ndk::SpAIBinder getAidlTarget() const;
 
-    ::ndk::SpAIBinder getAidlTarget() const {
-        return mAidl ? mAidlTarget : nullptr;
-    }
+    ::ndk::SpAIBinder getHalInputSurface() const;
 
-    status_t writeToParcel(Parcel *parcel) const {
-        parcel->writeStrongBinder(IInterface::asBinder(mBufferProducer));
-        // write hidl target if available
-        if (mHidlTarget != nullptr) {
-            HalToken token;
-            bool result = createHalToken(mHidlTarget, &token);
-            parcel->writeBool(result);
-            if (result) {
-                parcel->writeByteArray(token.size(), token.data());
-            }
-        } else {
-            parcel->writeBool(false);
-        }
-        // write aidl target if available
-        if (mAidl) {
-            AIBinder *binder = mAidlTarget.get();
-            if (binder != nullptr) {
-                ::android::sp<::android::IBinder> intf =
-                        AIBinder_toPlatformBinder(binder);
-                if (intf) {
-                    parcel->writeBool(true);
-                    parcel->writeStrongBinder(intf);
-                } else {
-                    parcel->writeBool(false);
-                }
-            } else {
-                parcel->writeBool(false);
-            }
-        }
-        return NO_ERROR;
-    }
+    status_t writeToParcel(Parcel *parcel) const;
 
-    status_t readFromParcel(const Parcel *parcel) {
-        mBufferProducer = interface_cast<IGraphicBufferProducer>(
-                parcel->readStrongBinder());
-        // read hidl target
-        bool haveHidlTarget = parcel->readBool();
-        mAidl = false;
-        if (haveHidlTarget) {
-            std::vector<uint8_t> tokenVector;
-            parcel->readByteVector(&tokenVector);
-            HalToken token = HalToken(tokenVector);
-            mHidlTarget = retrieveHalInterface(token);
-            deleteHalToken(token);
-            return NO_ERROR;
-        } else {
-            mHidlTarget.clear();
-        }
-
-        // read aidl target
-        bool haveAidlTarget = false;
-        if (parcel->readBool(&haveAidlTarget) != NO_ERROR) {
-            return NO_ERROR;
-        }
-        mAidl = true;
-        if (haveAidlTarget) {
-            ::android::sp<::android::IBinder> intf = parcel->readStrongBinder();
-            AIBinder *ndkBinder = AIBinder_fromPlatformBinder(intf);
-            if (ndkBinder) {
-                mAidlTarget.set(ndkBinder);
-            } else {
-                mAidlTarget.set(nullptr);
-            }
-        } else {
-            mAidlTarget.set(nullptr);
-        }
-        return NO_ERROR;
-    }
+    status_t readFromParcel(const Parcel *parcel);
 
 private:
+    SurfaceType mType;
+
     sp<IGraphicBufferProducer> mBufferProducer;
-    sp<hidl::base::V1_0::IBase> mHidlTarget;
-    ::ndk::SpAIBinder mAidlTarget;
-    bool mAidl;
+
+    // Either one of the below three is valid according to mType.
+    sp<hidl::base::V1_0::IBase> mHidlGraphicBufferSource;
+    ::ndk::SpAIBinder mAidlGraphicBufferSource;
+    ::ndk::SpAIBinder mHalInputSurface;
 
     DISALLOW_EVIL_CONSTRUCTORS(PersistentSurface);
 };

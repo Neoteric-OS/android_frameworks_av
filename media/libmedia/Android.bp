@@ -421,6 +421,7 @@ cc_library {
         "libmedia_codeclist",
         "libmedia_omx",
         "libstagefright_foundation",
+        "libstagefright_persistentsurface",
         "libutils",
     ],
 

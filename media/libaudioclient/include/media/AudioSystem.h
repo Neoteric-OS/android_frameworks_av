@@ -348,10 +348,9 @@ public:
                                      audio_port_handle_t *portId,
                                      std::vector<audio_io_handle_t> *secondaryOutputs,
                                      bool *isSpatialized,
-                                     bool *isBitPerfect,
-                                     float *volume,
-                                     bool *muted);
-    static status_t startOutput(audio_port_handle_t portId);
+                                     bool *isBitPerfect);
+    static status_t startOutput(
+            audio_port_handle_t portId, float* volume, bool* muted);
     static status_t stopOutput(audio_port_handle_t portId);
     static void releaseOutput(audio_port_handle_t portId);
 

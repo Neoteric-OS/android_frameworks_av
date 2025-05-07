@@ -140,6 +140,7 @@ cc_library_shared {
         "libmedia_jni_utils",
         "libstagefright",
         "libstagefright_foundation",
+        "libstagefright_persistentsurface",
         "liblog",
         "libutils",
         "libcutils",

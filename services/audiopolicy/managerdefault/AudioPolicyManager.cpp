@@ -84,7 +84,6 @@ using android::media::audio::common::AudioPortDeviceExt;
 using android::media::audio::common::AudioPortExt;
 using android::media::audio::common::AudioConfigBase;
 using binder::Status;
-using com::android::media::audioserver::fix_call_audio_patch;
 using com::android::media::audioserver::use_bt_sco_for_media;
 using com::android::media::audioserver::remove_stream_suspend;
 using content::AttributionSourceState;
@@ -872,11 +871,6 @@ status_t AudioPolicyManager::updateCallRoutingInternal(
     audio_attributes_t attr = { .source = AUDIO_SOURCE_VOICE_COMMUNICATION };
     auto txSourceDevice = mEngine->getInputDeviceForAttributes(attr);
 
-    if (!fix_call_audio_patch()) {
-        disconnectTelephonyAudioSource(mCallRxSourceClient);
-        disconnectTelephonyAudioSource(mCallTxSourceClient);
-    }
-
     if (rxDevices.isEmpty()) {
         ALOGW("%s() no selected output device", __func__);
         return INVALID_OPERATION;
@@ -928,9 +922,7 @@ status_t AudioPolicyManager::updateCallRoutingInternal(
     // Use legacy routing method for voice calls via setOutputDevice() on primary output.
     // Otherwise, create two audio patches for TX and RX path.
     if (!createRxPatch) {
-        if (fix_call_audio_patch()) {
-            disconnectTelephonyAudioSource(mCallRxSourceClient);
-        }
+        disconnectTelephonyAudioSource(mCallRxSourceClient);
         if (!hasPrimaryOutput()) {
             ALOGW("%s() no primary output available", __func__);
             return INVALID_OPERATION;
@@ -953,7 +945,7 @@ status_t AudioPolicyManager::updateCallRoutingInternal(
             }
         }
         connectTelephonyTxAudioSource(txSourceDevice, txSinkDevice, delayMs);
-    } else if (fix_call_audio_patch()) {
+    } else {
         disconnectTelephonyAudioSource(mCallTxSourceClient);
     }
     if (waitMs != nullptr) {
@@ -978,20 +970,16 @@ void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
 {
     const auto aa = mEngine->getAttributesForStreamType(AUDIO_STREAM_VOICE_CALL);
 
-    if (fix_call_audio_patch()) {
-        if (mCallRxSourceClient != nullptr) {
-            DeviceVector rxDevices =
-                  mEngine->getOutputDevicesForAttributes(aa, nullptr, false /*fromCache*/);
-            ALOG_ASSERT(!rxDevices.isEmpty() || !mCallRxSourceClient->isConnected(),
-                        "connectTelephonyRxAudioSource(): no device found for call RX source");
-            sp<DeviceDescriptor> rxDevice = rxDevices.itemAt(0);
-            if (mCallRxSourceClient->isConnected()
-                    && mCallRxSourceClient->sinkDevice()->equals(rxDevice)) {
-                return;
-            }
-            disconnectTelephonyAudioSource(mCallRxSourceClient);
+    if (mCallRxSourceClient != nullptr) {
+        DeviceVector rxDevices =
+              mEngine->getOutputDevicesForAttributes(aa, nullptr, false /*fromCache*/);
+        ALOG_ASSERT(!rxDevices.isEmpty() || !mCallRxSourceClient->isConnected(),
+                    "connectTelephonyRxAudioSource(): no device found for call RX source");
+        sp<DeviceDescriptor> rxDevice = rxDevices.itemAt(0);
+        if (mCallRxSourceClient->isConnected()
+                && mCallRxSourceClient->sinkDevice()->equals(rxDevice)) {
+            return;
         }
-    } else {
         disconnectTelephonyAudioSource(mCallRxSourceClient);
     }
 
@@ -1031,15 +1019,11 @@ void AudioPolicyManager::connectTelephonyTxAudioSource(
         return;
     }
 
-    if (fix_call_audio_patch()) {
-        if (mCallTxSourceClient != nullptr) {
-            if (mCallTxSourceClient->isConnected()
-                    && mCallTxSourceClient->srcDevice()->equals(srcDevice)) {
-                return;
-            }
-            disconnectTelephonyAudioSource(mCallTxSourceClient);
+    if (mCallTxSourceClient != nullptr) {
+        if (mCallTxSourceClient->isConnected()
+                && mCallTxSourceClient->srcDevice()->equals(srcDevice)) {
+            return;
         }
-    } else {
         disconnectTelephonyAudioSource(mCallTxSourceClient);
     }
 
@@ -1703,9 +1687,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                               std::vector<audio_io_handle_t> *secondaryOutputs,
                                               output_type_t *outputType,
                                               bool *isSpatialized,
-                                              bool *isBitPerfect,
-                                              float *volume,
-                                              bool *muted)
+                                              bool *isBitPerfect)
 {
     // The supplied portId must be AUDIO_PORT_HANDLE_NONE
     if (*portId != AUDIO_PORT_HANDLE_NONE) {
@@ -1765,9 +1747,6 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
                                   outputDesc->mPolicyMix);
     outputDesc->addClient(clientDesc);
 
-    *volume = Volume::DbToAmpl(outputDesc->getCurVolume(toVolumeSource(resultAttr)));
-    *muted = outputDesc->isMutedByGroup(toVolumeSource(resultAttr));
-
     ALOGV("%s() returns output %d requestedPortIds %s selectedDeviceIds %s for port ID %d",
           __func__, *output, toString(requestedDeviceIds).c_str(),
           toString(*selectedDeviceIds).c_str(), *portId);
@@ -1798,6 +1777,26 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // combine the requested flags with its own flags, yielding an unsupported combination.
     if ((flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
         return NAME_NOT_FOUND;
+    }
+
+    // When the device declares exclusive mmap offload, it indicates compressed offload and
+    // mmap offload are mutually exclusive. If one of them is opened, reject the request of the
+    // other one.
+    if (com_android_media_audioserver_mmap_pcm_offload_support() &&
+        property_get_bool("ro.audio.mmap_offload_exclusive", false /*default_value*/) &&
+        (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+        static constexpr uint32_t kMMapOffloadFlags =
+                (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_MMAP_NOIRQ);
+        bool offloadOutputMustBeMMap = (flags & kMMapOffloadFlags) == kMMapOffloadFlags;
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            auto desc = mOutputs.valueAt(i);
+            if (desc->isOffload() && desc->isMmap() != offloadOutputMustBeMMap) {
+                ALOGD("%s, reject %soffload as %soffload is opened",
+                      __func__, (offloadOutputMustBeMMap ? "mmap " : ""),
+                      (offloadOutputMustBeMMap ? "" : "mmap "));
+                return INVALID_OPERATION;
+            }
+        }
     }
 
     // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
@@ -2595,7 +2594,8 @@ audio_io_handle_t AudioPolicyManager::selectOutput(const SortedVector<audio_io_h
     return bestOutput;
 }
 
-status_t AudioPolicyManager::startOutput(audio_port_handle_t portId)
+status_t AudioPolicyManager::startOutput(
+        audio_port_handle_t portId, float* volume, bool* muted)
 {
     ALOGV("%s portId %d", __FUNCTION__, portId);
 
@@ -2706,11 +2706,24 @@ status_t AudioPolicyManager::startOutput(audio_port_handle_t portId)
         usleep(delayMs * 1000);
     }
 
-    if (status == NO_ERROR &&
-        outputDesc->mPreferredAttrInfo != nullptr &&
-        outputDesc->isBitPerfect()) {
-        // A new client is started on bit-perfect output, update all clients internal mute.
-        updateClientsInternalMute(outputDesc);
+    if (status == NO_ERROR) {
+        if (outputDesc->mPreferredAttrInfo != nullptr &&
+                outputDesc->isBitPerfect()) {
+            // A new client is started on bit-perfect output, update all clients internal mute.
+            updateClientsInternalMute(outputDesc);
+        }
+
+        const auto& attr = client->attributes();
+        if (attr.usage == AUDIO_USAGE_CALL_ASSISTANT
+                || attr.usage == AUDIO_USAGE_VIRTUAL_SOURCE) {
+            // Audio patch and call assistant volume are always max
+            *volume = 1.f;
+            *muted = false;
+        } else {
+            *volume = Volume::DbToAmpl(
+                    outputDesc->getCurVolume(toVolumeSource(attr)));
+            *muted = outputDesc->isMutedByGroup(toVolumeSource(attr));
+        }
     }
 
     return status;

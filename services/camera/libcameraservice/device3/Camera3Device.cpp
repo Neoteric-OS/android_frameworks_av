@@ -1521,7 +1521,6 @@ status_t Camera3Device::filterParamsAndConfigureLocked(const CameraMetadata& par
     return configureStreamsLocked(operatingMode, filteredParams);
 }
 
-#if WB_CAMERA3_AND_PROCESSORS_WITH_DEPENDENCIES
 status_t Camera3Device::getInputSurface(sp<Surface> *surface) {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
@@ -1535,22 +1534,6 @@ status_t Camera3Device::getInputSurface(sp<Surface> *surface) {
 
     return mInputStream->getInputSurface(surface);
 }
-#else
-status_t Camera3Device::getInputBufferProducer(
-        sp<IGraphicBufferProducer> *producer) {
-    ATRACE_CALL();
-    Mutex::Autolock il(mInterfaceLock);
-    Mutex::Autolock l(mLock);
-
-    if (producer == NULL) {
-        return BAD_VALUE;
-    } else if (mInputStream == NULL) {
-        return INVALID_OPERATION;
-    }
-
-    return mInputStream->getInputBufferProducer(producer);
-}
-#endif
 
 status_t Camera3Device::createDefaultRequest(camera_request_template_t templateId,
         CameraMetadata *request) {

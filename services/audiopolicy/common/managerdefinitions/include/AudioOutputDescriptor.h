@@ -515,6 +515,10 @@ public:
         return (getFlags().output & AUDIO_OUTPUT_FLAG_BIT_PERFECT) != AUDIO_OUTPUT_FLAG_NONE;
     }
 
+    bool isOffload() const {
+        return (getFlags().output & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != AUDIO_OUTPUT_FLAG_NONE;
+    }
+
     /**
      * Return true if there is any client with the same usage active on the given device.
      * When the given device is null, return true if there is any client active.

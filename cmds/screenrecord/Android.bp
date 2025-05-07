@@ -46,6 +46,7 @@ cc_binary {
         "libutils",
         "libbinder",
         "libstagefright_foundation",
+        "libstagefright_persistentsurface",
         "libjpeg",
         "libui",
         "libgui",

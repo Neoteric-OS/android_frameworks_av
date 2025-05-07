@@ -1305,9 +1305,7 @@ status_t AudioSystem::getOutputForAttr(audio_attributes_t* attr,
                                        audio_port_handle_t* portId,
                                        std::vector<audio_io_handle_t>* secondaryOutputs,
                                        bool *isSpatialized,
-                                       bool *isBitPerfect,
-                                       float *volume,
-                                       bool *muted) {
+                                       bool *isBitPerfect) {
     if (attr == nullptr) {
         ALOGE("%s NULL audio attributes", __func__);
         return BAD_VALUE;
@@ -1373,18 +1371,23 @@ status_t AudioSystem::getOutputForAttr(audio_attributes_t* attr,
     *isBitPerfect = responseAidl.isBitPerfect;
     *attr = VALUE_OR_RETURN_STATUS(
             aidl2legacy_AudioAttributes_audio_attributes_t(responseAidl.attr));
-    *volume = responseAidl.volume;
-    *muted = responseAidl.muted;
 
     return OK;
 }
 
-status_t AudioSystem::startOutput(audio_port_handle_t portId) {
+status_t AudioSystem::startOutput(
+        audio_port_handle_t portId, float* volume, bool* muted) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
 
     int32_t portIdAidl = VALUE_OR_RETURN_STATUS(legacy2aidl_audio_port_handle_t_int32_t(portId));
-    return statusTFromBinderStatus(aps->startOutput(portIdAidl));
+    media::StartOutputResponse responseAidl;
+    status_t status = statusTFromBinderStatus(aps->startOutput(portIdAidl, &responseAidl));
+    if (status != NO_ERROR) return status;
+
+    *volume = responseAidl.volume;
+    *muted = responseAidl.muted;
+    return OK;
 }
 
 status_t AudioSystem::stopOutput(audio_port_handle_t portId) {

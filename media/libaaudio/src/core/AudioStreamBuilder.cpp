@@ -170,9 +170,11 @@ aaudio_result_t AudioStreamBuilder::build(AudioStream** streamPtr) {
     bool allowLegacy = mmapPolicy != AAUDIO_POLICY_ALWAYS;
 
     // TODO Support other performance settings in MMAP mode.
-    // Disable MMAP if low latency not requested.
-    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY) {
-        ALOGD("%s() MMAP not used because AAUDIO_PERFORMANCE_MODE_LOW_LATENCY not requested.",
+    // Disable MMAP if low latency or power saving offloaded is not requested.
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY &&
+        getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        ALOGD("%s() MMAP not used because AAUDIO_PERFORMANCE_MODE_LOW_LATENCY or "
+              "AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED not requested.",
               __func__);
         allowMMap = false;
     }
@@ -261,25 +263,6 @@ aaudio_result_t AudioStreamBuilder::validate() const {
     aaudio_result_t result = AAudioStreamParameters::validate();
     if (result != AAUDIO_OK) {
         return result;
-    }
-
-    switch (mPerformanceMode) {
-        case AAUDIO_PERFORMANCE_MODE_NONE:
-        case AAUDIO_PERFORMANCE_MODE_POWER_SAVING:
-        case AAUDIO_PERFORMANCE_MODE_LOW_LATENCY:
-            break;
-        case AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED:
-            if (getDirection() != AAUDIO_DIRECTION_OUTPUT ||
-                getFormat() == AUDIO_FORMAT_DEFAULT ||
-                getSampleRate() == 0 ||
-                getChannelMask() == AAUDIO_UNSPECIFIED) {
-                return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
-            }
-            break;
-        default:
-            ALOGE("illegal performanceMode = %d", mPerformanceMode);
-            return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
-            // break;
     }
 
     // Prevent ridiculous values from causing problems.

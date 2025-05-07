@@ -10,9 +10,13 @@ cc_library {
     ],
     srcs: [
         "C2SoftIamfDec.cpp",
+        "LayoutTranslation.cpp",
     ],
-
+    static_libs: [
+        "android.media.swcodec.flags-aconfig-cc",
+    ],
     shared_libs: [
         "iamf_tools",
+        "liblog",
     ],
 }

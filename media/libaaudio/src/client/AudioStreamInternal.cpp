@@ -100,14 +100,22 @@ aaudio_result_t AudioStreamInternal::open(const AudioStreamBuilder &builder) {
     if (result < 0) {
         return result;
     }
+    if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        // For offload, force the sharing mode as exclusive
+        ALOGI("%s force to use exclusive mode when trying to open mmap offload stream", __func__);
+        setSharingMode(AAUDIO_SHARING_MODE_EXCLUSIVE);
+        setSharingModeMatchRequired(true);
+    }
 
     const audio_format_t requestedFormat = getFormat();
     // We have to do volume scaling. So we prefer FLOAT format.
     if (requestedFormat == AUDIO_FORMAT_DEFAULT) {
         setFormat(AUDIO_FORMAT_PCM_FLOAT);
     }
-    // Request FLOAT for the shared mixer or the device.
-    request.getConfiguration().setFormat(AUDIO_FORMAT_PCM_FLOAT);
+    // Request FLOAT for the shared mixer or the device if it is not offload.
+    request.getConfiguration().setFormat(
+            getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED
+                    ? getFormat() : AUDIO_FORMAT_PCM_FLOAT);
 
     // TODO b/182392769: use attribution source util
     AttributionSourceState attributionSource;
@@ -137,6 +145,8 @@ aaudio_result_t AudioStreamInternal::open(const AudioStreamBuilder &builder) {
     request.getConfiguration().setPrivacySensitive(isPrivacySensitive());
 
     request.getConfiguration().setBufferCapacity(builder.getBufferCapacity());
+
+    request.getConfiguration().setPerformanceMode(getPerformanceMode());
 
     mServiceStreamHandleInfo = mServiceInterface.openStream(request, configurationOutput);
     if (getServiceHandle() < 0

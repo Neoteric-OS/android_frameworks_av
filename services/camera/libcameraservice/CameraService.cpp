@@ -5537,7 +5537,7 @@ static bool tryLock(Mutex& mutex)
     return locked;
 }
 
-void CameraService::cacheDump() {
+void CameraService::cacheDump(const std::string& cameraId) {
     if (mMemFd != -1) {
         const Vector<String16> args;
         ATRACE_CALL();
@@ -5545,16 +5545,12 @@ void CameraService::cacheDump() {
         // cacheDump will not be called during the second disconnect.
         Mutex::Autolock lock(mServiceLock);
 
-        Mutex::Autolock l(mCameraStatesLock);
-        // Start collecting the info for open sessions and store it in temp file.
-        for (const auto& state : mCameraStates) {
-            std::string cameraId = state.first;
-            auto clientDescriptor = mActiveClientManager.get(cameraId);
-            if (clientDescriptor != nullptr) {
-                dprintf(mMemFd, "== Camera device %s dynamic info: ==\n", cameraId.c_str());
-                // Log the current open session info before device is disconnected.
-                dumpOpenSessionClientLogs(mMemFd, args, cameraId);
-            }
+        // Start collecting the info for calling camera Id and store it in temp file.
+        auto clientDescriptor = mActiveClientManager.get(cameraId);
+        if (clientDescriptor != nullptr) {
+            dprintf(mMemFd, "== Camera device %s dynamic info: ==\n", cameraId.c_str());
+            // Log the current open session info before device is disconnected.
+            dumpOpenSessionClientLogs(mMemFd, args, cameraId);
         }
     }
 }

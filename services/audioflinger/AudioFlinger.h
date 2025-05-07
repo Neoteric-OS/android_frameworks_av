@@ -453,8 +453,9 @@ public:
                             DeviceIdVector *deviceIds,
                             audio_session_t *sessionId,
                             const sp<MmapStreamCallback>& callback,
+                            const audio_offload_info_t* offloadInfo,
                             sp<MmapStreamInterface>& interface,
-            audio_port_handle_t *handle) EXCLUDES_AudioFlinger_Mutex;
+                            audio_port_handle_t *handle) EXCLUDES_AudioFlinger_Mutex;
 
     void initAudioPolicyLocal(sp<media::IAudioPolicyServiceLocal> audioPolicyLocal) {
         if (mAudioPolicyServiceLocal.load() == nullptr) {

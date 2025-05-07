@@ -2750,6 +2750,10 @@ nsecs_t AudioTrack::processAudioBuffer()
         if (err != NO_ERROR) {
             if (err == TIMED_OUT || err == WOULD_BLOCK || err == -EINTR ||
                     (isOffloaded && (err == DEAD_OBJECT))) {
+                if (writtenFrames > 0) {
+                    AutoMutex lock(mLock);
+                    mFramesWritten += writtenFrames;
+                }
                 // FIXME bug 25195759
                 return 1000000;
             }
