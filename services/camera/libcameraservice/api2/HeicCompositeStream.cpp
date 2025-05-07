@@ -266,9 +266,13 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
     //Use YUV_420 format if framework tiling is needed.
     int srcStreamFmt = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
 
-    if ((TRUE == mHDRGainmapEnabled) || (TRUE == mDynamicProfileHLG10))
+    if (TRUE == mHDRGainmapEnabled)
     {
         srcStreamFmt = static_cast<android_pixel_format_t>(HAL_PIXEL_FORMAT_YCBCR_P010);
+    }
+    else if (TRUE == mDynamicProfileHLG10)
+    {
+        srcStreamFmt = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     }
     else if (TRUE == mUseGrid)
     {
