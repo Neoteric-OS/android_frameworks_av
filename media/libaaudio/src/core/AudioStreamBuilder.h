@@ -45,15 +45,6 @@ public:
         return this;
     }
 
-    int32_t getPerformanceMode() const {
-        return mPerformanceMode;
-    }
-
-    AudioStreamBuilder* setPerformanceMode(aaudio_performance_mode_t performanceMode) {
-        mPerformanceMode = performanceMode;
-        return this;
-    }
-
     AAudioStream_dataCallback getDataCallbackProc() const {
         return mDataCallbackProc;
     }
@@ -142,7 +133,6 @@ private:
     static AudioStream *startUsingStream(android::sp<AudioStream> &spAudioStream);
 
     bool                       mSharingModeMatchRequired = false; // must match sharing mode requested
-    aaudio_performance_mode_t  mPerformanceMode = AAUDIO_PERFORMANCE_MODE_NONE;
 
     AAudioStream_dataCallback  mDataCallbackProc = nullptr;  // external callback functions
     void                      *mDataCallbackUserData = nullptr;

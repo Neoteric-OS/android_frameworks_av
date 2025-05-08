@@ -17,7 +17,12 @@
 #ifndef ANDROID_C2_SOFT_IAMF_DEC_H_
 #define ANDROID_C2_SOFT_IAMF_DEC_H_
 
+#include <cstddef>
+#include <cstdint>
+
 #include <SimpleC2Component.h>
+#include <iamf_tools/iamf_decoder.h>
+#include <iamf_tools/iamf_tools_api_types.h>
 
 namespace android {
 
@@ -40,7 +45,28 @@ class C2SoftIamfDec : public SimpleC2Component {
     c2_status_t drain(uint32_t drainMode, const std::shared_ptr<C2BlockPool>& pool) override;
 
   private:
+    // Returns the layout requested by the caller via channel count or mask.
+    ::iamf_tools::api::OutputLayout getTargetOutputLayout() const;
+    ::iamf_tools::api::IamfDecoder::Settings getIamfDecoderSettings() const;
+    // Initializes a decoder without the IAMF config (Descriptor OBUs).  They will be parsed from
+    // subsequent calls to Decode.
+    c2_status_t initializeDecoder();
+    // Creates a decoder when the Descriptor OBUs are provided as one block and signaled with the
+    // codec config flag.
+    c2_status_t createNewDecoderWithDescriptorObus(const uint8_t* data, size_t data_size);
+    // Fetches any decoded audio from the decoder, writing into work output.
+    void getAnyTemporalUnits(const std::unique_ptr<C2Work>& work,
+                             const std::shared_ptr<C2BlockPool>& pool);
+    void reorderForAndroidIfNeeded(uint8_t* buffer, size_t number_bytes);
+
     std::shared_ptr<IntfImpl> mIntf;
+    std::unique_ptr<::iamf_tools::api::IamfDecoder> mIamfDecoder;
+
+    // N.B.: Calculation of this number assumes int16_t samples.
+    size_t mOutputBufferSizeBytes = 0;
+    bool mDescriptorProcessingComplete = false;
+    bool mSignalledError = false;
+    bool mSignalledEos = false;
 
     C2_DO_NOT_COPY(C2SoftIamfDec);
 };

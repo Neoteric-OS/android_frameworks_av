@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#pragma once
+package android.media;
 
-#include <com_android_graphics_libgui_flags.h>
-
-#ifndef USE_NEW_STREAM_SPLITTER
-
-#define USE_NEW_STREAM_SPLITTER                              \
-    COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_STREAM_SPLITTER)
-
-#endif  // USE_NEW_STREAM_SPLITTER
+/**
+ * {@hide}
+ */
+parcelable StartOutputResponse {
+    /** port volume for the audio track */
+    float volume;
+    /** port muted state for the audio track */
+    boolean muted;
+}

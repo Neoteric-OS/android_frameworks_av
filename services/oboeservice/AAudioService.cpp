@@ -35,6 +35,8 @@
 #include "AAudioServiceStreamMMAP.h"
 #include "AAudioServiceStreamShared.h"
 
+#include <com_android_media_audioserver.h>
+
 using namespace android;
 using namespace aaudio;
 
@@ -113,6 +115,22 @@ AAudioService::openStream(const StreamRequest &_request, StreamParameters* _para
     const AAudioStreamConfiguration &configurationInput = request.getConstantConfiguration();
     const bool sharingModeMatchRequired = request.isSharingModeMatchRequired();
     const aaudio_sharing_mode_t sharingMode = configurationInput.getSharingMode();
+    const aaudio_performance_mode_t performanceMode = configurationInput.getPerformanceMode();
+    if (performanceMode != AAUDIO_PERFORMANCE_MODE_LOW_LATENCY &&
+        performanceMode != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        ALOGE("%s denied performance mode as %d for mmap path", __func__, performanceMode);
+        AIDL_RETURN(AAUDIO_ERROR_ILLEGAL_ARGUMENT);
+    }
+    if (performanceMode == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
+        !com_android_media_audioserver_mmap_pcm_offload_support()) {
+        ALOGD("%s denied mmap offload due to flag is not enabled", __func__);
+        AIDL_RETURN(AAUDIO_ERROR_ILLEGAL_ARGUMENT);
+    }
+    if (performanceMode == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
+            (sharingMode != AAUDIO_SHARING_MODE_EXCLUSIVE || !sharingModeMatchRequired)) {
+        ALOGE("%s mmap offload must be exclusive", __func__);
+        AIDL_RETURN(AAUDIO_ERROR_ILLEGAL_ARGUMENT);
+    }
 
     // Enforce limit on client processes.
     AttributionSourceState attributionSource = request.getAttributionSource();

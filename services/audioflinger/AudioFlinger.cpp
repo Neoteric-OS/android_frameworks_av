@@ -133,7 +133,7 @@ validateAttributionFromContextOrTrustedCaller(AttributionSourceState attr,
         // Legacy paths may not properly populate package name, so we attempt to handle.
         if (!attr.packageName.has_value() || attr.packageName.value() == "") {
             ALOGW("Trusted client %d provided attr with missing package name" , callingUid);
-            attr.packageName = VALUE_OR_RETURN(provider.getPackagesForUid(callingUid))[0];
+            attr.packageName = VALUE_OR_RETURN(provider.getPackagesForUid(attr.uid))[0];
         }
         // Behavior change: In the case of delegation, if pid is invalid,
         // filling it in with the callingPid will cause a mismatch between the
@@ -428,23 +428,22 @@ int32_t AudioFlinger::getAAudioHardwareBurstMinUsec() const {
 
 status_t AudioFlinger::setDeviceConnectedState(const struct audio_port_v7 *port,
                                                media::DeviceConnectedState state) {
-    status_t final_result = NO_INIT;
+    status_t result = NO_INIT;
     audio_utils::lock_guard _l(mutex());
     audio_utils::lock_guard lock(hardwareMutex());
-    mHardwareStatus = AUDIO_HW_SET_CONNECTED_STATE;
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
-        status_t result = state == media::DeviceConnectedState::PREPARE_TO_DISCONNECT
+    AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(port->ext.device.hw_module);
+    if (audioHwDevice != nullptr) {
+        mHardwareStatus = AUDIO_HW_SET_CONNECTED_STATE;
+        sp<DeviceHalInterface> dev = audioHwDevice->hwDevice();
+        result = state == media::DeviceConnectedState::PREPARE_TO_DISCONNECT
                 ? dev->prepareToDisconnectExternalDevice(port)
                 : dev->setConnectedState(port, state == media::DeviceConnectedState::CONNECTED);
-        // Same logic as with setParameter: it's a success if at least one
-        // HAL module accepts the update.
-        if (final_result != NO_ERROR) {
-            final_result = result;
-        }
+        mHardwareStatus = AUDIO_HW_IDLE;
+    } else {
+        ALOGE("%s could not find HAL module %d for device %#x",
+              __func__, port->ext.device.hw_module, port->ext.device.type);
     }
-    mHardwareStatus = AUDIO_HW_IDLE;
-    return final_result;
+    return result;
 }
 
 status_t AudioFlinger::setSimulateDeviceConnections(bool enabled) {
@@ -509,6 +508,7 @@ status_t MmapStreamInterface::openMmapStream(MmapStreamInterface::stream_directi
                                              DeviceIdVector *deviceIds,
                                              audio_session_t *sessionId,
                                              const sp<MmapStreamCallback>& callback,
+                                             const audio_offload_info_t* offloadInfo,
                                              sp<MmapStreamInterface>& interface,
                                              audio_port_handle_t *handle)
 {
@@ -519,7 +519,7 @@ status_t MmapStreamInterface::openMmapStream(MmapStreamInterface::stream_directi
     if (af != 0) {
         ret = af->openMmapStream(
                 direction, attr, config, client, deviceIds,
-                sessionId, callback, interface, handle);
+                sessionId, callback, offloadInfo, interface, handle);
     }
     return ret;
 }
@@ -531,6 +531,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
                                       DeviceIdVector *deviceIds,
                                       audio_session_t *sessionId,
                                       const sp<MmapStreamCallback>& callback,
+                                      const audio_offload_info_t* offloadInfo,
                                       sp<MmapStreamInterface>& interface,
                                       audio_port_handle_t *handle)
 {
@@ -593,19 +594,20 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
         std::vector<audio_io_handle_t> secondaryOutputs;
         bool isSpatialized;
         bool isBitPerfect;
-        float volume;
-        bool muted;
+        audio_output_flags_t flags = static_cast<audio_output_flags_t>(
+                AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
+        if (offloadInfo != nullptr) {
+            flags = static_cast<audio_output_flags_t>(flags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            fullConfig.offload_info = *offloadInfo;
+        }
         ret = AudioSystem::getOutputForAttr(&localAttr, &io,
                                             actualSessionId,
                                             &streamType, adjAttributionSource,
                                             &fullConfig,
-                                            (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ |
-                                                    AUDIO_OUTPUT_FLAG_DIRECT),
+                                            flags,
                                             deviceIds, &portId, &secondaryOutputs,
                                             &isSpatialized,
-                                            &isBitPerfect,
-                                            &volume,
-                                            &muted);
+                                            &isBitPerfect);
         if (ret != NO_ERROR) {
             config->sample_rate = fullConfig.sample_rate;
             config->channel_mask = fullConfig.channel_mask;
@@ -1056,8 +1058,6 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
     std::vector<audio_io_handle_t> secondaryOutputs;
     bool isSpatialized = false;
     bool isBitPerfect = false;
-    float volume;
-    bool muted;
 
     audio_io_handle_t effectThreadId = AUDIO_IO_HANDLE_NONE;
     std::vector<int> effectIds;
@@ -1121,7 +1121,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
     lStatus = AudioSystem::getOutputForAttr(&localAttr, &output.outputId, sessionId, &streamType,
                                             adjAttributionSource, &input.config, input.flags,
                                             &selectedDeviceIds, &portId, &secondaryOutputs,
-                                            &isSpatialized, &isBitPerfect, &volume, &muted);
+                                            &isSpatialized, &isBitPerfect);
     output.selectedDeviceIds = selectedDeviceIds;
 
     if (lStatus != NO_ERROR || output.outputId == AUDIO_IO_HANDLE_NONE) {
@@ -1179,7 +1179,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
         if (effectThread == nullptr) {
             effectChain = getOrphanEffectChain_l(sessionId);
         }
-        ALOGV("createTrack() sessionId: %d volume: %f muted %d", sessionId, volume, muted);
+        ALOGV("createTrack() sessionId: %d", sessionId);
 
         output.sampleRate = input.config.sample_rate;
         output.frameCount = input.frameCount;
@@ -1194,7 +1194,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
                                       input.sharedBuffer, sessionId, &output.flags,
                                       callingPid, adjAttributionSource, input.clientInfo.clientTid,
                                       &lStatus, portId, input.audioTrackCallback, isSpatialized,
-                                      isBitPerfect, &output.afTrackFlags, volume, muted);
+                                      isBitPerfect, &output.afTrackFlags);
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (track == 0));
         // we don't abort yet if lStatus != NO_ERROR; there is still work to be done regardless
 
@@ -4118,9 +4118,7 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
                                                        outputFlags,
                                                        0ns /* timeout */,
                                                        frameCountToBeReady,
-                                                       track->getSpeed(),
-                                                       1.f /* volume */,
-                                                       false /* muted */);
+                                                       track->getSpeed());
         status = patchTrack->initCheck();
         if (status != NO_ERROR) {
             ALOGE("Secondary output patchTrack init failed: %d", status);

@@ -1887,7 +1887,8 @@ bool AudioPolicyService::AudioCommandThread::threadLoop()
                     }
 // QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     mMutex.unlock();
-                    command->mStatus = svc->doStartOutput(data->mPortId);
+                    media::StartOutputResponse responseAidl;
+                    command->mStatus = svc->doStartOutput(data->mPortId, &responseAidl);
                     mMutex.lock();
 // QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
                     }break;

@@ -78,14 +78,6 @@ flag {
 }
 
 flag {
-    name: "dsa_over_bt_le_audio"
-    namespace: "media_audio"
-    description:
-        "Enable dynamic spatial audio over Bluetooth LE Audio."
-    bug: "307588546"
-}
-
-flag {
     name: "equal_sco_lea_vc_index_range"
     namespace: "media_audio"
     description:

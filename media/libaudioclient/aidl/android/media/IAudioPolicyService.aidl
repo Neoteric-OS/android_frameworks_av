@@ -42,6 +42,7 @@ import android.media.IAudioPolicyServiceClient;
 import android.media.ICaptureStateListener;
 import android.media.INativeSpatializerCallback;
 import android.media.SoundTriggerSession;
+import android.media.StartOutputResponse;
 import android.media.audio.common.AudioAttributes;
 import android.media.audio.common.AudioConfig;
 import android.media.audio.common.AudioConfigBase;
@@ -97,7 +98,7 @@ interface IAudioPolicyService {
                                               int /* Bitmask, indexed by AudioOutputFlags */ flags,
                                               in int[] /* audio_port_handle_t */ selectedDeviceIds);
 
-    void startOutput(int /* audio_port_handle_t */ portId);
+    StartOutputResponse startOutput(int /* audio_port_handle_t */ portId);
 
     void stopOutput(int /* audio_port_handle_t */ portId);
 

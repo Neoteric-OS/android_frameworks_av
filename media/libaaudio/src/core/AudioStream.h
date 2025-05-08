@@ -282,6 +282,10 @@ public:
         return mSharingModeMatchRequired;
     }
 
+    void setSharingModeMatchRequired(bool sharingModeMatchRequired) {
+        mSharingModeMatchRequired = sharingModeMatchRequired;
+    }
+
     virtual aaudio_direction_t getDirection() const = 0;
 
     aaudio_usage_t getUsage() const {

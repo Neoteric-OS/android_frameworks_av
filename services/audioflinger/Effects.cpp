@@ -2295,6 +2295,24 @@ sp<IAfEffectModule> EffectChain::getEffectFromType_l(
     return 0;
 }
 
+// getEffectFromUuid_l() must be called with IAfThreadBase::mutex() held
+sp<IAfEffectModule> EffectChain::getEffectFromUuid_l(const effect_uuid_t *uuid) const
+{
+    audio_utils::lock_guard _l(mutex());
+
+    if (!uuid) {
+        return 0;
+    }
+
+    for (auto& effect : mEffects) {
+        if (effect->isEffect(*uuid)) {
+            return effect;
+        }
+    }
+
+    return 0;
+}
+
 std::vector<int> EffectChain::getEffectIds_l() const
 {
     std::vector<int> ids;

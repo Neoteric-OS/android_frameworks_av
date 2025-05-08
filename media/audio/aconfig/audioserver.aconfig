@@ -61,14 +61,6 @@ flag {
 }
 
 flag {
-    name: "fix_call_audio_patch"
-    namespace: "media_audio"
-    description:
-        "optimize creation and release of audio patches for call routing"
-    bug: "292492229"
-}
-
-flag {
     name: "fix_input_sharing_logic"
     namespace: "media_audio"
     description:

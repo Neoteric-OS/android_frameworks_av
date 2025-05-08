@@ -30,9 +30,6 @@
 #include "hardware/camera2.h"
 #include "camera/CameraMetadata.h"
 #include "camera/CaptureResult.h"
-#if not WB_CAMERA3_AND_PROCESSORS_WITH_DEPENDENCIES
-#include "gui/IGraphicBufferProducer.h"
-#endif
 #include "device3/Camera3StreamInterface.h"
 #include "device3/StatusTracker.h"
 #include "binder/Status.h"
@@ -386,14 +383,8 @@ class CameraDeviceBase : public virtual FrameProducer {
      */
     virtual void getOfflineStreamIds(std::vector<int> *offlineStreamIds) = 0;
 
-#if WB_CAMERA3_AND_PROCESSORS_WITH_DEPENDENCIES
     // get the surface of the input stream
     virtual status_t getInputSurface(sp<Surface> *surface) = 0;
-#else
-    // get the buffer producer of the input stream
-    virtual status_t getInputBufferProducer(
-            sp<IGraphicBufferProducer> *producer) = 0;
-#endif
 
     /**
      * Create a metadata buffer with fields that the HAL device believes are

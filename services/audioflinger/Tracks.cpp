@@ -157,7 +157,6 @@ TrackBase::TrackBase(
     // battery usage on it.
     mUid = clientUid;
 
-    // ALOGD("Creating track with %d buffers @ %d bytes", bufferCount, bufferSize);
 
     size_t minBufferSize = buffer == NULL ? roundup(frameCount) : frameCount;
     // check overflow when computing bufferSize due to multiplication by mFrameSize.
@@ -175,6 +174,8 @@ TrackBase::TrackBase(
         android_errorWriteLog(0x534e4554, "38340117");
         return;
     }
+    // ALOGD("%s(%d): Creating track with %zu buffers @ %zu bytes",
+    //        __func__, mId, bufferSize / mFrameSize, bufferSize);
 
     size_t size = sizeof(audio_track_cblk_t);
     if (buffer == NULL && alloc == ALLOC_CBLK) {
@@ -830,9 +831,7 @@ sp<IAfTrack> IAfTrack::create(
         size_t frameCountToBeReady,
         float speed,
         bool isSpatialized,
-        bool isBitPerfect,
-        float volume,
-        bool muted) {
+        bool isBitPerfect) {
     return sp<Track>::make(thread,
             client,
             streamType,
@@ -853,9 +852,7 @@ sp<IAfTrack> IAfTrack::create(
             frameCountToBeReady,
             speed,
             isSpatialized,
-            isBitPerfect,
-            volume,
-            muted);
+            isBitPerfect);
 }
 
 // Track constructor must be called with AudioFlinger::mLock and ThreadBase::mLock held
@@ -880,9 +877,7 @@ Track::Track(
             size_t frameCountToBeReady,
             float speed,
             bool isSpatialized,
-            bool isBitPerfect,
-            float volume,
-            bool muted)
+            bool isBitPerfect)
     :
     AfPlaybackCommon(*this, *thread,
                      attr, attributionSource, thread->isOffloadOrMmap(), type != TYPE_PATCH),
@@ -968,16 +963,6 @@ Track::Track(
     }
 
     populateUsageAndContentTypeFromStreamType();
-
-    // Audio patch and call assistant volume are always max
-    if (mAttr.usage == AUDIO_USAGE_CALL_ASSISTANT
-            || mAttr.usage == AUDIO_USAGE_VIRTUAL_SOURCE) {
-        setPortVolume(1.0f);
-        setPortMute(false);
-    } else {
-        setPortVolume(volume);
-        setPortMute(muted);
-    }
 
     mServerLatencySupported = checkServerLatencySupported(format, flags);
 #ifdef TEE_SINK
@@ -1436,9 +1421,9 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
                         __func__,  mId, (int)mThreadIoHandle);
             }
         } else {
+            ALOGV("%s(%d): %s => ACTIVE on thread %d",
+                    __func__, mId, getTrackStateAsString(), (int)mThreadIoHandle);
             mState = TrackBase::ACTIVE;
-            ALOGV("%s(%d): ? => ACTIVE on thread %d",
-                    __func__, mId, (int)mThreadIoHandle);
         }
 
         auto* const playbackThread = thread->asIAfPlaybackThread().get();
@@ -2374,6 +2359,7 @@ OutputTrack::OutputTrack(
         ALOGW("%s(%d): Error creating output track on thread %d",
                 __func__, mId, (int)mThreadIoHandle);
     }
+    setPortVolume(1.f);
 }
 
 OutputTrack::~OutputTrack()
@@ -2621,9 +2607,7 @@ sp<IAfPatchTrack> IAfPatchTrack::create(
                                          *  as soon as possible to have
                                          *  the lowest possible latency
                                          *  even if it might glitch. */
-        float speed,
-        float volume,
-        bool muted)
+        float speed)
 {
     return sp<PatchTrack>::make(
             playbackThread,
@@ -2637,9 +2621,7 @@ sp<IAfPatchTrack> IAfPatchTrack::create(
             flags,
             timeout,
             frameCountToBeReady,
-            speed,
-            volume,
-            muted);
+            speed);
 }
 
 PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
@@ -2653,9 +2635,7 @@ PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
                                                      audio_output_flags_t flags,
                                                      const Timeout& timeout,
                                                      size_t frameCountToBeReady,
-                                                     float speed,
-                                                     float volume,
-                                                     bool muted)
+                                                     float speed)
     : AfPlaybackCommon(*this, *playbackThread,
                        AUDIO_ATTRIBUTES_INITIALIZER,
                        audioServerAttributionSource(getpid()),
@@ -2667,7 +2647,7 @@ PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
               buffer, bufferSize, nullptr /* sharedBuffer */,
               AUDIO_SESSION_NONE, getpid(), audioServerAttributionSource(getpid()), flags,
               TYPE_PATCH, AUDIO_PORT_HANDLE_NONE, frameCountToBeReady, speed,
-              false /*isSpatialized*/, false /*isBitPerfect*/, volume, muted),
+              false /*isSpatialized*/, false /*isBitPerfect*/),
         PatchTrackBase(mCblk ? new AudioTrackClientProxy(mCblk, mBuffer, frameCount, mFrameSize,
                         true /*clientInServer*/) : nullptr,
                        playbackThread, timeout)
@@ -2680,6 +2660,9 @@ PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
                 /* .mFallbackMode = */ AUDIO_TIMESTRETCH_FALLBACK_FAIL
         });
     }
+    // for now the secondary patch tracks contain the unattenuated volume and is unmuted.
+    // TODO(b/388241142): use volume capture rules to forward the mute state to its patch tracks
+    setPortVolume(1.f);
     ALOGV("%s(%d): sampleRate %d mPeerTimeout %d.%03d sec",
                                       __func__, mId, sampleRate,
                                       (int)mPeerTimeout.tv_sec,
@@ -3849,9 +3832,7 @@ sp<IAfMmapTrack> IAfMmapTrack::create(IAfThreadBase* thread,
           bool isOut,
           const android::content::AttributionSourceState& attributionSource,
           pid_t creatorPid,
-          audio_port_handle_t portId,
-          float volume,
-          bool muted)
+          audio_port_handle_t portId)
 {
     return sp<MmapTrack>::make(
             thread,
@@ -3863,9 +3844,7 @@ sp<IAfMmapTrack> IAfMmapTrack::create(IAfThreadBase* thread,
             isOut,
             attributionSource,
             creatorPid,
-            portId,
-            volume,
-            muted);
+            portId);
 }
 
 MmapTrack::MmapTrack(IAfThreadBase* thread,
@@ -3877,9 +3856,7 @@ MmapTrack::MmapTrack(IAfThreadBase* thread,
         bool isOut,
         const AttributionSourceState& attributionSource,
         pid_t creatorPid,
-        audio_port_handle_t portId,
-        float volume,
-        bool muted)
+        audio_port_handle_t portId)
     :   AfPlaybackCommon(*this, *thread,
                          attr, attributionSource, /* isOffloadOrMmap */ true),
         TrackBase(thread, NULL, attr, sampleRate, format,
@@ -3897,15 +3874,6 @@ MmapTrack::MmapTrack(IAfThreadBase* thread,
 {
     // Once this item is logged by the server, the client can add properties.
     mTrackMetrics.logConstructor(creatorPid, uid(), id());
-    if (isOut && (attr.usage == AUDIO_USAGE_CALL_ASSISTANT
-            || attr.usage == AUDIO_USAGE_VIRTUAL_SOURCE)) {
-        // Audio patch and call assistant volume are always max
-        setPortVolume(1.0f);
-        setPortMute(false);
-    } else {
-        setPortVolume(volume);
-        setPortMute(muted);
-    }
 }
 
 MmapTrack::~MmapTrack()

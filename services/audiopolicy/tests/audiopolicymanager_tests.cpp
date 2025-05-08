@@ -30,6 +30,7 @@
 #include <android/content/AttributionSourceState.h>
 #include <android_media_audiopolicy.h>
 #include <com_android_media_audioserver.h>
+#include <cutils/properties.h>
 #include <flag_macros.h>
 #include <hardware/audio_effect.h>
 #include <media/AudioPolicy.h>
@@ -304,14 +305,11 @@ void AudioPolicyManagerTest::getOutputForAttr(
     AudioPolicyInterface::output_type_t outputType;
     bool isSpatialized;
     bool isBitPerfectInternal;
-    float volume;
-    bool muted;
     AttributionSourceState attributionSource = createAttributionSourceState(uid);
     ASSERT_EQ(OK, mManager->getOutputForAttr(
                     &attr, output, session, &stream, attributionSource, &config, &flags,
                     selectedDeviceIds, portId, {}, &outputType, &isSpatialized,
-                    isBitPerfect == nullptr ? &isBitPerfectInternal : isBitPerfect, &volume,
-                    &muted));
+                    isBitPerfect == nullptr ? &isBitPerfectInternal : isBitPerfect));
     ASSERT_NE(AUDIO_PORT_HANDLE_NONE, *portId);
     ASSERT_NE(AUDIO_IO_HANDLE_NONE, *output);
 }
@@ -1166,14 +1164,18 @@ TEST_F(AudioPolicyManagerTestWithConfigurationFile, RoutingChangedWithPreferredM
     getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
             k48000SamplingRate, AUDIO_OUTPUT_FLAG_NONE, &output, &portId, mediaAttr,
             AUDIO_SESSION_NONE, uid);
-    status_t status = mManager->startOutput(portId);
+    bool muted{};
+    float volume{};
+    status_t status = mManager->startOutput(portId, &volume, &muted);
     if (status == DEAD_OBJECT) {
         getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
                 k48000SamplingRate, AUDIO_OUTPUT_FLAG_NONE, &output, &portId, mediaAttr,
                 AUDIO_SESSION_NONE, uid);
-        status = mManager->startOutput(portId);
+        status = mManager->startOutput(portId, &volume, &muted);
     }
     EXPECT_EQ(NO_ERROR, status);
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_NE(AUDIO_IO_HANDLE_NONE, output);
     EXPECT_NE(nullptr, mManager->getOutputs().valueFor(output));
     EXPECT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
@@ -1457,7 +1459,8 @@ TEST_F(AudioPolicyManagerTestWithConfigurationFile, SelectMMapOffloadOnlyWhenReq
 
     for (auto flags : {(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT),
                        (AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT |
-                            AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)}) {
+                            AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
+                       (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)}) {
         audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
         // Use preferred device to ensure usb is selected so that mmap mix port can be used
         DeviceIdVector selectedDeviceIds = {usbPortId};
@@ -1470,6 +1473,99 @@ TEST_F(AudioPolicyManagerTestWithConfigurationFile, SelectMMapOffloadOnlyWhenReq
         ASSERT_NE(nullptr, outDesc.get());
         EXPECT_EQ(flags, outDesc->getFlags().output);
         mManager->releaseOutput(portId);
+    }
+
+    ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
+                                                           AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+                                                           "", "", AUDIO_FORMAT_DEFAULT));
+}
+
+TEST_F_WITH_FLAGS(AudioPolicyManagerTestWithConfigurationFile,
+                  MMapOffloadCompressOffloadMutuallyExclusive,
+                  REQUIRES_FLAGS_ENABLED(
+                          ACONFIG_FLAG(com::android::media::audioserver,
+                                       mmap_pcm_offload_support))) {
+    ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
+                                                           AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+                                                           "", "", AUDIO_FORMAT_DEFAULT));
+
+    auto devices = mManager->getAvailableOutputDevices();
+    audio_port_handle_t usbPortId = AUDIO_PORT_HANDLE_NONE;
+    for (auto device : devices) {
+        if (device->type() == AUDIO_DEVICE_OUT_USB_DEVICE) {
+            usbPortId = device->getId();
+            break;
+        }
+    }
+    ASSERT_NE(AUDIO_PORT_HANDLE_NONE, usbPortId);
+
+    const audio_attributes_t mediaAttr = {
+            .content_type = AUDIO_CONTENT_TYPE_MUSIC,
+            .usage = AUDIO_USAGE_MEDIA,
+    };
+
+    std::vector<std::pair<uint32_t, uint32_t>> mutuallyExclusiveFlagsPair = {
+            {(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT |
+                    AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
+             (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)},
+            {(AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
+             (AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT |
+                    AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)},
+    };
+    for (auto flagsPair : mutuallyExclusiveFlagsPair) {
+        audio_io_handle_t output1 = AUDIO_IO_HANDLE_NONE;
+        // Use preferred device to ensure usb is selected so that mmap mix port can be used
+        DeviceIdVector selectedDeviceIds = {usbPortId};
+        audio_port_handle_t portId1;
+        getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
+                         k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
+                         &output1, &portId1);
+        EXPECT_NE(AUDIO_IO_HANDLE_NONE, output1);
+        if (output1 == AUDIO_IO_HANDLE_NONE) {
+            break;
+        }
+        sp<SwAudioOutputDescriptor> outDesc = mManager->getOutputs().valueFor(output1);
+        ASSERT_NE(nullptr, outDesc.get());
+        EXPECT_EQ(flagsPair.first, outDesc->getFlags().output);
+
+        // Request with same output flags will get the same output.
+        audio_io_handle_t output2 = AUDIO_IO_HANDLE_NONE;
+        audio_port_handle_t portId2;
+        getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
+                         k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
+                         &output2, &portId2);
+        EXPECT_EQ(output1, output2);
+        mManager->releaseOutput(portId2);
+
+        // Request with mutually exclusive flags will fail.
+        audio_output_flags_t mutuallyExclusiveFlags =
+                static_cast<audio_output_flags_t>(flagsPair.second);
+        audio_io_handle_t output3 = AUDIO_IO_HANDLE_NONE;
+        audio_port_handle_t portId3 = AUDIO_PORT_HANDLE_NONE;
+        audio_stream_type_t stream = AUDIO_STREAM_DEFAULT;
+        audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+        config.sample_rate = k48000SamplingRate;
+        config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+        config.format = AUDIO_FORMAT_PCM_16_BIT;
+        audio_port_handle_t localPortId;
+        AudioPolicyInterface::output_type_t outputType;
+        bool isSpatialized;
+        bool isBitPerfect;
+        AttributionSourceState attributionSource = createAttributionSourceState(0);
+        auto result = mManager->getOutputForAttr(
+                &mediaAttr, &output3, AUDIO_SESSION_NONE, &stream, attributionSource, &config,
+                &mutuallyExclusiveFlags, &selectedDeviceIds, &portId3, {}, &outputType,
+                &isSpatialized, &isBitPerfect);
+        if (property_get_bool("ro.audio.mmap_offload_exclusive", false /*default_value*/)) {
+            EXPECT_EQ(INVALID_OPERATION, result);
+            EXPECT_EQ(AUDIO_IO_HANDLE_NONE, output3);
+        } else {
+            EXPECT_EQ(NO_ERROR, result);
+            EXPECT_NE(AUDIO_IO_HANDLE_NONE, output3);
+        }
+
+        mManager->releaseOutput(portId1);
+        mManager->releaseOutput(portId3);
     }
 
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
@@ -2328,8 +2424,7 @@ TEST_P(AudioPolicyManagerTestMMapPlaybackRerouting, MmapPlaybackStreamMatchingLo
               mManager->getOutputForAttr(&attr, &mOutput, AUDIO_SESSION_NONE, &mStream,
                                          createAttributionSourceState(testUid), &audioConfig,
                                          &outputFlags, &mSelectedDeviceIds, &mPortId, {},
-                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect, &mVolume,
-                                         &mMuted));
+                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect));
 }
 
 TEST_P(AudioPolicyManagerTestMMapPlaybackRerouting,
@@ -2348,8 +2443,7 @@ TEST_P(AudioPolicyManagerTestMMapPlaybackRerouting,
               mManager->getOutputForAttr(&attr, &mOutput, AUDIO_SESSION_NONE, &mStream,
                                          createAttributionSourceState(testUid), &audioConfig,
                                          &outputFlags, &mSelectedDeviceIds, &mPortId, {},
-                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect, &mVolume,
-                                         &mMuted));
+                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect));
 }
 
 TEST_F(AudioPolicyManagerTestMMapPlaybackRerouting,
@@ -2380,8 +2474,7 @@ TEST_F(AudioPolicyManagerTestMMapPlaybackRerouting,
               mManager->getOutputForAttr(&attr, &mOutput, AUDIO_SESSION_NONE, &mStream,
                                          createAttributionSourceState(testUid), &audioConfig,
                                          &outputFlags, &mSelectedDeviceIds, &mPortId, {},
-                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect, &mVolume,
-                                         &mMuted));
+                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect));
     auto outputDesc = mManager->getOutputs().valueFor(mOutput);
     ASSERT_NE(nullptr, outputDesc);
     ASSERT_EQ(mmapDirectFlags, outputDesc->getFlags().output);
@@ -2396,8 +2489,7 @@ TEST_F(AudioPolicyManagerTestMMapPlaybackRerouting,
               mManager->getOutputForAttr(&attr, &mOutput, AUDIO_SESSION_NONE, &mStream,
                                          createAttributionSourceState(testUid), &audioConfig,
                                          &outputFlags, &mSelectedDeviceIds, &mPortId, {},
-                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect, &mVolume,
-                                         &mMuted));
+                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect));
     ASSERT_EQ(usbDevicePort.id, mSelectedDeviceIds[0]);
     outputDesc = mManager->getOutputs().valueFor(mOutput);
     ASSERT_NE(nullptr, outputDesc);
@@ -2426,8 +2518,7 @@ TEST_F(AudioPolicyManagerTestMMapPlaybackRerouting,
               mManager->getOutputForAttr(&attr, &mOutput, AUDIO_SESSION_NONE, &mStream,
                                          createAttributionSourceState(testUid), &audioConfig,
                                          &outputFlags, &mSelectedDeviceIds, &mPortId, {},
-                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect, &mVolume,
-                                         &mMuted));
+                                         &mOutputType, &mIsSpatialized, &mIsBitPerfect));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -2478,7 +2569,11 @@ void AudioPolicyManagerTestDPMixRecordInjection::SetUp() {
     strncpy(attr.tags, tags.c_str(), AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1);
     getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
             k48000SamplingRate, AUDIO_OUTPUT_FLAG_NONE, nullptr /*output*/, &mPortId, attr);
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mPortId));
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     ASSERT_EQ(injectionPort.id, getDeviceIdFromPatch(mClient->getLastAddedPatch()));
 
     ASSERT_TRUE(findDevicePort(AUDIO_PORT_ROLE_SOURCE, AUDIO_DEVICE_IN_REMOTE_SUBMIX,
@@ -3567,6 +3662,8 @@ TEST_F(AudioPolicyManagerPhoneTest, Dump) {
 TEST_F(AudioPolicyManagerPhoneTest, NoPatchChangesDuringAlarmPlayback) {
     audio_port_handle_t alarmPortId = AUDIO_PORT_HANDLE_NONE;
     audio_io_handle_t alarmOutput = AUDIO_IO_HANDLE_NONE;
+    bool muted{};
+    float volume{};
     {
         // Uses STRATEGY_SONIFICATION, routed to AUDIO_DEVICE_OUT_SPEAKER_SAFE.
         audio_attributes_t attr = {
@@ -3578,7 +3675,9 @@ TEST_F(AudioPolicyManagerPhoneTest, NoPatchChangesDuringAlarmPlayback) {
                         AUDIO_CHANNEL_OUT_STEREO, 48000,
                         AUDIO_OUTPUT_FLAG_NONE,
                         &alarmOutput, &alarmPortId, attr));
-        EXPECT_EQ(NO_ERROR, mManager->startOutput(alarmPortId));
+        EXPECT_EQ(NO_ERROR, mManager->startOutput(alarmPortId, &volume, &muted));
+        EXPECT_GE(volume, 0.f);
+        EXPECT_LE(volume, 1.f);
     }
     const audio_patch lastPatchBefore = *(mClient->getLastAddedPatch());
 
@@ -3595,7 +3694,9 @@ TEST_F(AudioPolicyManagerPhoneTest, NoPatchChangesDuringAlarmPlayback) {
                         AUDIO_CHANNEL_OUT_STEREO, 48000,
                         AUDIO_OUTPUT_FLAG_NONE,
                         &notifOutput, &notifPortId, attr));
-        EXPECT_EQ(NO_ERROR, mManager->startOutput(notifPortId));
+        EXPECT_EQ(NO_ERROR, mManager->startOutput(notifPortId, &volume, &muted));
+        EXPECT_GE(volume, 0.f);
+        EXPECT_LE(volume, 1.f);
     }
     dumpToLog();
     const audio_patch lastPatchAfter = *(mClient->getLastAddedPatch());
@@ -4234,8 +4335,11 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForDriving
                                              AUDIO_CHANNEL_OUT_STEREO, 48000,
                                              AUDIO_OUTPUT_FLAG_NONE,
                                              &mediaOutput, &mOutputPortId, sMediaAttr));
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId));
-
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_EQ(NO_ERROR, mManager->setVolumeIndexForAttributes(sMediaAttr, /*index=*/1,
                                                               /*muted=*/false,
                                                               AUDIO_DEVICE_OUT_USB_DEVICE));
@@ -4276,8 +4380,11 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForNonDriv
                                              AUDIO_CHANNEL_OUT_STEREO, 48000,
                                              AUDIO_OUTPUT_FLAG_NONE,
                                              &notifOutput, &mOutputPortId, sNotifAttr));
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId));
-
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_EQ(NO_ERROR, mManager->setVolumeIndexForAttributes(sNotifAttr, /*index=*/1,
                                                               /*muted=*/false,
                                                               AUDIO_DEVICE_OUT_USB_DEVICE));
@@ -4316,7 +4423,11 @@ TEST_F(AudioPolicyManagerTestAbsoluteVolume, SetVolumeIndexForVoiceCallAttribute
                                              AUDIO_CHANNEL_OUT_STEREO, 48000,
                                              AUDIO_OUTPUT_FLAG_PRIMARY,
                                              &voiceOutput, &mOutputPortId, sVoiceCallAttr));
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId));
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
 
     EXPECT_EQ(NO_ERROR, mManager->setVolumeIndexForAttributes(sVoiceCallAttr, /*index=*/1,
                                                               /*muted=*/false,
@@ -4344,7 +4455,11 @@ TEST_F(AudioPolicyManagerTestAbsoluteVolume, SetVolumeIndexForVoiceCallAttribute
                                              AUDIO_CHANNEL_OUT_STEREO, 48000,
                                              AUDIO_OUTPUT_FLAG_PRIMARY,
                                              &voiceOutput, &mOutputPortId, sVoiceCallAttr));
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId));
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
 
     EXPECT_EQ(NO_ERROR, mManager->setVolumeIndexForAttributes(sVoiceCallAttr, /*index=*/1,
                                                               /*muted=*/false,
@@ -4379,7 +4494,11 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForDtmfAttributesOnSco(
                                              AUDIO_CHANNEL_OUT_STEREO, 48000,
                                              AUDIO_OUTPUT_FLAG_PRIMARY,
                                              &dtmfOutput, &mOutputPortId, sDtmfAttr));
-    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId));
+    bool muted{};
+    float volume{};
+    ASSERT_EQ(NO_ERROR, mManager->startOutput(mOutputPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
 
     // voice call needs to be adjusted to the same level since they are usually aliased
     EXPECT_EQ(NO_ERROR, mManager->setVolumeIndexForAttributes(sVoiceCallAttr, /*index=*/1,
@@ -4699,14 +4818,18 @@ void AudioPolicyManagerTestBitPerfectBase::startBitPerfectOutput() {
     getOutputForAttr(&mSelectedDeviceIds, mBitPerfectFormat, mBitPerfectChannelMask,
                      mBitPerfectSampleRate, AUDIO_OUTPUT_FLAG_NONE, &mBitPerfectOutput,
                      &mBitPerfectPortId, sMediaAttr, AUDIO_SESSION_NONE, mUid, &isBitPerfect);
-    status_t status = mManager->startOutput(mBitPerfectPortId);
+    bool muted{};
+    float volume{};
+    status_t status = mManager->startOutput(mBitPerfectPortId, &volume, &muted);
     if (status == DEAD_OBJECT) {
         getOutputForAttr(&mSelectedDeviceIds, mBitPerfectFormat, mBitPerfectChannelMask,
                          mBitPerfectSampleRate, AUDIO_OUTPUT_FLAG_NONE, &mBitPerfectOutput,
                          &mBitPerfectPortId, sMediaAttr, AUDIO_SESSION_NONE, mUid, &isBitPerfect);
-        status = mManager->startOutput(mBitPerfectPortId);
+        status = mManager->startOutput(mBitPerfectPortId, &volume, &muted);
     }
     EXPECT_EQ(NO_ERROR, status);
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_TRUE(isBitPerfect);
     EXPECT_NE(AUDIO_IO_HANDLE_NONE, mBitPerfectOutput);
     const auto bitPerfectOutputDesc = mManager->getOutputs().valueFor(mBitPerfectOutput);
@@ -4733,13 +4856,11 @@ void AudioPolicyManagerTestBitPerfectBase::getBitPerfectOutput(status_t expected
     AudioPolicyInterface::output_type_t outputType;
     bool isSpatialized;
     bool isBitPerfect;
-    float volume;
-    bool muted;
     EXPECT_EQ(expected,
               mManager->getOutputForAttr(&sMediaAttr, &mBitPerfectOutput, AUDIO_SESSION_NONE,
                                          &stream, attributionSource, &config, &flags,
                                          &mSelectedDeviceIds, &mBitPerfectPortId, {}, &outputType,
-                                         &isSpatialized, &isBitPerfect, &volume, &muted));
+                                         &isSpatialized, &isBitPerfect));
 }
 
 class AudioPolicyManagerTestBitPerfect : public AudioPolicyManagerTestBitPerfectBase {
@@ -4824,7 +4945,11 @@ TEST_F(AudioPolicyManagerTestBitPerfect, InternalMuteWhenBitPerfectCLientIsActiv
                      &systemSoundPortId, systemSoundAttr, AUDIO_SESSION_NONE, mUid, &isBitPerfect);
     EXPECT_FALSE(isBitPerfect);
     EXPECT_EQ(mBitPerfectOutput, systemSoundOutput);
-    EXPECT_EQ(NO_ERROR, mManager->startOutput(systemSoundPortId));
+    bool muted{};
+    float volume{};
+    EXPECT_EQ(NO_ERROR, mManager->startOutput(systemSoundPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_TRUE(mClient->getTrackInternalMute(systemSoundPortId));
     EXPECT_FALSE(mClient->getTrackInternalMute(mBitPerfectPortId));
     EXPECT_EQ(NO_ERROR, mManager->stopOutput(systemSoundPortId));
@@ -4845,7 +4970,9 @@ TEST_F(AudioPolicyManagerTestBitPerfect, InternalMuteWhenBitPerfectCLientIsActiv
                      &isBitPerfect);
     EXPECT_FALSE(isBitPerfect);
     EXPECT_EQ(mBitPerfectOutput, notificationOutput);
-    EXPECT_EQ(NO_ERROR, mManager->startOutput(notificationPortId));
+    EXPECT_EQ(NO_ERROR, mManager->startOutput(notificationPortId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     EXPECT_FALSE(mClient->getTrackInternalMute(notificationPortId));
     EXPECT_TRUE(mClient->getTrackInternalMute(mBitPerfectPortId));
     EXPECT_EQ(NO_ERROR, mManager->stopOutput(notificationPortId));
@@ -4901,7 +5028,11 @@ TEST_P(AudioPolicyManagerTestBitPerfectHigherPriorityUseCaseActive,
             getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
                    48000, AUDIO_OUTPUT_FLAG_NONE, &output, &portId, attr));
     EXPECT_NE(mBitPerfectOutput, output);
-    EXPECT_EQ(NO_ERROR, mManager->startOutput(portId));
+    bool muted{};
+    float volume{};
+    EXPECT_EQ(NO_ERROR, mManager->startOutput(portId, &volume, &muted));
+    EXPECT_GE(volume, 0.f);
+    EXPECT_LE(volume, 1.f);
     // When a high priority use case is active, the bit-perfect output will be closed.
     EXPECT_EQ(nullptr, mManager->getOutputs().valueFor(mBitPerfectOutput));
 
