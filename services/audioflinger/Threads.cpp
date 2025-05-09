@@ -2190,7 +2190,9 @@ status_t ThreadBase::setPortsVolume(
         const std::vector<audio_port_handle_t>& portIds, float volume, bool muted) {
     audio_utils::lock_guard _l(mutex());
     for (const auto& portId : portIds) {
-        for (const auto& track : mTracks) {
+        // we only consider active tracks because inactive tracks have volume updated
+        // when added to the active track list; also MmapTracks only exist on mActiveTracks.
+        for (const auto& track : mActiveTracks) {
             if (portId == track->portId()) {
                 track->setPortVolume(volume);
                 track->setPortMute(muted);

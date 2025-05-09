@@ -153,6 +153,13 @@ flag {
 }
 
 flag {
+    name: "leaudio_sw_offload"
+    namespace: "media_audio"
+    description: "Changes related to LEA SW offload"
+    bug: "372969373"
+}
+
+flag {
     name: "loudness_configurator_api"
     is_exported: true
     namespace: "media_audio"
