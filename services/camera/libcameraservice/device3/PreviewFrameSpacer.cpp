@@ -109,7 +109,7 @@ void PreviewFrameSpacer::queueBufferToClientLocked(
         return;
     }
 
-    parent->setTransform(bufferHolder.transform, true/*mayChangeMirror*/);
+    parent->setTransform(bufferHolder.transform);
 
     status_t res = native_window_set_buffers_timestamp(mConsumer.get(), bufferHolder.timestamp);
     if (res != OK) {

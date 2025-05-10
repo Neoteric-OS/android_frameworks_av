@@ -15,7 +15,7 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "Codec2-InputSurface"
+#define LOG_TAG "Codec2-InputSurfaceConnection"
 
 #include <android_media_codec.h>
 #include <android-base/logging.h>
@@ -36,8 +36,7 @@ InputSurfaceConnection::InputSurfaceConnection(
     : mSink{sink}, mSource{source},
       mQueueThread{std::make_shared<implementation::FrameQueueThread>(sink)}, mFrameIndex(0),
       mAdjustTimestampGapUs(0), mFirstInputFrame(true) {
-    auto component = mSink.lock();
-    if (!component) {
+    if (!mSink) {
         mInit = C2_NO_INIT;
         return;
     }
@@ -153,13 +152,14 @@ void InputSurfaceConnection::onInputBufferEmptied() {
         bufferId = mBuffersTracker.mAvailableIds.front();
         mBuffersTracker.mAvailableIds.pop_front();
     }
+    notifyInputBufferEmptied(bufferId);
 }
 
 c2_status_t InputSurfaceConnection::submitBufferInternal(
         int32_t bufferId, const AImage *buffer, int64_t timestamp, int fenceFd, bool eos) {
     // close fenceFd on returning an error.
     ::android::base::unique_fd ufd(fenceFd);
-    std::shared_ptr<IInputSink> sink = mSink.lock();
+    std::shared_ptr<IInputSink> sink = mSink;
     if (!sink) {
         ALOGE("inputsurface does not have valid sink");
         return C2_BAD_STATE;

@@ -149,7 +149,7 @@ class Camera3OutputStream :
      * Set the transform on the output stream; one of the
      * HAL_TRANSFORM_* / NATIVE_WINDOW_TRANSFORM_* constants.
      */
-    virtual status_t setTransform(int transform, bool mayChangeMirror, int surfaceId = 0);
+    virtual status_t setTransform(int transform, int surfaceId = 0);
 
     /**
      * Return if this output stream is for video encoding.
@@ -228,6 +228,8 @@ class Camera3OutputStream :
      * Query the ouput surface id.
      */
     virtual ssize_t getSurfaceId(const sp<Surface> &/*surface*/) { return 0; }
+
+    virtual int getMirrorMode() const override { return  mMirrorMode; };
 
     virtual status_t getUniqueSurfaceIds(const std::vector<size_t>&,
             /*out*/std::vector<size_t>*) { return INVALID_OPERATION; };

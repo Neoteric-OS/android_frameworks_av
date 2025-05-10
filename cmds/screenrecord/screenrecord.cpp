@@ -811,11 +811,11 @@ struct RecordingData {
 
     ~RecordingData() {
         if (dpy != nullptr) SurfaceComposerClient::destroyVirtualDisplay(dpy);
-        if (overlay != nullptr) overlay->stop();
         if (encoder != nullptr) {
             encoder->stop();
             encoder->release();
         }
+        if (overlay != nullptr) overlay->stop();
     }
 };
 

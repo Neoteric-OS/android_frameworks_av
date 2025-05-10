@@ -1167,7 +1167,7 @@ binder::Status CameraDeviceClient::createStream(
         int mirrorMode = outputConfiguration.getMirrorMode(surface);
         sp<Surface> outSurface;
         res = SessionConfigurationUtils::createConfiguredSurface(streamInfo,
-                isStreamInfoValid, outSurface,
+                isStreamInfoValid, outputConfiguration, outSurface,
                 flagtools::convertParcelableSurfaceTypeToSurface(surface), mCameraIdStr,
                 mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
                 streamUseCase,
@@ -1547,8 +1547,8 @@ binder::Status CameraDeviceClient::updateOutputConfiguration(int streamId,
         OutputStreamInfo outInfo;
         sp<Surface> outSurface;
         int mirrorMode = outputConfiguration.getMirrorMode(newOutputsMap.valueAt(i));
-        res = SessionConfigurationUtils::createConfiguredSurface(outInfo,
-                /*isStreamInfoValid*/ false, outSurface, 
+        res = SessionConfigurationUtils::createConfiguredSurface(
+                outInfo, /*isStreamInfoValid*/ false, outputConfiguration, outSurface,
                 flagtools::convertParcelableSurfaceTypeToSurface(newOutputsMap.valueAt(i)),
                 mCameraIdStr,
                 mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
@@ -1959,6 +1959,7 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
         res = SessionConfigurationUtils::createConfiguredSurface(
                 mStreamInfoMap[streamId], 
                 true /*isStreamInfoValid*/, 
+                outputConfiguration,
                 outSurface,
                 flagtools::convertParcelableSurfaceTypeToSurface(surface),
                 mCameraIdStr, 

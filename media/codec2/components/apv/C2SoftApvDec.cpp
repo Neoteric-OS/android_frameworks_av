@@ -1295,7 +1295,11 @@ status_t C2SoftApvDec::outputBuffer(const std::shared_ptr<C2BlockPool>& pool,
     uint32_t format = HAL_PIXEL_FORMAT_YV12;
     std::shared_ptr<C2StreamColorAspectsInfo::output> codedColorAspects;
     if (mPixelFormatInfo->value != HAL_PIXEL_FORMAT_YCBCR_420_888) {
-        if (isHalPixelFormatSupported((AHardwareBuffer_Format)AHARDWAREBUFFER_FORMAT_YCbCr_P210)) {
+        if ((mPixelFormatInfo->value != HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) &&
+            isHalPixelFormatSupported((AHardwareBuffer_Format)mPixelFormatInfo->value)) {
+            format = mPixelFormatInfo->value;
+        } else if (isHalPixelFormatSupported(
+                        (AHardwareBuffer_Format)AHARDWAREBUFFER_FORMAT_YCbCr_P210)) {
             format = AHARDWAREBUFFER_FORMAT_YCbCr_P210;
         } else if (isHalPixelFormatSupported(
                         (AHardwareBuffer_Format)HAL_PIXEL_FORMAT_YCBCR_P010)) {

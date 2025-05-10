@@ -424,8 +424,8 @@ void InputSurfaceSource::initLocked() {
             mImageReaderConfig.width,
             mImageReaderConfig.height,
             mImageReaderConfig.format,
-            mImageReaderConfig.maxImages,
-            mImageReaderConfig.usage, &mImageReader);
+            mImageReaderConfig.usage,
+            mImageReaderConfig.maxImages, &mImageReader);
     if (err != AMEDIA_OK) {
         if (err == AMEDIA_ERROR_INVALID_PARAMETER) {
             mInitCheck = C2_BAD_VALUE;
