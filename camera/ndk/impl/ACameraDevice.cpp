@@ -243,7 +243,7 @@ camera_status_t CameraDevice::isSessionConfigurationSupported(
 
         ParcelableSurfaceType pSurface = flagtools::convertSurfaceTypeToParcelable(surface);
         OutputConfiguration outConfig(pSurface, output.mRotation, output.mPhysicalCameraId,
-                OutputConfiguration::INVALID_SET_ID, true);
+                OutputConfiguration::INVALID_SET_ID, output.mIsShared);
 
         for (auto& anw : output.mSharedWindows) {
             ret = getSurfacefromAnw(anw, surface);
@@ -331,7 +331,7 @@ camera_status_t CameraDevice::updateOutputConfigurationLocked(ACaptureSessionOut
 
     ParcelableSurfaceType pSurface = flagtools::convertSurfaceTypeToParcelable(surface);
     OutputConfiguration outConfig(pSurface, output->mRotation, output->mPhysicalCameraId,
-                                  OutputConfiguration::INVALID_SET_ID, true);
+                                  OutputConfiguration::INVALID_SET_ID, output->mIsShared);
 
     for (auto& anw : output->mSharedWindows) {
         ret = getSurfacefromAnw(anw, surface);

@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+//#define LOG_NDEBUG 0
+#define LOG_TAG "PersistentSurface"
+
 #include <aidl/android/hardware/media/c2/IInputSurface.h>
 #include <android/binder_libbinder.h>
 #include <android/native_window_aidl.h>
 #include <gui/Surface.h>
+#include <log/log.h>
 #include <media/stagefright/PersistentSurface.h>
 
 namespace android {
@@ -31,15 +35,18 @@ sp<IGraphicBufferProducer> PersistentSurface::getBufferProducer() {
     std::shared_ptr<c2_aidl::IInputSurface> interface =
         c2_aidl::IInputSurface::fromBinder(mHalInputSurface);
     if (!interface) {
+        ALOGE("hal interface does not exist");
         return nullptr;
     }
     ::aidl::android::view::Surface surface;
     ::ndk::ScopedAStatus transStatus = interface->getSurface(&surface);
     if (!transStatus.isOk()) {
+        ALOGE("getSurface() failed");
         return nullptr;
     }
     ANativeWindow *window = surface.release();
     if (!window) {
+        ALOGE("window does not exist");
         return nullptr;
     }
     return Surface::getIGraphicBufferProducer(window);

@@ -78,7 +78,7 @@ private:
     c2_status_t mInit;
     std::atomic<bool> mReleased;
 
-    std::weak_ptr<IInputSink> mSink;
+    std::shared_ptr<IInputSink> mSink;
     ::android::wp<c2::implementation::InputSurfaceSource> mSource;
     std::shared_ptr<c2::implementation::FrameQueueThread> mQueueThread;
 

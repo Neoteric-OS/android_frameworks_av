@@ -3617,13 +3617,6 @@ void PlaybackThread::threadLoop_removeTracks(
 #endif
 }
 
-void PlaybackThread::checkSilentMode_l()
-{
-    if (property_get_bool("ro.audio.silent", false)) {
-        ALOGW("ro.audio.silent is now ignored");
-    }
-}
-
 // shared by MIXER and DIRECT, overridden by DUPLICATING
 ssize_t PlaybackThread::threadLoop_write()
 {
@@ -4093,7 +4086,6 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
         audio_utils::lock_guard l(mutex());
 
         cacheParameters_l();
-        checkSilentMode_l();
     }
 
     mSleepTimeUs = mIdleSleepTimeUs;
@@ -4252,7 +4244,6 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
                     mMixerStatusIgnoringFastTracks = MIXER_IDLE;
                     mBytesWritten = 0;
                     mBytesRemaining = 0;
-                    checkSilentMode_l();
 
                     mStandbyTimeNs = systemTime() + mStandbyDelayNs;
                     mSleepTimeUs = mIdleSleepTimeUs;
@@ -5061,7 +5052,6 @@ status_t PlaybackThread::createAudioPatch_l(const struct audio_patch *patch,
                          (mPatch.sinks[0].id != sinkPortId);
     mPatch = *patch;
     mOutDeviceTypeAddrs = deviceTypeAddrs;
-    checkSilentMode_l();
 
 // QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
     // Force meteadata update before a route change
@@ -10858,7 +10848,7 @@ status_t MmapThread::start(const AudioClient& client,
             }
         }
     }
-
+    mTracks.add(track);
     mActiveTracks.add(track);
     sp<IAfEffectChain> chain = getEffectChain_l(mSessionId);
     if (chain != 0) {
@@ -10909,6 +10899,7 @@ status_t MmapThread::stop(audio_port_handle_t handle)
     }
 
     mActiveTracks.remove(track);
+    mTracks.remove(track);
     eraseClientSilencedState_l(track->portId());
     track->stop();
 
@@ -11004,10 +10995,6 @@ void MmapThread::readHalParameters_l()
 
 bool MmapThread::threadLoop()
 {
-    {
-        audio_utils::unique_lock _l(mutex());
-        checkSilentMode_l();
-    }
 
     const String8 myName(String8::format("thread %p type %d TID %d", this, mType, gettid()));
 
@@ -11035,7 +11022,6 @@ bool MmapThread::threadLoop()
                 mWaitWorkCV.wait(_l);
                 ALOGV("%s waking up", myName.c_str());
 
-                checkSilentMode_l();
 
                 continue;
             }
@@ -11219,7 +11205,6 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
         if (isOutput()) {
             sendIoConfigEvent_l(AUDIO_OUTPUT_CONFIG_CHANGED);
             mOutDeviceTypeAddrs = sinkDeviceTypeAddrs;
-            checkSilentMode_l();
         } else {
             sendIoConfigEvent_l(AUDIO_INPUT_CONFIG_CHANGED);
             mInDeviceTypeAddr = sourceDeviceTypeAddr;
@@ -11726,13 +11711,6 @@ ThreadBase::MetadataUpdate MmapPlaybackThread::updateMetadata_l()
     change.playbackMetadataUpdate = metadata.tracks;
     return change;
 };
-
-void MmapPlaybackThread::checkSilentMode_l()
-{
-    if (property_get_bool("ro.audio.silent", false)) {
-        ALOGW("ro.audio.silent is now ignored");
-    }
-}
 
 void MmapPlaybackThread::toAudioPortConfig(struct audio_port_config* config)
 {

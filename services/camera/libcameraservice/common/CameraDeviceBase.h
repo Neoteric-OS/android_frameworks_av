@@ -75,6 +75,13 @@ class CameraProviderManager;
 // Mapping of output stream index to surface ids
 typedef std::unordered_map<int, std::vector<size_t> > SurfaceMap;
 
+typedef struct TransformMapValue {
+    int mirrorMode;
+    int32_t transform;
+} TransfromMapValue_t;
+// Mapping of output stream index to mirror mode and transformation entry
+typedef std::unordered_map<int, TransformMapValue> TransformationMap;
+
 /**
  * Base interface for version >= 2 camera device classes, which interface to
  * camera HAL device versions >= 2.

@@ -1434,9 +1434,6 @@ protected:
 
     // Code snippets that are temporarily lifted up out of threadLoop() until the merge
 
-    // consider unification with MMapThread
-    virtual void checkSilentMode_l() final REQUIRES(mutex());
-
     // Non-trivial for DUPLICATING only
     virtual void saveOutputTracks() REQUIRES(ThreadBase_ThreadLoop) {}
     virtual void clearOutputTracks() REQUIRES(ThreadBase_ThreadLoop) {}
@@ -2351,7 +2348,6 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     status_t setSyncEvent(const sp<audioflinger::SyncEvent>& event) final;
     bool isValidSyncEvent(const sp<audioflinger::SyncEvent>& event) const final;
 
-    virtual void checkSilentMode_l() REQUIRES(mutex()) {} // cannot be const (RecordThread)
     virtual void processVolume_l() REQUIRES(mutex()) {}
     void checkInvalidTracks_l() REQUIRES(mutex());
 
@@ -2458,7 +2454,7 @@ public:
     audio_stream_type_t streamType_l() const final REQUIRES(mutex()) {
         return mStreamType;
     }
-    void checkSilentMode_l() final REQUIRES(mutex());
+
     void processVolume_l() final REQUIRES(mutex());
 
     MetadataUpdate updateMetadata_l() final REQUIRES(mutex());

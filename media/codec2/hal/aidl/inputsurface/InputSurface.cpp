@@ -429,6 +429,10 @@ void InputSurface::init() {
         ALOGE("InputSurface connect: configuring source failed(%d)", c2Res);
         return ::ndk::ScopedAStatus::fromServiceSpecificError(c2Res);
     }
+    int numSlots = mImageConfig.mNumBuffers;
+    for (size_t i = 0; i < numSlots; ++i) {
+        mSource->onInputBufferAdded(i);
+    }
     c2Res = mSource->start();
     if (c2Res != C2_OK) {
         ALOGE("InputSurface connect: starting source failed(%d)", c2Res);
@@ -565,7 +569,7 @@ bool InputSurface::updateStreamConfig(
         mStreamConfig.mStopped = config.mStopped;
     }
     if (status.str().empty()) {
-        ALOGD("StreamConfig not changed");
+        ALOGV("StreamConfig not changed");
     } else {
         ALOGD("StreamConfig%s", status.str().c_str());
     }

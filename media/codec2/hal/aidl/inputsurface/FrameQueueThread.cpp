@@ -16,7 +16,7 @@
  */
 
 //#define LOG_NDEBUG 0
-#define LOG_TAG "Codec2-InputSurface"
+#define LOG_TAG "Codec2-InputSurfaceQueue"
 
 #include <sys/types.h>
 
@@ -90,7 +90,11 @@ void FrameQueueThread::run() {
         nsecs_t nowNs = systemTime();
         nsecs_t diffNs = nowNs - mLastQueuedTimestampNs;
         if (mItems.empty() || (mLastQueuedTimestampNs != 0 && diffNs < kIntervalNs)) {
-            mCv.wait_for(lock, std::chrono::nanoseconds(kIntervalNs - diffNs));
+            nsecs_t waitNs = kIntervalNs;
+            if (mLastQueuedTimestampNs != 0) {
+                waitNs = diffNs < kIntervalNs ? kIntervalNs - diffNs : 1;
+            }
+            mCv.wait_for(lock, std::chrono::nanoseconds(waitNs));
             continue;
         }
         std::deque<Item> items = std::move(mItems);
