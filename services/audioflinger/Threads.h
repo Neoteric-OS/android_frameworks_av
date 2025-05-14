@@ -1252,6 +1252,8 @@ public:
                     return INVALID_OPERATION;
                 }
 
+    bool supportsBluetoothVariableLatency() const override { return false; }
+
     status_t setBluetoothVariableLatencyEnabled(bool /* enabled */) override{
                     return INVALID_OPERATION;
                 }
@@ -1731,6 +1733,8 @@ public:
 
                 status_t    getSupportedLatencyModes(
                                     std::vector<audio_latency_mode_t>* modes) override;
+
+                bool supportsBluetoothVariableLatency() const override;
 
                 status_t    setBluetoothVariableLatencyEnabled(bool enabled) override;
 

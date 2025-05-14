@@ -1726,16 +1726,22 @@ status_t AudioFlinger::getSupportedLatencyModes(audio_io_handle_t output,
 status_t AudioFlinger::setBluetoothVariableLatencyEnabled(bool enabled) {
     audio_utils::lock_guard _l(mutex());
     status_t status = INVALID_OPERATION;
+    bool usesModuleWithVariableLatencySupport = false;
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-        // Success if at least one PlaybackThread supports Bluetooth latency modes
-        if (mPlaybackThreads.valueAt(i)->setBluetoothVariableLatencyEnabled(enabled) == NO_ERROR) {
-            status = NO_ERROR;
+        // Success if at least one PlaybackThread from a module which supports variable latency
+        // is able to set variable latency.
+        if (mPlaybackThreads.valueAt(i)->supportsBluetoothVariableLatency()) {
+            usesModuleWithVariableLatencySupport = true;
+            if (mPlaybackThreads.valueAt(i)->setBluetoothVariableLatencyEnabled(enabled)
+                    == NO_ERROR) {
+                status = NO_ERROR;
+            }
         }
     }
-    if (status == NO_ERROR) {
+    if (!usesModuleWithVariableLatencySupport || status == NO_ERROR) {
         mBluetoothLatencyModesEnabled.store(enabled);
     }
-    return status;
+    return usesModuleWithVariableLatencySupport ? status : NO_ERROR;
 }
 
 status_t AudioFlinger::isBluetoothVariableLatencyEnabled(bool* enabled) const {

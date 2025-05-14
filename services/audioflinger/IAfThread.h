@@ -553,6 +553,8 @@ public:
     virtual status_t getSupportedLatencyModes(std::vector<audio_latency_mode_t>* modes)
            EXCLUDES_ThreadBase_Mutex = 0;
 
+    virtual bool supportsBluetoothVariableLatency() const = 0;
+
     virtual status_t setBluetoothVariableLatencyEnabled(bool enabled) = 0;
 
     virtual void setStandby() EXCLUDES_ThreadBase_Mutex = 0;
