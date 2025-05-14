@@ -2148,12 +2148,6 @@ status_t StagefrightRecorder::setupVideoEncoder(
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_AV1);
             break;
 
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-        case VIDEO_ENCODER_MVHEVC:
-            format->setString("mime", MEDIA_MIMETYPE_VIDEO_MVHEVC);
-            break;
-
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         default:
             CHECK(!"Should not be here, unsupported video encoding.");
             break;
