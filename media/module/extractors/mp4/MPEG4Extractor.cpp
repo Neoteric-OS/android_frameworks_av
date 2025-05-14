@@ -2630,9 +2630,11 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             AMediaFormat_setBuffer(mLastTrack->meta,
                     AMEDIAFORMAT_KEY_CSD_HEVC, buffer.get(), chunk_data_size);
+
             *offset += chunk_size;
             break;
         }
+
         case FOURCC("vpcC"):
         {
             if (mLastTrack == NULL) {
