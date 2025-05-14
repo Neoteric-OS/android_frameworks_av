@@ -2130,12 +2130,12 @@ void MediaCodec::updatePictureProfile(const sp<AMessage>& msg, bool applyDefault
         return;
     }
 
-    sp<IMediaQualityManager> mediaQualityMgr =
-            waitForDeclaredService<IMediaQualityManager>(String16("media_quality"));
-    if (mediaQualityMgr == nullptr) {
+    sp<IBinder> binder = defaultServiceManager()->checkService(String16("media_quality"));
+    if (binder == nullptr) {
         ALOGI("media_quality service unavailable, skipping updatePictureProfile");
         return;
     }
+    sp<IMediaQualityManager> mediaQualityMgr = interface_cast<IMediaQualityManager>(binder);
 
     int64_t pictureProfileHandle;
     AString pictureProfileId;
