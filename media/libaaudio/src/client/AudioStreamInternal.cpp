@@ -401,9 +401,10 @@ aaudio_result_t AudioStreamInternal::exitStandby_l() {
     // Cache the buffer size which may be from client.
     const int32_t previousBufferSize = mBufferSizeInFrames;
     // Copy all available data from current data queue.
-    uint8_t buffer[getDeviceBufferCapacity() * getBytesPerFrame()];
-    android::fifo_frames_t fullFramesAvailable = mAudioEndpoint->read(buffer,
-            getDeviceBufferCapacity());
+    android::fifo_frames_t fullFramesAvailable = mAudioEndpoint->getFullFramesAvailable();
+    std::unique_ptr<uint8_t[]> buffer =
+            std::make_unique<uint8_t[]>(fullFramesAvailable * getBytesPerFrame());
+    fullFramesAvailable = mAudioEndpoint->read(buffer.get(), fullFramesAvailable);
     // Before releasing the data queue, update the frames read and written.
     getFramesRead();
     getFramesWritten();
@@ -442,7 +443,7 @@ aaudio_result_t AudioStreamInternal::exitStandby_l() {
     }
     // Write data from previous data buffer to new endpoint.
     if (const android::fifo_frames_t framesWritten =
-                mAudioEndpoint->write(buffer, fullFramesAvailable);
+                mAudioEndpoint->write(buffer.get(), fullFramesAvailable);
             framesWritten != fullFramesAvailable) {
         ALOGW("Some data lost after exiting standby, frames written: %d, "
               "frames to write: %d", framesWritten, fullFramesAvailable);

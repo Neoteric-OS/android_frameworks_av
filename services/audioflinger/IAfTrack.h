@@ -616,6 +616,8 @@ public:
     // Internal mute, this is currently only used for bit-perfect playback
     virtual bool getInternalMute() const = 0;
     virtual void setInternalMute(bool muted) = 0;
+    virtual void setTeePatchesPlaybackRate_l(const AudioPlaybackRate& playbackRate)
+            REQUIRES(audio_utils::ThreadBase_Mutex) = 0;
 };
 
 // playback track, used by DuplicatingThread
@@ -784,6 +786,8 @@ public:
             float speed = 1.0f);
 
     sp<IAfPatchTrack> asIAfPatchTrack() final { return this; }
+
+    virtual void setPlaybackRate(const AudioPlaybackRate &playbackRate) = 0;
 };
 
 class IAfPatchRecord : public virtual IAfRecordTrack, public virtual IAfPatchTrackBase {
