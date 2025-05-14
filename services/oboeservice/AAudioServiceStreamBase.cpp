@@ -480,30 +480,36 @@ void AAudioServiceStreamBase::run() {
                     __func__, command->operationCode, loopCount);
             std::scoped_lock<std::mutex> _commandLock(command->lock);
             switch (command->operationCode) {
-                case START:
+                case START: {
                     command->result = start_l();
-                    timestampScheduler.setBurstPeriod(mFramesPerBurst, getSampleRate());
+                    // If the burst size is too large, the timestamp scheduler will be too
+                    // slow for the first couple timestamp report and result in the client side
+                    // timeout to process data. In that case, setting the burst no greater than
+                    // 50ms of frames.
+                    const int32_t burstForTimestampScheduler =
+                            std::min(mFramesPerBurst, getSampleRate() / 20);
+                    timestampScheduler.setBurstPeriod(burstForTimestampScheduler, getSampleRate());
                     timestampScheduler.start(AudioClock::getNanoseconds());
                     nextTimestampReportTime = timestampScheduler.nextAbsoluteTime();
                     nextDataReportTime = nextDataReportTime_l();
-                    break;
-                case PAUSE:
+                } break;
+                case PAUSE: {
                     command->result = pause_l();
                     standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
-                    break;
-                case STOP:
+                } break;
+                case STOP: {
                     command->result = stop_l();
                     standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
-                    break;
-                case FLUSH:
+                } break;
+                case FLUSH: {
                     command->result = flush_l();
-                    break;
-                case CLOSE:
+                } break;
+                case CLOSE: {
                     command->result = close_l();
-                    break;
-                case DISCONNECT:
+                } break;
+                case DISCONNECT: {
                     disconnect_l();
-                    break;
+                } break;
                 case REGISTER_AUDIO_THREAD: {
                     auto param = (RegisterAudioThreadParam *) command->parameter.get();
                     command->result =
@@ -511,21 +517,18 @@ void AAudioServiceStreamBase::run() {
                                              : registerAudioThread_l(param->mOwnerPid,
                                                                      param->mClientThreadId,
                                                                      param->mPriority);
-                }
-                    break;
+                } break;
                 case UNREGISTER_AUDIO_THREAD: {
                     auto param = (UnregisterAudioThreadParam *) command->parameter.get();
                     command->result =
                             param == nullptr ? AAUDIO_ERROR_ILLEGAL_ARGUMENT
                                              : unregisterAudioThread_l(param->mClientThreadId);
-                }
-                    break;
+                } break;
                 case GET_DESCRIPTION: {
                     auto param = (GetDescriptionParam *) command->parameter.get();
                     command->result = param == nullptr ? AAUDIO_ERROR_ILLEGAL_ARGUMENT
                                                         : getDescription_l(param->mParcelable);
-                }
-                    break;
+                } break;
                 case EXIT_STANDBY: {
                     auto param = (ExitStandbyParam *) command->parameter.get();
                     command->result = param == nullptr ? AAUDIO_ERROR_ILLEGAL_ARGUMENT

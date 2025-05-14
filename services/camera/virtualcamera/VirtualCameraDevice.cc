@@ -18,12 +18,13 @@
 #define LOG_TAG "VirtualCameraDevice"
 #include "VirtualCameraDevice.h"
 
+#include <android_companion_virtualdevice_flags.h>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
 #include <iterator>
-#include <numeric>
 #include <optional>
 #include <string>
 #include <vector>
@@ -37,7 +38,6 @@
 #include "aidl/android/hardware/camera/device/StreamConfiguration.h"
 #include "android/binder_auto_utils.h"
 #include "android/binder_status.h"
-#include "log/log.h"
 #include "system/camera_metadata.h"
 #include "util/MetadataUtil.h"
 #include "util/Util.h"
@@ -550,6 +550,12 @@ ndk::ScopedAStatus VirtualCameraDevice::open(
 
   *_aidl_return = ndk::SharedRefBase::make<VirtualCameraSession>(
       sharedFromThis(), in_callback, mVirtualCameraClientCallback);
+
+  if (virtualdevice::flags::virtual_camera_on_open()) {
+    if (mVirtualCameraClientCallback != nullptr) {
+      mVirtualCameraClientCallback->onOpenCamera();
+    }
+  }
 
   return ndk::ScopedAStatus::ok();
 };

@@ -1252,6 +1252,8 @@ public:
                     return INVALID_OPERATION;
                 }
 
+    bool supportsBluetoothVariableLatency() const override { return false; }
+
     status_t setBluetoothVariableLatencyEnabled(bool /* enabled */) override{
                     return INVALID_OPERATION;
                 }
@@ -1731,6 +1733,8 @@ public:
 
                 status_t    getSupportedLatencyModes(
                                     std::vector<audio_latency_mode_t>* modes) override;
+
+                bool supportsBluetoothVariableLatency() const override;
 
                 status_t    setBluetoothVariableLatencyEnabled(bool enabled) override;
 
@@ -2273,11 +2277,13 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
                bool isOut);
 
     void configure(const audio_attributes_t* attr,
-                                      audio_stream_type_t streamType,
-                                      audio_session_t sessionId,
-                                      const sp<MmapStreamCallback>& callback,
-                                      const DeviceIdVector& deviceIds,
-            audio_port_handle_t portId) override EXCLUDES_ThreadBase_Mutex {
+                   audio_stream_type_t streamType,
+                   audio_session_t sessionId,
+                   const sp<MmapStreamCallback>& callback,
+                   const DeviceIdVector& deviceIds,
+                   audio_port_handle_t portId,
+                   [[maybe_unused]]const audio_offload_info_t* offloadInfo)
+                   override EXCLUDES_ThreadBase_Mutex {
         audio_utils::lock_guard l(mutex());
         configure_l(attr, streamType, sessionId, callback, deviceIds, portId);
     }
@@ -2390,6 +2396,10 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
                                 }
                             }
 
+    virtual std::optional<audio_offload_info_t> offloadInfo_l() const REQUIRES(mutex()) {
+        return std::nullopt;
+    }
+
  protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) override REQUIRES(mutex());
     void dumpTracks_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
@@ -2427,11 +2437,12 @@ public:
     }
 
     void configure(const audio_attributes_t* attr,
-                                      audio_stream_type_t streamType,
-                                      audio_session_t sessionId,
-                                      const sp<MmapStreamCallback>& callback,
-                                      const DeviceIdVector& deviceIds,
-            audio_port_handle_t portId) final EXCLUDES_ThreadBase_Mutex;
+                   audio_stream_type_t streamType,
+                   audio_session_t sessionId,
+                   const sp<MmapStreamCallback>& callback,
+                   const DeviceIdVector& deviceIds,
+                   audio_port_handle_t portId,
+                   const audio_offload_info_t* offloadInfo) final EXCLUDES_ThreadBase_Mutex;
 
     AudioStreamOut* clearOutput() final EXCLUDES_ThreadBase_Mutex;
 
@@ -2474,6 +2485,10 @@ public:
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
 
+    std::optional<audio_offload_info_t> offloadInfo_l() const final REQUIRES(mutex()) {
+        return mOffloadInfo;
+    }
+
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
     float streamVolume_l() const REQUIRES(mutex()) {
@@ -2487,6 +2502,7 @@ protected:
     audio_stream_type_t mStreamType GUARDED_BY(mutex());
     float mMasterVolume GUARDED_BY(mutex());
     bool mMasterMute GUARDED_BY(mutex());
+    std::optional<audio_offload_info_t> mOffloadInfo GUARDED_BY(mutex());
     AudioStreamOut* mOutput;  // NO_THREAD_SAFETY_ANALYSIS
 
     mediautils::atomic_sp<audio_utils::MelProcessor> mMelProcessor;  // locked internally

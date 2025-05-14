@@ -387,7 +387,7 @@ void OutputConfiguration::inferSurfaceProperties() {
         ALOGE("%s: NATIVE_WINDOW_FORMAT query failed", __FUNCTION__);
     }
     if (mSurfaces[0].graphicBufferProducer->query(NATIVE_WINDOW_DEFAULT_DATASPACE,
-            &mDataSpace) != OK) {
+            &mDataspace) != OK) {
         ALOGE("%s: NATIVE_WINDOW_DEFAULT_DATASPACE query failed", __FUNCTION__);
     }
     if (mSurfaces[0].graphicBufferProducer->query(NATIVE_WINDOW_WIDTH, &mWidth) != OK) {

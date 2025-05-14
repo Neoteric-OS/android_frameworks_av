@@ -138,9 +138,14 @@ status_t Camera2Client::initializeImpl(TProviderPtr providerPtr, const std::stri
     // when the display rotates. The sensor orientation still needs to be calculated
     // and applied similar to the Camera2 path.
     using hardware::BnCameraService::ROTATION_OVERRIDE_ROTATION_ONLY;
+    using hardware::BnCameraService::ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
     bool enableTransformInverseDisplay = true;
+    bool rotationOnlyOverride = mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY;
+    bool reverseRotationOnlyOverride =
+            wm_flags::enable_camera_compat_check_device_rotation_bugfix() &&
+                    mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
     if (wm_flags::enable_camera_compat_for_desktop_windowing()) {
-        enableTransformInverseDisplay = (mRotationOverride != ROTATION_OVERRIDE_ROTATION_ONLY);
+        enableTransformInverseDisplay = !rotationOnlyOverride && !reverseRotationOnlyOverride;
     }
     CameraUtils::getRotationTransform(staticInfo, OutputConfiguration::MIRROR_MODE_AUTO,
             enableTransformInverseDisplay, &mRotateAndCropPreviewTransform);

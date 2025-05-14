@@ -49,6 +49,14 @@ flag {
 }
 
 flag {
+    name: "device_volume_apis"
+    namespace: "media_audio"
+    description: "Add APIs to set/adjust volume for a specific device."
+    is_exported: true
+    bug: "404313846"
+}
+
+flag {
     name: "enable_multichannel_group_device"
     namespace: "media_audio"
     description:

@@ -123,36 +123,50 @@ enum {
 
     /**
      * This format is used for audio compressed in MP3 format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_MP3,
 
     /**
      * This format is used for audio compressed in AAC LC format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_AAC_LC,
 
     /**
      * This format is used for audio compressed in AAC HE V1 format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_AAC_HE_V1,
 
     /**
      * This format is used for audio compressed in AAC HE V2 format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_AAC_HE_V2,
 
     /**
      * This format is used for audio compressed in AAC ELD format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_AAC_ELD,
 
     /**
      * This format is used for audio compressed in AAC XHE format.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_AAC_XHE,
 
     /**
      * This format is used for audio compressed in OPUS.
+     *
+     * Available since API level 36.
      */
     AAUDIO_FORMAT_OPUS
 };
@@ -384,6 +398,8 @@ enum {
      * pipe will be suspended automatically and the CPU will be allowed to sleep for
      * power saving. When all queued data are played, the apps will be able to get callback
      * to feed more data.
+     *
+     * Available since API level 36.
      */
     AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED
 };
@@ -2461,6 +2477,8 @@ AAUDIO_API aaudio_channel_mask_t AAudioStream_getChannelMask(AAudioStream* _Nonn
  * The unit is frames, where a frame includes samples for all audio channels, e.g. 100 frames
  * for a stereo stream corresponds to 200 interleaved PCM samples.
  *
+ * Available since API level 36.
+ *
  * @param stream reference provided by AAudioStreamBuilder_openStream()
  * @param delayInFrames number of frames to be ignored at the beginning of the stream. A value
  *                      of 0 indicates no delay is to be applied.
@@ -2480,6 +2498,8 @@ AAUDIO_API aaudio_result_t AAudioStream_setOffloadDelayPadding(
 /**
  * Return the decoder delay of an offloaded stream in frames.
  *
+ * Available since API level 36.
+ *
  * @param stream reference provided by AAudioStreamBuilder_openStream()
  * @return the offload delay in frames that previously set with
  *         {@link #AAudioStream_setOffloadDelayPadding},
@@ -2492,6 +2512,8 @@ AAUDIO_API int32_t AAudioStream_getOffloadDelay(AAudioStream* _Nonnull stream) _
 
 /**
  * Return the decoder padding of an offloaded stream in frames.
+ *
+ * Available since API level 36.
  *
  * @param stream reference provided by AAudioStreamBuilder_openStream()
  * @return the offload padding in frames that previously set with
@@ -2510,6 +2532,8 @@ AAUDIO_API int32_t AAudioStream_getOffloadPadding(AAudioStream* _Nonnull stream)
  * After the end of stream, previously set padding and delay values are ignored. That indicates
  * all written data will be played.
  * Use this method in the same thread as any data writing operation.
+ *
+ * Available since API level 36.
  *
  * @param stream reference provided by AAudioStreamBuilder_openStream()
  * @return {@link #AAUDIO_OK} on success,
