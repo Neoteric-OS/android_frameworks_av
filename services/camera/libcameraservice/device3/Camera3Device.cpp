@@ -5981,8 +5981,13 @@ status_t Camera3Device::deriveAndSetTransformLocked(
     int transform = -1;
     bool enableTransformInverseDisplay = true;
     using hardware::ICameraService::ROTATION_OVERRIDE_ROTATION_ONLY;
+    using hardware::ICameraService::ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
+    bool rotationOnlyOverride = mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY;
+    bool reverseRotationOnlyOverride =
+            wm_flags::enable_camera_compat_check_device_rotation_bugfix() &&
+                    mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
     if (wm_flags::enable_camera_compat_for_desktop_windowing()) {
-        enableTransformInverseDisplay = (mRotationOverride != ROTATION_OVERRIDE_ROTATION_ONLY);
+        enableTransformInverseDisplay = !rotationOnlyOverride && !reverseRotationOnlyOverride;
     }
     int res = CameraUtils::getRotationTransform(mDeviceInfo, mirrorMode,
             enableTransformInverseDisplay, &transform);

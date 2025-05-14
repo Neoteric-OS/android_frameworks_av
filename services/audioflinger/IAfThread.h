@@ -669,7 +669,8 @@ public:
             audio_session_t sessionId,
             const sp<MmapStreamCallback>& callback,
             const DeviceIdVector& deviceIds,
-            audio_port_handle_t portId) EXCLUDES_ThreadBase_Mutex = 0;
+            audio_port_handle_t portId,
+            const audio_offload_info_t* offloadInfo) EXCLUDES_ThreadBase_Mutex = 0;
     virtual void disconnect() EXCLUDES_ThreadBase_Mutex = 0;
 
     // MmapStreamInterface handling (see adapter)

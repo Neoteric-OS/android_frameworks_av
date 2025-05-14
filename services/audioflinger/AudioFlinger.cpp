@@ -648,7 +648,8 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     const sp<IAfMmapThread> thread = mMmapThreads.valueFor(io);
     if (thread != 0) {
         interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
-        thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId);
+        thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId,
+                          offloadInfo);
         *handle = portId;
         *sessionId = actualSessionId;
         config->sample_rate = thread->sampleRate();

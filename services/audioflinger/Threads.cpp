@@ -10735,6 +10735,10 @@ status_t MmapThread::start(const AudioClient& client,
         audio_stream_type_t stream = streamType_l();
         audio_output_flags_t flags =
                 (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
+        if (auto offloadInfo = offloadInfo_l(); offloadInfo.has_value()) {
+            flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            config.offload_info = offloadInfo.value();
+        }
         DeviceIdVector deviceIds = mDeviceIds;
         std::vector<audio_io_handle_t> secondaryOutputs;
         bool isSpatialized;
@@ -11476,15 +11480,21 @@ MmapPlaybackThread::MmapPlaybackThread(
 }
 
 void MmapPlaybackThread::configure(const audio_attributes_t* attr,
-                                                audio_stream_type_t streamType,
-                                                audio_session_t sessionId,
-                                                const sp<MmapStreamCallback>& callback,
-                                                const DeviceIdVector& deviceIds,
-                                                audio_port_handle_t portId)
+                                   audio_stream_type_t streamType,
+                                   audio_session_t sessionId,
+                                   const sp<MmapStreamCallback>& callback,
+                                   const DeviceIdVector& deviceIds,
+                                   audio_port_handle_t portId,
+                                   const audio_offload_info_t* offloadInfo)
 {
     audio_utils::lock_guard l(mutex());
     MmapThread::configure_l(attr, streamType, sessionId, callback, deviceIds, portId);
     mStreamType = streamType;
+    if (offloadInfo != nullptr) {
+        mOffloadInfo = *offloadInfo;
+    } else {
+        mOffloadInfo = std::nullopt;
+    }
 }
 
 AudioStreamOut* MmapPlaybackThread::clearOutput()
