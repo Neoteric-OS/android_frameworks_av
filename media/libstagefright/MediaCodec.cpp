@@ -6707,6 +6707,10 @@ status_t MediaCodec::queueCSDInputBuffer(size_t bufferIndex) {
         } else {
             std::shared_ptr<C2LinearBlock> block =
                 FetchLinearBlock(csd->size(), {std::string{mComponentName.c_str()}});
+            if (block == NULL) {
+                mErrorLog.log(LOG_TAG, "Fatal error: FetchLinearBlock returned NULL");
+                return -EINVAL;
+            }
             C2WriteView view{block->map().get()};
             if (view.error() != C2_OK) {
                 mErrorLog.log(LOG_TAG, "Fatal error: failed to allocate and map a block");
