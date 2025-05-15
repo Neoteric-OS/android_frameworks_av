@@ -648,7 +648,8 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     const sp<IAfMmapThread> thread = mMmapThreads.valueFor(io);
     if (thread != 0) {
         interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
-        thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId);
+        thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId,
+                          offloadInfo);
         *handle = portId;
         *sessionId = actualSessionId;
         config->sample_rate = thread->sampleRate();
@@ -1725,16 +1726,22 @@ status_t AudioFlinger::getSupportedLatencyModes(audio_io_handle_t output,
 status_t AudioFlinger::setBluetoothVariableLatencyEnabled(bool enabled) {
     audio_utils::lock_guard _l(mutex());
     status_t status = INVALID_OPERATION;
+    bool usesModuleWithVariableLatencySupport = false;
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
-        // Success if at least one PlaybackThread supports Bluetooth latency modes
-        if (mPlaybackThreads.valueAt(i)->setBluetoothVariableLatencyEnabled(enabled) == NO_ERROR) {
-            status = NO_ERROR;
+        // Success if at least one PlaybackThread from a module which supports variable latency
+        // is able to set variable latency.
+        if (mPlaybackThreads.valueAt(i)->supportsBluetoothVariableLatency()) {
+            usesModuleWithVariableLatencySupport = true;
+            if (mPlaybackThreads.valueAt(i)->setBluetoothVariableLatencyEnabled(enabled)
+                    == NO_ERROR) {
+                status = NO_ERROR;
+            }
         }
     }
-    if (status == NO_ERROR) {
+    if (!usesModuleWithVariableLatencySupport || status == NO_ERROR) {
         mBluetoothLatencyModesEnabled.store(enabled);
     }
-    return status;
+    return usesModuleWithVariableLatencySupport ? status : NO_ERROR;
 }
 
 status_t AudioFlinger::isBluetoothVariableLatencyEnabled(bool* enabled) const {
@@ -4107,6 +4114,7 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
 
         const audio_output_flags_t outputFlags =
                 (audio_output_flags_t)(track->getOutputFlags() & ~kIncompatiblePatchTrackFlags);
+        const AudioPlaybackRate playbackRate = track->audioTrackServerProxy()->getPlaybackRate();
         sp<IAfPatchTrack> patchTrack = IAfPatchTrack::create(secondaryThread,
                                                        track->streamType(),
                                                        track->sampleRate(),
@@ -4118,7 +4126,7 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
                                                        outputFlags,
                                                        0ns /* timeout */,
                                                        frameCountToBeReady,
-                                                       track->getSpeed());
+                                                       playbackRate.mSpeed);
         status = patchTrack->initCheck();
         if (status != NO_ERROR) {
             ALOGE("Secondary output patchTrack init failed: %d", status);

@@ -312,6 +312,12 @@ protected:
     int8_t& retryCount() final { return mRetryCount; }
     FastTrackUnderruns& fastTrackUnderruns() final { return mObservedUnderruns; }
 
+    void setTeePatchesPlaybackRate_l(const AudioPlaybackRate& playbackRate) override
+            REQUIRES(audio_utils::ThreadBase_Mutex) {
+        forEachTeePatchTrack_l([playbackRate](const auto& patchTrack) {
+            patchTrack->setPlaybackRate(playbackRate);
+        });
+    }
 protected:
     mutable FillingStatus mFillingStatus;
     int8_t              mRetryCount;
@@ -518,6 +524,8 @@ public:
     // PatchProxyBufferProvider interface
     status_t obtainBuffer(Proxy::Buffer* buffer, const struct timespec* timeOut = nullptr) final;
     void releaseBuffer(Proxy::Buffer* buffer) final;
+
+    void setPlaybackRate (const AudioPlaybackRate &playbackRate) override;
 
 private:
     void restartIfDisabled() override;
