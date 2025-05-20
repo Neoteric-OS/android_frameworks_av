@@ -569,10 +569,13 @@ status_t GraphicBufferSource::onInputBufferEmptied(codec_buffer_id bufferId, int
 
     if (haveAvailableBuffers_l()) {
         // Fill this codec buffer.
-        CHECK(!mEndOfStreamSent);
-        ALOGV("onInputBufferEmptied: buffer freed, feeding codec (available=%zu+%d, eos=%d)",
-                mAvailableBuffers.size(), mNumAvailableUnacquiredBuffers, mEndOfStream);
-        fillCodecBuffer_l();
+        if (!mEndOfStreamSent) {
+            ALOGV("onInputBufferEmptied: buffer freed, feeding codec (available=%zu+%d, eos=%d)",
+                    mAvailableBuffers.size(), mNumAvailableUnacquiredBuffers, mEndOfStream);
+            fillCodecBuffer_l();
+        } else {
+            releaseAllAvailableBuffers_l();
+        }
     } else if (mEndOfStream && mStopTimeUs == -1) {
         // No frames available, but EOS is pending and no stop time, so use this buffer to
         // send that.
