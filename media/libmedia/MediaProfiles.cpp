@@ -93,9 +93,6 @@ const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
     {"m4v",  VIDEO_ENCODER_MPEG_4_SP},
     {"vp8",  VIDEO_ENCODER_VP8},
     {"hevc", VIDEO_ENCODER_HEVC},
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-    {"mvhevc", VIDEO_ENCODER_MVHEVC},
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     {"vp9",  VIDEO_ENCODER_VP9},
     {"dolbyvision", VIDEO_ENCODER_DOLBY_VISION},
 };
@@ -331,9 +328,6 @@ MediaProfiles::detectAdvancedVideoProfile(
         // flow does not get here
 
     case VIDEO_ENCODER_HEVC:
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-    case VIDEO_ENCODER_MVHEVC:
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         switch (profile) {
         case HEVCProfileMain:
             return true;

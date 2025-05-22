@@ -59,9 +59,6 @@ enum {
     kKeyAACProfile        = 'aacp',  // int32_t
     kKeyAVCC              = 'avcc',  // raw data
     kKeyHVCC              = 'hvcc',  // raw data
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    kKeyLHVC              = 'lhvc',  // raw data
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kKeyDVCC              = 'dvcc',  // raw data
     kKeyDVVC              = 'dvvc',  // raw data
     kKeyDVWC              = 'dvwc',  // raw data
@@ -311,9 +308,6 @@ enum {
     kTypeESDS        = 'esds',
     kTypeAVCC        = 'avcc',
     kTypeHVCC        = 'hvcc',
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    kTypeLHVC        = 'lhvc',
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     kTypeAV1C        = 'av1c',
     kTypeDVCC        = 'dvcc',
     kTypeDVVC        = 'dvvc',
