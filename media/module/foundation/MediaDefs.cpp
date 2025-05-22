@@ -38,9 +38,6 @@ const char *MEDIA_MIMETYPE_VIDEO_DIVX = "video/divx";
 const char *MEDIA_MIMETYPE_VIDEO_DIVX3 = "video/divx3";
 const char *MEDIA_MIMETYPE_VIDEO_XVID = "video/xvid";
 const char *MEDIA_MIMETYPE_VIDEO_MJPEG = "video/x-motion-jpeg";
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-const char *MEDIA_MIMETYPE_VIDEO_MVHEVC = "video/x-mvhevc";
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
 const char *MEDIA_MIMETYPE_AUDIO_AMR_NB = "audio/3gpp";
 const char *MEDIA_MIMETYPE_AUDIO_AMR_WB = "audio/amr-wb";

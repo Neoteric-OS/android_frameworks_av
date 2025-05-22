@@ -174,9 +174,6 @@ public:
     void bufferChunk(int64_t timestampUs);
     bool isAvc() const { return mIsAvc; }
     bool isHevc() const { return mIsHevc; }
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    bool isMvHevc() const { return mIsMvHevc; }
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool isAv1() const { return mIsAv1; }
     bool isApv() const { return mIsApv; }
     bool isHeic() const { return mIsHeic; }
@@ -184,9 +181,7 @@ public:
     bool isHeif() const { return mIsHeif; }
     bool isAudio() const { return mIsAudio; }
     bool isMPEG4() const { return mIsMPEG4; }
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    bool usePrefix() const { return (mIsAvc || mIsHevc || mIsHeic || mIsMvHevc || mIsDovi)
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+    bool usePrefix() const { return (mIsAvc || mIsHevc || mIsHeic || mIsDovi)
       && !mNalLengthBitstream; }
     bool isExifData(MediaBufferBase *buffer, uint32_t *tiffHdrOffset) const;
     bool isGainmapMetaData(MediaBufferBase* buffer, uint32_t* offset) const;
@@ -355,9 +350,6 @@ public:
     volatile bool mStarted;
     bool mIsAvc;
     bool mIsHevc;
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    bool mIsMvHevc;
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     bool mIsAv1;
     bool mIsApv;
     bool mIsDovi;
@@ -425,73 +417,8 @@ public:
 
     int32_t mDoviProfile;
 
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    HevcParameterSets mParamSets;
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    struct StereoParams {
-        StereoParams()
-            : mEyeViewsReversed(0),
-              mHasAdditionalViews(1),
-              mHasRightEyeView(1),
-              mHasLeftEyeView(1),
-              mStereoSpecificDataSize(0),
-              mHeroEyeIndicator(0),
-              mHeroEyeDataSize(0),
-              mBaselineDistanceData(0),
-              mBaselineDistanceDataSize(0),
-              mStereoDispAdjData(0),
-              mStereoDispAdjDataSize(0),
-              mPrjInfoData(0x72656374), //rect in ascii
-              mPrjInfoDataSize(0),
-              mHorizFieldOfViewData(0),
-              mHorizFieldOfViewDataSize(0) {
-        }
-        // for Stereo ISO-BMFF mandatory information (stri box)
-        bool mEyeViewsReversed;
-        bool mHasAdditionalViews;
-        bool mHasRightEyeView;
-        bool mHasLeftEyeView;
-        size_t mStereoSpecificDataSize;
-        // for Hero eye ISO-BMFF information (hero box)
-        uint8_t mHeroEyeIndicator;
-        size_t mHeroEyeDataSize;
-        // for Stereo Camera baseline information (blin box)
-        uint32_t mBaselineDistanceData;
-        size_t mBaselineDistanceDataSize;
-        // for Stereo Display Adjustment information (dadj box)
-        uint32_t mStereoDispAdjData;
-        size_t mStereoDispAdjDataSize;
-        // for Video stereo projection information (prji box)
-        uint32_t mPrjInfoData;
-        size_t mPrjInfoDataSize;
-        // for Horizontal Field of View information (hfov box)
-        uint32_t mHorizFieldOfViewData;
-        size_t mHorizFieldOfViewDataSize;
-    };
-    StereoParams mStereoParams;
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-
     void *mCodecSpecificData;
     size_t mCodecSpecificDataSize;
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-
-    // for MV-HEVC (LHVC box)
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    std::unique_ptr<uint8_t[]> mMvHevcSpecificData;
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    size_t mMvHevcSpecificDataSize;
-    // for Stereo ISO-BMFF mandatory information (stri box)
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    std::unique_ptr<uint8_t[]> mStereoSpecificData;
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    size_t mStereoSpecificDataSize;
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     bool mGotAllCodecSpecificData;
     bool mTrackingProgressStatus;
 
@@ -537,23 +464,14 @@ public:
 
     status_t copyCodecSpecificData(const uint8_t *data, size_t size, size_t minLength = 0);
 
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    status_t copyMvHevcCodecSpecificData(const uint8_t *data, size_t size, size_t minLength = 0);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     status_t makeAVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t copyAVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t parseAVCCodecSpecificData(const uint8_t *data, size_t size);
 
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    status_t makeHEVCCodecSpecificData(const uint8_t *data, size_t size,
-                                     const bool isMvHevc);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+    status_t makeHEVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t copyHEVCCodecSpecificData(const uint8_t *data, size_t size);
     status_t parseHEVCCodecSpecificData(
             const uint8_t *data, size_t size, HevcParameterSets &paramSets);
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    status_t makeMVHEVCCodecSpecificDataUsingSeiMessage(const uint8_t *data, size_t size);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
     status_t getDolbyVisionProfile();
 
@@ -597,14 +515,6 @@ public:
     void writePaspBox();
     void writeAvccBox();
     void writeHvccBox();
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-
-    // additional boxes for MV-HEVC
-    void writeLhvcBox();
-    void writeVexuBox();
-    void writeHfovBox();
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     void writeAv1cBox();
     void writeApvcBox();
     void writeDoviConfigBox();
@@ -719,9 +629,6 @@ void MPEG4Writer::initInternal(int fd, bool isFirstSession) {
         mAreGeoTagsAvailable = false;
         mSwitchPending = false;
         mIsFileSizeLimitExplicitlyRequested = false;
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mInfos.clear();
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     }
 
     // Verify mFd is seekable
@@ -817,10 +724,6 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "avc1";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
             return "hvc1";
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
-            return "hvc1";
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
             return "av01";
         } else if (editing_flags::muxer_mp4_enable_apv() &&
@@ -1142,9 +1045,6 @@ status_t MPEG4Writer::start(MetaData *param) {
     mStreamableFile =
         (mMaxFileSizeLimitBytes != 0 &&
          mMaxFileSizeLimitBytes >= kMinStreamableFileSizeInBytes);
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    mStreamableFile = 0;
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 
     /*
      * mWriteBoxToMemory is true if the amount of data in a file-level meta or
@@ -2448,23 +2348,8 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
       mMinCttsOffsetTicks(0),
       mMaxCttsOffsetTicks(0),
       mDoviProfile(0),
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-      mIsMvHevc(0),
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
       mCodecSpecificData(NULL),
       mCodecSpecificDataSize(0),
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-      mStereoParams(),
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-      mMvHevcSpecificData(nullptr),
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-      mMvHevcSpecificDataSize(0),
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-      mParamSets(false),
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
       mGotAllCodecSpecificData(false),
       mReachedEOS(false),
       mStartTimestampUs(-1),
@@ -2493,9 +2378,6 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
     mMeta->findCString(kKeyMIMEType, &mime);
     mIsAvc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC);
     mIsHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-    mIsMvHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MVHEVC);
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     mIsAv1 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1);
     mIsApv = editing_flags::muxer_mp4_enable_apv() && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV);
     mIsDovi = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
@@ -3071,9 +2953,6 @@ void MPEG4Writer::Track::getCodecSpecificDataFromInputFormatIfPossible() {
     if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC)) {
         mMeta->findData(kKeyAVCC, &type, &data, &size);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC) ||
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-               !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MVHEVC) ||
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
                !strcasecmp(mime, MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC)) {
         mMeta->findData(kKeyHVCC, &type, &data, &size);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1) ||
@@ -3129,10 +3008,7 @@ MPEG4Writer::Track::~Track() {
         free(mCodecSpecificData);
         mCodecSpecificData = NULL;
     }
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 
-    mMvHevcSpecificData.reset();
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
 }
 
 void MPEG4Writer::Track::initTrackingProgressStatus(MetaData *params) {
@@ -3150,25 +3026,6 @@ void MPEG4Writer::Track::initTrackingProgressStatus(MetaData *params) {
     }
 }
 
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-status_t MPEG4Writer::Track::copyMvHevcCodecSpecificData(
-        const uint8_t *data, size_t size, size_t minLength) {
-    if (size < minLength) {
-        ALOGE("copyMvHevcCodecSpecificData length too short: %zu", size);
-        return ERROR_MALFORMED;
-    }
-
-    mMvHevcSpecificData = std::make_unique<uint8_t[]>(size);
-    if (mMvHevcSpecificData.get() == nullptr) {
-        ALOGE("Failed allocating mvhevc codec specific data");
-        return NO_MEMORY;
-    }
-    mMvHevcSpecificDataSize = size;
-    memcpy(mMvHevcSpecificData.get(), data, size);
-    return OK;
-}
-
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 // static
 void *MPEG4Writer::ThreadWrapper(void *me) {
     ALOGV("ThreadWrapper: %p", me);
@@ -3829,104 +3686,39 @@ status_t MPEG4Writer::Track::parseHEVCCodecSpecificData(
         }
 // QTI_END: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    const bool isMvHevc = paramSets.IsMvHevc();
-    const size_t numLayers = isMvHevc? 2 : 1;
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
     size_t csdSize = 23;
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    size_t csdSizeMvHevc = 6;
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     const size_t numNalUnits = paramSets.getNumNalUnits();
     for (size_t i = 0; i < ARRAY_SIZE(kMandatoryHevcNalUnitTypes); ++i) {
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        // MV-HEVC : find any parameter set whose nuh_layer_id > 0
-        for (size_t layer = 0; layer < numLayers; ++layer) {
-            int type = kMandatoryHevcNalUnitTypes[i];
-            if (type == 32 && layer > 0) {
-                continue; // Only one VPS is expected in the bitstream.
-            }
-            size_t numParamSets = paramSets.getNumNalUnitsOfType(type, layer);
-            if (numParamSets == 0 && layer == 0) {
-                ALOGE("Cound not find NAL unit of type %d", type);
-                return ERROR_MALFORMED;
-            } else if (isMvHevc && numParamSets == 0 && type != kHevcNalUnitTypeVps
-                && layer == 1) {
-                // for the Nal units nuh_layer_id > 0, VPS is not mandatory
-                ALOGE("Could not find NAL unit of type %d", type);
-                return ERROR_MALFORMED;
-            }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
+        int type = kMandatoryHevcNalUnitTypes[i];
+        size_t numParamSets = paramSets.getNumNalUnitsOfType(type);
+        if (numParamSets == 0) {
+            ALOGE("Cound not find NAL unit of type %d", type);
+            return ERROR_MALFORMED;
         }
     }
     for (size_t i = 0; i < ARRAY_SIZE(kHevcNalUnitTypes); ++i) {
         int type = kHevcNalUnitTypes[i];
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        for (size_t layer = 0; layer < numLayers; ++layer) {
-            size_t numParamSets = paramSets.getNumNalUnitsOfType(type, layer);
-            if (numParamSets > 0xffff) {
-                ALOGE("Too many seq parameter sets (%zu) found", numParamSets);
-                return ERROR_MALFORMED;
+        size_t numParamSets = paramSets.getNumNalUnitsOfType(type);
+        if (numParamSets > 0xffff) {
+            ALOGE("Too many seq parameter sets (%zu) found", numParamSets);
+            return ERROR_MALFORMED;
+        }
+        csdSize += 3;
+        for (size_t j = 0; j < numNalUnits; ++j) {
+            if (paramSets.getType(j) != type) {
+                continue;
             }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-            if (numParamSets == 0) {
-                 continue;
-             }
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-            switch (layer) {
-                case 0 :
-                    csdSize += 3;
-                    for (size_t j = 0; j < numNalUnits; ++j) {
-                        if (paramSets.getType(j) != type) {
-                            continue;
-                        }
-                        csdSize += 2 + paramSets.getSize(j);
-                    }
-                    break;
-                case 1 :
-                    csdSizeMvHevc += 3;
-                    for (size_t j = 0; j < numNalUnits; ++j) {
-                        if ((paramSets.getType(j) != type)
-                            || (type == kHevcNalUnitTypeVps)) {
-                            continue;
-                        }
-                        csdSizeMvHevc += 2 + paramSets.getSize(j);
-                    }
-                    break;
-                default :
-                    break;
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-            }
+            csdSize += 2 + paramSets.getSize(j);
         }
     }
     mCodecSpecificDataSize = csdSize;
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    if (isMvHevc) {
-        mMvHevcSpecificDataSize = csdSizeMvHevc;
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mStereoParams.mStereoSpecificDataSize = 1;
-        mStereoParams.mPrjInfoDataSize = 1;
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
 status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        const uint8_t *data, size_t size, const bool isMvHevc) {
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+        const uint8_t *data, size_t size) {
 
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    mParamSets.setMvHevc(isMvHevc);
-    ALOGV("mime type in makeHEVCCodecSpecificData: %s", isMvHevc? "video/x-mvhevc" : "video/hevc");
-
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
     if (mCodecSpecificData != NULL) {
         ALOGE("Already have codec specific data");
         return ERROR_MALFORMED;
@@ -3944,9 +3736,8 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
         return copyHEVCCodecSpecificData(data, size);
     }
 
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    if (parseHEVCCodecSpecificData(data, size, mParamSets) != OK) {
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+    HevcParameterSets paramSets;
+    if (parseHEVCCodecSpecificData(data, size, paramSets) != OK) {
         ALOGE("failed parsing codec specific data");
         return ERROR_MALFORMED;
     }
@@ -3957,166 +3748,13 @@ status_t MPEG4Writer::Track::makeHEVCCodecSpecificData(
         ALOGE("Failed allocating codec specific data");
         return NO_MEMORY;
     }
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    ALOGV("mParamSets.IsMvHevc() : %d", mParamSets.IsMvHevc());
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    status_t err = mParamSets.IsMvHevc()?mParamSets.makeHvcc_l((uint8_t *)mCodecSpecificData,
-            &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2)
-            : mParamSets.makeHvcc((uint8_t *)mCodecSpecificData,
-             &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
+    status_t err = paramSets.makeHvcc((uint8_t *)mCodecSpecificData,
+            &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
     if (err != OK) {
         ALOGE("failed constructing HVCC atom");
         return err;
     }
 
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    // memory allocation for MV-HEVC
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    if (mParamSets.IsMvHevc())
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    {
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        ALOGV("[MV-HEVC] lhvC composition");
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        mMvHevcSpecificData = std::make_unique<uint8_t[]>(mMvHevcSpecificDataSize);
-        if (!mMvHevcSpecificData) {
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-            mMvHevcSpecificDataSize = 0;
-            return NO_MEMORY;
-        }
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        status_t err = mParamSets.makeLhvc(mMvHevcSpecificData.get(),
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-                &mMvHevcSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
-        if (err != OK) {
-            ALOGE("failed constructing LHVC atom");
-            return err;
-        }
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        // stri box info
-        mStereoParams.mEyeViewsReversed = 0;
-        mStereoParams.mHasAdditionalViews = 0;
-        mStereoParams.mHasRightEyeView = 1;
-        mStereoParams.mHasLeftEyeView = 1;
-        mStereoParams.mStereoSpecificDataSize = 1;
-
-        // hero box info
-        if(mParamSets.getThreeDimParamParsed()) {
-            // hero box can be constructed correctly using three dimensional reference SEI message.
-            ALOGV("Construct hero box in makeHevcCodecSpecificData()");
-            mStereoParams.mHeroEyeDataSize = 1;
-            mParamSets.makeHero(&mStereoParams.mHeroEyeIndicator);
-        }
-
-        // prji box info
-        if(mStereoParams.mPrjInfoDataSize > 0) {
-            mStereoParams.mPrjInfoData = 0x72656374; // rect in ascii
-        }
-
-        std::string camInfo; // needs to be added based on cameraInfp
-        if (mOwner->getStereoCameraInfo(camInfo)) {
-            std::stringstream ss(camInfo);
-            std::string token;
-
-            // baseline distance (for blin box)
-            std::getline(ss, token, ',');
-            mStereoParams.mBaselineDistanceData = (uint32_t)(std::stof(token) * 1000);
-            mStereoParams.mBaselineDistanceDataSize = 1;
-            ALOGV("blin : %.3f", mStereoParams.mBaselineDistanceData);
-
-            // disparity adjustment (for dadj box)
-            std::getline(ss, token, ',');
-            mStereoParams.mStereoDispAdjData = (uint32_t)(std::stof(token) * 10000);
-            mStereoParams.mStereoDispAdjDataSize = 1;
-            ALOGV("dadj : %.4f", mStereoParams.mStereoDispAdjData);
-
-            // horizontal field of view (for hfov box)
-            std::getline(ss, token, ',');
-            mStereoParams.mHorizFieldOfViewData = (uint32_t)(std::stof(token) * 1000);
-            mStereoParams.mHorizFieldOfViewDataSize = 1;
-            ALOGV("hfov : %.2f", mStereoParams.mHorizFieldOfViewData);
-        } else {
-            ALOGV("Stereo camera inforamtion is not set");
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    }
-    return OK;
-}
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-status_t MPEG4Writer::Track::makeMVHEVCCodecSpecificDataUsingSeiMessage(const uint8_t *data,
-                                                                size_t size) {
-    const uint8_t *seiNalData;
-    const uint8_t *tmp = data;
-    const uint8_t *nextStartCode = data;
-    size_t seiNalLength = 0;
-    size_t bytesLeft = size;
-    while (bytesLeft > 4 && !memcmp("\x00\x00\x00\x01", tmp, 4)) {
-        nextStartCode = findNextNalStartCode(tmp + 4, bytesLeft - 4);
-        const uint8_t* nalu = tmp + 4;
-        uint8_t nalUnitType = (nalu[0] >> 1) & 0x3f;
-        if(nalUnitType == 39) { // check whether the current NAL is an SEI message
-            seiNalData = tmp;
-            seiNalLength = nextStartCode - tmp;
-            break;
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        bytesLeft -= nextStartCode - tmp;
-        tmp = nextStartCode;
-    }
-    if (!seiNalLength) {
-        ALOGE("no SEI is found.");
-        return ERROR_MALFORMED;
-    }
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    if (parseHEVCCodecSpecificData(seiNalData,
-                                    seiNalLength, mParamSets) != OK) {
-        ALOGE("failed parsing codec specific data");
-        return ERROR_MALFORMED;
-    }
-
-    if (mParamSets.getThreeDimParamParsed()) {
-        if (mCodecSpecificData) {
-            // reallocation of the buffer for codec specific data for updating SEI message.
-            free(mCodecSpecificData);
-            mCodecSpecificData = malloc(mCodecSpecificDataSize);
-        }
-        // update the codec specific data with the SEI message.
-        status_t err = mParamSets.makeHvcc_l((uint8_t *)mCodecSpecificData,
-                &mCodecSpecificDataSize, mOwner->useNalLengthFour() ? 4 : 2);
-        if (err != OK) {
-            ALOGE("failed constructing HVCC atom");
-            return ERROR_MALFORMED;
-        }
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mStereoParams.mHeroEyeDataSize = 1;
-        mParamSets.makeHero(&mStereoParams.mHeroEyeIndicator);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
 
@@ -4166,9 +3804,6 @@ uint32_t parseEscaped(ABitReader &br, uint32_t bits1 = 0,
   }
   return value;
 }
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
-
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 status_t MPEG4Writer::Track::parseMHASPackets(MediaBufferBase *buffer) {
     const uint8_t* data = (const uint8_t*)buffer->data();
     size_t size = buffer->size();
@@ -4278,8 +3913,6 @@ status_t MPEG4Writer::Track::threadEntry() {
     status_t err = OK;
     MediaBufferBase *buffer;
     const char *trackName = getTrackType();
-
-// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
     while (!mDone && (err = mSource->read(&buffer)) == OK && buffer != NULL) {
 // QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
         ALOGV("read:buffer->range_length:%lld", (long long)buffer->range_length());
@@ -4339,16 +3972,12 @@ status_t MPEG4Writer::Track::threadEntry() {
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
                             buffer->range_length());
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-                } else if (mIsHevc || mIsHeic || mIsMvHevc) {
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
+                } else if (mIsHevc || mIsHeic) {
                     err = makeHEVCCodecSpecificData(
                             (const uint8_t *)buffer->data()
                                 + buffer->range_offset(),
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-                            buffer->range_length(), mIsMvHevc);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-                } else if (mIsMPEG4 || mIsAv1 || mIsApv) {
+                            buffer->range_length());
+                } else if (mIsMPEG4 || mIsAv1) {
                     err = copyCodecSpecificData((const uint8_t *)buffer->data() + buffer->range_offset(),
                             buffer->range_length());
                 }
@@ -5176,9 +4805,6 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime) ||
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-        !strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime) ||
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime) ||
         (editing_flags::muxer_mp4_enable_apv() && !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, mime) ||
@@ -5210,11 +4836,7 @@ void MPEG4Writer::Track::writeTrackHeader() {
     uint32_t now = getMpeg4Time();
     mOwner->beginBox("trak");
         writeTkhdBox(now);
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        if (!mIsMvHevc) {
-            writeEdtsBox();
-        }
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
+        writeEdtsBox();
         mOwner->beginBox("mdia");
             writeMdhdBox(now);
             writeHdlrBox();
@@ -5357,13 +4979,6 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
         writeAvccBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime)) {
         writeHvccBox();
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MVHEVC, mime)) {
-        writeHvccBox();
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        writeLhvcBox();
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
         writeAv1cBox();
     } else if (editing_flags::muxer_mp4_enable_apv() &&
@@ -5382,12 +4997,6 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
 
     writePaspBox();
     writeColrBox();
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    if (mIsMvHevc) {
-        writeVexuBox();
-        writeHfovBox();
-    }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     writeMdcvAndClliBoxes();
     mOwner->endBox();  // mp4v, s263 or avc1
 }
@@ -5642,8 +5251,6 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
 
     mOwner->endBox();  // esds
 }
-
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 void MPEG4Writer::Track::writeMhaCBox() {
     mOwner->beginBox("mhaC");
     mOwner->writeInt8(0x01);          // version=1
@@ -5976,199 +5583,6 @@ void MPEG4Writer::Track::writeHvccBox() {
     mOwner->endBox();  // hvcC
 }
 
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-void MPEG4Writer::Track::writeLhvcBox() {
-    ALOGV("writing lhvc box");
-    // To be modified properly
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    CHECK(mMvHevcSpecificData != nullptr);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-
-    // Patch hvcc's lengthSize field to match the number
-    // of bytes we use to indicate the size of a nal unit.
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    uint8_t *ptr = mMvHevcSpecificData.get();
-    ptr[4] = (ptr[4] & 0xfc) | (mOwner->useNalLengthFour() ? 3 : 1);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    mOwner->beginBox("lhvC");
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    mOwner->write(mMvHevcSpecificData.get(), mMvHevcSpecificDataSize);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    mOwner->endBox();  // lhvc
-}
-
-void MPEG4Writer::Track::writeVexuBox() {
-    ALOGV("writing vexu box");
-    // To be modified properly
-
-    // FIXME : device-dependent information should be included
-    // mime type : blin, dadj (not mandatory)
-    // please refer to the website https://blog.mikeswanson.com/spatial-video
-    // or Stereo-Video-ISOBMFF Version 0.9 (June 21, 2023)
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    if (mStereoParams.mStereoSpecificDataSize != 1) {
-        ALOGE("Skip writing vexu box - stri box is mandatory for vexu box, but not available");
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        return;
-    }
-    mOwner->beginBox("vexu");
-    mOwner->beginBox("eyes"); // container only
-    mOwner->beginBox("stri");
-    mOwner->writeInt32(0); // stri extends FullBox, version=0 (8), flags=0 (24)
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    uint8_t stri = 0;
-    // preceding 4 bits are reserved (0)
-    stri = uint8_t(mStereoParams.mEyeViewsReversed) << 3;
-    stri |= uint8_t(mStereoParams.mHasAdditionalViews) << 2;
-    stri |= uint8_t(mStereoParams.mHasRightEyeView) << 1;
-    stri |= uint8_t(mStereoParams.mHasLeftEyeView);
-    mOwner->writeInt8(stri);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    mOwner->endBox();  // stri
-
-    // hero box is an optional box.
-    // If any meaningful info is not available, it is set to a default value.
-    // (the left view is set as a base view)
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    if (mStereoParams.mHeroEyeDataSize == 1) {
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->beginBox("hero");
-        mOwner->writeInt32(0); // hero extends FullBox, version=0 (8), flags=0 (24)
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mOwner->writeInt8(mStereoParams.mHeroEyeIndicator);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->endBox(); //hero
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    }
-
-    // blin box is an optional box.
-    // If any meaningful info is not available, zero is written.
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    if (mStereoParams.mBaselineDistanceDataSize == 1) { // mStereoDispAdjDataSize is uint32_t
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->beginBox("cams"); // container only
-        mOwner->beginBox("blin");
-        mOwner->writeInt32(0); // blin extends FullBox, version=0 (8), flags=0 (24)
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mOwner->writeInt32(mStereoParams.mBaselineDistanceData);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->endBox(); //blin
-        mOwner->endBox(); //cams
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    } else {
-        //FIXME : This part should be removed when parameters from the camera is available
-        mOwner->beginBox("cams"); // container only
-        mOwner->beginBox("blin");
-        mOwner->writeInt32(0); // blin extends FullBox, version=0 (8), flags=0 (24)
-        uint8_t tmp[4] = {0, 0, 0, 0};
-        mOwner->write(tmp, (size_t)4);
-        mOwner->endBox(); //blin
-        mOwner->endBox(); //cams
-    }
-
-    // dadj box is an optional box.
-    // If any meaningful info is not available, zero is written.
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    if (mStereoParams.mStereoDispAdjDataSize == 1) { // mStereoDispAdjDataSize is uint32_t
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->beginBox("cmfy"); // container only
-        mOwner->beginBox("dadj");
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        mOwner->writeInt32(0); // dadj extends FullBox, version=0 (8), flags=0 (24)
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mOwner->writeInt32(mStereoParams.mStereoDispAdjData);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-        mOwner->endBox(); //dadj
-        mOwner->endBox(); //cmfy
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    } else {
-        //FIXME : This part should be removed when parameters from the camera is available
-        mOwner->beginBox("cmfy"); // container only
-        mOwner->beginBox("dadj");
-        mOwner->writeInt32(0); // dadj extends FullBox, version=0 (8), flags=0 (24)
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        mOwner->writeInt32(0);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-        mOwner->endBox(); //dadj
-        mOwner->endBox(); //cmfy
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    mOwner->endBox(); //eyes
-    // prji box is an optional box.
-    // the value is fixed as "rect"
-    mOwner->beginBox("proj"); // container only
-    mOwner->beginBox("prji");
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    mOwner->writeInt32(0); // prij extends FullBox, version=0 (8), flags=0 (24)
-    mOwner->writeInt32(mStereoParams.mPrjInfoData);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    mOwner->endBox();  // prji
-    mOwner->endBox();  // stbl
-    mOwner->endBox();  // vexu
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-}
-
-void MPEG4Writer::Track::writeHfovBox() {
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-    // If any meaningful info is not available, zero is written as default.
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    ALOGV("writing Hfov box");
-    mOwner->beginBox("hfov");
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    if (mStereoParams.mHorizFieldOfViewDataSize == 1) {  // mHorizFieldOfViewDataSize is uint32_t
-        mOwner->writeInt32(mStereoParams.mHorizFieldOfViewData);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    } else {
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-        ALOGI("hfov box - filled with 0");
-        mOwner->writeInt32(0);
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
-    }
-    mOwner->endBox();  // hfov
-}
-
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 void MPEG4Writer::Track::writeAv1cBox() {
     CHECK(mCodecSpecificData);
     CHECK_GE(mCodecSpecificDataSize, 4u);
@@ -6861,35 +6275,4 @@ void MPEG4Writer::writeGeoDataBox() {
     endBox();
 }
 
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-status_t MPEG4Writer::setCameraInfo(String8 info) {
-    // start temporary code until add se api
-    std::stringstream ss(info.c_str());
-    std::string substring;
-    while (getline(ss, substring, '|')) {
-        int pos = substring.find(':');
-        std::string key = substring.substr(0, pos);
-        std::string value = substring.substr(pos +1);
-        mInfos.insert({key, value});
-    }
-    // end temporary code until add se api
-
-    //mCameraInfo = info;
-    ALOGV("Camera information : %s", info.c_str());
-    return OK;
-}
-
-bool MPEG4Writer::getStereoCameraInfo(std::string &stereoCamInfo) {
-    ALOGV("getStereoCameraInfo()");
-    auto info = mInfos.find("stereo");
-    if (info == mInfos.end()) {
-        ALOGE("no stereo data found.");
-        return false;
-    }
-    ALOGV("stereo data is available.");
-    stereoCamInfo = info->second;
-    return true;
-}
-
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 }  // namespace android
