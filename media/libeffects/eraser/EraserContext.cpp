@@ -129,10 +129,9 @@ IEffect::Status EraserContext::process(float*, float*, int samples) {
 
     // TODO: convert input buffer to tensor input format (16kHz/mono/float16) and process
 
-    const int iFrames = samples / inputChCount;
-    procStatus.fmqConsumed = static_cast<int32_t>(iFrames * inputChCount);
-    procStatus.fmqProduced = static_cast<int32_t>(iFrames * outputChCount);
-    return procStatus;
+    const int inputFrames = samples / inputChCount;
+    return IEffect::Status{STATUS_OK, static_cast<int32_t>(inputFrames * inputChCount),
+                           static_cast<int32_t>(inputFrames * outputChCount)};
 }
 
 }  // namespace aidl::android::hardware::audio::effect
