@@ -195,7 +195,7 @@ public:
         return result;
     }
 
-    aaudio_result_t close() {
+    virtual aaudio_result_t close() {
         if (mStream != nullptr) {
             AAudioStream_close(mStream);
             mStream = nullptr;

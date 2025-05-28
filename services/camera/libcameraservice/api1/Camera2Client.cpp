@@ -512,15 +512,13 @@ binder::Status Camera2Client::disconnect() {
     bool hasDeviceError = mDevice->hasDeviceError();
     mDevice->disconnect();
 
-    if (flags::api1_release_binderlock_before_cameraservice_disconnect()) {
+    {
         // CameraService::Client::disconnect calls CameraService which attempts to lock
         // CameraService's mServiceLock. This might lead to a deadlock if the cameraservice is
         // currently waiting to lock mSerializationLock on another thread.
         mBinderSerializationLock.unlock();
         CameraService::Client::disconnect();
         mBinderSerializationLock.lock();
-    } else {
-        CameraService::Client::disconnect();
     }
 
     int32_t closeLatencyMs = ns2ms(systemTime() - startTime);
