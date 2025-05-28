@@ -114,7 +114,6 @@ public:
                         ((mFlags.input & AUDIO_INPUT_FLAG_MMAP_NOIRQ) != 0)));
     }
 
-    void setHalIdForTest(int32_t halId) { mHalId = halId; }
     int32_t getHalId() const { return mHalId; }
 
     void dump(std::string *dst, int spaces,

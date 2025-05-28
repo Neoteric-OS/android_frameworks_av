@@ -29,7 +29,6 @@
 #include <android-base/properties.h>
 #include <android/content/AttributionSourceState.h>
 #include <android_media_audiopolicy.h>
-#include <com_android_media_audio.h>
 #include <com_android_media_audioserver.h>
 #include <cutils/properties.h>
 #include <flag_macros.h>
@@ -552,7 +551,7 @@ void AudioPolicyManagerTestMsd::SetUpManagerConfig() {
 
         sp<OutputProfile> spdifOutputProfile = new OutputProfile("spdif output");
         spdifOutputProfile->addAudioProfile(pcmOutputProfile);
-        spdifOutputProfile->addSupportedRoutableDevice(mSpdifDevice);
+        spdifOutputProfile->addSupportedDevice(mSpdifDevice);
         mConfig->getHwModules().getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY)->
                 addOutputProfile(spdifOutputProfile);
     }
@@ -564,24 +563,24 @@ void AudioPolicyManagerTestMsd::SetUpManagerConfig() {
 
     sp<OutputProfile> msdOutputProfile = new OutputProfile("msd input");
     msdOutputProfile->addAudioProfile(pcmOutputProfile);
-    msdOutputProfile->addSupportedRoutableDevice(mMsdOutputDevice);
+    msdOutputProfile->addSupportedDevice(mMsdOutputDevice);
     msdModule->addOutputProfile(msdOutputProfile);
     sp<OutputProfile> msdCompressedOutputProfile = new OutputProfile("msd compressed input");
     msdCompressedOutputProfile->addAudioProfile(ac3OutputProfile);
     msdCompressedOutputProfile->setFlags(
             AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD |
             AUDIO_OUTPUT_FLAG_NON_BLOCKING);
-    msdCompressedOutputProfile->addSupportedRoutableDevice(mMsdOutputDevice);
+    msdCompressedOutputProfile->addSupportedDevice(mMsdOutputDevice);
     msdModule->addOutputProfile(msdCompressedOutputProfile);
     sp<OutputProfile> msdIec958OutputProfile = new OutputProfile("msd iec958 input");
     msdIec958OutputProfile->addAudioProfile(iec958OutputProfile);
     msdIec958OutputProfile->setFlags(AUDIO_OUTPUT_FLAG_DIRECT);
-    msdIec958OutputProfile->addSupportedRoutableDevice(mMsdOutputDevice);
+    msdIec958OutputProfile->addSupportedDevice(mMsdOutputDevice);
     msdModule->addOutputProfile(msdIec958OutputProfile);
 
     sp<InputProfile> msdInputProfile = new InputProfile("msd output");
     msdInputProfile->addAudioProfile(pcmInputProfile);
-    msdInputProfile->addSupportedRoutableDevice(mMsdInputDevice);
+    msdInputProfile->addSupportedDevice(mMsdInputDevice);
     msdModule->addInputProfile(msdInputProfile);
 
     // Add a profile with another encoding to the default device to test routing
@@ -592,14 +591,14 @@ void AudioPolicyManagerTestMsd::SetUpManagerConfig() {
     sp<OutputProfile> primaryEncodedOutputProfile = new OutputProfile("encoded");
     primaryEncodedOutputProfile->addAudioProfile(dtsOutputProfile);
     primaryEncodedOutputProfile->setFlags(AUDIO_OUTPUT_FLAG_DIRECT);
-    primaryEncodedOutputProfile->addSupportedRoutableDevice(mConfig->getDefaultOutputDevice());
+    primaryEncodedOutputProfile->addSupportedDevice(mConfig->getDefaultOutputDevice());
     mConfig->getHwModules().getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY)->
             addOutputProfile(primaryEncodedOutputProfile);
 
     mDefaultOutputDevice = mConfig->getDefaultOutputDevice();
     if (mExpectedAudioPatchCount == 3) {
         mSpdifDevice->addAudioProfile(dtsOutputProfile);
-        primaryEncodedOutputProfile->addSupportedRoutableDevice(mSpdifDevice);
+        primaryEncodedOutputProfile->addSupportedDevice(mSpdifDevice);
     }
 
     // Add HDMI input device with IEC60958 profile for HDMI in -> MSD patching.
@@ -611,7 +610,7 @@ void AudioPolicyManagerTestMsd::SetUpManagerConfig() {
     sp<InputProfile> hdmiInputProfile = new InputProfile("hdmi input");
     hdmiInputProfile->addAudioProfile(iec958InputProfile);
     hdmiInputProfile->setFlags(AUDIO_INPUT_FLAG_DIRECT);
-    hdmiInputProfile->addSupportedRoutableDevice(mHdmiInputDevice);
+    hdmiInputProfile->addSupportedDevice(mHdmiInputDevice);
     mConfig->getHwModules().getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY)->
             addInputProfile(hdmiInputProfile);
 }
@@ -5163,162 +5162,6 @@ TEST_F_WITH_FLAGS(
     EXPECT_EQ(2, mClient->getOpenInputCallsCount());
     EXPECT_EQ(1, mClient->getCloseInputCallsCount());
     EXPECT_NE(input1, input2);
-}
-
-class AudioPolicyManagerPortRoutingTest : public AudioPolicyManagerTestWithConfigurationFile {
-};
-
-TEST_F_WITH_FLAGS(
-        AudioPolicyManagerPortRoutingTest,
-        PortRoutingOverUsbIsRespected,
-        REQUIRES_FLAGS_ENABLED(
-                ACONFIG_FLAG(com::android::media::audio, check_route_in_get_audio_mix_port),
-                ACONFIG_FLAG(com::android::media::audioserver, enable_strict_port_routing_checks))
-) {
-    // These values must match the number of input and output mix ports defined
-    // for the "usb" module in the test_audio_policy_configuration.xml file:
-    //
-    // Number of USB devices that we will connect at once for testing.
-    const size_t NUM_DEVICES = 2;
-    // Number of USB mix ports that we expect to find in the config.
-    const size_t NUM_MIX_PORTS = 2;
-
-    const audio_devices_t kUsbInHsType = AUDIO_DEVICE_IN_USB_HEADSET;
-    const audio_devices_t kUsbOutHsType = AUDIO_DEVICE_OUT_USB_HEADSET;
-    const std::string usbAddrs[NUM_DEVICES] = {"card=1;device=0", "card=2;device=0"};
-
-    // This test is based on XML config parsing and does not have HAL IDs.
-    // We assign some unique numbers to test this AIDL feature.
-    int32_t halIdCounter = AUDIO_PORT_HANDLE_NONE + 1;
-    for (const auto& hwModule : mManager->getHwModules()) {
-        for (size_t i = 0; i < hwModule->getOutputProfiles().size(); ++i) {
-            sp<IOProfile> outProfile = hwModule->getOutputProfiles()[i];
-            outProfile->setHalIdForTest(halIdCounter++);
-        }
-        for (size_t i = 0; i < hwModule->getInputProfiles().size(); ++i) {
-            sp<IOProfile> inProfile = hwModule->getInputProfiles()[i];
-            inProfile->setHalIdForTest(halIdCounter++);
-        }
-    }
-
-    sp<HwModule> usbModule = nullptr;
-    for (const auto& hwModule : mManager->getHwModules()) {
-        if (strcmp(hwModule->getName(), "usb") == 0) {
-            usbModule = hwModule;
-            break;
-        }
-    }
-    ASSERT_NE(nullptr, usbModule.get());
-
-    // General device descriptors to identify profiles that support
-    // the USB device type.
-    sp<DeviceDescriptor> usbGeneralInDevDesc =
-          new DeviceDescriptor(AudioDeviceTypeAddr(kUsbInHsType, ""));
-    sp<DeviceDescriptor> usbGeneralOutDevDesc =
-          new DeviceDescriptor(AudioDeviceTypeAddr(kUsbOutHsType, ""));
-
-    // Find eligible mix port profiles in the usb module.
-    std::vector<sp<IOProfile>> usbInMixPortProfiles;
-    for (size_t i = 0; i < usbModule->getInputProfiles().size(); ++i) {
-        sp<IOProfile> inProfile = usbModule->getInputProfiles()[i];
-        if (inProfile->supportsDevice(usbGeneralInDevDesc)) {
-            usbInMixPortProfiles.push_back(inProfile);
-        }
-    }
-    ASSERT_EQ(NUM_MIX_PORTS, usbInMixPortProfiles.size());
-
-    std::vector<sp<IOProfile>> usbOutMixPortProfiles;
-    for (size_t i = 0; i < usbModule->getOutputProfiles().size(); ++i) {
-        sp<IOProfile> outProfile = usbModule->getOutputProfiles()[i];
-        if (outProfile->supportsDevice(usbGeneralOutDevDesc)) {
-            usbOutMixPortProfiles.push_back(outProfile);
-        }
-    }
-    ASSERT_EQ(NUM_MIX_PORTS, usbOutMixPortProfiles.size());
-
-    // Connect each device.
-    for (size_t i = 0; i < NUM_DEVICES; ++i) {
-        // Simulate exclusive routing from HAL.
-        std::set<int32_t> nonRoutableInPortIds;
-        std::set<int32_t> nonRoutableOutPortIds;
-        for (size_t halId = AUDIO_PORT_HANDLE_NONE + 1; halId < halIdCounter; ++halId) {
-            if (usbInMixPortProfiles[i]->getHalId() != halId) {
-                nonRoutableInPortIds.insert(halId);
-            }
-            if (usbOutMixPortProfiles[i]->getHalId() != halId) {
-                nonRoutableOutPortIds.insert(halId);
-            }
-        }
-
-        mClient->setNonRoutableMixPortsForDevice(kUsbInHsType, usbAddrs[i], nonRoutableInPortIds);
-        mClient->setNonRoutableMixPortsForDevice(kUsbOutHsType, usbAddrs[i], nonRoutableOutPortIds);
-
-        ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
-                kUsbInHsType, AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                usbAddrs[i].c_str(), "", AUDIO_FORMAT_DEFAULT));
-        ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
-                kUsbOutHsType, AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
-                usbAddrs[i].c_str(), "", AUDIO_FORMAT_DEFAULT));
-    }
-
-    // Verify port connectivity and routability.
-    for (size_t i = 0; i < NUM_DEVICES; ++i) {
-        // Device port can be identified by type and address.
-        audio_port_v7 usbInDevicePort;
-        ASSERT_TRUE(findDevicePort(AUDIO_PORT_ROLE_SOURCE, kUsbInHsType,
-                                   usbAddrs[i], &usbInDevicePort));
-
-        audio_port_v7 usbOutDevicePort;
-        ASSERT_TRUE(findDevicePort(AUDIO_PORT_ROLE_SINK, kUsbOutHsType,
-                                   usbAddrs[i], &usbOutDevicePort));
-
-        sp<DeviceDescriptor> inDevDesc =
-              mManager->getAvailableInputDevices().getDeviceFromDeviceTypeAddr(
-                  AudioDeviceTypeAddr(kUsbInHsType, usbAddrs[i]));
-        ASSERT_NE(nullptr, inDevDesc);
-
-        sp<DeviceDescriptor> outDevDesc =
-              mManager->getAvailableOutputDevices().getDeviceFromDeviceTypeAddr(
-                  AudioDeviceTypeAddr(kUsbOutHsType, usbAddrs[i]));
-        ASSERT_NE(nullptr, outDevDesc);
-
-        // The device maps to the intended mix port profile.
-        audio_format_t requestedFormat = AUDIO_FORMAT_PCM_16_BIT;
-        uint32_t requestedRate = 48000;
-        audio_channel_mask_t requestedChannelMask = AUDIO_CHANNEL_IN_STEREO;
-        auto inProfile = mManager->getInputProfile(
-            inDevDesc, requestedRate, requestedFormat, requestedChannelMask, AUDIO_INPUT_FLAG_NONE);
-        ASSERT_NE(nullptr, inProfile.get());
-        ASSERT_EQ(usbInMixPortProfiles[i]->getHalId(), inProfile->getHalId());
-
-        DeviceVector outDevices(outDevDesc);
-        SortedVector<audio_io_handle_t> outIoHandles =
-              mManager->getOutputsForDevices(outDevices, mManager->getOutputs());
-
-        for (audio_io_handle_t handle : outIoHandles) {
-            const auto desc = mManager->getOutputs().valueFor(handle);
-
-            ASSERT_EQ(true, desc->routesToDevice(outDevDesc));
-
-            if (!desc->isDuplicated()) {
-                ASSERT_EQ(usbOutMixPortProfiles[i]->getHalId(),
-                          mClient->getMixPortIdByIoHandle(handle));
-            }
-        }
-    }
-
-    // Disconnect each device.
-    for (size_t i = 0; i < NUM_DEVICES; ++i) {
-        mClient->setNonRoutableMixPortsForDevice(kUsbInHsType, usbAddrs[i], std::set<int32_t>());
-        ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
-                kUsbInHsType, AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-                usbAddrs[i].c_str(), "", AUDIO_FORMAT_DEFAULT));
-
-        mClient->setNonRoutableMixPortsForDevice(kUsbOutHsType, usbAddrs[i], std::set<int32_t>());
-        ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
-                kUsbOutHsType, AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
-                usbAddrs[i].c_str(), "", AUDIO_FORMAT_DEFAULT));
-    }
 }
 
 int main(int argc, char** argv) {

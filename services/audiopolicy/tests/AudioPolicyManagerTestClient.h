@@ -40,27 +40,18 @@ public:
                         audio_io_handle_t *output,
                         audio_config_t *halConfig,
                         audio_config_base_t *mixerConfig,
-                        const sp<DeviceDescriptorBase>& device,
+                        const sp<DeviceDescriptorBase>& /*device*/,
                         uint32_t * /*latencyMs*/,
                         audio_output_flags_t *flags,
                         audio_attributes_t /*attributes*/,
-                        int32_t mixPortId) override {
+                        int32_t /*mixPortId*/) override {
         if (module >= mNextModuleHandle) {
             ALOGE("%s: Module handle %d has not been allocated yet (next is %d)",
                   __func__, module, mNextModuleHandle);
             return BAD_VALUE;
         }
-
-        const auto deviceKey = std::make_pair(device->type(), device->address());
-        // Check if the route is artificially forbidden in the test case.
-        if (mNonRoutableMixPortsForDevice.count(deviceKey) &&
-              mNonRoutableMixPortsForDevice[deviceKey].count(mixPortId)) {
-            return INVALID_OPERATION;
-        }
-
         *output = mNextIoHandle++;
         mOpenedOutputs[*output] = *flags;
-        mIoHandleToMixPortId[*output] = mixPortId;
         ALOGD("%s: opened output %d: HAL(%s %s %d) Mixer(%s %s %d) %s", __func__, *output,
               audio_channel_out_mask_to_string(halConfig->channel_mask),
               audio_format_to_string(halConfig->format), halConfig->sample_rate,
@@ -79,7 +70,6 @@ public:
     status_t closeOutput(audio_io_handle_t output) override {
         if (auto iter = mOpenedOutputs.find(output); iter != mOpenedOutputs.end()) {
             mOpenedOutputs.erase(iter);
-            mIoHandleToMixPortId.erase(output);
             return NO_ERROR;
         } else {
             ALOGE("%s: Unknown output %d", __func__, output);
@@ -90,27 +80,18 @@ public:
     status_t openInput(audio_module_handle_t module,
                        audio_io_handle_t *input,
                        audio_config_t * /*config*/,
-                       audio_devices_t *device,
-                       const String8 &address,
+                       audio_devices_t * /*device*/,
+                       const String8 & /*address*/,
                        audio_source_t /*source*/,
                        audio_input_flags_t /*flags*/,
-                       int32_t mixPortId) override {
+                       int32_t /*mixPortId*/) override {
         if (module >= mNextModuleHandle) {
             ALOGE("%s: Module handle %d has not been allocated yet (next is %d)",
                   __func__, module, mNextModuleHandle);
             return BAD_VALUE;
         }
-
-        const auto deviceKey = std::make_pair(*device, std::string(address.c_str()));
-        // Check if the route is artificially forbidden in the test case.
-        if (mNonRoutableMixPortsForDevice.count(deviceKey) &&
-              mNonRoutableMixPortsForDevice[deviceKey].count(mixPortId)) {
-            return INVALID_OPERATION;
-        }
-
         *input = mNextIoHandle++;
         mOpenedInputs.insert(*input);
-        mIoHandleToMixPortId[*input] = mixPortId;
         ALOGD("%s: opened input %d", __func__, *input);
         mOpenInputCallsCount++;
         return NO_ERROR;
@@ -126,7 +107,6 @@ public:
             }
             return BAD_VALUE;
         }
-        mIoHandleToMixPortId.erase(input);
         ALOGD("%s: closed input %d", __func__, input);
         mCloseInputCallsCount++;
         return NO_ERROR;
@@ -262,32 +242,9 @@ public:
         return mAudioParameters.toString();
     }
 
-    status_t getAudioMixPort(const struct audio_port_v7 *devicePort,
+    status_t getAudioMixPort(const struct audio_port_v7 *devicePort __unused,
                              struct audio_port_v7 *mixPort,
-                             int32_t mixPortHalId) override {
-        // Derive port ID from IO handle if specified.
-        audio_io_handle_t ioHandle = mixPort->ext.mix.handle;
-        if (mixPortHalId == AUDIO_PORT_HANDLE_NONE && ioHandle != AUDIO_IO_HANDLE_NONE) {
-            if (!mIoHandleToMixPortId.count(ioHandle)) {
-                return BAD_VALUE;
-            }
-            mixPortHalId = mIoHandleToMixPortId[ioHandle];
-        }
-
-        // Check routing if port is identifiable by ID.
-        // Note it is possible that we don't have the ID, in which case this
-        // is not from an AIDL config, and we will just assume routable.
-        if (mixPortHalId != AUDIO_PORT_HANDLE_NONE) {
-            audio_devices_t deviceType = devicePort->ext.device.type;
-            std::string deviceAddr = devicePort->ext.device.address;
-            const auto deviceKey = std::make_pair(deviceType, deviceAddr);
-            // Check if the route is artificially forbidden in the test case.
-            if (mNonRoutableMixPortsForDevice.count(deviceKey) &&
-                  mNonRoutableMixPortsForDevice[deviceKey].count(mixPortHalId)) {
-                return INVALID_OPERATION;
-            }
-        }
-
+                             int32_t mixPortHalId __unused) override {
         mixPort->num_audio_profiles = 0;
         for (auto format : mSupportedFormats) {
             const int i = mixPort->num_audio_profiles;
@@ -347,15 +304,6 @@ public:
         return std::nullopt;
     }
 
-    int32_t getMixPortIdByIoHandle(audio_io_handle_t ioHandle) {
-        return mIoHandleToMixPortId.count(ioHandle) ? mIoHandleToMixPortId[ioHandle] : -1;
-    }
-
-    void setNonRoutableMixPortsForDevice(audio_devices_t type, std::string addr,
-                                         const std::set<int32_t> &mixPortIds) {
-        mNonRoutableMixPortsForDevice[std::make_pair(type, addr)] = mixPortIds;
-    }
-
 private:
     audio_module_handle_t mNextModuleHandle = AUDIO_MODULE_HANDLE_NONE + 1;
     audio_io_handle_t mNextIoHandle = AUDIO_IO_HANDLE_NONE + 1;
@@ -373,11 +321,6 @@ private:
     size_t mOpenInputCallsCount = 0;
     size_t mCloseInputCallsCount = 0;
     std::map<audio_io_handle_t, audio_output_flags_t> mOpenedOutputs;
-    std::map<audio_io_handle_t, int32_t> mIoHandleToMixPortId;
-    // This allows each test case to artificially decide if certain routes are
-    // unavailable for a device described by its legacy type and address.
-    std::map<std::pair<audio_devices_t, std::string>,
-          std::set<int32_t>> mNonRoutableMixPortsForDevice;
 };
 
 } // namespace android
