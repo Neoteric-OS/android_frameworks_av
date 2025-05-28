@@ -3628,13 +3628,13 @@ status_t AudioFlinger::invalidateTracks(const std::vector<audio_port_handle_t> &
     std::set<audio_port_handle_t> portIdSet(portIds.begin(), portIds.end());
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         IAfPlaybackThread* const thread = mPlaybackThreads.valueAt(i).get();
-        thread->invalidateTracks(portIdSet);
+        thread->invalidateTracks(&portIdSet);
         if (portIdSet.empty()) {
             return NO_ERROR;
         }
     }
     for (size_t i = 0; i < mMmapThreads.size(); i++) {
-        mMmapThreads[i]->invalidateTracks(portIdSet);
+        mMmapThreads[i]->invalidateTracks(&portIdSet);
         if (portIdSet.empty()) {
             return NO_ERROR;
         }
@@ -5046,7 +5046,9 @@ void AudioFlinger::onNonOffloadableGlobalEffectEnable()
     for (size_t i = 0; i < mPlaybackThreads.size(); i++) {
         const sp<IAfPlaybackThread> t = mPlaybackThreads.valueAt(i);
         if (t->type() == IAfThreadBase::OFFLOAD) {
-            t->invalidateTracks(AUDIO_STREAM_MUSIC);
+            // we could invalidate based on session id, but offload threads
+            // are based on single client access, so we invalidate everything.
+            t->invalidateTracks();
         }
     }
 

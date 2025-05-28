@@ -135,6 +135,8 @@ public:
         virtual status_t stopOutput(audio_port_handle_t portId);
         virtual bool releaseOutput(audio_port_handle_t portId);
 
+        void addRoutableDeviceToProfiles(const sp<DeviceDescriptor> &device);
+
         base::expected<media::GetInputForAttrResponse, std::variant<binder::Status,
             media::audio::common::AudioConfigBase>>
                          getInputForAttr(audio_attributes_t attributes,

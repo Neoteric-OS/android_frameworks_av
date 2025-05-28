@@ -1801,7 +1801,7 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
         if (mType == ThreadBase::OFFLOAD || mType == ThreadBase::DIRECT) {
 // QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
             PlaybackThread *t = (PlaybackThread *)this;
-            t->invalidateTracks(AUDIO_STREAM_MUSIC);
+            t->invalidateTracks();
         }
         if (effect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
             mAfThreadCallback->onNonOffloadableGlobalEffectEnable();
@@ -1814,7 +1814,7 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
 // QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         &IID_VISUALIZER, sizeof (effect_uuid_t)) == 0)) {
         PlaybackThread *t = (PlaybackThread *)this;
-        t->invalidateTracks(AUDIO_STREAM_MUSIC);
+        t->invalidateTracks();
     }
 // QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 }
@@ -2184,6 +2184,48 @@ void ThreadBase::stopMelComputation_l()
 {
     // Do nothing
     ALOGW("%s: ThreadBase does not support CSD", __func__);
+}
+
+std::set<audio_port_handle_t> ThreadBase::getTrackPortIds_l() const
+{
+    std::set<int32_t> result;
+    for (const auto& t : mTracks) {
+        if (t->isExternalTrack()) {
+            result.insert(t->portId());
+        }
+    }
+    return result;
+}
+
+std::set<audio_port_handle_t> ThreadBase::getTrackPortIds() const
+{
+    audio_utils::lock_guard _l(mutex());
+    return getTrackPortIds_l();
+}
+
+bool ThreadBase::invalidateTracks(std::set<audio_port_handle_t>* portIds) {
+    audio_utils::lock_guard _l(mutex());
+    return invalidateTracks_l(portIds);
+}
+
+// Only Playback Threads invalidate tracks based on portIds, but we keep
+// open the possibility that Record / Capture Threads may eventually use it.
+bool ThreadBase::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
+    bool trackMatch = false;
+    for (const auto& t : mTracks) {
+        if (portIds == nullptr ||
+                (t->isExternalTrack() && portIds->find(t->portId()) != portIds->end())) {
+            t->invalidate();
+            if (portIds) portIds->erase(t->portId());
+            trackMatch = true;
+        }
+    }
+
+    // TODO(b/410038399) consider to apply to all threads for symmetry.
+    if (trackMatch && (type() == MMAP_PLAYBACK || type() == MMAP_CAPTURE)) {
+        broadcast_l();
+    }
+    return trackMatch;
 }
 
 status_t ThreadBase::setPortsVolume(
@@ -3095,23 +3137,6 @@ void PlaybackThread::removeTrack_l(const sp<IAfTrack>& track)
     }
 }
 
-std::set<audio_port_handle_t> PlaybackThread::getTrackPortIds_l()
-{
-    std::set<int32_t> result;
-    for (const auto& t : mTracks) {
-        if (t->isExternalTrack()) {
-            result.insert(t->portId());
-        }
-    }
-    return result;
-}
-
-std::set<audio_port_handle_t> PlaybackThread::getTrackPortIds()
-{
-    audio_utils::lock_guard _l(mutex());
-    return getTrackPortIds_l();
-}
-
 String8 PlaybackThread::getParameters(const String8& keys)
 {
     audio_utils::lock_guard _l(mutex());
@@ -3774,46 +3799,6 @@ void PlaybackThread::cacheParameters_l()
             mStandbyDelayNs = kDefaultStandbyTimeInNsecs;
         }
     }
-}
-
-bool PlaybackThread::invalidateTracks_l(audio_stream_type_t streamType)
-{
-    ALOGV("MixerThread::invalidateTracks() mixer %p, streamType %d, mTracks.size %zu",
-            this,  streamType, mTracks.size());
-    bool trackMatch = false;
-    for (const auto& t : mPlaybackTracksView) {
-        if (t->streamType() == streamType && t->isExternalTrack()) {
-            t->invalidate();
-            trackMatch = true;
-        }
-    }
-    return trackMatch;
-}
-
-void PlaybackThread::invalidateTracks(audio_stream_type_t streamType)
-{
-    audio_utils::lock_guard _l(mutex());
-    invalidateTracks_l(streamType);
-}
-
-void PlaybackThread::invalidateTracks(std::set<audio_port_handle_t>& portIds) {
-    audio_utils::lock_guard _l(mutex());
-    invalidateTracks_l(portIds);
-}
-
-bool PlaybackThread::invalidateTracks_l(std::set<audio_port_handle_t>& portIds) {
-    bool trackMatch = false;
-    for (const auto& t : mTracks) {
-        if (t->isExternalTrack() && portIds.find(t->portId()) != portIds.end()) {
-            t->invalidate();
-            portIds.erase(t->portId());
-            trackMatch = true;
-        }
-        if (portIds.empty()) {
-            break;
-        }
-    }
-    return trackMatch;
 }
 
 status_t PlaybackThread::addEffectChain_l(const sp<IAfEffectChain>& chain)
@@ -5558,9 +5543,7 @@ void PlaybackThread::onAddNewTrack_l()
 void PlaybackThread::onAsyncError(bool isHardError)
 {
     auto allTrackPortIds = getTrackPortIds();
-    for (int i = AUDIO_STREAM_SYSTEM; i < (int)AUDIO_STREAM_CNT; i++) {
-        invalidateTracks((audio_stream_type_t)i);
-    }
+    invalidateTracks();
     if (isHardError) {
         mAfThreadCallback->onHardError(allTrackPortIds);
     }
@@ -7941,13 +7924,7 @@ void OffloadThread::flushHw_l()
     }
 }
 
-void OffloadThread::invalidateTracks(audio_stream_type_t streamType)
-{
-    audio_utils::lock_guard _l(mutex());
-    if (PlaybackThread::invalidateTracks_l(streamType)) {
-        mFlushPending = true;
-    }
-}
+// TODO(b/410038399) move to base class and unify with Mmap implementation for clarity.
 
 void MixerThread::onIdleMixer()
 // QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
@@ -7987,11 +7964,23 @@ void MixerThread::onIdleMixer()
 }
 
 // QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
-void OffloadThread::invalidateTracks(std::set<audio_port_handle_t>& portIds) {
-    audio_utils::lock_guard _l(mutex());
-    if (PlaybackThread::invalidateTracks_l(portIds)) {
+bool OffloadThread::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
+    const bool trackMatch = ThreadBase::invalidateTracks_l(portIds);
+    if (trackMatch) {
+        // On invalidating an offload track, the IAudioTrack instance is
+        // destroyed and the offload output is released. If it so happens
+        // that APM::getOutputForAttr for the new IAudioTrack is called before
+        // OffloadThread::prepareTracks_l checks and removes an invalid track,
+        // the same output can get reused.
+        //
+        // The side effect of this is data present in HAL and below from before the
+        // invalidate will be rendered before data from the new seek position
+        // is rendered. This is unexpected.
+        //
+        // To fix this, set hint to issue flush when an offload track is invalidated.
         mFlushPending = true;
     }
+    return trackMatch;
 }
 
 // ----------------------------------------------------------------------------
@@ -11557,36 +11546,6 @@ void MmapPlaybackThread::setStreamMute(audio_stream_type_t stream, bool muted)
     audio_utils::lock_guard _l(mutex());
     mStreamTypes[stream].mute = muted;
     if (stream == mStreamType) {
-        broadcast_l();
-    }
-}
-
-void MmapPlaybackThread::invalidateTracks(audio_stream_type_t streamType)
-{
-    audio_utils::lock_guard _l(mutex());
-    if (streamType == mStreamType) {
-        for (const auto& track : mActiveTracks) {
-            track->invalidate();
-        }
-        broadcast_l();
-    }
-}
-
-void MmapPlaybackThread::invalidateTracks(std::set<audio_port_handle_t>& portIds)
-{
-    audio_utils::lock_guard _l(mutex());
-    bool trackMatch = false;
-    for (const auto& track : mActiveTracks) {
-        if (portIds.find(track->portId()) != portIds.end()) {
-            track->invalidate();
-            trackMatch = true;
-            portIds.erase(track->portId());
-        }
-        if (portIds.empty()) {
-            break;
-        }
-    }
-    if (trackMatch) {
         broadcast_l();
     }
 }
