@@ -1059,6 +1059,21 @@ class TestHalAdapterVendorExtension
     }
 };
 
+class StreamHalAidlTest : public android::StreamHalAidl {
+  public:
+    StreamHalAidlTest(
+            std::string_view className, bool isInput, const audio_config& config,
+            int32_t nominalLatency, android::StreamContextAidl&& context,
+            const std::shared_ptr<::aidl::android::hardware::audio::core::IStreamCommon>& stream,
+            const std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension>& vext)
+        : StreamHalAidl(className, isInput, config, nominalLatency, std::move(context), stream,
+                        vext) {}
+    android::status_t dump(int /*fd*/,
+                           const android::Vector<android::String16>& /*args*/) override {
+        return android::OK;
+    }
+};
+
 const std::string TestHalAdapterVendorExtension::kLegacyParameterKey = "aosp_test_param";
 const std::string TestHalAdapterVendorExtension::kLegacyAsyncParameterKey = "aosp_test_param_async";
 // Note: in real life, there is no need to explicitly separate "module" and "stream"
@@ -1468,8 +1483,9 @@ class StreamHalAidlVendorParametersTest : public testing::Test {
         ::aidl::android::hardware::audio::core::StreamDescriptor descriptor;
         StreamContextAidl context(descriptor, false /*isAsynchronous*/, 0,
                                   false /*hasClipTransitionSupport*/);
-        mStream = sp<StreamHalAidl>::make("test", false /*isInput*/, config, 0 /*nominalLatency*/,
-                                          std::move(context), mStreamCommon, mVendorExt);
+        mStream =
+                sp<StreamHalAidlTest>::make("test", false /*isInput*/, config, 0 /*nominalLatency*/,
+                                            std::move(context), mStreamCommon, mVendorExt);
         // The stream may check for some properties after creating.
         mStreamCommon->clearParameters();
     }
@@ -1482,7 +1498,7 @@ class StreamHalAidlVendorParametersTest : public testing::Test {
   protected:
     std::shared_ptr<StreamCommonMock> mStreamCommon;
     std::shared_ptr<TestHalAdapterVendorExtension> mVendorExt;
-    sp<StreamHalAidl> mStream;
+    sp<StreamHalAidlTest> mStream;
 };
 
 TEST_F(StreamHalAidlVendorParametersTest, GetVendorParameter) {

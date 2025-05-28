@@ -222,3 +222,11 @@ flag {
     description: "Applies system controlled effects targetting video conferencing"
     bug: "376797335"
 }
+
+flag {
+    namespace: "camera_platform"
+    name: "data_delivery_permission_checks"
+    description: "Pass the full AttributionSource chain to PermissionChecker for data delivery"
+    bug: "190657833"
+    is_fixed_read_only: true
+}
