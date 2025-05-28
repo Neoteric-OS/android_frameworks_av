@@ -1620,6 +1620,9 @@ typedef aaudio_data_callback_result_t (*AAudioStream_dataCallback)(
  *
  * Note that the AAudio callbacks will never be called simultaneously from multiple threads.
  *
+ * If both this method and {@link #AAudioStreamBuilder_setPartialDataCallback} are called,
+ * the data callback from the last called method will be used.
+ *
  * Available since API level 26.
  *
  * @param builder reference provided by AAudio_createStreamBuilder()
@@ -1630,6 +1633,104 @@ typedef aaudio_data_callback_result_t (*AAudioStream_dataCallback)(
 AAUDIO_API void AAudioStreamBuilder_setDataCallback(AAudioStreamBuilder* _Nonnull builder,
         AAudioStream_dataCallback _Nullable callback, void* _Nullable userData)
         __INTRODUCED_IN(26);
+
+/**
+ * Prototype for the data function that is passed to AAudioStreamBuilder_setPartialDataCallback().
+ *
+ * The main difference between this callback prototype and AAudioStream_dataCallback is the return
+ * value. In this method, it returns an integer value to indicate the actual frames of data is
+ * processed. In AAudioStream_dataCallback, it can only return AAUDIO_CALLBACK_RESULT_CONTINUE
+ * indicating all data is processed or AAUDIO_CALLBACK_RESULT_CONTINUE indicating no data is
+ * processed.
+ *
+ * For an output stream, this function should render and write at most numFrames of data
+ * in the streams current data format to the audioData buffer.
+ *
+ * For an input stream, this function should read and process at most numFrames of data
+ * from the audioData buffer. The data in the audioData buffer must not be modified
+ * directly. Instead, it should be copied to another buffer before doing any modification.
+ * In many cases, writing to the audioData buffer of an input stream will result in a
+ * native exception.
+ *
+ * The audio data is passed through the buffer. So do NOT call AAudioStream_read() or
+ * AAudioStream_write() on the stream that is making the callback.
+ *
+ * Note that numFrames can vary unless AAudioStreamBuilder_setFramesPerDataCallback()
+ * is called.
+ *
+ * Also note that this callback function should be considered a "real-time" function.
+ * The callback should copy the data to/from the buffer and not do anything that could cause
+ * unbounded delay because that can cause the audio to glitch or pop.
+ *
+ * These are things the function should NOT do:
+ * <ul>
+ * <li>allocate memory using, for example, malloc() or new</li>
+ * <li>any file operations such as opening, closing, reading or writing</li>
+ * <li>any network operations such as streaming</li>
+ * <li>use any mutexes or other synchronization primitives</li>
+ * <li>sleep</li>
+ * <li>stop or close the stream</li>
+ * <li>AAudioStream_read()</li>
+ * <li>AAudioStream_write()</li>
+ * </ul>
+ *
+ * The following are OK to call from the data callback:
+ * <ul>
+ * <li>AAudioStream_get*()</li>
+ * <li>AAudio_convertResultToText()</li>
+ * </ul>
+ *
+ * We recommend use of non-blocking techniques to copy data furnished by the callback method,
+ * for example the non-blocking fifo: system/media/audio_utils/include/audio_utils/fifo.h
+ *
+ * @param stream reference provided by AAudioStreamBuilder_openStream().
+ * @param userData the same address that was passed to AAudioStreamBuilder_setPartialCallback().
+ * @param audioData a pointer to the audio data.
+ * @param numFrames the number of frames to be processed, which can vary.
+ * @return the actual processed number of frames. Negative value will stop the stream.
+ *         if the returned value is greater than numFrames, the stream will stop.
+ */
+typedef int32_t (*AAudioStream_partialDataCallback)(
+        AAudioStream* _Nonnull stream,
+        void* _Nullable userData,
+        void* _Nonnull audioData,
+        int32_t numFrames);
+
+/**
+ * Request that AAudio call this functions when the stream is running.
+ *
+ * Note that when using this callback, it must be the sole way of transferring audio data;
+ * you cannot call AAudioStream_write() or AAudioStream_read() on the same stream that has
+ * an active data callback.
+ *
+ * The callback function will start being called after AAudioStream_requestStart()
+ * is called.
+ * It will stop being called after AAudioStream_requestPause() or
+ * AAudioStream_requestStop() is called.
+ *
+ * This callback function will be called on a real-time thread owned by AAudio.
+ * The low latency streams may have callback threads with higher priority than normal streams.
+ * See {@link #AAudioStream_partialDataCallback} for more information.
+ *
+ * Note that the AAudio callbacks will never be called simultaneously from multiple threads.
+ *
+ * If both this method and {@link #AAudioStreamBuilder_setDataCallback} are called,
+ * the data callback from the last called method will be used.
+ *
+ * Available since API level 37.
+ *
+ * @param builder reference provided by AAudio_createStreamBuilder().
+ * @param callback pointer to a function that will process audio data.
+ * @param userData pointer to an application data structure that will be passed
+ *          to the callback functions.
+ * @return AAUDIO_OK if data callback is set successfully or
+ *         AAUDIO_ERROR_UNIMPLEMENTED if {@link #AAudioStream_partialDataCallback}
+ *         is not supported.
+ */
+AAUDIO_API aaudio_result_t AAudioStreamBuilder_setPartialDataCallback(
+        AAudioStreamBuilder* _Nonnull builder,
+        AAudioStream_partialDataCallback _Nullable callback,
+        void* _Nullable userData) __INTRODUCED_IN(37);
 
 /**
  * Set the requested data callback buffer size in frames.

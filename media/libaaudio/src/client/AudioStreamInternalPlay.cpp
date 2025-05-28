@@ -407,7 +407,7 @@ int64_t AudioStreamInternalPlay::getFramesWritten() {
 void *AudioStreamInternalPlay::callbackLoop() {
     ALOGD("%s() entering >>>>>>>>>>>>>>>", __func__);
     aaudio_result_t result = AAUDIO_OK;
-    aaudio_data_callback_result_t callbackResult = AAUDIO_CALLBACK_RESULT_CONTINUE;
+    int32_t callbackResult = 0;
     if (!isDataCallbackSet()) return nullptr;
     int64_t timeoutNanos = calculateReasonableTimeout(mCallbackFrames);
 
@@ -416,6 +416,13 @@ void *AudioStreamInternalPlay::callbackLoop() {
         // Call application using the AAudio callback interface.
         callbackResult = maybeCallDataCallback(mCallbackBuffer.get(), mCallbackFrames);
 
+        if (callbackResult < 0) {
+            ALOGD("%s(): callback request to stop", __func__);
+            result = systemStopInternal();
+            break;
+        }
+
+
         // Write audio data to stream. This is a BLOCKING WRITE!
         // Write data regardless of the callbackResult because we assume the data
         // is valid even when the callback returns AAUDIO_CALLBACK_RESULT_STOP.
@@ -423,8 +430,8 @@ void *AudioStreamInternalPlay::callbackLoop() {
         // When it gets to the end of the sound it can partially fill
         // the last buffer with the end of the sound, then zero pad the buffer, then return STOP.
         // If the callback has no valid data then it should zero-fill the entire buffer.
-        result = write(mCallbackBuffer.get(), mCallbackFrames, timeoutNanos);
-        if ((result != mCallbackFrames)) {
+        result = write(mCallbackBuffer.get(), callbackResult, timeoutNanos);
+        if ((result != callbackResult)) {
             if (result >= 0) {
                 // Only wrote some of the frames requested. The stream can be disconnected
                 // or timed out.
@@ -432,12 +439,6 @@ void *AudioStreamInternalPlay::callbackLoop() {
                 result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : AAUDIO_ERROR_TIMEOUT;
             }
             maybeCallErrorCallback(result);
-            break;
-        }
-
-        if (callbackResult == AAUDIO_CALLBACK_RESULT_STOP) {
-            ALOGD("%s(): callback returned AAUDIO_CALLBACK_RESULT_STOP", __func__);
-            result = systemStopInternal();
             break;
         }
     }

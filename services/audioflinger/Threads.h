@@ -2258,6 +2258,7 @@ private:
             std::string                         mSharedAudioPackageName = {};
             int32_t                             mSharedAudioStartFrames = -1;
             audio_session_t                     mSharedAudioSessionId = AUDIO_SESSION_NONE;
+            std::atomic_bool                    mIsHwSilenced = false;
 };
 
 class DirectRecordThread final : public RecordThread {

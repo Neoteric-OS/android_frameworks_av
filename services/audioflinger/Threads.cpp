@@ -9120,8 +9120,12 @@ reacquire_wakelock:
                         // Sanitize before releasing if the track has no access to the source data
                         // An idle UID receives silence from non virtual devices until active
                         if (activeTrack->isSilenced()) {
-                            memset(activeTrack->sinkBuffer().raw,
-                                    0, framesOut * activeTrack->frameSize());
+                            if (type() == IAfThreadBase::DIRECT_RECORD && mIsHwSilenced) {
+                                // do not silence
+                            } else {
+                                memset(activeTrack->sinkBuffer().raw, 0,
+                                       framesOut * activeTrack->frameSize());
+                            }
                         }
                         activeTrack->releaseBuffer(&activeTrack->sinkBuffer());
                     }
@@ -9784,6 +9788,7 @@ void RecordThread::dumpInternals_l(int fd, const Vector<String16>& /* args */)
 
     dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
+    dprintf(fd, "  Hw silenced: %s\n", mIsHwSilenced ? "yes" : "no");
 
     // Make a non-atomic copy of fast capture dump state so it won't change underneath us
     // while we are dumping it.  It may be inconsistent, but it won't mutate!
@@ -9839,6 +9844,12 @@ void RecordThread::dumpTracks_l(int fd, const Vector<String16>& /* args */)
 void RecordThread::setRecordSilenced(audio_port_handle_t portId, bool silenced)
 {
     audio_utils::lock_guard _l(mutex());
+
+    if (type() == IAfThreadBase::DIRECT_RECORD && mIsHwSilenced != silenced) {
+        auto status = mInput->stream->setGain(silenced ? 0.0f : 1.0f);
+        mIsHwSilenced = silenced && status == NO_ERROR;
+    }
+
     for (const auto& track : mRecordTracksView) {
         if (track != 0 && track->portId() == portId) {
             track->setSilenced(silenced);
