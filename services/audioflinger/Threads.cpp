@@ -9587,6 +9587,14 @@ void RecordThread::syncStartEventCallback(const wp<SyncEvent>& event)
 bool RecordThread::stop(IAfRecordTrack* recordTrack) {
     ALOGV("RecordThread::stop");
     audio_utils::unique_lock _l(mutex());
+    // A case where destroy is handled first followed by stop before track is
+    // removed from active tracks. While destroy removes record track from
+    // mTracks, threadloop removes it from mActiveTracks.
+    if (recordTrack->isTerminated()) {
+        ALOGW("%s(%d): unsychronized stop. Destroy track executed prior to stop",
+                __func__, recordTrack->id());
+        return false;
+    }
     // if we're invalid, we can't be on the ActiveTracks.
     if (mActiveTracks.count(recordTrack) == 0 || recordTrack->state() == IAfTrackBase::PAUSING) {
         return false;
@@ -9607,7 +9615,7 @@ bool RecordThread::stop(IAfRecordTrack* recordTrack) {
     }
 
     // don't handle anything - we've been invalidated or restarted and in a different state
-    ALOGW_IF("%s(%d): unsynchronized stop, state: %d",
+    ALOGW("%s(%d): unsynchronized stop, state: %d",
             __func__, recordTrack->id(), recordTrack->state());
     return false;
 }

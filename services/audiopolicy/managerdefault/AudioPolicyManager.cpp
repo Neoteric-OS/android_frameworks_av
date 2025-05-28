@@ -7933,8 +7933,10 @@ void AudioPolicyManager::checkForDeviceAndOutputChanges(std::function<bool()> on
     }
     checkOutputForAllStrategies();
     checkSecondaryOutputs();
-    if (!remove_stream_suspend() && onOutputsChecked != nullptr && onOutputsChecked()) {
-        checkA2dpSuspend();
+    if (onOutputsChecked != nullptr && onOutputsChecked()) {
+        if (!remove_stream_suspend()) {
+            checkA2dpSuspend();
+        }
     }
     updateDevicesAndOutputs();
     if (mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_MSD) != 0) {
