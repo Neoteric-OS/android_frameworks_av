@@ -418,6 +418,16 @@ public:
 
     virtual std::vector<sp<IAfTrackBase>> getTracks_l() REQUIRES(mutex()) = 0;
 
+    // Invalidate tracks by a set of port ids. The port id will be removed from
+    // the given set if the corresponding track is found and invalidated.
+    //
+    // If portIds == nullptr, all tracks, including internal tracks are invalidated.
+    virtual bool invalidateTracks_l(std::set<audio_port_handle_t>* portIds = {})
+            REQUIRES(mutex()) = 0;
+
+    virtual bool invalidateTracks(std::set<audio_port_handle_t>* portIds = {})
+            EXCLUDES_ThreadBase_Mutex = 0;
+
     virtual status_t setPortsVolume(const std::vector<audio_port_handle_t> &portIds, float volume,
             bool muted) EXCLUDES_ThreadBase_Mutex = 0;
 
@@ -519,16 +529,6 @@ public:
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t attachAuxEffect_l(const sp<IAfTrack>& track, int EffectId)
             REQUIRES(mutex()) = 0;
-
-    // called with AudioFlinger lock held
-    virtual bool invalidateTracks_l(audio_stream_type_t streamType) REQUIRES(mutex()) = 0;
-    virtual bool invalidateTracks_l(std::set<audio_port_handle_t>& portIds) REQUIRES(mutex()) = 0;
-    virtual void invalidateTracks(audio_stream_type_t streamType)
-            EXCLUDES_ThreadBase_Mutex = 0;
-    // Invalidate tracks by a set of port ids. The port id will be removed from
-    // the given set if the corresponding track is found and invalidated.
-    virtual void invalidateTracks(std::set<audio_port_handle_t>& portIds)
-            EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual status_t getTimestamp_l(AudioTimestamp& timestamp) REQUIRES(mutex()) = 0;
     virtual void addPatchTrack(const sp<IAfPatchTrack>& track) EXCLUDES_ThreadBase_Mutex = 0;
@@ -689,13 +689,6 @@ public:
     virtual status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t reportData(const void* buffer, size_t frameCount)
-            EXCLUDES_ThreadBase_Mutex = 0;
-
-    // TODO(b/291317898)  move to IAfThreadBase?
-    virtual void invalidateTracks(std::set<audio_port_handle_t>& portIds)
-            EXCLUDES_ThreadBase_Mutex = 0;
-
-    virtual void invalidateTracks(audio_stream_type_t streamType)
             EXCLUDES_ThreadBase_Mutex = 0;
 
     // Sets the UID records silence - TODO(b/291317898)  move to IAfMmapCaptureThread

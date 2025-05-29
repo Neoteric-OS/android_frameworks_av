@@ -261,6 +261,16 @@ protected:
             const DeviceVector &availableInputDevices) const;
 
     DeviceStrategyMap mDevicesForStrategies;
+
+    void initializeLegacyStrategyMaps();
+    product_strategy_t getProductStrategyFromLegacy(legacy_strategy legacyStrategy) const;
+    legacy_strategy getLegacyStrategyFromProduct(product_strategy_t productStrategy) const;
+
+    // map between product strategy IDs and legacy strategy Ids
+    std::map<product_strategy_t, legacy_strategy> mLegacyStrategyMap;
+    // Ordered map (by legacy strategy priority) between legacy strategy IDs and Product strategies
+    std::map<legacy_strategy, sp<ProductStrategy>> mOrderedStrategyMap;
+
 };
 
 } // namespace audio_policy

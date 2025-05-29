@@ -25,6 +25,8 @@
 // QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
 #include <camera/CameraParameters.h>
 #include <utils/String8.h>
+#include <gui/Flags.h> // Remove with MediaSurfaceType and WB_MEDIA_MIGRATION.
+
 #include <system/audio.h>
 
 #include <media/hardware/MetadataBufferType.h>
@@ -65,7 +67,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t setVideoSize(int width, int height);
     virtual status_t setVideoFrameRate(int frames_per_second);
     virtual status_t setCamera(const sp<hardware::ICamera>& camera, const sp<ICameraRecordingProxy>& proxy);
-    virtual status_t setPreviewSurface(const sp<IGraphicBufferProducer>& surface);
+    virtual status_t setPreviewSurface(const sp<MediaSurfaceType>& surface);
     virtual status_t setInputSurface(const sp<PersistentSurface>& surface);
     virtual status_t setOutputFile(int fd);
     virtual status_t setNextOutputFile(int fd);
@@ -83,7 +85,7 @@ struct StagefrightRecorder : public MediaRecorderBase {
     virtual status_t getMetrics(Parcel *reply);
     virtual status_t dump(int fd, const Vector<String16> &args) const;
     // Querying a SurfaceMediaSourcer
-    virtual sp<IGraphicBufferProducer> querySurfaceMediaSource() const;
+    virtual sp<MediaSurfaceType> querySurfaceMediaSource() const;
     virtual status_t setInputDevice(audio_port_handle_t deviceId);
     virtual status_t getRoutedDeviceIds(DeviceIdVector& deviceIds);
     virtual void setAudioDeviceCallback(const sp<AudioSystem::AudioDeviceCallback>& callback);
@@ -107,7 +109,7 @@ protected:
     mutable Mutex mLock;
     sp<hardware::ICamera> mCamera;
     sp<ICameraRecordingProxy> mCameraProxy;
-    sp<IGraphicBufferProducer> mPreviewSurface;
+    sp<MediaSurfaceType> mPreviewSurface;
     sp<PersistentSurface> mPersistentSurface;
     sp<IMediaRecorderClient> mListener;
     sp<MediaWriter> mWriter;
@@ -191,10 +193,10 @@ protected:
 
     bool mStarted;
     // Needed when GLFrames are encoded.
-    // An <IGraphicBufferProducer> pointer
+    // An <MediaSurfaceType> pointer, currently changing from an IGBP to a Surface
     // will be sent to the client side using which the
     // frame buffers will be queued and dequeued
-    sp<IGraphicBufferProducer> mGraphicBufferProducer;
+    sp<MediaSurfaceType> mSurface;
     sp<ALooper> mLooper;
 
     audio_port_handle_t mSelectedDeviceId;

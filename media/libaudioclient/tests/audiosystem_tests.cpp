@@ -51,6 +51,10 @@ void anyPatchContainsInputDevice(audio_port_handle_t deviceId, bool& res) {
     }
 }
 
+bool isNonPublicOrBluetoothScoStream(int streamType) {
+    return streamType >= AUDIO_STREAM_PUBLIC_CNT || streamType == AUDIO_STREAM_BLUETOOTH_SCO;
+}
+
 class AudioSystemTest : public ::testing::Test {
   public:
     void SetUp() override {
@@ -477,15 +481,18 @@ TEST_F(AudioSystemTest, IndexForVolumeGroup) {
         if (group.getStreamTypes().empty()) continue;
         volume_group_t vg = group.getId();
         audio_stream_type_t streamType = group.getStreamTypes()[0];
-        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        if (isNonPublicOrBluetoothScoStream(streamType)) continue;
 
         int index;
-        EXPECT_EQ(OK, AudioSystem::getVolumeIndexForGroup(vg, index, AUDIO_DEVICE_OUT_SPEAKER));
+        EXPECT_EQ(OK, AudioSystem::getVolumeIndexForGroup(vg, index, AUDIO_DEVICE_OUT_SPEAKER))
+            << "Could not get volume index for group " << group.getName();
 
         int indexTest;
         EXPECT_EQ(OK, AudioSystem::getStreamVolumeIndex(streamType, &indexTest,
-                                                        AUDIO_DEVICE_OUT_SPEAKER));
-        EXPECT_EQ(index, indexTest);
+                                                        AUDIO_DEVICE_OUT_SPEAKER))
+            << "Could not get volume index for stream " << toString(streamType);
+        EXPECT_EQ(index, indexTest) << "Volume index for group " << group.getName()
+        << " and stream " << toString(streamType) << " do not match";
     }
 }
 
@@ -499,13 +506,17 @@ TEST_F(AudioSystemTest, MinMaxIndexForVolumeGroup) {
         if (group.getStreamTypes().empty()) continue;
         volume_group_t vg = group.getId();
         audio_stream_type_t streamType = group.getStreamTypes()[0];
-        if (streamType >= AUDIO_STREAM_PUBLIC_CNT) continue;
+        if (isNonPublicOrBluetoothScoStream(streamType)) continue;
         int minIndex;
         int maxIndex;
-        EXPECT_EQ(OK, AudioSystem::getMinVolumeIndexForGroup(vg, minIndex));
-        EXPECT_EQ(OK, AudioSystem::getMaxVolumeIndexForGroup(vg, maxIndex));
+        EXPECT_EQ(OK, AudioSystem::getMinVolumeIndexForGroup(vg, minIndex))
+            << "Could not get min volume for group " << group.getName();
+        EXPECT_EQ(OK, AudioSystem::getMaxVolumeIndexForGroup(vg, maxIndex))
+            << "Could not get max volume for group " << group.getName();
 
-        EXPECT_TRUE(minIndex < maxIndex);
+        EXPECT_TRUE(minIndex < maxIndex)
+            << "Group " << group.getName() << " min["
+            << minIndex << "] is not less than max [" << maxIndex << "]";
     }
 }
 

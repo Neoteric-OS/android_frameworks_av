@@ -8,6 +8,13 @@ package: "android.media.audio"
 container: "system"
 
 flag {
+    name: "assistant_volume_control"
+    namespace: "media_audio"
+    description: "Implement the logic for having STREAM_ASSISTANT lead the volume control"
+    bug: "416329698"
+}
+
+flag {
     name: "auto_public_volume_api_hardening"
     namespace: "media_audio"
     description: "On AAOS, make volume and ringer SDK APIs in AudioManager no-ops."

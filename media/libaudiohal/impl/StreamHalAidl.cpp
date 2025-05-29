@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <thread>
 
 #include <audio_utils/clock.h>
 #include <media/AidlConversion.h>
@@ -315,10 +316,47 @@ status_t StreamHalAidl::standby() {
     }
 }
 
-status_t StreamHalAidl::dump(int fd, const Vector<String16>& args __unused) {
-    AUGMENT_LOG(D);
+// The behavior depends on the interface implementation version:
+//  - if the version < 3, only call `dump` on `IStreamCommon`.
+//  - if the version == 3, call on the concrete stream (`IStreamIn|Out`) first, then if there
+//       was nothing dumped, fallback to the "< 3" behavior.
+//  - if the version > 3, only call `dump` on the concrete stream.
+status_t StreamHalAidl::dumpImpl(int fd, const Vector<String16>& args, ::ndk::ICInterface* stream) {
+    if (!mStream || !stream) return NO_INIT;
+    Vector<String16> newArgs = args;
+    newArgs.push(String16(kDumpFromAudioServerArgument));
+    // Note: do not serialize the dump call with mCallLock.
+    status_t status;
+    if (mAidlInterfaceVersion > kAidlVersion3) {
+        status = stream->dump(fd, Args(newArgs).args(), newArgs.size());
+    } else if (mAidlInterfaceVersion < kAidlVersion3) {
+        status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
+    } else {  // mAidlInterfaceVersion == 3
+        int pipefd[2];
+        if (pipe(pipefd) == -1) {
+            AUGMENT_LOG(E, "pipe failed: %d", errno);
+            return NO_INIT;
+        }
+        bool hasOutput = false;
+        std::thread reader([&hasOutput](int inFd, int outFd) {
+                std::vector<char> buf(32768);
+                while (true) {
+                    ssize_t r = read(inFd, &buf[0], buf.size());
+                    if (r <= 0) break;
+                    write(outFd, &buf[0], r);
+                    hasOutput = true;
+                }
+        }, pipefd[0], fd);
+        status = stream->dump(pipefd[1], Args(newArgs).args(), newArgs.size());
+        close(pipefd[1]);
+        close(pipefd[0]);
+        reader.join();
+        if (status != OK || !hasOutput) {
+            status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
+        }
+    }
     mStreamPowerLog.dump(fd);
-    return OK;
+    return status;
 }
 
 status_t StreamHalAidl::start() {
@@ -1281,13 +1319,7 @@ status_t StreamOutHalAidl::filterAndUpdateOffloadMetadata(AudioParameter &parame
 status_t StreamOutHalAidl::dump(int fd, const Vector<String16>& args) {
     AUGMENT_LOG(D);
     TIME_CHECK();
-    if (!mStream) return NO_INIT;
-    Vector<String16> newArgs = args;
-    newArgs.push(String16(kDumpFromAudioServerArgument));
-    // Do not serialize the dump call with mCallLock
-    status_t status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
-    StreamHalAidl::dump(fd, args);
-    return status;
+    return dumpImpl(fd, args, mStream.get());
 }
 
 // static
@@ -1409,13 +1441,7 @@ status_t StreamInHalAidl::setPreferredMicrophoneFieldDimension(float zoom) {
 status_t StreamInHalAidl::dump(int fd, const Vector<String16>& args) {
     AUGMENT_LOG(D);
     TIME_CHECK();
-    if (!mStream) return NO_INIT;
-    Vector<String16> newArgs = args;
-    newArgs.push(String16(kDumpFromAudioServerArgument));
-    // Do not serialize the dump call with mCallLock
-    status_t status = mStream->dump(fd, Args(newArgs).args(), newArgs.size());
-    StreamHalAidl::dump(fd, args);
-    return status;
+    return dumpImpl(fd, args, mStream.get());
 }
 
 } // namespace android

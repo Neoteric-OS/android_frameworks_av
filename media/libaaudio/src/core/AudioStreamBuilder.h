@@ -51,7 +51,22 @@ public:
 
     AudioStreamBuilder* setDataCallbackProc(AAudioStream_dataCallback proc) {
         mDataCallbackProc = proc;
+        mPartialDataCallbackProc = nullptr;
         return this;
+    }
+
+    AAudioStream_partialDataCallback getPartialDataCallbackProc() const {
+        return mPartialDataCallbackProc;
+    }
+
+    AudioStreamBuilder* setPartialDataCallbackProc(AAudioStream_partialDataCallback proc) {
+        mPartialDataCallbackProc = proc;
+        mDataCallbackProc = nullptr;
+        return this;
+    }
+
+    bool isDataCallbackSet() const {
+        return mDataCallbackProc != nullptr || mPartialDataCallbackProc != nullptr;
     }
 
     void *getDataCallbackUserData() const {
@@ -137,6 +152,8 @@ private:
     AAudioStream_dataCallback  mDataCallbackProc = nullptr;  // external callback functions
     void                      *mDataCallbackUserData = nullptr;
     int32_t                    mFramesPerDataCallback = AAUDIO_UNSPECIFIED; // frames
+
+    AAudioStream_partialDataCallback mPartialDataCallbackProc = nullptr;
 
     AAudioStream_errorCallback mErrorCallbackProc = nullptr;
     void                      *mErrorCallbackUserData = nullptr;

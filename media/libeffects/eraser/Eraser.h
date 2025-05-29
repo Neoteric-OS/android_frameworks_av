@@ -51,7 +51,6 @@ class EraserImpl final : public EffectImpl {
             REQUIRES(mImplMutex) final;
 
     ndk::ScopedAStatus command(CommandId command) final EXCLUDES(mImplMutex);
-    void drainingComplete_l() REQUIRES(mImplMutex);
 
   private:
     static const std::vector<Range::SpatializerRange> kRanges;

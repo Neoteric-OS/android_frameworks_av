@@ -2027,11 +2027,16 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
                (*flags & AUDIO_OUTPUT_FLAG_INCALL_MUSIC) == 0) &&
                (mEngine->getPhoneState() != AUDIO_MODE_IN_CALL)) {
 // QTI_END: 2021-11-15: Audio: Select low latency path during voice call for voice stream
-        *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_VOIP_RX |
-                                       AUDIO_OUTPUT_FLAG_DIRECT);
-        ALOGV("Set VoIP and Direct output flags for PCM format");
+        // TODO b/418144806: define a proper routing policy when multiple output profiles
+        // can be used for voice communication use case.
+        if (*flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) {
+            ALOGV("MMAP flag set, ignoring VoIP & direct output flags");
+        } else {
+            *flags = (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_VOIP_RX |
+                                           AUDIO_OUTPUT_FLAG_DIRECT);
+            ALOGV("Set VoIP and Direct output flags for PCM format");
+        }
     }
-
     // Attach the Ultrasound flag for the AUDIO_CONTENT_TYPE_ULTRASOUND
     if (attr->content_type == AUDIO_CONTENT_TYPE_ULTRASOUND) {
         *flags = (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_ULTRASOUND);
@@ -7928,8 +7933,10 @@ void AudioPolicyManager::checkForDeviceAndOutputChanges(std::function<bool()> on
     }
     checkOutputForAllStrategies();
     checkSecondaryOutputs();
-    if (!remove_stream_suspend() && onOutputsChecked != nullptr && onOutputsChecked()) {
-        checkA2dpSuspend();
+    if (onOutputsChecked != nullptr && onOutputsChecked()) {
+        if (!remove_stream_suspend()) {
+            checkA2dpSuspend();
+        }
     }
     updateDevicesAndOutputs();
     if (mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_MSD) != 0) {

@@ -145,26 +145,20 @@ ndk::ScopedAStatus EraserImpl::command(CommandId command) {
             mContext->enable();
             startThread();
             RETURN_IF(notifyEventFlag(mDataMqNotEmptyEf) != RetCode::SUCCESS, EX_ILLEGAL_STATE,
-                      "notifyEventFlagNotEmptyFailed");
+                      "notifyEventFlagNotEmptyFailedOnStart");
             break;
         case CommandId::STOP:
-            RETURN_OK_IF(mState == State::IDLE || mState == State::DRAINING);
-            if (mVersion < kDrainSupportedVersion) {
-                mState = State::IDLE;
-                stopThread();
-                mContext->disable();
-            } else {
-                mState = State::DRAINING;
-                startDraining();
-                mContext->startDraining();
-            }
+            RETURN_OK_IF(mState == State::IDLE);
+            mState = State::IDLE;
             RETURN_IF(notifyEventFlag(mDataMqNotEmptyEf) != RetCode::SUCCESS, EX_ILLEGAL_STATE,
-                      "notifyEventFlagNotEmptyFailed");
+                      "notifyEventFlagNotEmptyFailedOnStop");
+            stopThread();
+            mContext->disable();
             break;
         case CommandId::RESET:
             mState = State::IDLE;
             RETURN_IF(notifyEventFlag(mDataMqNotEmptyEf) != RetCode::SUCCESS, EX_ILLEGAL_STATE,
-                      "notifyEventFlagNotEmptyFailed");
+                      "notifyEventFlagNotEmptyFailedOnReset");
             stopThread();
             mImplContext->disable();
             mImplContext->reset();
@@ -183,21 +177,7 @@ ndk::ScopedAStatus EraserImpl::command(CommandId command) {
 // Processing method running in EffectWorker thread.
 IEffect::Status EraserImpl::effectProcessImpl(float* in, float* out, int samples) {
     RETURN_VALUE_IF(!mContext, (IEffect::Status{EX_NULL_POINTER, 0, 0}), "nullContext");
-    IEffect::Status procStatus{STATUS_NOT_ENOUGH_DATA, 0, 0};
-    procStatus = mContext->process(in, out, samples);
-    if (mState == State::DRAINING && procStatus.status == STATUS_NOT_ENOUGH_DATA) {
-        drainingComplete_l();
-    }
-
-    return procStatus;
-}
-
-void EraserImpl::drainingComplete_l() {
-    if (mState != State::DRAINING) return;
-
-    LOG(DEBUG) << getEffectNameWithVersion() << __func__;
-    finishDraining();
-    mState = State::IDLE;
+    return mContext->process(in, out, samples);
 }
 
 }  // namespace aidl::android::hardware::audio::effect

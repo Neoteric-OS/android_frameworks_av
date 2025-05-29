@@ -536,8 +536,16 @@ binder::Status createConfiguredSurface(
 
     int width = outputConfiguration.getWidth();
     int height = outputConfiguration.getHeight();
-    int format = outputConfiguration.getFormat();
+    int format = 0;
     auto dataSpace = static_cast<android_dataspace>(outputConfiguration.getDataspace());
+
+    // TODO: See if we can query the OutputConfiguration directly : b/417531963
+    if ((err = anw->query(anw, NATIVE_WINDOW_FORMAT, &format)) != OK) {
+        std::string msg = fmt::sprintf("Camera %s: Failed to query Surface format: %s (%d)",
+                logicalCameraId.c_str(), strerror(-err), err);
+        ALOGE("%s: %s", __FUNCTION__, msg.c_str());
+        return STATUS_ERROR(CameraService::ERROR_INVALID_OPERATION, msg.c_str());
+    }
 
     if (colorSpace != ANDROID_REQUEST_AVAILABLE_COLOR_SPACE_PROFILES_MAP_UNSPECIFIED &&
             format != HAL_PIXEL_FORMAT_BLOB) {

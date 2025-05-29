@@ -111,16 +111,6 @@ flag {
 
 flag {
     namespace: "camera_platform"
-    name: "api1_release_binderlock_before_cameraservice_disconnect"
-    description: "Drop mSerializationLock in Camera1 client when calling into CameraService"
-    bug: "351778072"
-    metadata {
-        purpose: PURPOSE_BUGFIX
-    }
-}
-
-flag {
-    namespace: "camera_platform"
     name: "dumpsys_request_stream_ids"
     description: "Add stream id information to last request dumpsys"
     bug: "357913929"
@@ -231,4 +221,12 @@ flag {
     name: "desktop_effects"
     description: "Applies system controlled effects targetting video conferencing"
     bug: "376797335"
+}
+
+flag {
+    namespace: "camera_platform"
+    name: "data_delivery_permission_checks"
+    description: "Pass the full AttributionSource chain to PermissionChecker for data delivery"
+    bug: "190657833"
+    is_fixed_read_only: true
 }

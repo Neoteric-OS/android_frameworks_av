@@ -358,15 +358,16 @@ public:
 
     virtual int64_t getFramesRead() = 0;
 
-    AAudioStream_dataCallback getDataCallbackProc() const {
-        return mDataCallbackProc;
+    typedef int (AudioStream::*DataCallbackWrapper)(void* audioData, int32_t numFrames);
+    DataCallbackWrapper getDataCallbackWrapper() const {
+        return mDataCallbackWrapper;
     }
 
     AAudioStream_errorCallback getErrorCallbackProc() const {
         return mErrorCallbackProc;
     }
 
-    aaudio_data_callback_result_t maybeCallDataCallback(void *audioData, int32_t numFrames);
+    int32_t maybeCallDataCallback(void *audioData, int32_t numFrames);
 
     void maybeCallErrorCallback(aaudio_result_t result);
 
@@ -418,7 +419,7 @@ public:
      * @return true if data callback has been specified
      */
     bool isDataCallbackSet() const {
-        return mDataCallbackProc != nullptr;
+        return mDataCallbackWrapper != nullptr;
     }
 
     /**
@@ -790,6 +791,9 @@ private:
         close_l();
     }
 
+    int dataCallbackInternal(void* audioData, int32_t numFrames);
+    int partialDataCallbackInternal(void* audioData, int32_t numFrames);
+
     std::atomic<aaudio_stream_state_t>          mState{AAUDIO_STREAM_STATE_UNINITIALIZED};
 
     std::atomic_bool            mDisconnected{false};
@@ -836,6 +840,8 @@ private:
     void                       *mDataCallbackUserData = nullptr;
     int32_t                     mFramesPerDataCallback = AAUDIO_UNSPECIFIED; // frames
     std::atomic<pid_t>          mDataCallbackThread{CALLBACK_THREAD_NONE};
+    AAudioStream_partialDataCallback mPartialDataCallbackProc = nullptr;
+    DataCallbackWrapper         mDataCallbackWrapper = nullptr;
 
     AAudioStream_errorCallback  mErrorCallbackProc = nullptr;
     void                       *mErrorCallbackUserData = nullptr;

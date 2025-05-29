@@ -437,11 +437,13 @@ cc_library {
     static_libs: [
         "framework-permission-aidl-cpp",
         "resourcemanager_aidl_interface-ndk",
+        "libguiflags",
     ],
 
     export_static_lib_headers: [
         "framework-permission-aidl-cpp",
         "resourcemanager_aidl_interface-ndk",
+        "libguiflags",
     ],
 
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions

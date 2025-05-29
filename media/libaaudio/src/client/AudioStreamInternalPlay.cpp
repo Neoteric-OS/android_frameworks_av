@@ -20,8 +20,11 @@
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
 #include <algorithm>
+#include <chrono>
+#include <thread>
 
 #include <media/MediaMetricsItem.h>
+#include <mediautils/Runnable.h>
 #include <utils/Trace.h>
 
 #include "client/AudioStreamInternalPlay.h"
@@ -70,6 +73,12 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
         int32_t numFrames = kRampMSec * getSampleRate() / AAUDIO_MILLIS_PER_SECOND;
         mFlowGraph.setRampLengthInFrames(numFrames);
     }
+    if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
+        !isDataCallbackSet() && mPresentationEndCallbackProc != nullptr) {
+        // Client is not using data callback but has presentation end callback for offload playback,
+        // initialize an executor for presentation end callback.
+        mStreamEndExecutor.emplace();
+    }
     return result;
 }
 
@@ -88,6 +97,11 @@ aaudio_result_t AudioStreamInternalPlay::requestPause_l()
     mClockModel.stop(AudioClock::getNanoseconds());
     setState(AAUDIO_STREAM_STATE_PAUSING);
     mAtomicInternalTimestamp.clear();
+
+    // When pause is called, the service will notify the HAL so that no more data will be consumed.
+    // In that case, it is no longer needed to wait for stream end.
+    dropPresentationEndCallback();
+
     return mServiceInterface.pauseStream(mServiceStreamHandleInfo);
 }
 
@@ -98,6 +112,11 @@ aaudio_result_t AudioStreamInternalPlay::requestFlush_l() {
     }
 
     setState(AAUDIO_STREAM_STATE_FLUSHING);
+
+    // When flush is called, the service will notify the HAL so that no more data will be consumed.
+    // In that case, it is no longer needed to wait for stream end.
+    dropPresentationEndCallback();
+
     return mServiceInterface.flushStream(mServiceStreamHandleInfo);
 }
 
@@ -403,18 +422,116 @@ int64_t AudioStreamInternalPlay::getFramesWritten() {
     return mLastFramesWritten;
 }
 
+aaudio_result_t AudioStreamInternalPlay::setOffloadEndOfStream() {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED ||
+        getSharingMode() != AAUDIO_SHARING_MODE_EXCLUSIVE) {
+        // Offload end of stream callback is only available for offload playback.
+        // Offload playback must be exclusive mode.
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    std::lock_guard<std::mutex> lock(mStreamLock);
+    if (getState() != AAUDIO_STREAM_STATE_STARTED || mClockModel.isStarting()) {
+        // If the stream is not running or there is not timestamp from the service side,
+        // it is not possible to set offload end of stream.
+        return AAUDIO_ERROR_INVALID_STATE;
+    }
+    {
+        std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
+        mOffloadEosPending = true;
+    }
+    if (!isDataCallbackSet()) {
+        const int64_t streamEndNanos = mClockModel.convertDeltaPositionToTime(
+                std::max(0, mAudioEndpoint->getFullFramesAvailable() - getDeviceFramesPerBurst()));
+        auto streamPtr = getPtr();
+        mStreamEndExecutor->enqueue(android::mediautils::Runnable{
+            [streamPtr, streamEndNanos]() {
+                std::unique_lock<std::mutex> ul(streamPtr->mStreamEndMutex);
+                streamPtr->mStreamEndCV.wait_for(
+                        ul, std::chrono::nanoseconds(streamEndNanos),
+                        [streamPtr]() { return !streamPtr->mOffloadEosPending; });
+                if (streamPtr->mOffloadEosPending) {
+                    streamPtr->maybeCallPresentationEndCallback();
+                    streamPtr->mOffloadEosPending = false;
+                }
+            }});
+    }
+    return AAUDIO_OK;
+}
+
+bool AudioStreamInternalPlay::shouldStopStream() {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        return true;
+    }
+    std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
+    return !mOffloadEosPending;
+}
+
+void AudioStreamInternalPlay::maybeCallPresentationEndCallback() {
+    if (mPresentationEndCallbackProc != nullptr) {
+        pid_t expected = CALLBACK_THREAD_NONE;
+        if (mPresentationEndCallbackThread.compare_exchange_strong(expected, gettid())) {
+            (*mPresentationEndCallbackProc)(
+                    (AAudioStream *) this, mPresentationEndCallbackUserData);
+            mPresentationEndCallbackThread.store(CALLBACK_THREAD_NONE);
+        } else {
+            ALOGW("%s() presentation end callback already running!", __func__);
+        }
+    }
+}
+
+void AudioStreamInternalPlay::dropPresentationEndCallback() {
+    {
+        std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
+        mOffloadEosPending = false;
+    }
+    mStreamEndCV.notify_one();
+}
+
+aaudio_result_t AudioStreamInternalPlay::requestStop_l() {
+    // When stop is called, the service will notify the HAL so that no more data will be consumed.
+    // In that case, it is no longer needed to wait for stream end.
+    dropPresentationEndCallback();
+    return AudioStreamInternal::requestStop_l();
+}
+
 // Render audio in the application callback and then write the data to the stream.
 void *AudioStreamInternalPlay::callbackLoop() {
     ALOGD("%s() entering >>>>>>>>>>>>>>>", __func__);
     aaudio_result_t result = AAUDIO_OK;
-    aaudio_data_callback_result_t callbackResult = AAUDIO_CALLBACK_RESULT_CONTINUE;
+    int32_t callbackResult = 0;
     if (!isDataCallbackSet()) return nullptr;
     int64_t timeoutNanos = calculateReasonableTimeout(mCallbackFrames);
 
     // result might be a frame count
     while (mCallbackEnabled.load() && isActive() && (result >= 0)) {
+        processCommands();
+        {
+            std::unique_lock<std::mutex> ul(mStreamEndMutex);
+            if (mOffloadEosPending) {
+                const int64_t streamEndNanos = mClockModel.convertDeltaPositionToTime(std::max(0,
+                        mAudioEndpoint->getFullFramesAvailable() - getDeviceFramesPerBurst()));
+                mStreamEndCV.wait_for(
+                        ul, std::chrono::nanoseconds(streamEndNanos),
+                        [this]() { return !mOffloadEosPending; });
+                if (mOffloadEosPending) {
+                    maybeCallPresentationEndCallback();
+                    mOffloadEosPending = false;
+                }
+            }
+        }
         // Call application using the AAudio callback interface.
         callbackResult = maybeCallDataCallback(mCallbackBuffer.get(), mCallbackFrames);
+
+        if (callbackResult < 0) {
+            if (!shouldStopStream()) {
+                ALOGD("%s(): callback request to stop but should not as it may be pending for"
+                      "stream end", __func__);
+                continue;
+            }
+            ALOGD("%s(): callback request to stop", __func__);
+            result = systemStopInternal();
+            break;
+        }
 
         // Write audio data to stream. This is a BLOCKING WRITE!
         // Write data regardless of the callbackResult because we assume the data
@@ -423,8 +540,8 @@ void *AudioStreamInternalPlay::callbackLoop() {
         // When it gets to the end of the sound it can partially fill
         // the last buffer with the end of the sound, then zero pad the buffer, then return STOP.
         // If the callback has no valid data then it should zero-fill the entire buffer.
-        result = write(mCallbackBuffer.get(), mCallbackFrames, timeoutNanos);
-        if ((result != mCallbackFrames)) {
+        result = write(mCallbackBuffer.get(), callbackResult, timeoutNanos);
+        if ((result != callbackResult)) {
             if (result >= 0) {
                 // Only wrote some of the frames requested. The stream can be disconnected
                 // or timed out.
@@ -432,12 +549,6 @@ void *AudioStreamInternalPlay::callbackLoop() {
                 result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : AAUDIO_ERROR_TIMEOUT;
             }
             maybeCallErrorCallback(result);
-            break;
-        }
-
-        if (callbackResult == AAUDIO_CALLBACK_RESULT_STOP) {
-            ALOGD("%s(): callback returned AAUDIO_CALLBACK_RESULT_STOP", __func__);
-            result = systemStopInternal();
             break;
         }
     }

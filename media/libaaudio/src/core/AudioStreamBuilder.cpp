@@ -327,7 +327,9 @@ void AudioStreamBuilder::logParameters() const {
           android::toString(getDeviceIds()).c_str(),
           getSessionId(),
           getPerformanceMode(),
-          ((getDataCallbackProc() != nullptr) ? "ON" : "OFF"),
+          ((getPartialDataCallbackProc() != nullptr) ? "ON_P"
+                                                     : (getDataCallbackProc() != nullptr) ? "ON"
+                                                                                          : "OFF"),
           mFramesPerDataCallback);
     ALOGI("usage  = %6d, contentType = %d, inputPreset = %d, allowedCapturePolicy = %d",
           getUsage(), getContentType(), getInputPreset(), getAllowedCapturePolicy());
