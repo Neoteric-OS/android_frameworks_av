@@ -17,6 +17,8 @@ cc_library {
         "iamf_tools",
     ],
     shared_libs: [
+        "libFLAC",
+        "libFraunhoferAAC",
         "liblog",
         "libopus",
     ],

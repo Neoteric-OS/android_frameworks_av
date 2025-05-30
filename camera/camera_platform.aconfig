@@ -230,3 +230,11 @@ flag {
     bug: "190657833"
     is_fixed_read_only: true
 }
+
+flag {
+    namespace: "camera_platform"
+    name: "output_configuration_getter"
+    is_exported: true
+    description: "Unhide the size and format getters in OutputConfiguration class"
+    bug: "383609887"
+}

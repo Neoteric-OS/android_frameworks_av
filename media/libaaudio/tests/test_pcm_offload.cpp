@@ -247,6 +247,10 @@ int main(int argc, char **argv) {
 
     // Force to use offload mode
     argParser.setPerformanceMode(AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED);
+    // By default, AAudioSimplePlayer uses 2 as the number of bursts. For offload case,
+    // 2 bursts is too small if the burst size is only couple seconds. In that case, use
+    // the value set by the framework.
+    argParser.setNumberOfBursts(0);
 
     OffloadPlayer player(argParser, delay, padding, streamFrames, useDataCallback);
     if (auto result = player.open(); result != AAUDIO_OK) {

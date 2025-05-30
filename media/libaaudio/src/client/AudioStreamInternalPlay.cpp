@@ -79,6 +79,9 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
         // initialize an executor for presentation end callback.
         mStreamEndExecutor.emplace();
     }
+    mOffloadSafeMarginInFrames = std::max(
+            getDeviceSampleRate() * kOffloadSafeMarginMs / AAUDIO_MILLIS_PER_SECOND,
+            getDeviceFramesPerBurst());
     return result;
 }
 
@@ -494,6 +497,12 @@ aaudio_result_t AudioStreamInternalPlay::requestStop_l() {
     return AudioStreamInternal::requestStop_l();
 }
 
+void AudioStreamInternalPlay::wakeupCallbackThread() {
+    std::lock_guard<std::mutex> _l(mCallbackMutex);
+    mSuspendCallback = false;
+    mCallbackCV.notify_one();
+}
+
 // Render audio in the application callback and then write the data to the stream.
 void *AudioStreamInternalPlay::callbackLoop() {
     ALOGD("%s() entering >>>>>>>>>>>>>>>", __func__);
@@ -550,6 +559,22 @@ void *AudioStreamInternalPlay::callbackLoop() {
             }
             maybeCallErrorCallback(result);
             break;
+        }
+
+        if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
+            isClockModelInControl()) {
+            // If it is an offload playback and the buffer is pretty full, sleep to drain data
+            // to save battery.
+            int32_t fullFrames = mAudioEndpoint->getFullFramesAvailable();
+            if (fullFrames > getDeviceBufferSize() - mOffloadSafeMarginInFrames) {
+                int64_t drainNanos = mClockModel.convertDeltaPositionToTime(
+                        std::max(fullFrames - mOffloadSafeMarginInFrames, 0));
+                std::unique_lock<std::mutex> ul(mStreamEndMutex);
+                mSuspendCallback = true;
+                mCallbackCV.wait_for(
+                        ul, std::chrono::nanoseconds(drainNanos),
+                        [this]() { return !mSuspendCallback; });
+            }
         }
     }
 

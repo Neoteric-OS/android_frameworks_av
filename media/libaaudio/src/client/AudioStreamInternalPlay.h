@@ -102,6 +102,8 @@ protected:
                              int64_t *wakeTimePtr) override;
 
     aaudio_result_t requestStop_l() REQUIRES(mStreamLock) final;
+
+    void wakeupCallbackThread() final;
 private:
     /*
      * Asynchronous write with data conversion.
@@ -126,6 +128,11 @@ private:
     void                                *mPresentationEndCallbackUserData = nullptr;
     std::atomic<pid_t>                   mPresentationEndCallbackThread{CALLBACK_THREAD_NONE};
 
+    static constexpr int32_t kOffloadSafeMarginMs = 100;
+    int32_t mOffloadSafeMarginInFrames = 0;
+    std::mutex mCallbackMutex;
+    std::condition_variable mCallbackCV;
+    bool mSuspendCallback GUARDED_BY(mCallbackMutex){false};
 };
 
 } /* namespace aaudio */

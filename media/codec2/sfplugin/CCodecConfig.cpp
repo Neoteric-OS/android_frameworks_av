@@ -959,7 +959,7 @@ void CCodecConfig::initializeStandardParams() {
         .limitTo(D::AUDIO & (D::CONFIG | D::PARAM | D::READ)));
 
     add(ConfigMapper(KEY_CHANNEL_MASK, C2_PARAMKEY_CHANNEL_MASK, "value")
-        .limitTo(D::AUDIO & D::DECODER & D::READ));
+        .limitTo(D::AUDIO & D::DECODER & (D::CONFIG | D::PARAM | D::READ)));
 
     add(ConfigMapper(KEY_CHANNEL_MASK, C2_PARAMKEY_CHANNEL_MASK, "value")
         .limitTo(D::AUDIO & D::ENCODER & D::CONFIG));

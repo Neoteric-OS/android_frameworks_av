@@ -171,6 +171,13 @@ flag {
 }
 
 flag {
+  name: "remove_arraymode_for_linear_output_buffers"
+  namespace: "codec_fwk"
+  description: "Feature flag for removing Array mode for linear output buffers"
+  bug: "418813731"
+}
+
+flag {
   name: "rendering_depth_removal"
   namespace: "codec_fwk"
   description: "Feature flag for removing rendering depth"

@@ -65,17 +65,23 @@ class C2SoftIamfDec::IntfImpl : public SimpleInterface<void>::BaseParams {
         // Level is unused by IAMF.
         // The profiles requested are set in GetIamfDecoderSettings and used to initialize the
         // decoder.
+        std::vector<unsigned int> profiles = {
+                C2Config::PROFILE_IAMF_SIMPLE_OPUS,
+                C2Config::PROFILE_IAMF_SIMPLE_PCM,
+                C2Config::PROFILE_IAMF_BASE_OPUS,
+                C2Config::PROFILE_IAMF_BASE_PCM,
+        };
+        if (android::media::swcodec::flags::iamf_aac_flac()) {
+            profiles.push_back(C2Config::PROFILE_IAMF_SIMPLE_FLAC);
+            profiles.push_back(C2Config::PROFILE_IAMF_BASE_FLAC);
+            profiles.push_back(C2Config::PROFILE_IAMF_SIMPLE_AAC);
+            profiles.push_back(C2Config::PROFILE_IAMF_BASE_AAC);
+        }
         addParameter(
                 DefineParam(mProfileLevel, C2_PARAMKEY_PROFILE_LEVEL)
                         .withDefault(new C2StreamProfileLevelInfo::input(
                                 0u, C2Config::PROFILE_IAMF_SIMPLE_PCM, C2Config::LEVEL_UNUSED))
-                        .withFields({C2F(mProfileLevel, profile)
-                                             .oneOf({
-                                                     C2Config::PROFILE_IAMF_SIMPLE_OPUS,
-                                                     C2Config::PROFILE_IAMF_SIMPLE_PCM,
-                                                     C2Config::PROFILE_IAMF_BASE_OPUS,
-                                                     C2Config::PROFILE_IAMF_BASE_PCM,
-                                             }),
+                        .withFields({C2F(mProfileLevel, profile).oneOf(profiles),
                                      C2F(mProfileLevel, level).oneOf({C2Config::LEVEL_UNUSED})})
                         .withSetter(ProfileLevelSetter)
                         .build());
