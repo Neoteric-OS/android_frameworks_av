@@ -203,6 +203,7 @@ Component::Component(
         mListener{listener},
         mStore{store},
         mBufferPoolSender{clientPoolManager},
+        mReleased(false),
         mDeathContext(nullptr) {
     // Retrieve supported parameters from store
     // TODO: We could cache this per component/interface type
@@ -459,6 +460,7 @@ ScopedAStatus Component::reset() {
 }
 
 ScopedAStatus Component::release() {
+    mReleased = true;
     c2_status_t status = mComponent->release();
     {
         std::lock_guard<std::mutex> lock(mBlockPoolsMutex);
@@ -556,6 +558,10 @@ void Component::OnBinderUnlinked(void *cookie) {
 }
 
 Component::~Component() {
+    if (!mReleased) {
+        this->reset();
+        this->release();
+    }
     InputBufferManager::unregisterFrameData(mListener);
     mStore->reportComponentDeath(this);
     if (mDeathRecipient.get()) {

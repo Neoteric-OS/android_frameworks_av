@@ -319,6 +319,8 @@ cc_fuzz {
     static_libs: [
         "iamf_tools",
         "libcodec2_soft_iamfdec",
+        "libFLAC",
+        "libFraunhoferAAC",
         "libopus",
     ],
 }

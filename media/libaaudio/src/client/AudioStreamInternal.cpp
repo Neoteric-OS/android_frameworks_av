@@ -341,8 +341,13 @@ aaudio_result_t AudioStreamInternal::configureDataInformation(int32_t callbackFr
         mTimeOffsetNanos = offsetMicros * AAUDIO_NANOS_PER_MICROSECOND;
     }
 
-    // Default buffer size to match Q
-    setBufferSize(mBufferCapacityInFrames / 2);
+    // Default buffer size to match Android Q
+    int32_t bufSize = mBufferCapacityInFrames / 2;
+    if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        // If it is an offload stream, try to set the buffer size as big as possible.
+        bufSize = std::max(bufSize, mBufferCapacityInFrames - getFramesPerBurst());
+    }
+    setBufferSize(bufSize);
     return AAUDIO_OK;
 }
 
@@ -546,6 +551,7 @@ aaudio_result_t AudioStreamInternal::stopCallback_l()
 {
     if (isDataCallbackSet() && (isActive() || isDisconnected())) {
         mCallbackEnabled.store(false);
+        wakeupCallbackThread();
         aaudio_result_t result = joinThread_l(nullptr); // may temporarily unlock mStreamLock
         if (result == AAUDIO_ERROR_INVALID_HANDLE) {
             ALOGD("%s() INVALID_HANDLE, stream was probably stolen", __func__);
@@ -866,6 +872,11 @@ aaudio_result_t AudioStreamInternal::processData(void *buffer, int32_t numFrames
         framesLeft -= (int32_t) framesProcessed;
         audioData += framesProcessed * getBytesPerFrame();
 
+        if (framesLeft <= 0) {
+            // No need to wait, all data has been written.
+            break;
+        }
+
         // Should we block?
         if (timeoutNanoseconds == 0) {
             break; // don't block
@@ -967,8 +978,8 @@ aaudio_result_t AudioStreamInternal::setBufferSize(int32_t requestedFrames) {
 
     mBufferSizeInFrames = bufferSizeInFrames;
     mDeviceBufferSizeInFrames = deviceBufferSizeInFrames;
-    ALOGV("%s(%d) returns %d", __func__, requestedFrames, adjustedFrames);
-    return (aaudio_result_t) adjustedFrames;
+    ALOGV("%s(%d) returns %d", __func__, requestedFrames, mBufferSizeInFrames);
+    return (aaudio_result_t) mBufferSizeInFrames;
 }
 
 int32_t AudioStreamInternal::getBufferSize() const {

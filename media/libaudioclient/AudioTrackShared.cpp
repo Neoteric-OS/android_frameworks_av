@@ -267,7 +267,11 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             buffer->mRaw = part1 > 0 ?
                     &((char *) mBuffers)[(mIsOut ? rear : front) * mFrameSize] : NULL;
             buffer->mNonContig = avail - part1;
-            mUnreleased = part1;
+            // If two obtainBuffers requests are concurrent (for Java Offload),
+            // take the maximum of the two mUnreleased (consistency check variable)
+            // to avoid triggering an assertion on releaseBuffer.
+            // TODO(b/419572928) improve this logic.
+            mUnreleased = std::max(mUnreleased, part1);
             status = NO_ERROR;
             break;
         }

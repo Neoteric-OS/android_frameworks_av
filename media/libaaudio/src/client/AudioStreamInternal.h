@@ -129,6 +129,8 @@ protected:
 
     virtual void onFlushFromServer() {}
 
+    virtual void wakeupCallbackThread() {}
+
     aaudio_result_t onEventFromServer(AAudioServiceMessage *message);
 
     aaudio_result_t onTimestampService(AAudioServiceMessage *message);

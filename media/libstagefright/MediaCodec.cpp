@@ -52,6 +52,7 @@
 #include <binder/IMemory.h>
 #include <binder/IServiceManager.h>
 #include <binder/MemoryDealer.h>
+#include <bionic/dlext_namespaces.h>
 #include <com_android_graphics_libgui_flags.h>
 #include <cutils/properties.h>
 #include <gui/BufferItem.h>
@@ -91,7 +92,6 @@
 #include <media/stagefright/PersistentSurface.h>
 #include <media/stagefright/RenderedFrameInfo.h>
 #include <media/stagefright/SurfaceUtils.h>
-#include <nativeloader/dlext_namespaces.h>
 #include <private/android_filesystem_config.h>
 #include <server_configurable_flags/get_flags.h>
 #include <utils/Singleton.h>

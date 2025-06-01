@@ -150,9 +150,14 @@ public:
 
         if (result == AAUDIO_OK) {
             int32_t sizeInBursts = parameters.getNumberOfBursts();
-            int32_t framesPerBurst = AAudioStream_getFramesPerBurst(mStream);
-            int32_t bufferSizeFrames = sizeInBursts * framesPerBurst;
-            AAudioStream_setBufferSizeInFrames(mStream, bufferSizeFrames);
+            if (sizeInBursts < 0) {
+                printf("Requested size in bursts is negative, %d", sizeInBursts);
+            } else if (sizeInBursts > 0) {
+                int32_t framesPerBurst = AAudioStream_getFramesPerBurst(mStream);
+                int32_t bufferSizeFrames = sizeInBursts * framesPerBurst;
+                AAudioStream_setBufferSizeInFrames(mStream, bufferSizeFrames);
+            }
+            // When the requested size in bursts is 0, use the default value set by the framework.
         }
 
         AAudioStreamBuilder_delete(builder);

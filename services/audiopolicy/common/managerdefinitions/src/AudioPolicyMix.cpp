@@ -144,6 +144,8 @@ void AudioPolicyMix::dump(String8 *dst, int spaces, int index) const
 
     dst->appendFormat("%*s- device address: %s\n", spaces, "", mDeviceAddress.c_str());
 
+    dst->appendFormat("%*s- virtual device id: %d\n", spaces, "", mVirtualDeviceId);
+
     dst->appendFormat("%*s- output: %d\n", spaces, "",
             mOutput == nullptr ? 0 : mOutput->mIoHandle);
 
