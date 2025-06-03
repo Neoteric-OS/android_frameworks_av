@@ -80,10 +80,6 @@ public:
     virtual int32_t getStartTimeOffsetMs() const { return mStartTimeOffsetMs; }
     virtual status_t setNextFd(int fd);
 
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    status_t setCameraInfo(String8 info);
-
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
 protected:
     virtual ~MPEG4Writer();
 
@@ -104,12 +100,6 @@ private:
     status_t mInitCheck;
     bool mIsRealTimeRecording;
     bool mIsBackgroundMode;
-// QTI_BEGIN: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-    std::map<std::string, std::string> mInfos;
-    bool getStereoCameraInfo(std::string &stereoCamInfo);
-
-// QTI_END: 2024-12-17: Audio: Updates for muxing MV-HEVC bitstream am: 169ab233de
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 protected:
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     bool mUse4ByteNalLength;

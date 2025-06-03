@@ -129,9 +129,6 @@ enum video_encoder {
     VIDEO_ENCODER_VP9 = 6,
     VIDEO_ENCODER_DOLBY_VISION = 7,
     VIDEO_ENCODER_AV1 = 8,
-// QTI_BEGIN: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
-    VIDEO_ENCODER_MVHEVC = 9,
-// QTI_END: 2024-09-13: Video: media: Media Recorder changes to support MVHEVC
     VIDEO_ENCODER_LIST_END // must be the last - used to validate the video encoder type
 };
 
