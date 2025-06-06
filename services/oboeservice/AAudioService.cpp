@@ -314,6 +314,17 @@ Status AAudioService::exitStandby(int32_t streamHandle, Endpoint* endpoint, int3
     AIDL_RETURN(result);
 }
 
+Status AAudioService::updateTimestamp(int32_t streamHandle, int32_t *_aidl_return) {
+    static_assert(std::is_same_v<aaudio_result_t, std::decay_t<typeof(*_aidl_return)>>);
+
+    const sp<AAudioServiceStreamBase> serviceStream = convertHandleToServiceStream(streamHandle);
+    if (serviceStream.get() == nullptr) {
+        ALOGW("%s(), invalid streamHandle = 0x%0x", __func__, streamHandle);
+        AIDL_RETURN(AAUDIO_ERROR_INVALID_HANDLE);
+    }
+    AIDL_RETURN(serviceStream->updateTimestamp());
+}
+
 bool AAudioService::isCallerInService() {
     const pid_t clientPid = VALUE_OR_FATAL(
             aidl2legacy_int32_t_pid_t(mAudioClient.attributionSource.pid));

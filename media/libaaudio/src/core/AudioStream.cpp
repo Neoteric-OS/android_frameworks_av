@@ -28,6 +28,7 @@
 
 #include <aaudio/AAudio.h>
 #include <android-base/strings.h>
+#include <com_android_media_audioserver.h>
 
 #include "AudioStreamBuilder.h"
 #include "AudioStream.h"
@@ -667,6 +668,28 @@ aaudio_stream_state_t AudioStream::getStateExternal() const {
 
 std::string AudioStream::getTagsAsString() const {
     return android::base::Join(mTags, AUDIO_ATTRIBUTES_TAGS_SEPARATOR);
+}
+
+aaudio_result_t AudioStream::flushFromFrame(AAudio_FlushFromAccuracy accuracy, int64_t* position) {
+    ALOGD("%s(%d, %jd)", __func__, accuracy, *position);
+    if (!com_android_media_audioserver_mmap_pcm_offload_support()) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    if (getDirection() != AAUDIO_DIRECTION_OUTPUT ||
+        getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED ||
+        (accuracy != AAUDIO_FLUSH_FROM_ACCURACY_UNDEFINED &&
+                accuracy != AAUDIO_FLUSH_FROM_FRAME_ACCURATE)) {
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+    if (*position < 0) {
+        return AAUDIO_ERROR_OUT_OF_RANGE;
+    }
+    const int64_t requestedPosition = *position;
+    std::lock_guard lock(mStreamLock);
+    const aaudio_result_t result = flushFromFrame_l(accuracy, position);
+    ALOGD("%s(%d, %jd), actual position = %jd, result = %d",
+          __func__, accuracy, requestedPosition, *position, result);
+    return result;
 }
 
 int AudioStream::dataCallbackInternal(void *audioData, int32_t numFrames) {

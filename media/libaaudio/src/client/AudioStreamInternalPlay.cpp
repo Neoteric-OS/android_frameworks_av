@@ -503,6 +503,62 @@ void AudioStreamInternalPlay::wakeupCallbackThread() {
     mCallbackCV.notify_one();
 }
 
+aaudio_result_t AudioStreamInternalPlay::flushFromFrame_l(
+        AAudio_FlushFromAccuracy accuracy, int64_t* position) {
+    if (getServiceHandle() == AAUDIO_HANDLE_INVALID) {
+        ALOGD("%s() mServiceStreamHandle invalid", __func__);
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+    if (isDisconnected()) {
+        ALOGD("%s() but DISCONNECTED", __func__);
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+
+    aaudio_result_t result = AAUDIO_OK;
+    {
+        std::lock_guard _endpointLock(mEndpointMutex);
+        int64_t framesWritten = getFramesWritten();
+        if (framesWritten < *position) {
+            ALOGE("%s(), the requested position is not yet written", __func__);
+            result = AAUDIO_ERROR_OUT_OF_RANGE;
+        }
+
+        // The position is updated from the server, it may not be very accurate if the stream has
+        // been active for a while. In that case, updates the latest timestamp and then get the
+        // actual rewind position again.
+        if (aaudio_result_t res = mServiceInterface.updateTimestamp(mServiceStreamHandleInfo);
+                res != AAUDIO_OK) {
+            ALOGE("%s() failed to update timestamp, error=%d", __func__, res);
+            return res;
+        }
+        processCommands();
+        const int64_t safePosition = getFramesRead() + mOffloadSafeMarginInFrames;
+        if (safePosition > framesWritten) {
+            ALOGE("%s() do not have enough data, safePosition=%jd, frameWritten=%jd",
+                  __func__, safePosition, framesWritten);
+            return AAUDIO_ERROR_OUT_OF_RANGE;
+        }
+        int64_t actualPosition = std::max(safePosition, *position);
+        if (accuracy == AAUDIO_FLUSH_FROM_FRAME_ACCURATE && actualPosition != *position) {
+            result = AAUDIO_ERROR_OUT_OF_RANGE;
+        }
+        if (result != AAUDIO_OK) {
+            *position = actualPosition;
+            return result;
+        }
+
+        // Rewind successfully, update the written position as the rewound position.
+        mLastFramesWritten = actualPosition;
+        mAudioEndpoint->setDataWriteCounter(actualPosition - mFramesOffsetFromService);
+    }
+    {
+        std::lock_guard _streamEndLock(mStreamEndMutex);
+        mOffloadEosPending = false;
+    }
+    wakeupCallbackThread();
+    return result;
+}
+
 // Render audio in the application callback and then write the data to the stream.
 void *AudioStreamInternalPlay::callbackLoop() {
     ALOGD("%s() entering >>>>>>>>>>>>>>>", __func__);
@@ -528,8 +584,11 @@ void *AudioStreamInternalPlay::callbackLoop() {
                 }
             }
         }
-        // Call application using the AAudio callback interface.
-        callbackResult = maybeCallDataCallback(mCallbackBuffer.get(), mCallbackFrames);
+        {
+            std::lock_guard _endpointLock(mEndpointMutex);
+            // Call application using the AAudio callback interface.
+            callbackResult = maybeCallDataCallback(mCallbackBuffer.get(), mCallbackFrames);
+        }
 
         if (callbackResult < 0) {
             if (!shouldStopStream()) {

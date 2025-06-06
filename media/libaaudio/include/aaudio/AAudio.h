@@ -2645,6 +2645,70 @@ AAUDIO_API int32_t AAudioStream_getOffloadPadding(AAudioStream* _Nonnull stream)
 AAUDIO_API aaudio_result_t AAudioStream_setOffloadEndOfStream(AAudioStream* _Nonnull stream)
         __INTRODUCED_IN(36);
 
+/**
+ * The values are defined to be used for the accuracy requirement when calling
+ * {@link AAudioStream_flushFromFrame}.
+ */
+typedef enum AAudio_FlushFromAccuracy : int32_t {
+    /**
+     * There is not requirement for frame accuracy when flushing, it is up to the framework
+     * to select a right position to flush from.
+     */
+    AAUDIO_FLUSH_FROM_ACCURACY_UNDEFINED = 0,
+
+    /**
+     * The stream must be flushed from the requested position. If it is not possible to flush
+     * from the requested position, the stream must not be flushed.
+     */
+    AAUDIO_FLUSH_FROM_FRAME_ACCURATE = 1
+} AAudio_FlushFromAccuracy;
+
+/**
+ * Flush all data from given position. If this operation returns successfully, the following
+ * data will be written from the returned position.
+ *
+ * This method will only work when the performance mode is
+ * {@link AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED}.
+ *
+ * The requested position must not be negative or greater than the written frames. The current
+ * written position can be known by querying {@link AAudioStream_getFramesWritten}.
+ *
+ * When clients request to flush from a certain position, the audio system will return the actual
+ * flushed position based on the requested position, playback latency, etc. The written position
+ * will be updated as the actual flush position. All data behind actual flush position will be
+ * flushed. The client can provide data from actual flush position at next write operation or data
+ * callback request. When the stream is flushed, the stream end will be reset. The client must not
+ * write any data before this function returns. Otherwise, the data will be corrupted. When the
+ * method returns successfully and the stream is active, the client must write data immediately
+ * if little audio data remains. Otherwise, the stream will underrun.
+ *
+ * If apps prefer data callback, it is suggested to use {@link AAudioStream_partialDataCallback}.
+ * In that case, after the stream is flushed successfully by calling this method, the app can just
+ * fill partial data from the data callback instead of as much (partial) data as possible. That
+ * can help avoid underrun after successfully calling this method.
+ *
+ * @param stream reference provided by AAudioStreamBuilder_openStream().
+ * @param accuracy the accuracy requirement when flushing. The value must be one of the valid
+ *                 AAudio_FlushFromAccuracy value.
+ * @param[in|out] position the start point in frames to flush the stream. If flushing from frame
+ *                         is supported for the stream, the position will be updated as the actual
+ *                         flush from position when successfully flush or the suggested position
+ *                         to flush from if it cannot flush from the requested position. If there
+ *                         is not enough data to safely flush, position will remain the same.
+ * @return AAUDIO_OK if the stream is successfully flushed.
+ *         AAUDIO_ERROR_UNIMPLEMENTED if it is not supported by the device.
+ *         AAUDIO_ERROR_ILLEGAL_ARGUMENT if the stream is not an output offload stream or the
+ *         accuracy is not one of valid AAudio_FlushFromAccuracy values.
+ *         AAUDIO_ERROR_OUT_OF_RANGE if the provided position is negative or is greater than the
+ *         frames written or the stream cannot flush from the requested position and
+ *         AAUDIO_FLUSH_FROM_FRAME_ACCURATE is requested.
+ *         AAUDIO_ERROR_DISCONNECTED if aaudio service is dead or the stream is disconnected.
+ */
+AAUDIO_API aaudio_result_t AAudioStream_flushFromFrame(
+        AAudioStream* _Nonnull stream,
+        AAudio_FlushFromAccuracy accuracy,
+        int64_t* _Nonnull inOutPosition) __INTRODUCED_IN(37);
+
 /************************************************************************************
  * Helper functions for AAudio MMAP.
  * AAudio MMAP data path uses a memory region that is shared between the hardware and

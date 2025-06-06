@@ -320,15 +320,13 @@ c2_status_t C2SoftIamfDec::onStop() {
     mDescriptorProcessingComplete = false;
     mSignalledError = false;
     mSignalledEos = false;
-
-    return C2_OK;
+    return initializeDecoder();
 }
 
 void C2SoftIamfDec::onReset() {
     ALOGV("onReset.");
     // Reset should re-initialize.
     (void)onStop();
-    initializeDecoder();
 }
 
 void C2SoftIamfDec::onRelease() {

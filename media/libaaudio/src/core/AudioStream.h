@@ -96,6 +96,12 @@ protected:
 
     virtual aaudio_result_t requestStop_l() REQUIRES(mStreamLock) = 0;
 
+    virtual aaudio_result_t flushFromFrame_l(AAudio_FlushFromAccuracy accuracy [[maybe_unused]],
+                                             int64_t* position [[maybe_unused]])
+                                             REQUIRES(mStreamLock) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
 public:
     virtual aaudio_result_t getTimestamp(clockid_t clockId,
                                        int64_t *framePosition,
@@ -520,6 +526,9 @@ public:
     aaudio_result_t safeReleaseClose();
 
     aaudio_result_t safeReleaseCloseInternal() EXCLUDES(mStreamLock);
+
+    aaudio_result_t flushFromFrame(AAudio_FlushFromAccuracy accuracy, int64_t* position)
+            EXCLUDES(mStreamLock);
 
 protected:
 

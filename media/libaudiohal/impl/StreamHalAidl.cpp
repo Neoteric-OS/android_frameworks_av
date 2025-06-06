@@ -414,12 +414,36 @@ status_t StreamHalAidl::stop() {
     }
     StreamDescriptor::Reply reply;
     RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply));
-    if (const auto state = reply.state; state == StreamDescriptor::State::ACTIVE) {
-        return drain(false /*earlyNotify*/, nullptr);
-    } else if (state == StreamDescriptor::State::DRAINING) {
-        RETURN_STATUS_IF_ERROR(pause());
-        return flush();
-    } else if (state == StreamDescriptor::State::PAUSED) {
+    const auto state = reply.state;
+    if (mIsInput) {
+        // For input, does not make sense to drain since the framework does not need that data.
+        if (state == StreamDescriptor::State::ACTIVE) {
+            RETURN_STATUS_IF_ERROR(pause());
+            return flush();
+        } else if (state == StreamDescriptor::State::DRAINING) {
+            // Drain until the stream enters standby due to empty buffer.
+            do {
+                if (status_t status = drain(false /*earlyNotify*/, &reply); status != OK) {
+                    if (reply.state == StreamDescriptor::State::STANDBY) break;
+                    AUGMENT_LOG(E, "HAL could not complete drain, left in %s state, status %d",
+                            toString(reply.state).c_str(), status);
+                    return status;
+                }
+            } while (reply.state == StreamDescriptor::State::DRAINING);
+            if (reply.state == StreamDescriptor::State::STANDBY) return OK;
+            AUGMENT_LOG(E, "HAL could not complete drain, left in %s state",
+                    toString(reply.state).c_str());
+            return INVALID_OPERATION;
+        }
+    } else {  // output
+        if (state == StreamDescriptor::State::ACTIVE) {
+            return drain(false /*earlyNotify*/, nullptr);
+        } else if (state == StreamDescriptor::State::DRAINING) {
+            RETURN_STATUS_IF_ERROR(pause());
+            return flush();
+        }
+    }
+    if (state == StreamDescriptor::State::PAUSED) {
         return flush();
     } else if (state != StreamDescriptor::State::IDLE &&
             state != StreamDescriptor::State::STANDBY) {

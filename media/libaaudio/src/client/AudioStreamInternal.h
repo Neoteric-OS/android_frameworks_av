@@ -155,6 +155,8 @@ protected:
      */
     bool isClockModelInControl() const;
 
+    aaudio_result_t startCallback_l() REQUIRES(mStreamLock);
+
     IsochronousClockModel    mClockModel;      // timing model for chasing the HAL
 
     std::unique_ptr<AudioEndpoint> mAudioEndpoint;   // source for reads or sink for writes

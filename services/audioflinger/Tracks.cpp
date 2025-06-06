@@ -3538,7 +3538,7 @@ sp<StreamInHalInterface> PassthruPatchRecord::obtainStream(
     if (!*thread) return nullptr;
     auto* const recordThread = (*thread)->asIAfRecordThread().get();
     audio_utils::lock_guard _l(recordThread->mutex());
-    return recordThread->getInput() ? recordThread->getInput()->stream : nullptr;
+    return recordThread->getInput_l() ? recordThread->getInput_l()->stream : nullptr;
 }
 
 // PatchProxyBufferProvider methods are called on DirectOutputThread

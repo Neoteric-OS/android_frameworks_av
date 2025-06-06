@@ -104,6 +104,8 @@ protected:
     aaudio_result_t requestStop_l() REQUIRES(mStreamLock) final;
 
     void wakeupCallbackThread() final;
+    aaudio_result_t flushFromFrame_l(AAudio_FlushFromAccuracy accuracy, int64_t* position)
+            REQUIRES(mStreamLock) final;
 private:
     /*
      * Asynchronous write with data conversion.
@@ -133,6 +135,8 @@ private:
     std::mutex mCallbackMutex;
     std::condition_variable mCallbackCV;
     bool mSuspendCallback GUARDED_BY(mCallbackMutex){false};
+
+    std::mutex mEndpointMutex;
 };
 
 } /* namespace aaudio */

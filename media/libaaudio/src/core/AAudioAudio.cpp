@@ -26,6 +26,7 @@
 #include <aaudio/AAudio.h>
 #include <aaudio/AAudioTesting.h>
 #include <com_android_media_aaudio.h>
+#include <com_android_media_audioserver.h>
 #include <system/aaudio/AAudio.h>
 #include <system/audio.h>
 #include "AudioClock.h"
@@ -775,4 +776,13 @@ AAUDIO_API int32_t AAudioStream_getOffloadPadding(AAudioStream* stream) {
 AAUDIO_API aaudio_result_t AAudioStream_setOffloadEndOfStream(AAudioStream* stream) {
     AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
     return audioStream->setOffloadEndOfStream();
+}
+
+AAUDIO_API aaudio_result_t AAudioStream_flushFromFrame(
+        AAudioStream* stream, AAudio_FlushFromAccuracy accuracy, int64_t* inOutPosition) {
+    if (!com::android::media::audioserver::mmap_pcm_offload_support()) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    AudioStream *audioStream = convertAAudioStreamToAudioStream(stream);
+    return audioStream->flushFromFrame(accuracy, inOutPosition);
 }

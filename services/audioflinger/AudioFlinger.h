@@ -407,8 +407,7 @@ private:
             const audioflinger::SyncEventCallback& callBack,
             const wp<IAfTrackBase>& cookie) final EXCLUDES_AudioFlinger_Mutex;
 
-    // Hold either AudioFlinger::mutex or ThreadBase::mutex
-    void ioConfigChanged_l(audio_io_config_event_t event,
+    void ioConfigChanged(audio_io_config_event_t event,
             const sp<AudioIoDescriptor>& ioDesc,
             pid_t pid = 0) final EXCLUDES_AudioFlinger_ClientMutex;
     void onNonOffloadableGlobalEffectEnable() final EXCLUDES_AudioFlinger_Mutex;

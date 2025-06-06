@@ -18,6 +18,8 @@
 #ifndef MEDIA_CODEC_CONSTANTS_H_
 #define MEDIA_CODEC_CONSTANTS_H_
 
+#include <string>
+
 namespace {
 
 // from MediaCodecInfo.java

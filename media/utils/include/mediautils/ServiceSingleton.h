@@ -25,6 +25,7 @@
 #include <mutex>
 #include <utils/Log.h>
 #include <utils/Timers.h>
+#include <variant>
 
 #pragma push_macro("LOG_TAG")
 #undef LOG_TAG
