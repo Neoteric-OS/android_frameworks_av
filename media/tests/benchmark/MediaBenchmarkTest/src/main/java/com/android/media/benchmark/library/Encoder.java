@@ -56,6 +56,7 @@ public class Encoder implements IBufferXfer.IConsumer {
     private static final int kQueueDequeueTimeoutUs = 1000;
     private final Object mLock = new Object();
     private final Object mFuturesLock = new Object();
+    private MediaFormat mConfiguredInputFormat = null;
     private MediaCodec mCodec = null;
     private Muxer mMuxer = null;
     int mTrackIndex = -1;
@@ -534,6 +535,9 @@ public class Encoder implements IBufferXfer.IConsumer {
         }
         return ENCODE_SUCCESS;
     }
+    public MediaFormat getInputFormat() {
+        return mConfiguredInputFormat;
+    }
     public int configureCodec(MediaFormat encodeFormat, boolean asyncMode, int flags) {
         mFlags = flags;
         return configureCodec(encodeFormat, asyncMode);
@@ -558,6 +562,7 @@ public class Encoder implements IBufferXfer.IConsumer {
             return ENCODE_CREATE_ERROR;
         }
         mInitTimeFragment += mStats.getTimeDiff(sTime, mStats.getCurTime());
+        mConfiguredInputFormat = mCodec.getInputFormat();
         return ENCODE_SUCCESS;
     }
     public void setCallback() {

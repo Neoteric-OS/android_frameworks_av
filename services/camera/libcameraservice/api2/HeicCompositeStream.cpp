@@ -699,21 +699,6 @@ status_t HeicCompositeStream::configureStream() {
         return res;
     }
 
-    uint64_t usage;
-    if ((res = native_window_get_consumer_usage(static_cast<ANativeWindow*>(mOutputSurface.get()),
-                    &usage)) != OK ) {
-        ALOGE("%s: Unable to query stream buffer usage for stream %d", __FUNCTION__,
-                mMainImageStreamId);
-        return res;
-    }
-
-    usage |= GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
-    if ((res = native_window_set_usage(mOutputSurface.get(), usage)) != OK) {
-        ALOGE("%s: Unable to configure stream buffer usage for stream %d", __FUNCTION__,
-                mMainImageStreamId);
-        return res;
-    }
-
     ANativeWindow *anwConsumer = mOutputSurface.get();
     int maxConsumerBuffers;
     if ((res = anwConsumer->query(anwConsumer, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -722,6 +707,11 @@ status_t HeicCompositeStream::configureStream() {
                 " buffer count for stream %d", __FUNCTION__, mMainImageStreamId);
         return res;
     }
+
+    if ((res = setSWUsage(mMainImageStreamId, anwConsumer)) != OK ) {
+        return res;
+    }
+
 
     // Cannot use SourceSurface buffer count since it could be codec's 512*512 tile
     // buffer count.

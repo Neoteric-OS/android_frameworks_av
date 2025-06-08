@@ -120,7 +120,8 @@ public:
                          AAudioStream_dataCallback dataCallback = nullptr,
                          AAudioStream_errorCallback errorCallback = nullptr,
                          void *userContext = nullptr,
-                         AAudioStream_presentationEndCallback presentationEndCallback = nullptr) {
+                         AAudioStream_presentationEndCallback presentationEndCallback = nullptr,
+                         AAudioStream_partialDataCallback partialDataCallback = nullptr) {
         aaudio_result_t result = AAUDIO_OK;
 
         // Use an AAudioStreamBuilder to contain requested parameters.
@@ -141,6 +142,9 @@ public:
         if (presentationEndCallback != nullptr) {
             AAudioStreamBuilder_setPresentationEndCallback(
                     builder, presentationEndCallback, userContext);
+        }
+        if (partialDataCallback != nullptr) {
+            AAudioStreamBuilder_setPartialDataCallback(builder, partialDataCallback, userContext);
         }
         //AAudioStreamBuilder_setFramesPerDataCallback(builder, CALLBACK_SIZE_FRAMES);
         //AAudioStreamBuilder_setBufferCapacityInFrames(builder, 48 * 8);

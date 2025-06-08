@@ -403,6 +403,10 @@ aaudio_result_t AAudioServiceStreamBase::flush_l() {
     return AAUDIO_OK;
 }
 
+aaudio_result_t AAudioServiceStreamBase::updateTimestamp() {
+    return sendCommand(UPDATE_TIMESTAMP, nullptr /*param*/, true /*waitForReply*/, TIMEOUT_NANOS);
+}
+
 // implement Runnable, periodically send timestamps to client and process commands from queue.
 // Enter standby mode if idle for a while.
 __attribute__((no_sanitize("integer")))
@@ -546,6 +550,9 @@ void AAudioServiceStreamBase::run() {
                     auto param = (StopClientParam *) command->parameter.get();
                     command->result = param == nullptr ? AAUDIO_ERROR_ILLEGAL_ARGUMENT
                                                        : stopClient_l(param->mClientHandle);
+                } break;
+                case UPDATE_TIMESTAMP: {
+                    command->result = sendCurrentTimestamp_l();
                 } break;
                 default:
                     ALOGE("Invalid command op code: %d", command->operationCode);

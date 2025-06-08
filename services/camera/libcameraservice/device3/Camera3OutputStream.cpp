@@ -535,18 +535,7 @@ status_t Camera3OutputStream::configureQueueLocked() {
     // Set dequeueBuffer/attachBuffer timeout if the consumer is not hw composer or hw texture.
     // We need skip these cases as timeout will disable the non-blocking (async) mode.
     if (!(isConsumedByHWComposer() || isConsumedByHWTexture())) {
-        if (mUseBufferManager) {
-            // When buffer manager is handling the buffer, we should have available buffers in
-            // buffer queue before we calls into dequeueBuffer because buffer manager is tracking
-            // free buffers.
-            // There are however some consumer side feature (ImageReader::discardFreeBuffers) that
-            // can discard free buffers without notifying buffer manager. We want the timeout to
-            // happen immediately here so buffer manager can try to update its internal state and
-            // try to allocate a buffer instead of waiting.
-            mConsumer->setDequeueTimeout(0);
-        } else {
-            mConsumer->setDequeueTimeout(kDequeueBufferTimeout);
-        }
+        mConsumer->setDequeueTimeout(kDequeueBufferTimeout);
     }
 
     return OK;
@@ -763,7 +752,6 @@ status_t Camera3OutputStream::getBufferLockedCommon(ANativeWindowBuffer** anb, i
                         __FUNCTION__, mId, strerror(-res), res);
             }
             if (res != OK) {
-                checkRetAndSetAbandonedLocked(res);
                 return res;
             }
             gotBufferFromManager = true;
@@ -839,72 +827,34 @@ status_t Camera3OutputStream::getBufferLockedCommon(ANativeWindowBuffer** anb, i
         mDequeueBufferLatency.add(dequeueStart, dequeueEnd);
 
         mLock.lock();
-
-        if (mUseBufferManager && res == TIMED_OUT) {
-            checkRemovedBuffersLocked();
-
-            sp<GraphicBuffer> gb;
-            res = mBufferManager->getBufferForStream(
-                    getId(), getStreamSetId(), isMultiResolution(),
-                    &gb, fenceFd, /*noFreeBuffer*/true);
-
-            if (res == OK) {
-                // Attach this buffer to the bufferQueue: the buffer will be in dequeue state after
-                // a successful return.
-                *anb = gb.get();
-                res = mConsumer->attachBuffer(*anb);
-                gotBufferFromManager = true;
-                ALOGV("Stream %d: Attached new buffer", getId());
-
-                if (res != OK) {
-                    if (shouldLogError(res, mState)) {
-                        ALOGE("%s: Stream %d: Can't attach the output buffer to this surface:"
-                                " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
-                    }
-                    checkRetAndSetAbandonedLocked(res);
-                    return res;
-                }
-            } else {
-                ALOGE("%s: Stream %d: Can't get next output buffer from buffer manager:"
-                        " %s (%d)", __FUNCTION__, mId, strerror(-res), res);
-                return res;
-            }
-        } else if (res != OK) {
+        if (res != OK) {
             if (shouldLogError(res, mState)) {
                 ALOGE("%s: Stream %d: Can't dequeue next output buffer: %s (%d)",
                         __FUNCTION__, mId, strerror(-res), res);
             }
-            checkRetAndSetAbandonedLocked(res);
+            // Only transition to STATE_ABANDONED from STATE_CONFIGURED. (If it is STATE_PREPARING,
+            // let prepareNextBuffer handle the error.)
+            if ((res == NO_INIT || res == DEAD_OBJECT) && mState == STATE_CONFIGURED) {
+                mState = STATE_ABANDONED;
+            }
             return res;
         }
     }
 
     if (res == OK) {
-        checkRemovedBuffersLocked();
+        std::vector<sp<GraphicBuffer>> removedBuffers;
+        status_t res = mConsumer->getAndFlushRemovedBuffers(&removedBuffers);
+        if (res == OK) {
+            onBuffersRemovedLocked(removedBuffers);
+
+            if (mUseBufferManager && removedBuffers.size() > 0) {
+                mBufferManager->onBuffersRemoved(getId(), getStreamSetId(), isMultiResolution(),
+                        removedBuffers.size(), /*released*/false);
+            }
+        }
     }
 
     return res;
-}
-
-void Camera3OutputStream::checkRemovedBuffersLocked(bool notifyBufferManager) {
-    std::vector<sp<GraphicBuffer>> removedBuffers;
-    status_t res = mConsumer->getAndFlushRemovedBuffers(&removedBuffers);
-    if (res == OK) {
-        onBuffersRemovedLocked(removedBuffers);
-
-        if (notifyBufferManager && mUseBufferManager && removedBuffers.size() > 0) {
-            mBufferManager->onBuffersRemoved(getId(), getStreamSetId(), isMultiResolution(),
-                    removedBuffers.size());
-        }
-    }
-}
-
-void Camera3OutputStream::checkRetAndSetAbandonedLocked(status_t res) {
-    // Only transition to STATE_ABANDONED from STATE_CONFIGURED. (If it is
-    // STATE_PREPARING, let prepareNextBuffer handle the error.)
-    if ((res == NO_INIT || res == DEAD_OBJECT) && mState == STATE_CONFIGURED) {
-        mState = STATE_ABANDONED;
-    }
 }
 
 bool Camera3OutputStream::shouldLogError(status_t res, StreamState state) {
@@ -1118,8 +1068,14 @@ void Camera3OutputStream::BufferProducerListener::onBuffersDiscarded(
         Mutex::Autolock l(stream->mLock);
         stream->onBuffersRemovedLocked(buffers);
         if (stream->mUseBufferManager) {
-            stream->mBufferManager->onBuffersRemoved(stream->getId(),
-                    stream->getStreamSetId(), stream->isMultiResolution(), buffers.size());
+            status_t res = stream->mBufferManager->onBuffersRemoved(stream->getId(),
+                    stream->getStreamSetId(), stream->isMultiResolution(), buffers.size(),
+                    /*released*/true);
+            if (res != OK) {
+                ALOGE("%s: signaling buffers discarded to buffer manager failed: %s (%d).",
+                      __FUNCTION__, strerror(-res), res);
+                stream->mState = STATE_ERROR;
+            }
         }
         ALOGV("Stream %d: %zu Buffers discarded.", stream->getId(), buffers.size());
     }
@@ -1172,8 +1128,11 @@ status_t Camera3OutputStream::detachBufferLocked(sp<GraphicBuffer>* buffer, int*
         }
     }
 
-    // Here we assume detachBuffer is called by buffer manager so it doesn't need to be notified
-    checkRemovedBuffersLocked(/*notifyBufferManager*/false);
+    std::vector<sp<GraphicBuffer>> removedBuffers;
+    res = mConsumer->getAndFlushRemovedBuffers(&removedBuffers);
+    if (res == OK) {
+        onBuffersRemovedLocked(removedBuffers);
+    }
     return res;
 }
 
