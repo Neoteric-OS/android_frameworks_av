@@ -183,7 +183,7 @@ status_t AidlConversionSpatializer::getParameter(EffectParamWriter& param) {
                 for (const auto level : ::ndk::enum_range<Spatialization::Level>()) {
                     const auto spatializer =
                             Spatializer::make<Spatializer::spatializationLevel>(level);
-                    if (spatializer >= range->min && spatializer <= range->max) {
+                    if (isValidRange(spatializer)) {
                         levels.emplace_back(level);
                     }
                 }
@@ -261,7 +261,7 @@ status_t AidlConversionSpatializer::getParameter(EffectParamWriter& param) {
                 for (const auto mode : ::ndk::enum_range<Spatialization::Mode>()) {
                     if (const auto spatializer =
                                 Spatializer::make<Spatializer::spatializationMode>(mode);
-                        spatializer >= range->min && spatializer <= range->max) {
+                                isValidRange(spatializer)) {
                         modes.emplace_back(mode);
                     }
                 }
@@ -282,7 +282,7 @@ status_t AidlConversionSpatializer::getParameter(EffectParamWriter& param) {
                 for (const auto mode : ::ndk::enum_range<HeadTracking::ConnectionMode>()) {
                     if (const auto spatializer =
                                 Spatializer::make<Spatializer::headTrackingConnectionMode>(mode);
-                        spatializer < range->min || spatializer > range->max) {
+                                isValidRange(spatializer)) {
                         modes.emplace_back(mode);
                     }
                 }
