@@ -3880,6 +3880,10 @@ sp<IAfThreadBase> AudioFlinger::checkOutputThread_l(audio_io_handle_t ioHandle) 
             it != mPlaybackThreads.end()) {
         return it->second;
     }
+    if (const auto it = mMmapThreads.find(ioHandle);
+            it != mMmapThreads.end()) {
+        return it->second;
+    }
     return {};
 }
 
