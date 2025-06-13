@@ -423,6 +423,19 @@ bool SwAudioOutputDescriptor::sharesHwModuleWith(
     }
 }
 
+DeviceVector SwAudioOutputDescriptor::routableDevices() const
+{
+    if (isDuplicated()) {
+        DeviceVector routableDevices = mOutput1->routableDevices();
+        routableDevices.merge(mOutput2->routableDevices());
+        return routableDevices;
+    }
+    if (mProfile != nullptr) {
+        return mProfile->getRoutableDevices();
+    }
+    return DeviceVector();
+}
+
 DeviceVector SwAudioOutputDescriptor::supportedDevices() const
 {
     if (isDuplicated()) {
@@ -441,14 +454,29 @@ bool SwAudioOutputDescriptor::supportsDevice(const sp<DeviceDescriptor> &device)
     return supportedDevices().contains(device);
 }
 
+bool SwAudioOutputDescriptor::routesToDevice(const sp<DeviceDescriptor> &device) const
+{
+    return routableDevices().contains(device);
+}
+
 bool SwAudioOutputDescriptor::supportsAllDevices(const DeviceVector &devices) const
 {
     return supportedDevices().containsAllDevices(devices);
 }
 
+bool SwAudioOutputDescriptor::routesToAllDevices(const DeviceVector &devices) const
+{
+    return routableDevices().containsAllDevices(devices);
+}
+
 bool SwAudioOutputDescriptor::supportsAtLeastOne(const DeviceVector &devices) const
 {
     return filterSupportedDevices(devices).size() > 0;
+}
+
+bool SwAudioOutputDescriptor::routesToAtLeastOne(const DeviceVector &devices) const
+{
+    return filterRoutableDevices(devices).size() > 0;
 }
 
 bool SwAudioOutputDescriptor::supportsDevicesForPlayback(const DeviceVector &devices) const
@@ -458,9 +486,20 @@ bool SwAudioOutputDescriptor::supportsDevicesForPlayback(const DeviceVector &dev
     return !isDuplicated() && supportsAllDevices(devices);
 }
 
+bool SwAudioOutputDescriptor::routesToDevicesForPlayback(const DeviceVector &devices) const
+{
+    return !isDuplicated() && routesToAllDevices(devices);
+}
+
 DeviceVector SwAudioOutputDescriptor::filterSupportedDevices(const DeviceVector &devices) const
 {
     DeviceVector filteredDevices = supportedDevices();
+    return filteredDevices.filter(devices);
+}
+
+DeviceVector SwAudioOutputDescriptor::filterRoutableDevices(const DeviceVector &devices) const
+{
+    DeviceVector filteredDevices = routableDevices();
     return filteredDevices.filter(devices);
 }
 
