@@ -537,10 +537,10 @@ private:
             REQUIRES(audio_utils::AudioFlinger_Mutex) {
         audio_io_handle_t io = AUDIO_IO_HANDLE_NONE;
 
-        for (size_t i = 0; i < threads.size(); i++) {
-            const uint32_t sessionType = threads.valueAt(i)->hasAudioSession(sessionId);
+        for (const auto& [ioHandle, thread] : threads) {
+            const uint32_t sessionType = thread->hasAudioSession(sessionId);
             if (sessionType != 0) {
-                io = threads.keyAt(i);
+                io = ioHandle;
                 if ((sessionType & IAfThreadBase::EFFECT_SESSION) != 0) {
                     break; // effect chain here.
                 }
@@ -686,7 +686,7 @@ private:
     };
 
     mutable hardware_call_state mHardwareStatus = AUDIO_HW_IDLE;  // for dump only
-    DefaultKeyedVector<audio_io_handle_t, sp<IAfPlaybackThread>> mPlaybackThreads
+    std::map<audio_io_handle_t, sp<IAfPlaybackThread>> mPlaybackThreads
             GUARDED_BY(mutex());
     stream_type_t mStreamTypes[AUDIO_STREAM_CNT] GUARDED_BY(mutex());
 
@@ -694,7 +694,7 @@ private:
     bool mMasterMute GUARDED_BY(mutex()) = false;
     float mMasterBalance GUARDED_BY(mutex()) = 0.f;
 
-    DefaultKeyedVector<audio_io_handle_t, sp<IAfRecordThread>> mRecordThreads GUARDED_BY(mutex());
+    std::map<audio_io_handle_t, sp<IAfRecordThread>> mRecordThreads GUARDED_BY(mutex());
 
     std::map<pid_t, sp<NotificationClient>> mNotificationClients GUARDED_BY(clientMutex());
 
@@ -721,7 +721,7 @@ private:
                 // list of MMAP stream control threads. Those threads allow for wake lock, routing
                 // and volume control for activity on the associated MMAP stream at the HAL.
                 // Audio data transfer is directly handled by the client creating the MMAP stream
-    DefaultKeyedVector<audio_io_handle_t, sp<IAfMmapThread>> mMmapThreads GUARDED_BY(mutex());
+    std::map<audio_io_handle_t, sp<IAfMmapThread>> mMmapThreads GUARDED_BY(mutex());
 
     // always returns non-null
     sp<Client> registerClient(pid_t pid, uid_t uid) EXCLUDES_AudioFlinger_ClientMutex;
