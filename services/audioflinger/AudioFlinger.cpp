@@ -63,6 +63,7 @@
 #include <utils/Log.h>
 
 // not needed with the includes above, added to prevent transitive include dependency.
+#include <atomic>
 #include <chrono>
 #include <thread>
 #include <string_view>
@@ -3962,8 +3963,8 @@ audio_unique_id_t AudioFlinger::nextUniqueId(audio_unique_id_use_t use)
     const int maxRetries = use == AUDIO_UNIQUE_ID_USE_SESSION ? 3 : 1;
     for (int retry = 0; retry < maxRetries; retry++) {
         // The cast allows wraparound from max positive to min negative instead of abort
-        uint32_t base = (uint32_t) atomic_fetch_add_explicit(&mNextUniqueIds[use],
-                (uint_fast32_t) AUDIO_UNIQUE_ID_USE_MAX, memory_order_acq_rel);
+        uint32_t base = (uint32_t) mNextUniqueIds[use].fetch_add(
+                (uint_fast32_t) AUDIO_UNIQUE_ID_USE_MAX, std::memory_order_acq_rel);
         ALOG_ASSERT(audio_unique_id_get_use(base) == AUDIO_UNIQUE_ID_USE_UNSPECIFIED);
         // allow wrap by skipping 0 and -1 for session ids
         if (!(base == 0 || base == (~0u & ~AUDIO_UNIQUE_ID_USE_MASK))) {

@@ -699,7 +699,7 @@ private:
     std::map<pid_t, sp<NotificationClient>> mNotificationClients GUARDED_BY(clientMutex());
 
                 // updated by atomic_fetch_add_explicit
-    volatile atomic_uint_fast32_t mNextUniqueIds[AUDIO_UNIQUE_ID_USE_MAX];  // ctor init
+    std::atomic<uint_fast32_t> mNextUniqueIds[AUDIO_UNIQUE_ID_USE_MAX];  // ctor init
 
     std::atomic<audio_mode_t> mMode = AUDIO_MODE_INVALID;
     std::atomic<bool> mBtNrecIsOff = false;
