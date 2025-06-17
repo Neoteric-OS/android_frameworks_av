@@ -2425,7 +2425,7 @@ typedef enum acamera_metadata_tag {
      *
      * <p>If set to AUTO, the camera device detects which capture request key the application uses
      * to do zoom, ACAMERA_SCALER_CROP_REGION or ACAMERA_CONTROL_ZOOM_RATIO. If
-     * the application doesn't set android.scaler.zoomRatio or sets it to 1.0 in the capture
+     * the application doesn't set ACAMERA_CONTROL_ZOOM_RATIO or sets it to 1.0 in the capture
      * request, the effective zoom level is reflected in ACAMERA_SCALER_CROP_REGION in capture
      * results. If ACAMERA_CONTROL_ZOOM_RATIO is set to values other than 1.0, the effective
      * zoom level is reflected in ACAMERA_CONTROL_ZOOM_RATIO. AUTO is the default value

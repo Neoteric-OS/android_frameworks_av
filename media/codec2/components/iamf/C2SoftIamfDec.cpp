@@ -181,70 +181,75 @@ C2SoftIamfDec::~C2SoftIamfDec() {
     onRelease();
 }
 
-iamf_tools::api::OutputLayout C2SoftIamfDec::getTargetOutputLayout() const {
-    auto channelMask = mIntf->getOutputChannelMask();
-    if (channelMask != UNSET_OUTPUT_CHANNEL_MASK) {
-        ALOGI("channel mask set, trying to use value %d", channelMask);
+iamf_tools::api::OutputLayout C2SoftIamfDec::getTargetOutputLayout() {
+    mCachedOutputChannelMask = mIntf->getOutputChannelMask();
+    mCachedMaxOutputChannelCount = mIntf->getMaxOutputChannelCount();
+    if (mCachedOutputChannelMask != UNSET_OUTPUT_CHANNEL_MASK) {
+        ALOGI("channel mask set, trying to use value %d", mCachedOutputChannelMask);
         // If the channel mask has been set, we'll use that.
-        return c2_soft_iamf_internal::GetIamfLayout(channelMask);
+        return c2_soft_iamf_internal::GetIamfLayout(mCachedOutputChannelMask);
     }
     // Fall back to using the max output channels.
-    auto maxOutputChannels = mIntf->getMaxOutputChannelCount();
-    ALOGI("channel mask not set, checking max channel count: %d", maxOutputChannels);
-    if (maxOutputChannels == UNSET_MAX_OUTPUT_CHANNELS) {
+    ALOGI("channel mask not set, checking max channel count: %d", mCachedMaxOutputChannelCount);
+    if (mCachedMaxOutputChannelCount == UNSET_MAX_OUTPUT_CHANNELS) {
         // Stereo default, if not set.
         ALOGI("max output channels not set, defaulting to stereo.");
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemA_0_2_0;
     }
-    if (maxOutputChannels <= 1) {
-        ALOGI("max output channels set to %d, using mono.", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount <= 1) {
+        ALOGI("max output channels set to %d, using mono.", mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kIAMF_SoundSystemExtension_0_1_0;
     }
-    if (maxOutputChannels <= 5) {  // 2 to 5 channels, use stereo.
-        ALOGI("max output channels set to %d, using stereo.", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount <= 5) {  // 2 to 5 channels, use stereo.
+        ALOGI("max output channels set to %d, using stereo.", mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemA_0_2_0;
     }
-    if (maxOutputChannels <= 7) {  // 6 or 7 channels, use 5.1.
-        ALOGI("max output channels set to %d, using 5.1.", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount <= 7) {  // 6 or 7 channels, use 5.1.
+        ALOGI("max output channels set to %d, using 5.1.", mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemB_0_5_0;
     }
-    if (maxOutputChannels <= 9) {  // 8 or 9 channels, use 7.1.
-        ALOGI("max output channels set to %d, using 7.1.", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount <= 9) {  // 8 or 9 channels, use 7.1.
+        ALOGI("max output channels set to %d, using 7.1.", mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemI_0_7_0;
     }
-    if (maxOutputChannels == 10) {  // 10 channels, use Sound System D, 5.1.4.
-        ALOGI("max output channels set to %d, using Sound System D, (5.1.4)", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount == 10) {  // 10 channels, use Sound System D, 5.1.4.
+        ALOGI("max output channels set to %d, using Sound System D, (5.1.4)",
+              mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemD_4_5_0;
     }
-    if (maxOutputChannels == 11) {  // Exactly 11 channels, use Sound System E.
-        ALOGI("max output channels set to %d, using Sound System E (4+5+1)", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount == 11) {  // Exactly 11 channels, use Sound System E.
+        ALOGI("max output channels set to %d, using Sound System E (4+5+1)",
+              mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemE_4_5_1;
     }
-    if (maxOutputChannels == 12) {  // Exactly 12 channels, use Sound System J, 7.1.4.
-        ALOGI("max output channels set to %d, using Sound System J (7.1.4)", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount == 12) {  // Exactly 12 channels, use Sound System J, 7.1.4.
+        ALOGI("max output channels set to %d, using Sound System J (7.1.4)",
+              mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemJ_4_7_0;
     }
-    if (maxOutputChannels <= 15) {  // 13 to 15 channels, use Sound System G (4+9+0)
-        ALOGI("max output channels set to %d, using Sound System G (4+9+0)", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount <= 15) {  // 13 to 15 channels, use Sound System G (4+9+0)
+        ALOGI("max output channels set to %d, using Sound System G (4+9+0)",
+              mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemG_4_9_0;
     }
-    if (maxOutputChannels < 24) {  // 16 to 23 channels, use 9.1.6
-        ALOGI("max output channels set to %d, using 9.1.6", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount < 24) {  // 16 to 23 channels, use 9.1.6
+        ALOGI("max output channels set to %d, using 9.1.6", mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kIAMF_SoundSystemExtension_6_9_0;
     }
-    if (maxOutputChannels == 24) {  // 24 channels use Sound System H (22.2)
-        ALOGI("max output channels set to %d, using Sound System H (22.2)", maxOutputChannels);
+    if (mCachedMaxOutputChannelCount == 24) {  // 24 channels use Sound System H (22.2)
+        ALOGI("max output channels set to %d, using Sound System H (22.2)",
+              mCachedMaxOutputChannelCount);
         return iamf_tools::api::OutputLayout::kItu2051_SoundSystemH_9_10_3;
     }
     // Any other value.
-    ALOGI("max output channels set to %d, defaulting to stereo.", maxOutputChannels);
+    ALOGI("max output channels set to %d, defaulting to stereo.", mCachedMaxOutputChannelCount);
     return iamf_tools::api::OutputLayout::kItu2051_SoundSystemA_0_2_0;
 }
 
-::iamf_tools::api::IamfDecoder::Settings C2SoftIamfDec::getIamfDecoderSettings() const {
-    const ::iamf_tools::api::OutputLayout targetLayout = getTargetOutputLayout();
-    ALOGV("Creating decoder with IAMF OutputLayout %d.", targetLayout);
-    return {.requested_layout = targetLayout,
+::iamf_tools::api::IamfDecoder::Settings C2SoftIamfDec::getIamfDecoderSettings() {
+    mOutputLayout = getTargetOutputLayout();
+    ALOGV("Creating decoder with IAMF OutputLayout %d.", mOutputLayout);
+    return {.requested_layout = mOutputLayout,
             // Here we ask for default, IAMF ordering in favor of reordering for Android in this
             // file.
             .channel_ordering = ::iamf_tools::api::ChannelOrdering::kOrderingForAndroid,
@@ -342,8 +347,8 @@ void C2SoftIamfDec::onRelease() {
 
 c2_status_t C2SoftIamfDec::onFlush_sm() {
     ALOGV("onFlush_sm.");
-    // Throw away any pending work.
-    IamfStatus status = mIamfDecoder->Reset();
+    IamfStatus status = mIamfDecoder->Reset();  // Throw away any pending work.
+    // The decoder may fail to reset if it was not created with DescriptorOBUs.
     if (status.ok()) {
         // We may be jumping back in time.
         mSignalledEos = false;
@@ -415,6 +420,28 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
         // had `process` called again.
         work->result = C2_BAD_VALUE;
         return;
+    }
+
+    // If channel mask or max output channel count has changed, we reset the decoder if and only if
+    // the new values result in a different layout.
+    const bool outputMaskOrMaxCountChanged =
+            mCachedOutputChannelMask != mIntf->getOutputChannelMask() ||
+            mCachedMaxOutputChannelCount != mIntf->getMaxOutputChannelCount();
+    if (outputMaskOrMaxCountChanged) {
+        // Since resetting to a different layout is disruptive, only do it if we're sure it results
+        // in a different output IAMF Layout.
+        if (auto newLayout = getTargetOutputLayout(); newLayout != mOutputLayout) {
+            mOutputLayout = newLayout;
+            IamfStatus status = mIamfDecoder->ResetWithNewLayout(mOutputLayout);
+            if (!status.ok()) {
+                // Layout cannot be changed if decoder was not created with DescriptorOBUs.
+                ALOGE("Failed to reset with new layout. Error message: %s",
+                      status.error_message.c_str());
+                mSignalledError = true;
+                work->result = C2_CORRUPTED;
+                return;
+            }
+        }
     }
 
     // mDummyReadView provided by SimpleC2Component just returns C2_NO_INIT.

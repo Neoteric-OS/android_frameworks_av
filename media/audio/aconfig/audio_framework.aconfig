@@ -74,6 +74,13 @@ flag {
     bug: "344031109"
 }
 
+flag {
+    name: "enable_platform_pc_type"
+    namespace: "media_audio"
+    description: "Return PLATFORM_PC in getPlatformType when the device has FEATURE_PC to control behavior on PC."
+    bug: "414709012"
+}
+
 flag{
     name: "enable_ringtone_haptics_customization"
     namespace: "media_audio"

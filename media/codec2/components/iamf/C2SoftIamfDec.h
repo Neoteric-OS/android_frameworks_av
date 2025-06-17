@@ -46,8 +46,8 @@ class C2SoftIamfDec : public SimpleC2Component {
 
   private:
     // Returns the layout requested by the caller via channel count or mask.
-    ::iamf_tools::api::OutputLayout getTargetOutputLayout() const;
-    ::iamf_tools::api::IamfDecoder::Settings getIamfDecoderSettings() const;
+    ::iamf_tools::api::OutputLayout getTargetOutputLayout();
+    ::iamf_tools::api::IamfDecoder::Settings getIamfDecoderSettings();
     // Initializes a decoder without the IAMF config (Descriptor OBUs).  They will be parsed from
     // subsequent calls to Decode.
     c2_status_t initializeDecoder();
@@ -62,6 +62,10 @@ class C2SoftIamfDec : public SimpleC2Component {
     std::shared_ptr<IntfImpl> mIntf;
     std::unique_ptr<::iamf_tools::api::IamfDecoder> mIamfDecoder;
 
+    uint32_t mCachedOutputChannelMask = 0;
+    uint32_t mCachedMaxOutputChannelCount = 0;
+    ::iamf_tools::api::OutputLayout mOutputLayout =
+            ::iamf_tools::api::OutputLayout::kItu2051_SoundSystemA_0_2_0;
     // N.B.: Calculation of this number assumes int16_t samples.
     size_t mOutputBufferSizeBytes = 0;
     bool mDescriptorProcessingComplete = false;

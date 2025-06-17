@@ -127,6 +127,13 @@ bool IOProfile::areAllDevicesSupported(const DeviceVector &devices) const {
     return mSupportedDevices.containsAllDevices(devices);
 }
 
+bool IOProfile::areAllDevicesRoutable(const DeviceVector &devices) const {
+    if (devices.empty()) {
+        return true;
+    }
+    return mRoutableDevices.containsAllDevices(devices);
+}
+
 bool IOProfile::isCompatibleProfileForFlags(uint32_t flags) const {
     return getFlagsCompatibleScore(flags) != NO_MATCH;
 }

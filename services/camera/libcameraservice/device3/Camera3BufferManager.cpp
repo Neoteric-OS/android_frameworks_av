@@ -225,20 +225,22 @@ status_t Camera3BufferManager::checkAndFreeBufferOnOtherStreamsLocked(
         // Need to unlock because the stream may also be calling
         // into the buffer manager in parallel to signal buffer
         // release, or acquire a new buffer.
-        bool bufferFreed = false;
+        //
+        // Because mLock is released before calling detachBuffer, to avoid
+        // race condition with other threads, decrease attachedBufferCount
+        // first, and if the detached buffer is null, recover
+        // attachedBufferCount.
+        size_t& otherAttachedBufferCount =
+                streamSet.attachedBufferCountMap.editValueFor(firstOtherStreamId);
         {
+            otherAttachedBufferCount--;
             mLock.unlock();
             sp<GraphicBuffer> buffer;
             stream->detachBuffer(&buffer, /*fenceFd*/ nullptr);
             mLock.lock();
-            if (buffer.get() != nullptr) {
-                bufferFreed = true;
+            if (buffer.get() == nullptr) {
+                otherAttachedBufferCount++;
             }
-        }
-        if (bufferFreed) {
-            size_t& otherAttachedBufferCount =
-                    streamSet.attachedBufferCountMap.editValueFor(firstOtherStreamId);
-            otherAttachedBufferCount--;
         }
     }
 
