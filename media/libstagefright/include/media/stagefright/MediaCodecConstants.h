@@ -1054,6 +1054,7 @@ inline constexpr char KEY_AAC_MAX_OUTPUT_CHANNEL_COUNT[] = "aac-max-output-chann
 inline constexpr char KEY_AAC_PROFILE[] = "aac-profile";
 inline constexpr char KEY_AAC_SBR_MODE[] = "aac-sbr-mode";
 inline constexpr char KEY_ALLOW_FRAME_DROP[] = "allow-frame-drop";
+inline constexpr char KEY_AUDIO_PRESENTATION_ID[] = "audio-presentation-id";
 inline constexpr char KEY_AUDIO_SESSION_ID[] = "audio-session-id";
 inline constexpr char KEY_BIT_RATE[] = "bitrate";
 inline constexpr char KEY_BITRATE_MODE[] = "bitrate-mode";

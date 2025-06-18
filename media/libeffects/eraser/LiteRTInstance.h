@@ -77,21 +77,57 @@ class LiteRTInstance {
      * Provides access to the input tensor metadata (dims, type) and data buffer.
      * @return Pointer to the TfLiteTensor, or nullptr if not initialized or index is invalid.
      */
-     TfLiteTensor* inputTensor() const;
+    TfLiteTensor* inputTensor() const;
 
-     /**
-      * @brief Gets a pointer to the primary output tensor structure.
-      * Provides access to the output tensor metadata (dims, type) and data buffer.
-      * @return Pointer to the TfLiteTensor, or nullptr if not initialized or index is invalid.
-      */
-     TfLiteTensor* outputTensor() const;
+    /**
+     * @brief Gets a pointer to the primary output tensor structure.
+     * Provides access to the output tensor metadata (dims, type) and data buffer.
+     * @return Pointer to the TfLiteTensor, or nullptr if not initialized or index is invalid.
+     */
+    TfLiteTensor* outputTensor() const;
 
-     /**
-      * @brief Dumps details about the loaded model (inputs, outputs, ops).
-      * Useful for debugging. Requires interpreter to be initialized.
-      * @return A string containing model details, or an error message.
-      */
-     std::string dumpModelDetails();
+    /**
+     * Write float samples into input tensor.
+     */
+    bool write(const float* in, size_t samples);
+
+    /**
+     * Read float samples from output tensor.
+     */
+    bool read(float* out, size_t samples);
+
+    bool invoke() const;
+
+    /**
+     * @brief Gets a mutable typed pointer into the data of the input tensor.
+     * @return Pointer of type T to the data of input tensor.
+     */
+    template <class T>
+    T* typedInputTensor() const {
+      if (!isInitialized() || mInputTensorIdx < 0) {
+          return nullptr;
+      }
+      return mInterpreter->typed_input_tensor<T>(mInputTensorIdx);
+    }
+
+    /**
+     * @brief Gets a mutable typed pointer into the data of the output tensor.
+     * @return Pointer of type T to the data of output tensor.
+     */
+    template <class T>
+    T* typedOutputTensor() const {
+      if (!isInitialized() || mOutputTensorIdx < 0) {
+          return nullptr;
+      }
+      return mInterpreter->typed_output_tensor<T>(mOutputTensorIdx);
+    }
+
+    /**
+     * @brief Dumps details about the loaded model (inputs, outputs, ops).
+     * Useful for debugging. Requires interpreter to be initialized.
+     * @return A string containing model details, or an error message.
+     */
+    std::string dumpModelDetails() const;
 
 private:
     const std::string mModelPath;
@@ -112,7 +148,7 @@ private:
      * @param tensorIndex The index of the tensor.
      * @return A string describing the tensor's shape, or an error message.
      */
-    std::string dumpTensorShape(const int tensorIndex);
+    std::string dumpTensorShape(const int tensorIndex) const;
 
     // Prevent copying and moving as this class manages unique resources.
     LiteRTInstance(const LiteRTInstance&) = delete;

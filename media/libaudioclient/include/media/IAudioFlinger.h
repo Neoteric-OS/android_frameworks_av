@@ -224,13 +224,6 @@ public:
     virtual     status_t    setMasterBalance(float balance) = 0;
     virtual     status_t    getMasterBalance(float *balance) const = 0;
 
-    /* set/get stream type state. This will probably be used by
-     * the preference panel, mostly.
-     */
-    virtual     status_t    setStreamVolume(audio_stream_type_t stream, float value,
-                                    bool muted, audio_io_handle_t output) = 0;
-    virtual     status_t    setStreamMute(audio_stream_type_t stream, bool muted) = 0;
-
     /**
      * Set volume for given AudioTrack port ids on specified output
      * @param portIds to consider
@@ -433,9 +426,6 @@ public:
     bool masterMute() const override;
     status_t setMasterBalance(float balance) override;
     status_t getMasterBalance(float* balance) const override;
-    status_t setStreamVolume(audio_stream_type_t stream, float value,
-                             bool muted, audio_io_handle_t output) override;
-    status_t setStreamMute(audio_stream_type_t stream, bool muted) override;
     status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
             bool muted, audio_io_handle_t output) override;
     status_t setMode(audio_mode_t mode) override;
@@ -559,8 +549,6 @@ public:
             SET_MASTER_MUTE = media::BnAudioFlingerService::TRANSACTION_setMasterMute,
             MASTER_VOLUME = media::BnAudioFlingerService::TRANSACTION_masterVolume,
             MASTER_MUTE = media::BnAudioFlingerService::TRANSACTION_masterMute,
-            SET_STREAM_VOLUME = media::BnAudioFlingerService::TRANSACTION_setStreamVolume,
-            SET_STREAM_MUTE = media::BnAudioFlingerService::TRANSACTION_setStreamMute,
             SET_PORTS_VOLUME = media::BnAudioFlingerService::TRANSACTION_setPortsVolume,
             SET_MODE = media::BnAudioFlingerService::TRANSACTION_setMode,
             SET_MIC_MUTE = media::BnAudioFlingerService::TRANSACTION_setMicMute,
@@ -681,9 +669,6 @@ public:
     Status masterMute(bool* _aidl_return) override;
     Status setMasterBalance(float balance) override;
     Status getMasterBalance(float* _aidl_return) override;
-    Status setStreamVolume(media::audio::common::AudioStreamType stream,
-                           float value, bool muted, int32_t output) override;
-    Status setStreamMute(media::audio::common::AudioStreamType stream, bool muted) override;
     Status setPortsVolume(const std::vector<int32_t>& portIds, float volume, bool muted,
                           int32_t output) override;
     Status setMode(media::audio::common::AudioMode mode) override;

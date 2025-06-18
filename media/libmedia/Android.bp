@@ -409,6 +409,7 @@ cc_library {
         "libbinder_ndk",
         //"libsonivox",
         "framework-permission-aidl-cpp",
+        "libaconfig_storage_read_api_cc",
         "libandroidicu",
         "libaudioclient",
         "libaudiofoundation",
@@ -422,6 +423,7 @@ cc_library {
         "libmedia_omx",
         "libstagefright_foundation",
         "libutils",
+        "server_configurable_flags",
     ],
 
     export_shared_lib_headers: [
@@ -434,6 +436,7 @@ cc_library {
     ],
 
     static_libs: [
+        "android.media.mediarecorder-aconfig-cc",
         "framework-permission-aidl-cpp",
         "resourcemanager_aidl_interface-ndk",
         "libguiflags",

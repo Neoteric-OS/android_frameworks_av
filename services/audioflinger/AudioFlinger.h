@@ -100,11 +100,6 @@ private:
     status_t setMasterBalance(float balance) final EXCLUDES_AudioFlinger_Mutex;
     status_t getMasterBalance(float* balance) const final EXCLUDES_AudioFlinger_Mutex;
 
-    status_t setStreamVolume(audio_stream_type_t stream, float value,
-            bool muted, audio_io_handle_t output) final EXCLUDES_AudioFlinger_Mutex;
-    status_t setStreamMute(audio_stream_type_t stream, bool muted) final
-            EXCLUDES_AudioFlinger_Mutex;
-
     status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
                             bool muted, audio_io_handle_t output) final EXCLUDES_AudioFlinger_Mutex;
 
@@ -352,7 +347,7 @@ private:
             audio_output_flags_t* flags,
             audio_attributes_t attributes,
             int32_t mixPortHalId) final REQUIRES(mutex());
-    const DefaultKeyedVector<audio_module_handle_t, AudioHwDevice*>&
+    const std::map<audio_module_handle_t, AudioHwDevice*>&
             getAudioHwDevs_l() const final REQUIRES(mutex(), hardwareMutex()) {
               return mAudioHwDevs;
             }
@@ -372,9 +367,6 @@ private:
     bool masterMute_l() const final REQUIRES(mutex());
     float getMasterBalance_l() const REQUIRES(mutex());
     // no range check, AudioFlinger::mutex() held
-    bool streamMute_l(audio_stream_type_t stream) const final REQUIRES(mutex()) {
-        return mStreamTypes[stream].mute;
-    }
     audio_mode_t getMode() const final { return mMode; }
     bool isLowRamDevice() const final { return mIsLowRamDevice; }
     uint32_t getScreenState() const final { return mScreenState; }
@@ -463,16 +455,6 @@ public:
     }
 
 private:
-    // FIXME The 400 is temporarily too high until a leak of writers in media.log is fixed.
-    static const size_t kLogMemorySize = 400 * 1024;
-    sp<MemoryDealer>    mLogMemoryDealer;   // == 0 when NBLog is disabled
-    // When a log writer is unregistered, it is done lazily so that media.log can continue to see it
-    // for as long as possible.  The memory is only freed when it is needed for another log writer.
-    Vector< sp<NBLog::Writer> > mUnregisteredWriters;
-    audio_utils::mutex& unregisteredWritersMutex() const { return mUnregisteredWritersMutex; }
-    mutable audio_utils::mutex mUnregisteredWritersMutex{
-            audio_utils::MutexOrder::kAudioFlinger_UnregisteredWritersMutex};
-
                             AudioFlinger() ANDROID_API;
     ~AudioFlinger() override;
 
@@ -636,7 +618,7 @@ private:
 
     mutable audio_utils::mutex mClientMutex{audio_utils::MutexOrder::kAudioFlinger_ClientMutex};
 
-    DefaultKeyedVector<pid_t, wp<Client>> mClients GUARDED_BY(clientMutex());   // see ~Client()
+    std::map<pid_t, wp<Client>> mClients GUARDED_BY(clientMutex());   // see ~Client()
 
     audio_utils::mutex& hardwareMutex() const { return mHardwareMutex; }
 
@@ -646,8 +628,7 @@ private:
     // always take mMutex before mHardwareMutex
 
     std::atomic<AudioHwDevice*> mPrimaryHardwareDev = nullptr;
-    DefaultKeyedVector<audio_module_handle_t, AudioHwDevice*> mAudioHwDevs
-            GUARDED_BY(hardwareMutex()) {nullptr /* defValue */};
+    std::map<audio_module_handle_t, AudioHwDevice*> mAudioHwDevs GUARDED_BY(hardwareMutex());
 
     static bool inputBufferSizeDevsCmp(const AudioHwDevice* lhs, const AudioHwDevice* rhs);
     std::set<AudioHwDevice*, decltype(&inputBufferSizeDevsCmp)>
@@ -688,7 +669,6 @@ private:
     mutable hardware_call_state mHardwareStatus = AUDIO_HW_IDLE;  // for dump only
     std::map<audio_io_handle_t, sp<IAfPlaybackThread>> mPlaybackThreads
             GUARDED_BY(mutex());
-    stream_type_t mStreamTypes[AUDIO_STREAM_CNT] GUARDED_BY(mutex());
 
     float mMasterVolume GUARDED_BY(mutex()) = 1.f;
     bool mMasterMute GUARDED_BY(mutex()) = false;
@@ -704,7 +684,7 @@ private:
     std::atomic<audio_mode_t> mMode = AUDIO_MODE_INVALID;
     std::atomic<bool> mBtNrecIsOff = false;
 
-    Vector<AudioSessionRef*> mAudioSessionRefs GUARDED_BY(mutex());
+    std::vector<AudioSessionRef*> mAudioSessionRefs GUARDED_BY(mutex());
 
     AudioHwDevice* loadHwModule_ll(const char *name) REQUIRES(mutex(), hardwareMutex());
 
@@ -712,11 +692,10 @@ private:
     std::list<sp<audioflinger::SyncEvent>> mPendingSyncEvents GUARDED_BY(mutex());
 
                 // Effect chains without a valid thread
-    DefaultKeyedVector<audio_session_t, sp<IAfEffectChain>> mOrphanEffectChains
-            GUARDED_BY(mutex());
+    std::map<audio_session_t, sp<IAfEffectChain>> mOrphanEffectChains GUARDED_BY(mutex());
 
                 // list of sessions for which a valid HW A/V sync ID was retrieved from the HAL
-    DefaultKeyedVector<audio_session_t, audio_hw_sync_t> mHwAvSyncIds GUARDED_BY(mutex());
+    std::map<audio_session_t, audio_hw_sync_t> mHwAvSyncIds GUARDED_BY(mutex());
 
                 // list of MMAP stream control threads. Those threads allow for wake lock, routing
                 // and volume control for activity on the associated MMAP stream at the HAL.

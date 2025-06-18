@@ -249,7 +249,8 @@ enum C2ParamIndexKind : C2Param::type_index_t {
     kParamIndexDrcEffectType, // drc, enum
     kParamIndexDrcOutputLoudness, // drc, float (dBFS)
     kParamIndexDrcAlbumMode, // drc, enum
-    kParamIndexAudioFrameSize, // int
+    kParamIndexAudioFrameSize, // u32
+    kParamIndexAudioPresentationId,  // i64
 
     /* ============================== platform-defined parameters ============================== */
 
@@ -2488,6 +2489,14 @@ typedef C2StreamParam<C2Info, C2SimpleArrayStruct<C2AccessUnitInfosStruct>,
 
 constexpr char C2_PARAMKEY_INPUT_ACCESS_UNIT_INFOS[] = "input.access-unit-infos";
 constexpr char C2_PARAMKEY_OUTPUT_ACCESS_UNIT_INFOS[] = "output.access-unit-infos";
+
+/**
+ * Audio Presentation ID. Used to configure a decoder with an audio presentation
+ * or mix presentation to be decoded.
+ */
+typedef C2GlobalParam<C2Tuning, C2Int64Value, kParamIndexAudioPresentationId>
+        C2AudioPresentationIdTuning;
+const char C2_PARAMKEY_AUDIO_PRESENTATION_ID[] = "algo.audio-presentation-id";
 
 /* --------------------------------------- AAC components --------------------------------------- */
 

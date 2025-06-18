@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "CameraMetadata.h"
+#include "aidl/android/companion/virtualcamera/VirtualCameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
 #include "system/camera_metadata.h"
 #include "util/Util.h"
@@ -499,6 +500,11 @@ std::unique_ptr<aidl::android::hardware::camera::device::CameraMetadata>
 cameraMetadataToHal(
     const android::hardware::camera::common::helper::CameraMetadata&
         metadataHelper);
+
+// Converts a HAL CameraMetadata object to a VirtualCameraMetadata optional.
+std::optional<aidl::android::companion::virtualcamera::VirtualCameraMetadata>
+aidlToVirtualCameraMetadata(
+    const aidl::android::hardware::camera::device::CameraMetadata& cameraMetadata);
 
 }  // namespace virtualcamera
 }  // namespace companion

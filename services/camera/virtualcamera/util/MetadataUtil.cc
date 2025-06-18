@@ -46,6 +46,7 @@ using AidlCameraMetadata =
     ::aidl::android::hardware::camera::device::CameraMetadata;
 using HelperCameraMetadata =
     ::android::hardware::camera::common::helper::CameraMetadata;
+using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
 
 template <typename To, typename From>
 std::vector<To> convertTo(const std::vector<From>& from) {
@@ -973,6 +974,15 @@ std::unique_ptr<AidlCameraMetadata> cameraMetadataToHal(
   metadataHelper.unlock(metadata);
 
   return aidlMetadata;
+}
+
+std::optional<VirtualCameraMetadata> aidlToVirtualCameraMetadata(
+    const AidlCameraMetadata& cameraMetadata) {
+  auto virtualCameraMetadata = VirtualCameraMetadata();
+  // Copy the vector as it is, it represents the byte[] of a camera_metadata_t
+  virtualCameraMetadata.metadata = cameraMetadata.metadata;
+
+  return virtualCameraMetadata;
 }
 
 }  // namespace virtualcamera

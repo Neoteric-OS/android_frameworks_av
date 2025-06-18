@@ -118,6 +118,29 @@ TfLiteTensor* LiteRTInstance::outputTensor() const {
     return mInterpreter->tensor(mOutputTensorIdx);
 }
 
+bool LiteRTInstance::write(const float* in, size_t samples) {
+    mInputTensorIdx = mInterpreter->inputs()[0];
+    float* tensor = mInterpreter->typed_input_tensor<float>(mInputTensorIdx);
+    std::memcpy(tensor, in, samples * sizeof(float));
+    return true;
+}
+
+bool LiteRTInstance::read(float* out, size_t samples) {
+    mOutputTensorIdx = mInterpreter->outputs()[0];
+    float* tensor = mInterpreter->typed_output_tensor<float>(mOutputTensorIdx);
+    std::memcpy(out, tensor, samples * sizeof(float));
+    return true;
+}
+
+bool LiteRTInstance::invoke() const {
+    TfLiteStatus invokeStatus = mInterpreter->Invoke();
+    if (invokeStatus != kTfLiteOk) {
+        LOG(ERROR) << "Model " << mModelPath << " warmup failed: " <<  invokeStatus;
+        return false;
+    }
+    return true;
+}
+
 void LiteRTInstance::resetTensorIndex() {
     mInputTensorIdx = 0;
     mOutputTensorIdx = 0;
@@ -146,7 +169,7 @@ bool LiteRTInstance::warmup() {
     return true;
 }
 
-std::string LiteRTInstance::dumpTensorShape(const int tensorIndex) {
+std::string LiteRTInstance::dumpTensorShape(const int tensorIndex) const {
     if (!isInitialized()) {
         return "Not Initialized";
     }
@@ -165,29 +188,29 @@ std::string LiteRTInstance::dumpTensorShape(const int tensorIndex) {
     return oss.str();
 }
 
-std::string LiteRTInstance::dumpModelDetails() {
+std::string LiteRTInstance::dumpModelDetails() const {
     if (!isInitialized()) {
        return "uninitialized.";
-   }
+    }
 
-   std::ostringstream oss;
-   oss << "Model Path: " << mModelPath << "\n";
-   oss << "Input Tensors (" << mInterpreter->inputs().size() << "):\n";
-   for (int index : mInterpreter->inputs()) {
-       TfLiteTensor* tensor = mInterpreter->tensor(index);
-       oss << "  Index " << index << ": " << (tensor ? tensor->name : "N/A")
-           << ", Type " << static_cast<int>(tensor ? tensor->type : kTfLiteNoType)
-           << ", Shape " << dumpTensorShape(index) << "\n";
-   }
+    std::ostringstream oss;
+    oss << "Model Path: " << mModelPath << "\n";
+    oss << "Input Tensors (" << mInterpreter->inputs().size() << "):\n";
+    for (int index : mInterpreter->inputs()) {
+        TfLiteTensor* tensor = mInterpreter->tensor(index);
+        oss << "  Index " << index << ": " << (tensor ? tensor->name : "N/A")
+            << ", Type " << static_cast<int>(tensor ? tensor->type : kTfLiteNoType)
+            << ", Shape " << dumpTensorShape(index) << "\n";
+    }
 
-   oss << "Output Tensors (" << mInterpreter->outputs().size() << "):\n";
-   for (int index : mInterpreter->outputs()) {
-       TfLiteTensor* tensor = mInterpreter->tensor(index);
-       oss << "  Index " << index << ": " << (tensor ? tensor->name : "N/A")
-           << ", Type " << static_cast<int>(tensor ? tensor->type : kTfLiteNoType)
-           << ", Shape " << dumpTensorShape(index) << "\n";
-   }
-   return oss.str();
+    oss << "Output Tensors (" << mInterpreter->outputs().size() << "):\n";
+    for (int index : mInterpreter->outputs()) {
+        TfLiteTensor* tensor = mInterpreter->tensor(index);
+        oss << "  Index " << index << ": " << (tensor ? tensor->name : "N/A")
+            << ", Type " << static_cast<int>(tensor ? tensor->type : kTfLiteNoType)
+            << ", Shape " << dumpTensorShape(index) << "\n";
+    }
+    return oss.str();
 }
 
 }  // namespace aidl::android::hardware::audio::effect

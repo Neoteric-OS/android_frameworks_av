@@ -41,12 +41,25 @@ class EraserContext final : public EffectContext {
     std::optional<Eraser> getParam(Eraser::Tag tag);
     ndk::ScopedAStatus setParam(Eraser eraser);
     IEffect::Status process(float* in, float* out, int samples);
+
     using EraserConfiguration = android::media::audio::eraser::Configuration;
     using EraserCapability = android::media::audio::eraser::Capability;
 
+    static const EraserCapability& getCapability();
+
   private:
+
+    // supported default configurations for the eraser implementation
+    static constexpr int kClassifierSampleRate = 16000;
+    static constexpr int kClassifierWindowSizeMs = 1000;
+    static constexpr int kSeparatorMaxSoundNum = 8;
+    static constexpr float kRemixerGainFactorMax = 1.2f;
+
     static const EraserConfiguration kDefaultConfig;
 
+    static const android::media::audio::eraser::ClassifierCapability kClassifierCapability;
+    static const android::media::audio::eraser::SeparatorCapability kSeparatorCapability;
+    static const android::media::audio::eraser::RemixerCapability kRemixerCapability;
     static const EraserCapability kCapability;
 
     // yamnet model was used for classifier:

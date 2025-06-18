@@ -94,15 +94,6 @@ interface IAudioFlingerService {
     float getMasterBalance();
 
     /*
-     * Set stream type state. This will probably be used by
-     * the preference panel, mostly.
-     * This method is deprecated. Please use the setPortsVolume method instead.
-     */
-    void setStreamVolume(AudioStreamType stream, float value, boolean muted,
-            int /* audio_io_handle_t */ output);
-    void setStreamMute(AudioStreamType stream, boolean muted);
-
-    /*
      * Set AudioTrack port ids volume attribute. This is the new way of controlling volume from
      * AudioPolicyManager to AudioFlinger.
      */

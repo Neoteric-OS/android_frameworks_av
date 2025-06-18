@@ -2095,7 +2095,7 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::addSessionConfigQuery
     int deviceVersion = HARDWARE_DEVICE_API_VERSION(mVersion.get_major(), mVersion.get_minor());
     if (deviceVersion == CAMERA_DEVICE_API_VERSION_1_3) {
         versionCode = ANDROID_INFO_SESSION_CONFIGURATION_QUERY_VERSION_VANILLA_ICE_CREAM;
-        if (flags::feature_combination_baklava() && getVNDKVersion() > 35) {
+        if (getVNDKVersion() > 35) {
             versionCode = ANDROID_INFO_SESSION_CONFIGURATION_QUERY_VERSION_BAKLAVA;
         }
     }
@@ -2457,14 +2457,12 @@ status_t CameraProviderManager::tryToInitializeAidlProviderLocked(
     AidlProviderInfo *aidlProviderInfo = static_cast<AidlProviderInfo *>(providerInfo.get());
     status_t res = aidlProviderInfo->initializeAidlProvider(interface, mDeviceState);
 
-    if (flags::enable_hal_abort_from_cameraservicewatchdog()) {
-        pid_t pid = 0;
+    pid_t pid = 0;
 
-        if (AIBinder_toPlatformBinder(interface->asBinder().get())->getDebugPid(&pid) == OK
-                && res == OK) {
-            std::lock_guard<std::mutex> lock(mProviderPidMapLock);
-            mProviderPidMap[providerInfo->mProviderInstance] = pid;
-        }
+    if (AIBinder_toPlatformBinder(interface->asBinder().get())->getDebugPid(&pid) == OK
+            && res == OK) {
+        std::lock_guard<std::mutex> lock(mProviderPidMapLock);
+        mProviderPidMap[providerInfo->mProviderInstance] = pid;
     }
 
     return res;
@@ -2486,18 +2484,16 @@ status_t CameraProviderManager::tryToInitializeHidlProviderLocked(
     HidlProviderInfo *hidlProviderInfo = static_cast<HidlProviderInfo *>(providerInfo.get());
     status_t res = hidlProviderInfo->initializeHidlProvider(interface, mDeviceState);
 
-    if (flags::enable_hal_abort_from_cameraservicewatchdog()) {
-        pid_t pid = 0;
+    pid_t pid = 0;
 
-        auto ret = interface->getDebugInfo([&pid](
-                const ::android::hidl::base::V1_0::DebugInfo& info) {
-            pid = info.pid;
-        });
+    auto ret = interface->getDebugInfo([&pid](
+            const ::android::hidl::base::V1_0::DebugInfo& info) {
+        pid = info.pid;
+    });
 
-        if (ret.isOk() && res == OK) {
-            std::lock_guard<std::mutex> lock(mProviderPidMapLock);
-            mProviderPidMap[providerInfo->mProviderInstance] = pid;
-        }
+    if (ret.isOk() && res == OK) {
+        std::lock_guard<std::mutex> lock(mProviderPidMapLock);
+        mProviderPidMap[providerInfo->mProviderInstance] = pid;
     }
 
     return res;
@@ -2609,11 +2605,9 @@ status_t CameraProviderManager::removeProvider(const std::string& provider) {
         ALOGW("%s: Camera provider HAL with name '%s' is not registered", __FUNCTION__,
                 provider.c_str());
     } else {
-        if (flags::enable_hal_abort_from_cameraservicewatchdog()) {
-            {
-                std::lock_guard<std::mutex> pidLock(mProviderPidMapLock);
-                mProviderPidMap.erase(provider);
-            }
+        {
+            std::lock_guard<std::mutex> pidLock(mProviderPidMapLock);
+            mProviderPidMap.erase(provider);
         }
 
         // Check if there are any newer camera instances from the same provider and try to
@@ -2802,13 +2796,11 @@ bool CameraProviderManager::ProviderInfo::isExternalLazyHAL() const {
 std::set<pid_t> CameraProviderManager::getProviderPids() {
     std::set<pid_t> pids;
 
-    if (flags::enable_hal_abort_from_cameraservicewatchdog()) {
-        std::lock_guard<std::mutex> lock(mProviderPidMapLock);
+    std::lock_guard<std::mutex> lock(mProviderPidMapLock);
 
-        std::transform(mProviderPidMap.begin(), mProviderPidMap.end(),
-                    std::inserter(pids, pids.begin()),
-                    [](std::pair<const std::string, pid_t>& entry) { return entry.second; });
-    }
+    std::transform(mProviderPidMap.begin(), mProviderPidMap.end(),
+                std::inserter(pids, pids.begin()),
+                [](std::pair<const std::string, pid_t>& entry) { return entry.second; });
 
     return pids;
 }

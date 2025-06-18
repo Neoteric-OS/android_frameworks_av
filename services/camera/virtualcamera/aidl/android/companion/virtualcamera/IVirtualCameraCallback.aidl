@@ -17,6 +17,7 @@
 package android.companion.virtualcamera;
 
 import android.companion.virtualcamera.Format;
+import android.companion.virtualcamera.VirtualCameraMetadata;
 import android.view.Surface;
 
 /**
@@ -37,7 +38,7 @@ oneway interface IVirtualCameraCallback {
      * android.hardware.camera2.CameraCaptureSession.StateCallback#onConfigured(CameraCaptureSession)}
      * is called.
      */
-    oneway void onOpenCamera();
+    void onOpenCamera();
 
     /**
      * Called when there's new video stream. This callback is send after clients opens and
@@ -51,17 +52,20 @@ oneway interface IVirtualCameraCallback {
      * @param pixelFormat - pixel format of the surface.
      */
     void onStreamConfigured(int streamId, in Surface surface, int width, int height,
-            in Format pixelFormat);
+        in Format pixelFormat);
 
     /**
      * Called when framework requests capture. This can be used by the client as a hint
      * to render another frame into input surface.
      *
      * @param streamId - id of the stream corresponding to the Surface for which next
-     *     frame is requested.
+     *      frame is requested.
      * @param frameId - id of the requested frame.
+     * @param captureRequestSettings - The capture request settings metadata provided by the app
+     *      in association with the requested {@code frameId}.
      */
-    void onProcessCaptureRequest(int streamId, int frameId);
+    void onProcessCaptureRequest(int streamId, int frameId,
+        in @nullable VirtualCameraMetadata captureRequestSettings);
 
     /**
      * Called when the corresponding stream is no longer in use. Implementation should dispose of

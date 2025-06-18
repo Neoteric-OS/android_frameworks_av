@@ -23,7 +23,8 @@
 #include <binder/Parcel.h>
 #include <hidl/HidlSupport.h>
 #include <hidl/HybridInterface.h>
-#include <gui/IGraphicBufferProducer.h>
+#include <gui/Flags.h> // Remove with MediaSurfaceType
+#include <gui/Surface.h>
 #include <media/stagefright/foundation/ABase.h>
 
 namespace android {
@@ -33,24 +34,24 @@ struct PersistentSurface : public RefBase {
 
     // create a persistent surface in HIDL
     PersistentSurface(
-            const sp<IGraphicBufferProducer>& bufferProducer,
+            const sp<MediaSurfaceType>& surface,
             const sp<hidl::base::V1_0::IBase>& hidlTarget) :
-        mBufferProducer(bufferProducer),
+        mSurface(surface),
         mHidlTarget(hidlTarget),
         mAidlTarget(nullptr),
         mAidl(false) { }
 
     // create a persistent surface in AIDL
     PersistentSurface(
-            const sp<IGraphicBufferProducer>& bufferProducer,
+            const sp<MediaSurfaceType>& surface,
             const ::ndk::SpAIBinder& aidlTarget) :
-        mBufferProducer(bufferProducer),
+        mSurface(surface),
         mHidlTarget(nullptr),
         mAidlTarget(aidlTarget),
         mAidl(true) { }
 
-    sp<IGraphicBufferProducer> getBufferProducer() const {
-        return mBufferProducer;
+    sp<MediaSurfaceType> getSurface() const {
+        return mSurface;
     }
 
     bool isTargetAidl() const {
@@ -66,7 +67,11 @@ struct PersistentSurface : public RefBase {
     }
 
     status_t writeToParcel(Parcel *parcel) const {
-        parcel->writeStrongBinder(IInterface::asBinder(mBufferProducer));
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
+        parcel->writeParcelable(view::Surface::fromSurface(surface));
+#else
+        parcel->writeStrongBinder(IInterface::asBinder(mSurface));
+#endif
         // write hidl target if available
         if (mHidlTarget != nullptr) {
             HalToken token;
@@ -98,8 +103,14 @@ struct PersistentSurface : public RefBase {
     }
 
     status_t readFromParcel(const Parcel *parcel) {
-        mBufferProducer = interface_cast<IGraphicBufferProducer>(
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
+        view::Surface surface;
+        parcel->readParcelable(&surface);
+        mSurface = surface.toSurface();
+#else
+        mSurface = interface_cast<IGraphicBufferProducer>(
                 parcel->readStrongBinder());
+#endif
         // read hidl target
         bool haveHidlTarget = parcel->readBool();
         mAidl = false;
@@ -135,7 +146,7 @@ struct PersistentSurface : public RefBase {
     }
 
 private:
-    sp<IGraphicBufferProducer> mBufferProducer;
+    sp<MediaSurfaceType> mSurface;
     sp<hidl::base::V1_0::IBase> mHidlTarget;
     ::ndk::SpAIBinder mAidlTarget;
     bool mAidl;

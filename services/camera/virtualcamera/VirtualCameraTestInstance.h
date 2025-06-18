@@ -73,8 +73,11 @@ class VirtualCameraTestInstance
       ::aidl::android::companion::virtualcamera::Format pixelFormat) override
       EXCLUDES(mLock);
 
-  ::ndk::ScopedAStatus onProcessCaptureRequest(int32_t in_streamId,
-                                               int32_t in_frameId) override;
+  ::ndk::ScopedAStatus onProcessCaptureRequest(
+      int32_t streamId, int32_t frameId,
+      const std::optional<
+          ::aidl::android::companion::virtualcamera::VirtualCameraMetadata>&
+          in_captureRequestSettings) override;
 
   ::ndk::ScopedAStatus onStreamClosed(int32_t streamId) override EXCLUDES(mLock);
 

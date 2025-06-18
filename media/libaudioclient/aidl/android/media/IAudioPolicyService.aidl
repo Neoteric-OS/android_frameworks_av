@@ -159,6 +159,8 @@ interface IAudioPolicyService {
 
     void setMinVolumeIndexForGroup(int groupId, int minIndex);
 
+    int getVolumeGroupIdForStreamType(AudioStreamType stream);
+
     int /* product_strategy_t */ getStrategyForStream(AudioStreamType stream);
 
     AudioDevice[] getDevicesForAttributes(in AudioAttributes attr, boolean forVolume);
@@ -358,6 +360,8 @@ interface IAudioPolicyService {
      */
     boolean isHotwordStreamSupported(boolean lookbackAudio);
 
+    AudioAttributes getAttributesForStreamType(in AudioStreamType stream);
+    AudioStreamType getStreamTypeForAttributes(in AudioAttributes attributes);
     AudioProductStrategy[] listAudioProductStrategies();
     int /* product_strategy_t */ getProductStrategyFromAudioAttributes(
             in AudioAttributes aa, boolean fallbackOnDefault);

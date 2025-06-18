@@ -467,7 +467,7 @@ private:
     // Maximum number of pending buffers allocated by OutputTrack::write()
     static const uint8_t kMaxOverFlowBuffers = 10;
 
-    Vector < Buffer* >          mBufferQueue;
+    std::deque<Buffer*> mBufferQueue;
     AudioBufferProvider::Buffer mOutBuffer;
     bool                        mActive;
     IAfDuplicatingThread* const mSourceThread; // for waitTimeMs() in write()

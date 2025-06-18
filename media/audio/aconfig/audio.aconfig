@@ -179,6 +179,13 @@ flag {
 }
 
 flag {
+    name: "stereo_spatialization_binaural_transaural"
+    namespace: "media_audio"
+    description: "Allows selective stereo spatialization enablement for binaural or transaural"
+    bug: "417494541"
+}
+
+flag {
     name: "update_preferred_devices_for_strategy"
     namespace: "media_audio"
     description: "Use AudioDeviceInventory cache for getPreferredDevicesForStrategy"

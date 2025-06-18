@@ -208,9 +208,10 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         mAppSegmentConsumer->setFrameAvailableListener(this);
         mAppSegmentConsumer->setName(String8("Camera3-HeicComposite-AppSegmentStream"));
     }
-    sp<IGraphicBufferProducer> producer = mAppSegmentSurface.get() != nullptr
-                                                  ? mAppSegmentSurface->getIGraphicBufferProducer()
-                                                  : nullptr;
+    sp<MediaSurfaceType> surface =
+            mAppSegmentSurface.get() != nullptr
+                    ? mediaflagtools::surfaceToSurfaceType(mAppSegmentSurface)
+                    : nullptr;
 
     if (mAppSegmentSupported) {
         std::vector<int> sourceSurfaceId;
@@ -234,20 +235,20 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
     }
 
     if (!mUseGrid && !mHDRGainmapEnabled) {
-        res = mCodec->createInputSurface(&producer);
+        res = mCodec->createInputSurface(&surface);
         if (res != OK) {
             ALOGE("%s: Failed to create input surface for Heic codec: %s (%d)",
                     __FUNCTION__, strerror(-res), res);
             return res;
         }
     } else {
-        sp<Surface> surface;
-        std::tie(mMainImageConsumer, surface) = CpuConsumer::create(1);
-        producer = surface->getIGraphicBufferProducer();
+        sp<Surface> cpuSurface;
+        std::tie(mMainImageConsumer, cpuSurface) = CpuConsumer::create(1);
+        surface = mediaflagtools::surfaceToSurfaceType(cpuSurface);
         mMainImageConsumer->setFrameAvailableListener(this);
         mMainImageConsumer->setName(String8("Camera3-HeicComposite-HevcInputYUVStream"));
     }
-    mMainImageSurface = new Surface(producer);
+    mMainImageSurface = mediaflagtools::surfaceTypeToSurface(surface);
 
     res = mCodec->start();
     if (res != OK) {

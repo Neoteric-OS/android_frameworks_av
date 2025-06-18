@@ -4111,7 +4111,7 @@ status_t AudioPolicyManager::setVolumeIndexForGroup(volume_group_t group,
         if (desc->useHwGain()) {
             bool swMute = com_android_media_audio_ring_my_car() ? curves.isMuted() : (index == 0);
             // If the volume source is active with higher priority source, ensure at least Sw Muted
-            desc->setSwMute(swMute, vs, curves.getStreamTypes(), curDevices, 0 /*delayMs*/);
+            desc->setSwMute(swMute, vs, curDevices, 0 /*delayMs*/);
             if (!desc->canSetVolumeForVolumeSource(activityVs)) {
                 continue; // next output
             }
@@ -8106,7 +8106,7 @@ void AudioPolicyManager::checkOutputForAttributes(const audio_attributes_t &attr
 
             bool invalidate = false;
             for (auto client : desc->clientsList(false /*activeOnly*/)) {
-                if (client->isInvalid()) {
+                if (client->isInvalid() || client->isCallRx()) {
                     continue;
                 }
                 if (desc->isDuplicated() || !desc->mProfile->isDirectOutput()) {
@@ -8392,7 +8392,8 @@ DeviceVector AudioPolicyManager::getNewOutputDevices(const sp<SwAudioOutputDescr
                 ALOGW("%s: no device were retrieved for specified attributes", __func__);
             }
 
-            if (com::android::media::audioserver::enable_strict_port_routing_checks()) {
+            if (!outputDesc->isDuplicated()
+                    && com::android::media::audioserver::enable_strict_port_routing_checks()) {
                 // Filter out devices that are indicated by the HAL as non-routable.
                 auto routableDevices = devices.filter([&](auto device) {
                       return outputDesc->mProfile->routesToDevice(device); });

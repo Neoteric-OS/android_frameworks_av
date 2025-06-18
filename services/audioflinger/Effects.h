@@ -150,7 +150,7 @@ protected:
     // effect is suspended: temporarily disabled by framework
     bool                      mSuspended = false;
 
-    Vector<IAfEffectHandle *> mHandles;  // list of client handles
+    std::vector<IAfEffectHandle*> mHandles;  // list of client handles
                 // First handle in mHandles has highest priority and controls the effect module
 
     // Audio policy effect state management
@@ -595,7 +595,7 @@ public:
     wp<IAfThreadBase> thread() const final { return mEffectCallback->thread(); }
 
     bool isFirstEffect_l(int id) const final REQUIRES(audio_utils::EffectChain_Mutex) {
-        return !mEffects.isEmpty() && id == mEffects[0]->id();
+        return !mEffects.empty() && id == mEffects[0]->id();
     }
 
     void dump(int fd, const Vector<String16>& args) const final;
@@ -717,7 +717,7 @@ public:
 
     // get a list of effect modules to suspend when an effect of the type
     // passed is enabled.
-    void getSuspendEligibleEffects(Vector<sp<IAfEffectModule>>& effects)
+    void getSuspendEligibleEffects(std::vector<sp<IAfEffectModule>>& effects)
             EXCLUDES_EffectChain_Mutex;
 
     // get an effect module if it is currently enable
@@ -747,7 +747,7 @@ public:
 
     // mutex protecting effect list
     mutable audio_utils::mutex mMutex{audio_utils::MutexOrder::kEffectChain_Mutex};
-             Vector<sp<IAfEffectModule>> mEffects  GUARDED_BY(mutex()); // list of effect modules
+    std::vector<sp<IAfEffectModule>> mEffects GUARDED_BY(mutex()); // list of effect modules
              audio_session_t mSessionId; // audio session ID
              sp<EffectBufferHalInterface> mInBuffer;  // chain input buffer
              sp<EffectBufferHalInterface> mOutBuffer; // chain output buffer
@@ -767,7 +767,7 @@ public:
              // Use effect type UUID timelow field as key. There is no real risk of identical
              // timeLow fields among effect type UUIDs.
              // Updated by setEffectSuspended_l() and setEffectSuspendedAll_l() only.
-             KeyedVector< int, sp<SuspendedEffectDesc> > mSuspendedEffects;
+    std::map<int, sp<SuspendedEffectDesc>> mSuspendedEffects;
 
              const sp<EffectCallback> mEffectCallback;
 
