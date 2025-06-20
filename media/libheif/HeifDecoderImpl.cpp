@@ -42,9 +42,9 @@
 
 /* QTI_BEGIN */
 #include <sys/system_properties.h>
-extern const char* __progname;
+#include <sys/types.h>
+#include <unistd.h>
 #define UI_PERFMODE "debug.ui.perfmode.enable"
-#define UI_PERFMODE_PROCESS "debug.ui.perfmode.process"
 /* QTI_END */
 
 HeifDecoder* createHeifDecoder() {
@@ -607,13 +607,15 @@ bool HeifDecoderImpl::decode(HeifFrameInfo* frameInfo) {
                  mImageInfo.mWidth < 3000 &&
                  mImageInfo.mHeight < 2000) {
             char value[PROP_VALUE_MAX];
+            char *stopStr;
+            long int converted = 0;
             memset(value, 0 , sizeof(char)*PROP_VALUE_MAX);
-            if (__system_property_get(UI_PERFMODE, value) > 0 &&
-                    strncmp(value, "true", 4) == 0) {
-                memset(value, 0 , sizeof(char)*PROP_VALUE_MAX);
-                if (__system_property_get(UI_PERFMODE_PROCESS, value) > 0 &&
-                        strncmp(__progname, value, 10) == 0) {
-                    useUIperf = true;
+            if (__system_property_get(UI_PERFMODE, value) > 0) {
+                converted = strtol(value, &stopStr, 0);
+                if (errno != EINVAL && errno != ERANGE && (strncmp(stopStr, "\0", 1) == 0)) {
+                    if (converted > 0 && converted == getpid()) {
+                        useUIperf = true;
+                    }
                 }
             }
         }
