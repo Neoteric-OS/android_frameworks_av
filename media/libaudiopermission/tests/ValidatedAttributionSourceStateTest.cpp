@@ -49,6 +49,7 @@ class MockPermissionProvider : public IPermissionProvider {
                 (override, const));
     MOCK_METHOD(BinderResult<bool>, checkPermission, (PermissionEnum perm, uid_t),
                 (override, const));
+    MOCK_METHOD(std::string, dumpString, (), (override, const));
 };
 
 class ValidatedAttributionSourceStateTest : public ::testing::Test {

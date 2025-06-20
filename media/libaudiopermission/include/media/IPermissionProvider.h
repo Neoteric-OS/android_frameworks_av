@@ -45,6 +45,7 @@ class IPermissionProvider {
     // Fails with NO_INIT if cache hasn't been populated.
     virtual ::android::error::BinderResult<bool> checkPermission(PermissionEnum permission,
                                                                  uid_t uid) const = 0;
+    virtual std::string dumpString() const = 0;
     virtual ~IPermissionProvider() = default;
 };
 }  // namespace com::android::media::permission

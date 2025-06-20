@@ -17,7 +17,6 @@
 #pragma once
 
 #include <mutex>
-#include <optional>
 #include <unordered_map>
 
 #include "IPermissionProvider.h"
@@ -43,6 +42,8 @@ class NativePermissionController : public BnNativePermissionController, public I
             uid_t uid, const std::string& packageName) const final;
     ::android::error::BinderResult<bool> checkPermission(PermissionEnum permission,
                                                          uid_t uid) const final;
+
+    std::string dumpString() const final;
 
   private:
     mutable std::mutex m_;
