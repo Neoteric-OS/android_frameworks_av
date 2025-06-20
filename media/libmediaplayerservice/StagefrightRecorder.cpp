@@ -87,6 +87,7 @@
 #include <stagefright/AVExtensions.h>
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 
+#include <android_media_mediarecorder.h>
 #include <com_android_media_editing_flags.h>
 
 namespace android {
@@ -2128,6 +2129,14 @@ status_t StagefrightRecorder::setupVideoEncoder(
             format->setString("mime", MEDIA_MIMETYPE_VIDEO_AV1);
             break;
 
+        case VIDEO_ENCODER_APV:
+            if (android::media::mediarecorder::apv_recording_support()) {
+                format->setString("mime", MEDIA_MIMETYPE_VIDEO_APV);
+            } else {
+                CHECK(!"Should not be here, unsupported video encoding.");
+            }
+            break;
+
         default:
             CHECK(!"Should not be here, unsupported video encoding.");
             break;
@@ -2310,7 +2319,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
     }
 
     if (cameraSource == NULL) {
-        mSurface = mediaflagtools::igbpToSurfaceType(encoder->getGraphicBufferProducer());
+        mSurface = encoder->getSurface();
     }
 
     *source = encoder;

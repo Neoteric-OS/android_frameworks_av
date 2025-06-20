@@ -387,23 +387,6 @@ status_t AudioSystem::getMasterMute(bool* mute) {
     return NO_ERROR;
 }
 
-status_t AudioSystem::setStreamVolume(audio_stream_type_t stream, float value,
-                                      bool muted, audio_io_handle_t output) {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) return BAD_VALUE;
-    const sp<IAudioFlinger> af = get_audio_flinger();
-    if (af == nullptr) return AudioFlingerServiceTraits::getError();
-    af->setStreamVolume(stream, value, muted, output);
-    return NO_ERROR;
-}
-
-status_t AudioSystem::setStreamMute(audio_stream_type_t stream, bool mute) {
-    if (uint32_t(stream) >= AUDIO_STREAM_CNT) return BAD_VALUE;
-    const sp<IAudioFlinger> af = get_audio_flinger();
-    if (af == nullptr) return AudioFlingerServiceTraits::getError();
-    af->setStreamMute(stream, mute);
-    return NO_ERROR;
-}
-
 status_t AudioSystem::setPortsVolume(
         const std::vector<audio_port_handle_t>& portIds, float volume, bool muted,
         audio_io_handle_t output) {
@@ -1701,6 +1684,19 @@ status_t AudioSystem::setMinVolumeIndexForGroup(volume_group_t groupId, int inde
     return statusTFromBinderStatus(aps->setMinVolumeIndexForGroup(groupIdAidl, indexAidl));
 }
 
+status_t AudioSystem::getVolumeGroupIdForStreamType(audio_stream_type_t stream, int &groupId) {
+    const sp<IAudioPolicyService> aps = get_audio_policy_service();
+    if (aps == 0) return PERMISSION_DENIED;
+
+    AudioStreamType aidlStream = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_stream_type_t_AudioStreamType(stream));
+    int32_t groupIdAidl;
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(aps->getVolumeGroupIdForStreamType(aidlStream,
+            &groupIdAidl)));
+    groupId = VALUE_OR_RETURN_STATUS(convertIntegral<int>(groupIdAidl));
+    return OK;
+}
+
 product_strategy_t AudioSystem::getStrategyForStream(audio_stream_type_t stream) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return PRODUCT_STRATEGY_NONE;
@@ -2504,51 +2500,41 @@ status_t AudioSystem::listAudioProductStrategies(AudioProductStrategyVector& str
     return OK;
 }
 
-audio_attributes_t AudioSystem::streamTypeToAttributes(audio_stream_type_t stream) {
-    AudioProductStrategyVector strategies;
-    listAudioProductStrategies(strategies);
-    for (const auto& strategy : strategies) {
-        auto attrVect = strategy.getVolumeGroupAttributes();
-        auto iter = std::find_if(begin(attrVect), end(attrVect), [&stream](const auto& attributes) {
-            return attributes.getStreamType() == stream;
-        });
-        if (iter != end(attrVect)) {
-            return iter->getAttributes();
-        }
-    }
-    ALOGE("invalid stream type %s when converting to attributes", toString(stream).c_str());
-    return AUDIO_ATTRIBUTES_INITIALIZER;
+status_t AudioSystem::getAttributesForStreamType(audio_stream_type_t stream,
+                                             audio_attributes_t &attributes) {
+    const sp<IAudioPolicyService> aps = get_audio_policy_service();
+    if (aps == nullptr) return AudioPolicyServiceTraits::getError();
+
+    AudioStreamType streamAidl = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_stream_type_t_AudioStreamType(stream));
+    media::audio::common::AudioAttributes attributesAidl;
+
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+            aps->getAttributesForStreamType(streamAidl, &attributesAidl)));
+
+    attributes = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioAttributes_audio_attributes_t(attributesAidl));
+
+    return OK;
 }
 
-audio_stream_type_t AudioSystem::attributesToStreamType(const audio_attributes_t& attr) {
-    product_strategy_t psId;
-    status_t ret = AudioSystem::getProductStrategyFromAudioAttributes(attr, psId);
-    if (ret != NO_ERROR) {
-        ALOGE("no strategy found for attributes %s", toString(attr).c_str());
-        return AUDIO_STREAM_MUSIC;
-    }
-    AudioProductStrategyVector strategies;
-    listAudioProductStrategies(strategies);
-    for (const auto& strategy : strategies) {
-        if (strategy.getId() == psId) {
-            auto attrVect = strategy.getVolumeGroupAttributes();
-            auto iter = std::find_if(begin(attrVect), end(attrVect), [&attr](const auto& refAttr) {
-                return refAttr.matchesScore(attr) > 0;
-            });
-            if (iter != end(attrVect)) {
-                return iter->getStreamType();
-            }
-        }
-    }
-    switch (attr.usage) {
-        case AUDIO_USAGE_VIRTUAL_SOURCE:
-            // virtual source is not expected to have an associated product strategy
-            break;
-        default:
-            ALOGE("invalid attributes %s when converting to stream", toString(attr).c_str());
-            break;
-    }
-    return AUDIO_STREAM_MUSIC;
+status_t AudioSystem::getStreamTypeForAttributes(const audio_attributes_t &attributes,
+                                                 audio_stream_type_t &stream) {
+
+    const sp<IAudioPolicyService> aps = get_audio_policy_service();
+    if (aps == nullptr) return AudioPolicyServiceTraits::getError();
+
+    AudioStreamType streamAidl;
+    media::audio::common::AudioAttributes attributesAidl = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_attributes_t_AudioAttributes(attributes));
+
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
+            aps->getStreamTypeForAttributes(attributesAidl, &streamAidl)));
+
+    stream = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioStreamType_audio_stream_type_t(streamAidl));
+
+    return OK;
 }
 
 status_t AudioSystem::getProductStrategyFromAudioAttributes(const audio_attributes_t& aa,

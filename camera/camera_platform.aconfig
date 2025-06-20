@@ -121,27 +121,6 @@ flag {
 
 flag {
     namespace: "camera_platform"
-    name: "enable_hal_abort_from_cameraservicewatchdog"
-    description: "Enable CameraServiceWatchdog to abort camera HAL to generate HAL tombstones"
-    bug: "349652177"
-}
-
-flag {
-    namespace: "camera_platform"
-    name: "enable_stream_reconfiguration_for_unchanged_streams"
-    description: "Enable stream reconfiguration for unchanged streams"
-    bug: "341740105"
-}
-
-flag {
-    namespace: "camera_platform"
-    name: "depth_jpeg_extensions"
-    description: "Add Depth Jpeg extension output support"
-    bug: "362788689"
-}
-
-flag {
-    namespace: "camera_platform"
     name: "mirror_mode_shared_surfaces"
     is_exported: true
     description: "Support setting and getting mirror mode for shared surfaces"
@@ -186,13 +165,6 @@ flag {
     name: "ae_priority"
     description: "Add AE priority modes"
     bug: "359944765"
-}
-
-flag {
-    namespace: "camera_platform"
-    name: "feature_combination_baklava"
-    description: "Add new feature combination query version for Baklava"
-    bug: "370778206"
 }
 
 flag {

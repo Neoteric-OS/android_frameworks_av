@@ -61,12 +61,6 @@ class IAfTrackBase;
 class Client;
 class MelReporter;
 
-// Used internally for Threads.cpp and AudioFlinger.cpp
-struct stream_type_t {
-    float volume = 1.f;
-    bool mute = false;
-};
-
 // Note this is exposed through IAfThreadBase::afThreadCallback()
 // and hence may be used by the Effect / Track framework.
 class IAfThreadCallback : public virtual RefBase {
@@ -82,8 +76,6 @@ public:
     virtual bool masterMute_l() const
             REQUIRES(mutex()) = 0;
     virtual float getMasterBalance_l() const
-            REQUIRES(mutex()) = 0;
-    virtual bool streamMute_l(audio_stream_type_t stream) const
             REQUIRES(mutex()) = 0;
     virtual audio_mode_t getMode() const = 0;
     virtual bool isLowRamDevice() const = 0;
@@ -189,10 +181,6 @@ public:
             audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE)
             REQUIRES(mutex()) = 0;
 
-    // sendConfigEvent_l() must be called with ThreadBase::mLock held
-    // Can temporarily release the lock if waiting for a reply from
-    // processConfigEvents_l().
-    // status_t sendConfigEvent_l(sp<ConfigEvent>& event);
     virtual void sendIoConfigEvent(
             audio_io_config_event_t event, pid_t pid = 0,
             audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE) EXCLUDES_ThreadBase_Mutex = 0;
@@ -292,13 +280,13 @@ public:
     // ThreadBase mutex before processing the mixer and effects. This guarantees the
     // integrity of the chains during the process.
     // Also sets the parameter 'effectChains' to current value of mEffectChains.
-    virtual void lockEffectChains_l(Vector<sp<IAfEffectChain>>& effectChains)
+    virtual void lockEffectChains_l(std::vector<sp<IAfEffectChain>>& effectChains)
             REQUIRES(mutex()) EXCLUDES_EffectChain_Mutex = 0;
     // unlock effect chains after process
-    virtual void unlockEffectChains(const Vector<sp<IAfEffectChain>>& effectChains)
+    virtual void unlockEffectChains(const std::vector<sp<IAfEffectChain>>& effectChains)
             EXCLUDES_ThreadBase_Mutex = 0;
     // get a copy of mEffectChains vector
-    virtual Vector<sp<IAfEffectChain>> getEffectChains_l() const
+    virtual const std::vector<sp<IAfEffectChain>>& getEffectChains_l() const
             REQUIRES(mutex()) = 0;
     // set audio mode to all effect chains
     virtual void setMode(audio_mode_t mode)
@@ -442,6 +430,9 @@ public:
     virtual AudioStreamIn* clearInput_l() REQUIRES(mutex()) = 0;
     virtual AudioStreamIn* clearInput() EXCLUDES_ThreadBase_Mutex = 0;
 
+    virtual bool hasFastMixer() const = 0;
+    virtual bool hasFastCapture() const = 0;
+
     // we use "asVolumeInterface" as the Thread has an isa relationship with VolumeInterface.
     virtual sp<VolumeInterface> asVolumeInterface() { return nullptr; }
 
@@ -569,7 +560,6 @@ public:
     virtual void setStandby_l() REQUIRES(mutex()) = 0;
     virtual bool waitForHalStart() EXCLUDES_ThreadBase_Mutex = 0;
 
-    virtual bool hasFastMixer() const = 0;
     virtual FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const = 0;
     virtual const std::atomic<int64_t>& framesWritten() const = 0;
 
@@ -647,7 +637,6 @@ public:
 
     virtual void setRecordSilenced(audio_port_handle_t portId, bool silenced)
             EXCLUDES_ThreadBase_Mutex = 0;
-    virtual bool hasFastCapture() const = 0;
 
     virtual void checkBtNrec() EXCLUDES_ThreadBase_Mutex = 0;
     virtual uint32_t getInputFramesLost() const EXCLUDES_ThreadBase_Mutex = 0;

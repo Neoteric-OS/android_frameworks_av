@@ -24,6 +24,7 @@ import android.media.AudioAttributesEx;
 parcelable AudioProductStrategy {
     /** Interpreted as product_strategy_t. */
     int id;
+    int zoneId;
     @utf8InCpp String name;
     AudioAttributesEx[] audioAttributes;
 }

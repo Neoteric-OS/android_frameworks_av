@@ -1906,7 +1906,7 @@ status_t AudioTrack::createTrack_l()
     IAudioFlinger::CreateTrackInput input;
     if (mOriginalStreamType != AUDIO_STREAM_DEFAULT) {
         // Legacy: This is based on original parameters even if the track is recreated.
-        input.attr = AudioSystem::streamTypeToAttributes(mOriginalStreamType);
+        AudioSystem::getAttributesForStreamType(mOriginalStreamType, input.attr);
     } else {
         input.attr = mAttributes;
     }

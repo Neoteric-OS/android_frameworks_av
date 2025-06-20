@@ -248,6 +248,10 @@ public:
          */
         virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index);
 
+        virtual volume_group_t getVolumeGroupIdForStreamType(audio_stream_type_t stream) {
+            return mEngine->getVolumeGroupForStreamType(stream, /* fallbackOnDefault= */ false);
+        }
+
         status_t setVolumeCurveIndex(int index,
                                      bool muted,
                                      audio_devices_t device,
@@ -439,6 +443,15 @@ public:
         virtual bool isUltrasoundSupported();
 
         bool isHotwordStreamSupported(bool lookbackAudio) override;
+
+        virtual audio_attributes_t getAttributesForStreamType(audio_stream_type_t streamType) {
+            return mEngine->getAttributesForStreamType(streamType);
+        }
+
+        virtual audio_stream_type_t getStreamTypeForAttributes(
+                const audio_attributes_t &attributes) {
+            return mEngine->getStreamTypeForAttributes(attributes);
+        }
 
         virtual status_t listAudioProductStrategies(AudioProductStrategyVector &strategies)
         {

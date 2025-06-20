@@ -29,12 +29,14 @@ package {
 cc_defaults {
     name: "libmediaplayerserviceFuzzer_defaults",
     static_libs: [
+        "android.media.mediarecorder-aconfig-cc",
         "libmediaplayerservice",
         "liblog",
     ],
     shared_libs: [
         "camera_platform_flags_c_lib",
         "framework-permission-aidl-cpp",
+        "libaconfig_storage_read_api_cc",
         "libbinder",
         "libbinder_ndk",
         "libcutils",
@@ -42,6 +44,7 @@ cc_defaults {
         "libstagefright",
         "libutils",
         "libstagefright_foundation",
+        "server_configurable_flags",
     ],
     fuzz_config: {
         cc: [

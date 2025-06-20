@@ -38,6 +38,7 @@ namespace companion {
 namespace virtualcamera {
 
 using ::aidl::android::companion::virtualcamera::Format;
+using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
 using ::aidl::android::view::Surface;
 using ::ndk::ScopedAStatus;
 
@@ -146,8 +147,9 @@ ScopedAStatus VirtualCameraTestInstance::onStreamConfigured(
 }
 
 ScopedAStatus VirtualCameraTestInstance::onProcessCaptureRequest(
-    const int32_t /*in_streamId*/, const int32_t /*in_frameId*/) {
-  return ScopedAStatus::ok();
+    const int32_t /*streamId*/, const int32_t /*frameId*/,
+    const std::optional<VirtualCameraMetadata>& /*in_captureRequestSettings*/) {
+  return ndk::ScopedAStatus();
 }
 
 ScopedAStatus VirtualCameraTestInstance::onStreamClosed(const int32_t streamId) {

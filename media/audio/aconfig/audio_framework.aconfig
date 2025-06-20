@@ -15,6 +15,13 @@ flag {
 }
 
 flag {
+    name: "audio_focus_desktop"
+    namespace: "media_audio"
+    description: "audio focus for desktop behaviors"
+    bug: "416963897"
+}
+
+flag {
     name: "auto_public_volume_api_hardening"
     namespace: "media_audio"
     description: "On AAOS, make volume and ringer SDK APIs in AudioManager no-ops."
@@ -45,6 +52,13 @@ flag {
        "capture rules."
     bug: "374751406"
     is_exported: true
+}
+
+flag {
+    name: "dap_injection_starve_management"
+    namespace: "media_audio"
+    description: "Dynamic AudioPolicy management of injection starvation"
+    bug: "416965224"
 }
 
 flag {
@@ -213,6 +227,13 @@ flag {
     namespace: "media_audio"
     description: "check user for RingtonePlayer URIs"
     bug: "400434060"
+}
+
+flag{
+    name: "ringtone_vibration_utils_api"
+    namespace: "media_audio"
+    description: "System APIs for ringtone vibration utils."
+    bug: "399265235"
 }
 
 flag {

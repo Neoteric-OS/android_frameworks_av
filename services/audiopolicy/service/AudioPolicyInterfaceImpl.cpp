@@ -36,6 +36,8 @@
 #include <media/PolicyAidlConversion.h>
 #include <utils/Log.h>
 
+namespace audio_flags = android::media::audiopolicy;
+
 #define VALUE_OR_RETURN_BINDER_STATUS(x) \
     ({ auto _tmp = (x); \
        if (!_tmp.ok()) return aidl_utils::binderStatusFromStatusT(_tmp.error()); \
@@ -1481,6 +1483,20 @@ Status AudioPolicyService::setMaxVolumeIndexForGroup(int32_t groupIdAidl, int32_
     return binderStatusFromStatusT(mAudioPolicyManager->setMaxVolumeIndexForGroup(groupId, index));
 }
 
+Status AudioPolicyService::getVolumeGroupIdForStreamType(AudioStreamType streamAidl,
+                                                int32_t *_aidl_return) {
+    if (mAudioPolicyManager == NULL) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+    audio_stream_type_t stream = VALUE_OR_RETURN_BINDER_STATUS(
+            aidl2legacy_AudioStreamType_audio_stream_type_t(streamAidl));
+    audio_utils::lock_guard _l(mMutex);
+    *_aidl_return = VALUE_OR_RETURN_BINDER_STATUS(legacy2aidl_volume_group_t_int32_t(
+            mAudioPolicyManager->getVolumeGroupIdForStreamType(stream)));
+    return Status::ok();
+}
+
+
 Status AudioPolicyService::getStrategyForStream(AudioStreamType streamAidl,
                                                 int32_t* _aidl_return) {
     audio_stream_type_t stream = VALUE_OR_RETURN_BINDER_STATUS(
@@ -2540,13 +2556,52 @@ Status AudioPolicyService::isHotwordStreamSupported(bool lookbackAudio, bool* _a
     return Status::ok();
 }
 
+binder::Status AudioPolicyService::getStreamTypeForAttributes(
+        const media::audio::common::AudioAttributes& attributesAidl,
+        AudioStreamType* _aidl_return) {
+    if (mAudioPolicyManager == NULL) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+    audio_attributes_t attributes = VALUE_OR_RETURN_BINDER_STATUS(
+            aidl2legacy_AudioAttributes_audio_attributes_t(attributesAidl));
+
+    audio_utils::lock_guard _l(mMutex);
+    AutoCallerClear acc;
+    audio_stream_type_t streamType = mAudioPolicyManager->getStreamTypeForAttributes(attributes);
+
+    *_aidl_return = VALUE_OR_RETURN_BINDER_STATUS(
+            legacy2aidl_audio_stream_type_t_AudioStreamType(streamType));
+
+    return Status::ok();
+}
+
+binder::Status AudioPolicyService::getAttributesForStreamType(AudioStreamType stream,
+                                          media::audio::common::AudioAttributes* _aidl_return) {
+    if (mAudioPolicyManager == NULL) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+
+    audio_stream_type_t streamType = VALUE_OR_RETURN_BINDER_STATUS(
+            aidl2legacy_AudioStreamType_audio_stream_type_t(stream));
+
+    audio_utils::lock_guard _l(mMutex);
+    AutoCallerClear acc;
+    audio_attributes_t attributes = mAudioPolicyManager->getAttributesForStreamType(streamType);
+
+    *_aidl_return = VALUE_OR_RETURN_BINDER_STATUS(
+            legacy2aidl_audio_attributes_t_AudioAttributes(attributes));
+
+    return Status::ok();
+}
+
 Status AudioPolicyService::listAudioProductStrategies(
         std::vector<media::AudioProductStrategy>* _aidl_return) {
-    AudioProductStrategyVector strategies;
 
     if (mAudioPolicyManager == NULL) {
         return binderStatusFromStatusT(NO_INIT);
     }
+
+    AudioProductStrategyVector strategies;
     audio_utils::lock_guard _l(mMutex);
     RETURN_IF_BINDER_ERROR(
             binderStatusFromStatusT(mAudioPolicyManager->listAudioProductStrategies(strategies)));

@@ -347,7 +347,8 @@ status_t AudioPolicyEffects::addStreamDefaultEffect(const effect_uuid_t *type,
         ALOGE("addStreamDefaultEffect(): Null uuid or type uuid pointer");
         return BAD_VALUE;
     }
-    audio_stream_type_t stream = AudioSystem::attributesToStreamType(attributes_initializer(usage));
+    audio_stream_type_t stream;
+    AudioSystem::getStreamTypeForAttributes(attributes_initializer(usage), stream);
 
     if (stream < AUDIO_STREAM_MIN || stream >= AUDIO_STREAM_PUBLIC_CNT) {
         ALOGE("addStreamDefaultEffect(): Unsupported stream type %d", stream);

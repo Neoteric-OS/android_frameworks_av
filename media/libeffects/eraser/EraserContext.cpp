@@ -23,19 +23,52 @@
 #include "EraserContext.h"
 #include "LiteRTInstance.h"
 
+using aidl::android::media::audio::common::AudioChannelLayout;
+using aidl::android::media::audio::eraser::Classification;
+using aidl::android::media::audio::eraser::ClassifierCapability;
 using aidl::android::media::audio::eraser::Mode;
+using aidl::android::media::audio::eraser::RemixerCapability;
+using aidl::android::media::audio::eraser::SeparatorCapability;
+using aidl::android::media::audio::eraser::SoundClassification;
 
 namespace aidl::android::hardware::audio::effect {
 
-const EraserContext::EraserConfiguration EraserContext::kDefaultConfig = {
-        .mode = Mode::ERASER};
-const EraserContext::EraserCapability EraserContext::kCapability = {
-        .modes = {Mode::ERASER, Mode::CLASSIFIER}};
+const ClassifierCapability EraserContext::kClassifierCapability = {
+        .windowSizeMs = kClassifierWindowSizeMs,
+        .supportedClassifications = {
+                Classification{.classification = SoundClassification::HUMAN},
+                Classification{.classification = SoundClassification::ANIMAL},
+                Classification{.classification = SoundClassification::NATURE},
+                Classification{.classification = SoundClassification::MUSIC},
+                Classification{.classification = SoundClassification::THINGS},
+                Classification{.classification = SoundClassification::AMBIGUOUS},
+                Classification{.classification = SoundClassification::ENVIRONMENT},
+        }};
+
+const EraserContext::EraserConfiguration EraserContext::kDefaultConfig = {.mode = Mode::CLASSIFIER};
+
+const SeparatorCapability EraserContext::kSeparatorCapability = {
+        .supported = true, .maxSoundSources = kSeparatorMaxSoundNum};
+
+const RemixerCapability EraserContext::kRemixerCapability = {
+        .supported = true, .maxGainFactor = kRemixerGainFactorMax};
+
+const EraserContext::EraserCapability& EraserContext::getCapability() {
+    static const EraserCapability cap({
+            .sampleRates = {EraserContext::kClassifierSampleRate},
+            .channelLayouts = {AudioChannelLayout::make<AudioChannelLayout::layoutMask>(
+                    AudioChannelLayout::LAYOUT_MONO)},
+            .modes = {Mode::ERASER, Mode::CLASSIFIER},
+            .separator = EraserContext::kSeparatorCapability,
+            .classifier = EraserContext::kClassifierCapability,
+            .remixer = EraserContext::kRemixerCapability,
+    });
+
+    return cap;
+}
 
 EraserContext::EraserContext(int statusDepth, const Parameter::Common& common)
-    : EffectContext(statusDepth, common),
-      mCommon(common),
-      mConfig(kDefaultConfig) {
+    : EffectContext(statusDepth, common), mCommon(common), mConfig(kDefaultConfig) {
     LOG(DEBUG) << __func__ << ": Creating EraserContext";
     init();
 }
@@ -93,7 +126,7 @@ RetCode EraserContext::reset() {
 std::optional<Eraser> EraserContext::getParam(Eraser::Tag tag) {
     switch (tag) {
         case Eraser::capability:
-            return Eraser::make<Eraser::capability>(kCapability);
+            return Eraser::make<Eraser::capability>(getCapability());
         case Eraser::configuration:
             return Eraser::make<Eraser::configuration>(mConfig);
         default: {
@@ -117,8 +150,11 @@ ndk::ScopedAStatus EraserContext::setParam(Eraser eraser) {
     }
 }
 
-IEffect::Status EraserContext::process(float*, float*, int samples) {
+IEffect::Status EraserContext::process(float* in, float* out, int samples) {
     IEffect::Status procStatus = {EX_ILLEGAL_ARGUMENT, 0, 0};
+    RETURN_VALUE_IF(!in, procStatus, "nullInput");
+    RETURN_VALUE_IF(!out, procStatus, "nullOutput");
+
     const auto inputChCount = common::getChannelCount(mCommon.input.base.channelMask);
     const auto outputChCount = common::getChannelCount(mCommon.output.base.channelMask);
     if (inputChCount < outputChCount) {
@@ -127,7 +163,11 @@ IEffect::Status EraserContext::process(float*, float*, int samples) {
         return procStatus;
     }
 
-    // TODO: convert input buffer to tensor input format (16kHz/mono/float16) and process
+    mClassifierInstance->write(in, samples);
+    mClassifierInstance->invoke();
+
+    // TODO: calibrate sound type and score from typedOutputTensor after invoke
+    // TODO: run SeparatorInstance and Remixer if supported
 
     const int inputFrames = samples / inputChCount;
     return IEffect::Status{STATUS_OK, static_cast<int32_t>(inputFrames * inputChCount),

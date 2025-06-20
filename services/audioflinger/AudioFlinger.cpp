@@ -183,8 +183,6 @@ BINDER_METHOD_ENTRY(setMasterVolume) \
 BINDER_METHOD_ENTRY(setMasterMute) \
 BINDER_METHOD_ENTRY(masterVolume) \
 BINDER_METHOD_ENTRY(masterMute) \
-BINDER_METHOD_ENTRY(setStreamVolume) \
-BINDER_METHOD_ENTRY(setStreamMute) \
 BINDER_METHOD_ENTRY(setPortsVolume) \
 BINDER_METHOD_ENTRY(setMode) \
 BINDER_METHOD_ENTRY(setMicMute) \
@@ -397,13 +395,12 @@ status_t AudioFlinger::getMmapPolicyInfos(
     }
     if (mDevicesFactoryHal->getHalVersion() > kMaxAAudioPropertyDeviceHalVersion) {
         audio_utils::lock_guard lock(hardwareMutex());
-        for (size_t i = 0; i < mAudioHwDevs.size(); ++i) {
-            AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
+        for (const auto& [module, audioHwDevice] : mAudioHwDevs) {
             std::vector<AudioMMapPolicyInfo> infos;
-            status_t status = dev->getMmapPolicyInfos(policyType, &infos);
+            const status_t status = audioHwDevice->getMmapPolicyInfos(policyType, &infos);
             if (status != NO_ERROR) {
-                ALOGE("Failed to query mmap policy info of %d, error %d",
-                      mAudioHwDevs.keyAt(i), status);
+                ALOGE("%s: Failed to query mmap policy info of %d, error %d",
+                      __func__, module, status);
                 continue;
             }
             policyInfos->insert(policyInfos->end(), infos.begin(), infos.end());
@@ -431,10 +428,12 @@ status_t AudioFlinger::setDeviceConnectedState(const struct audio_port_v7 *port,
     status_t result = NO_INIT;
     audio_utils::lock_guard _l(mutex());
     audio_utils::lock_guard lock(hardwareMutex());
-    AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(port->ext.device.hw_module);
-    if (audioHwDevice != nullptr) {
+
+    if (auto it = mAudioHwDevs.find(port->ext.device.hw_module);
+            it != mAudioHwDevs.end()) {
+        const AudioHwDevice* const audioHwDevice = it->second;
         mHardwareStatus = AUDIO_HW_SET_CONNECTED_STATE;
-        sp<DeviceHalInterface> dev = audioHwDevice->hwDevice();
+        const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
         result = state == media::DeviceConnectedState::PREPARE_TO_DISCONNECT
                 ? dev->prepareToDisconnectExternalDevice(port)
                 : dev->setConnectedState(port, state == media::DeviceConnectedState::CONNECTED);
@@ -452,8 +451,9 @@ status_t AudioFlinger::setSimulateDeviceConnections(bool enabled) {
     audio_utils::lock_guard _l(mutex());
     audio_utils::lock_guard lock(hardwareMutex());
     mHardwareStatus = AUDIO_HW_SET_SIMULATE_CONNECTIONS;
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
+
+    for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+        const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
         status_t result = dev->setSimulateDeviceConnections(enabled);
         if (result == OK) {
             at_least_one_succeeded = true;
@@ -492,9 +492,10 @@ AudioFlinger::~AudioFlinger()
         }
     }
 
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+
+    for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
         // no hardwareMutex() needed, as there are no other references to this
-        delete mAudioHwDevs.valueAt(i);
+        delete audioHwDevice;
     }
     mPatchCommandThread->exit();
 }
@@ -676,21 +677,25 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
 status_t AudioFlinger::addEffectToHal(
         const struct audio_port_config *device, const sp<EffectHalInterface>& effect) {
     audio_utils::lock_guard lock(hardwareMutex());
-    AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(device->ext.device.hw_module);
-    if (audioHwDevice == nullptr) {
+    if (auto it = mAudioHwDevs.find(device->ext.device.hw_module);
+            it != mAudioHwDevs.end()) {
+        const AudioHwDevice* const audioHwDevice = it->second;
+        return audioHwDevice->hwDevice()->addDeviceEffect(device, effect);
+    } else {
         return NO_INIT;
     }
-    return audioHwDevice->hwDevice()->addDeviceEffect(device, effect);
 }
 
 status_t AudioFlinger::removeEffectFromHal(
         const struct audio_port_config *device, const sp<EffectHalInterface>& effect) {
     audio_utils::lock_guard lock(hardwareMutex());
-    AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(device->ext.device.hw_module);
-    if (audioHwDevice == nullptr) {
+    if (auto it = mAudioHwDevs.find(device->ext.device.hw_module);
+            it != mAudioHwDevs.end()) {
+        const AudioHwDevice* const audioHwDevice = it->second;
+        return audioHwDevice->hwDevice()->removeDeviceEffect(device, effect);
+    } else {
         return NO_INIT;
     }
-    return audioHwDevice->hwDevice()->removeDeviceEffect(device, effect);
 }
 
 static const char * const audio_interfaces[] = {
@@ -712,9 +717,8 @@ AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
             loadHwModule_ll(audio_interfaces[i]);
         }
         // then try to find a module supporting the requested device.
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-            AudioHwDevice *audioHwDevice = mAudioHwDevs.valueAt(i);
-            sp<DeviceHalInterface> dev = audioHwDevice->hwDevice();
+        for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+            const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
             uint32_t supportedDevices;
             if (dev->getSupportedDevices(&supportedDevices) == OK &&
                     (supportedDevices & deviceType) == deviceType) {
@@ -723,9 +727,9 @@ AudioHwDevice* AudioFlinger::findSuitableHwDev_l(
         }
     } else {
         // check a match for the requested module handle
-        AudioHwDevice *audioHwDevice = mAudioHwDevs.valueFor(module);
-        if (audioHwDevice != NULL) {
-            return audioHwDevice;
+        if (auto it = mAudioHwDevs.find(module);
+                it != mAudioHwDevs.end()) {
+            return it->second;
         }
     }
 
@@ -751,8 +755,8 @@ void AudioFlinger::dumpClients_ll(int fd, bool dumpAllocators) {
 
     if (dumpAllocators) {
         result.append("Client Allocators:\n");
-        for (size_t i = 0; i < mClients.size(); ++i) {
-            sp<Client> client = mClients.valueAt(i).promote();
+        for (const auto& [_, client_wp] : mClients) {
+            sp<Client> client = client_wp.promote();
             if (client != 0) {
               result.appendFormat("Client: %d\n", client->pid());
               result.append(client->allocator().dump().c_str());
@@ -772,8 +776,7 @@ void AudioFlinger::dumpClients_ll(int fd, bool dumpAllocators) {
 
     result.append("Global session refs:\n");
     result.append("  session  cnt     pid    uid  name\n");
-    for (size_t i = 0; i < mAudioSessionRefs.size(); i++) {
-        AudioSessionRef *r = mAudioSessionRefs[i];
+    for (const auto* r : mAudioSessionRefs) {
         const std::shared_ptr<const mediautils::UidInfo::Info> info =
                 mediautils::UidInfo::getInfo(r->mUid);
         result.appendFormat("  %7d %4d %7d %6u  %s\n", r->mSessionid, r->mCnt, r->mPid,
@@ -960,8 +963,8 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         // dump orphan effect chains
         if (mOrphanEffectChains.size() != 0) {
             writeStr(fd, "  Orphan Effect Chains\n");
-            for (size_t i = 0; i < mOrphanEffectChains.size(); i++) {
-                mOrphanEffectChains.valueAt(i)->dump(fd, args);
+            for (const auto& [_, effectChain] : mOrphanEffectChains) {
+                effectChain->dump(fd, args);
             }
         }
         // dump historical threads in the last 10 seconds
@@ -1006,8 +1009,8 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
             dprintf(fd, "\n ## BEGIN HAL dump \n");
             FallibleLockGuard ll{hardwareMutex()};
             // dump all hardware devs
-            for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-                sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
+            for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+                const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
                 dev->dump(fd, args);
             }
         }
@@ -1034,12 +1037,14 @@ sp<Client> AudioFlinger::registerClient(pid_t pid, uid_t uid)
     audio_utils::lock_guard _cl(clientMutex());
     // If pid is already in the mClients wp<> map, then use that entry
     // (for which promote() is always != 0), otherwise create a new entry and Client.
-    sp<Client> client = mClients.valueFor(pid).promote();
-    if (client == 0) {
-        client = sp<Client>::make(sp<IAfClientCallback>::fromExisting(this), pid, uid);
-        mClients.add(pid, client);
+    if (auto it = mClients.find(pid);
+            it != mClients.end()) {
+        sp<Client> client = it->second.promote();
+        if (client != nullptr) return client;
+        // fall through to recreate
     }
-
+    auto client = sp<Client>::make(sp<IAfClientCallback>::fromExisting(this), pid, uid);
+    mClients[pid] = client;
     return client;
 }
 
@@ -1362,12 +1367,12 @@ status_t AudioFlinger::setMasterVolume(float value)
     // Set master volume in the HALs which support it.
     {
         audio_utils::lock_guard lock(hardwareMutex());
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-            AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
+
+        for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
 
             mHardwareStatus = AUDIO_HW_SET_MASTER_VOLUME;
-            if (dev->canSetMasterVolume()) {
-                dev->hwDevice()->setMasterVolume(value);
+            if (audioHwDevice->canSetMasterVolume()) {
+                audioHwDevice->hwDevice()->setMasterVolume(value);
             }
             mHardwareStatus = AUDIO_HW_IDLE;
         }
@@ -1449,7 +1454,7 @@ status_t AudioFlinger::setMode(audio_mode_t mode)
         if (mPrimaryHardwareDev == nullptr) {
             return INVALID_OPERATION;
         }
-        sp<DeviceHalInterface> dev = mPrimaryHardwareDev.load()->hwDevice();
+        const sp<DeviceHalInterface>& dev = mPrimaryHardwareDev.load()->hwDevice();
         mHardwareStatus = AUDIO_HW_SET_MODE;
         ret = dev->setMode(mode);
         mHardwareStatus = AUDIO_HW_IDLE;
@@ -1490,15 +1495,16 @@ status_t AudioFlinger::setMicMute(bool state)
     if (mPrimaryHardwareDev == nullptr) {
         return INVALID_OPERATION;
     }
-    sp<DeviceHalInterface> primaryDev = mPrimaryHardwareDev.load()->hwDevice();
+    const sp<DeviceHalInterface>& primaryDev = mPrimaryHardwareDev.load()->hwDevice();
     if (primaryDev == nullptr) {
         ALOGW("%s: no primary HAL device", __func__);
         return INVALID_OPERATION;
     }
     mHardwareStatus = AUDIO_HW_SET_MIC_MUTE;
     ret = primaryDev->setMicMute(state);
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
+
+    for (const auto& [module, audioHwDevice] : mAudioHwDevs) {
+        const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
         if (dev != primaryDev) {
             (void)dev->setMicMute(state);
         }
@@ -1518,7 +1524,7 @@ bool AudioFlinger::getMicMute() const
     if (mPrimaryHardwareDev == nullptr) {
         return false;
     }
-    sp<DeviceHalInterface> primaryDev = mPrimaryHardwareDev.load()->hwDevice();
+    const sp<DeviceHalInterface>& primaryDev = mPrimaryHardwareDev.load()->hwDevice();
     if (primaryDev == nullptr) {
         ALOGW("%s: no primary HAL device", __func__);
         return false;
@@ -1566,12 +1572,12 @@ status_t AudioFlinger::setMasterMute(bool muted)
     // Set master mute in the HALs which support it.
     {
         audio_utils::lock_guard lock(hardwareMutex());
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-            AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
+
+        for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
 
             mHardwareStatus = AUDIO_HW_SET_MASTER_MUTE;
-            if (dev->canSetMasterMute()) {
-                dev->hwDevice()->setMasterMute(muted);
+            if (audioHwDevice->canSetMasterMute()) {
+                audioHwDevice->hwDevice()->setMasterMute(muted);
             }
             mHardwareStatus = AUDIO_HW_IDLE;
         }
@@ -1635,38 +1641,6 @@ status_t AudioFlinger::checkStreamType(audio_stream_type_t stream)
         ALOGW("checkStreamType() uid %d cannot use internal stream type %d", callerUid, stream);
         return PERMISSION_DENIED;
     }
-
-    return NO_ERROR;
-}
-
-status_t AudioFlinger::setStreamVolume(audio_stream_type_t stream, float value,
-        bool muted, audio_io_handle_t output)
-{
-    // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
-
-    status_t status = checkStreamType(stream);
-    if (status != NO_ERROR) {
-        return status;
-    }
-    if (output == AUDIO_IO_HANDLE_NONE) {
-        return BAD_VALUE;
-    }
-    LOG_ALWAYS_FATAL_IF(stream == AUDIO_STREAM_PATCH && value != 1.0f,
-                        "AUDIO_STREAM_PATCH must have full scale volume");
-
-    audio_utils::lock_guard lock(mutex());
-    sp<VolumeInterface> volumeInterface = getVolumeInterface_l(output);
-    if (volumeInterface == NULL) {
-        return BAD_VALUE;
-    }
-    volumeInterface->setStreamVolume(stream, value, muted);
 
     return NO_ERROR;
 }
@@ -1758,8 +1732,9 @@ status_t AudioFlinger::supportsBluetoothVariableLatency(bool* support) const {
     }
     audio_utils::lock_guard _l(hardwareMutex());
     *support = false;
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        if (mAudioHwDevs.valueAt(i)->supportsBluetoothVariableLatency()) {
+
+    for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+        if (audioHwDevice->supportsBluetoothVariableLatency()) {
              *support = true;
              break;
         }
@@ -1774,38 +1749,6 @@ status_t AudioFlinger::getSoundDoseInterface(const sp<media::ISoundDoseCallback>
     }
 
     *soundDose = mMelReporter->getSoundDoseInterface(callback);
-    return NO_ERROR;
-}
-
-status_t AudioFlinger::setStreamMute(audio_stream_type_t stream, bool muted)
-{
-    // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
-
-    status_t status = checkStreamType(stream);
-    if (status != NO_ERROR) {
-        return status;
-    }
-    ALOG_ASSERT(stream != AUDIO_STREAM_PATCH, "attempt to mute AUDIO_STREAM_PATCH");
-
-    if (uint32_t(stream) == AUDIO_STREAM_ENFORCED_AUDIBLE) {
-        ALOGE("setStreamMute() invalid stream %d", stream);
-        return BAD_VALUE;
-    }
-
-    audio_utils::lock_guard lock(mutex());
-    mStreamTypes[stream].mute = muted;
-    std::vector<sp<VolumeInterface>> volumeInterfaces = getAllVolumeInterfaces_l();
-    for (size_t i = 0; i < volumeInterfaces.size(); i++) {
-        volumeInterfaces[i]->setStreamMute(stream, muted);
-    }
-
     return NO_ERROR;
 }
 
@@ -1938,8 +1881,9 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
         {
             audio_utils::lock_guard lock(hardwareMutex());
             mHardwareStatus = AUDIO_HW_SET_PARAMETER;
-            for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-                sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
+
+            for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+                const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
                 status_t result = dev->setParameters(filteredKeyValuePairs);
                 // return success if at least one audio device accepts the parameters as not all
                 // HALs are requested to support all parameters. If no audio device supports the
@@ -2012,10 +1956,10 @@ String8 AudioFlinger::getParameters(audio_io_handle_t ioHandle, const String8& k
         String8 out_s8;
 
         audio_utils::lock_guard lock(hardwareMutex());
-        for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+        for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
             String8 s;
             mHardwareStatus = AUDIO_HW_GET_PARAMETER;
-            sp<DeviceHalInterface> dev = mAudioHwDevs.valueAt(i)->hwDevice();
+            const sp<DeviceHalInterface>& dev = audioHwDevice->hwDevice();
             status_t result = dev->getParameters(keys, &s);
             mHardwareStatus = AUDIO_HW_IDLE;
             if (result == OK) out_s8 += s;
@@ -2175,7 +2119,7 @@ status_t AudioFlinger::setVoiceVolume(float value)
     if (mPrimaryHardwareDev == nullptr) {
         return INVALID_OPERATION;
     }
-    sp<DeviceHalInterface> dev = mPrimaryHardwareDev.load()->hwDevice();
+    const sp<DeviceHalInterface>& dev = mPrimaryHardwareDev.load()->hwDevice();
     mHardwareStatus = AUDIO_HW_SET_VOICE_VOLUME;
     ret = dev->setVoiceVolume(value);
     mHardwareStatus = AUDIO_HW_IDLE;
@@ -2248,19 +2192,17 @@ void AudioFlinger::removeNotificationClient(pid_t pid)
         }
 
         ALOGV("%d died, releasing its sessions", pid);
-        size_t num = mAudioSessionRefs.size();
         bool removed = false;
-        for (size_t i = 0; i < num; ) {
-            AudioSessionRef *ref = mAudioSessionRefs.itemAt(i);
-            ALOGV(" pid %d @ %zu", ref->mPid, i);
+        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end();) {
+            AudioSessionRef* const ref = *it;
+            ALOGV("%s: pid %d", __func__, ref->mPid);
             if (ref->mPid == pid) {
                 ALOGV(" removing entry for pid %d session %d", pid, ref->mSessionid);
-                mAudioSessionRefs.removeAt(i);
                 delete ref;
                 removed = true;
-                num--;
+                it = mAudioSessionRefs.erase(it);
             } else {
-                i++;
+                ++it;
             }
         }
         if (removed) {
@@ -2333,7 +2275,7 @@ void AudioFlinger::removeClient_l(pid_t pid)
 {
     ALOGV("removeClient_l() pid %d, calling pid %d", pid,
             IPCThreadState::self()->getCallingPid());
-    mClients.removeItem(pid);
+    mClients.erase(pid);
 }
 
 // getEffectThread_l() must be called with AudioFlinger::mutex() held
@@ -2674,10 +2616,11 @@ audio_module_handle_t AudioFlinger::loadHwModule(const char *name)
 // and AudioFlinger::hardwareMutex() held
 AudioHwDevice* AudioFlinger::loadHwModule_ll(const char *name)
 {
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
-        if (strncmp(mAudioHwDevs.valueAt(i)->moduleName(), name, strlen(name)) == 0) {
+
+    for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
+        if (strncmp(audioHwDevice->moduleName(), name, strlen(name)) == 0) {
             ALOGW("loadHwModule() module %s already loaded", name);
-            return mAudioHwDevs.valueAt(i);
+            return audioHwDevice;
         }
     }
 
@@ -2768,7 +2711,7 @@ AudioHwDevice* AudioFlinger::loadHwModule_ll(const char *name)
         }
     }
 
-    mAudioHwDevs.add(handle, audioDevice);
+    mAudioHwDevs[handle] = audioDevice;
     if (strcmp(name, AUDIO_HARDWARE_MODULE_ID_STUB) != 0) {
         mInputBufferSizeOrderedDevs.insert(audioDevice);
     }
@@ -2892,25 +2835,24 @@ status_t AudioFlinger::setAudioPortConfig(const struct audio_port_config *config
 
     audio_utils::lock_guard _l(mutex());
     audio_utils::lock_guard lock(hardwareMutex());
-    ssize_t index = mAudioHwDevs.indexOfKey(module);
-    if (index < 0) {
+    if (auto it = mAudioHwDevs.find(module);
+            it != mAudioHwDevs.end()) {
+        const AudioHwDevice* const audioHwDevice = it->second;
+        return audioHwDevice->hwDevice()->setAudioPortConfig(config);
+    } else {
         ALOGW("%s() bad hw module %d", __func__, module);
         return BAD_VALUE;
     }
-
-    AudioHwDevice *audioHwDevice = mAudioHwDevs.valueAt(index);
-    return audioHwDevice->hwDevice()->setAudioPortConfig(config);
 }
 
 audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId)
 {
     audio_utils::lock_guard _l(mutex());
 
-    ssize_t index = mHwAvSyncIds.indexOfKey(sessionId);
-    if (index >= 0) {
-        ALOGV("getAudioHwSyncForSession found ID %d for session %d",
-              mHwAvSyncIds.valueAt(index), sessionId);
-        return mHwAvSyncIds.valueAt(index);
+    if (auto it = mHwAvSyncIds.find(sessionId);
+            it != mHwAvSyncIds.end()) {
+        ALOGV("%s: found ID %d for session %d", __func__, it->second, sessionId);
+        return it->second;
     }
 
     sp<DeviceHalInterface> dev;
@@ -2933,16 +2875,15 @@ audio_hw_sync_t AudioFlinger::getAudioHwSyncForSession(audio_session_t sessionId
     audio_hw_sync_t value = VALUE_OR_FATAL(result);
 
     // allow only one session for a given HW A/V sync ID.
-    for (size_t i = 0; i < mHwAvSyncIds.size(); i++) {
-        if (mHwAvSyncIds.valueAt(i) == value) {
-            ALOGV("getAudioHwSyncForSession removing ID %d for session %d",
-                  value, mHwAvSyncIds.keyAt(i));
-            mHwAvSyncIds.removeItemsAt(i);
+    for (const auto& [sessId2, avSyncId] : mHwAvSyncIds) {
+        if (avSyncId == value) {
+            ALOGV("%s: removing ID %d for session %d", __func__, value, sessId2);
+            mHwAvSyncIds.erase(sessId2);
             break;
         }
     }
 
-    mHwAvSyncIds.add(sessionId, value);
+    mHwAvSyncIds[sessionId] = value;
 
     for (const auto& [_, thread] : mPlaybackThreads) {
         uint32_t sessions = thread->hasAudioSession(sessionId);
@@ -3015,11 +2956,11 @@ status_t AudioFlinger::getMicrophones(std::vector<media::MicrophoneInfoFw>* micr
     audio_utils::lock_guard lock(hardwareMutex());
     status_t status = INVALID_OPERATION;
 
-    for (size_t i = 0; i < mAudioHwDevs.size(); i++) {
+
+    for (const auto& [_, audioHwDevice] : mAudioHwDevs) {
         std::vector<audio_microphone_characteristic_t> mics;
-        AudioHwDevice *dev = mAudioHwDevs.valueAt(i);
         mHardwareStatus = AUDIO_HW_GET_MICROPHONES;
-        status_t devStatus = dev->hwDevice()->getMicrophones(&mics);
+        const status_t devStatus = audioHwDevice->hwDevice()->getMicrophones(&mics);
         mHardwareStatus = AUDIO_HW_IDLE;
         if (devStatus == NO_ERROR) {
             // report success if at least one HW module supports the function.
@@ -3040,9 +2981,9 @@ status_t AudioFlinger::getMicrophones(std::vector<media::MicrophoneInfoFw>* micr
 void AudioFlinger::setAudioHwSyncForSession_l(
         IAfPlaybackThread* const thread, audio_session_t sessionId)
 {
-    ssize_t index = mHwAvSyncIds.indexOfKey(sessionId);
-    if (index >= 0) {
-        audio_hw_sync_t syncId = mHwAvSyncIds.valueAt(index);
+    if (auto it = mHwAvSyncIds.find(sessionId);
+            it != mHwAvSyncIds.end()) {
+        const audio_hw_sync_t syncId = it->second;
         ALOGV("setAudioHwSyncForSession_l found ID %d for session %d", syncId, sessionId);
         AudioParameter param = AudioParameter();
         param.addInt(String8(AudioParameter::keyStreamHwAvSync), syncId);
@@ -3050,6 +2991,8 @@ void AudioFlinger::setAudioHwSyncForSession_l(
         thread->setParameters(keyValuePairs);
         forwardParametersToDownstreamPatches_l(thread->id(), keyValuePairs,
                 [](const sp<IAfPlaybackThread>& thread) { return thread->usesHwAvSync(); });
+    } else {
+        ALOGD("%s: cannot find HwAvSyncId for session %d", __func__, sessionId);
     }
 }
 
@@ -3308,9 +3251,12 @@ status_t AudioFlinger::closeOutput_nonvirtual(audio_io_handle_t output)
                     // audioflinger lock is held so order of thread lock acquisition doesn't matter
                     // Use scoped_lock to avoid deadlock order issues with duplicating threads.
                     audio_utils::scoped_lock sl(dstThread->mutex(), playbackThread->mutex());
-                    Vector<sp<IAfEffectChain>> effectChains = playbackThread->getEffectChains_l();
-                    for (size_t i = 0; i < effectChains.size(); i ++) {
-                        moveEffectChain_ll(effectChains[i]->sessionId(), playbackThread.get(),
+
+                    // do not use a reference as we will be changing the thread's effect chains.
+                    std::vector<sp<IAfEffectChain>> effectChains =
+                            playbackThread->getEffectChains_l();
+                    for (const auto& ec : effectChains) {
+                        moveEffectChain_ll(ec->sessionId(), playbackThread.get(),
                                 dstThread.get());
                     }
                 }
@@ -3541,9 +3487,10 @@ status_t AudioFlinger::closeInput_nonvirtual(audio_io_handle_t input)
             sp<IAfEffectChain> chain;
             {
                 audio_utils::lock_guard _sl(recordThread->mutex());
-                const Vector<sp<IAfEffectChain>> effectChains = recordThread->getEffectChains_l();
+                const std::vector<sp<IAfEffectChain>>& effectChains =
+                        recordThread->getEffectChains_l();
                 // Note: maximum one chain per record thread
-                if (effectChains.size() != 0) {
+                if (!effectChains.empty()) {
                     chain = effectChains[0];
                 }
             }
@@ -3668,16 +3615,14 @@ void AudioFlinger::acquireAudioSessionId(
         }
     }
 
-    size_t num = mAudioSessionRefs.size();
-    for (size_t i = 0; i < num; i++) {
-        AudioSessionRef *ref = mAudioSessionRefs.editItemAt(i);
+    for (auto* const ref : mAudioSessionRefs) {
         if (ref->mSessionid == audioSession && ref->mPid == caller) {
             ref->mCnt++;
             ALOGV(" incremented refcount to %d", ref->mCnt);
             return;
         }
     }
-    mAudioSessionRefs.push(new AudioSessionRef(audioSession, caller, uid));
+    mAudioSessionRefs.push_back(new AudioSessionRef(audioSession, caller, uid));
     ALOGV(" added new entry for %d", audioSession);
 }
 
@@ -3692,14 +3637,13 @@ void AudioFlinger::releaseAudioSessionId(audio_session_t audioSession, pid_t pid
         if (pid != (pid_t)-1 && isAudioServerOrMediaServerUid(callerUid)) {
             caller = pid;  // check must match acquireAudioSessionId()
         }
-        size_t num = mAudioSessionRefs.size();
-        for (size_t i = 0; i < num; i++) {
-            AudioSessionRef *ref = mAudioSessionRefs.itemAt(i);
+        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end();) {
+            AudioSessionRef* const ref = *it;
             if (ref->mSessionid == audioSession && ref->mPid == caller) {
                 ref->mCnt--;
                 ALOGV(" decremented refcount to %d", ref->mCnt);
                 if (ref->mCnt == 0) {
-                    mAudioSessionRefs.removeAt(i);
+                    (void) mAudioSessionRefs.erase(it); // ignore update as we exit loop.
                     delete ref;
                     std::vector<sp<IAfEffectModule>> effects = purgeStaleEffects_l();
                     removedEffects.insert(removedEffects.end(), effects.begin(), effects.end());
@@ -3721,9 +3665,7 @@ Exit:
 
 bool AudioFlinger::isSessionAcquired_l(audio_session_t audioSession)
 {
-    size_t num = mAudioSessionRefs.size();
-    for (size_t i = 0; i < num; i++) {
-        AudioSessionRef *ref = mAudioSessionRefs.itemAt(i);
+    for (const auto* ref : mAudioSessionRefs) {
         if (ref->mSessionid == audioSession) {
             return true;
         }
@@ -3735,50 +3677,43 @@ std::vector<sp<IAfEffectModule>> AudioFlinger::purgeStaleEffects_l() {
 
     ALOGV("purging stale effects");
 
-    Vector<sp<IAfEffectChain>> chains;
-    std::vector< sp<IAfEffectModule> > removedEffects;
+    std::vector<sp<IAfEffectChain>> chains;
 
     for (const auto& [_, t] : mPlaybackThreads) {
         audio_utils::lock_guard _l(t->mutex());
-        const Vector<sp<IAfEffectChain>> threadChains = t->getEffectChains_l();
-        for (size_t j = 0; j < threadChains.size(); j++) {
-            sp<IAfEffectChain> ec = threadChains[j];
+        const std::vector<sp<IAfEffectChain>>& threadChains = t->getEffectChains_l();
+        for (const auto& ec : threadChains) {
             if (!audio_is_global_session(ec->sessionId())) {
-                chains.push(ec);
+                chains.push_back(ec);
             }
         }
     }
 
     for (const auto& [_, t] : mRecordThreads) {
         audio_utils::lock_guard _l(t->mutex());
-        const Vector<sp<IAfEffectChain>> threadChains = t->getEffectChains_l();
-        for (size_t j = 0; j < threadChains.size(); j++) {
-            sp<IAfEffectChain> ec = threadChains[j];
-            chains.push(ec);
+        const std::vector<sp<IAfEffectChain>>& threadChains = t->getEffectChains_l();
+        for (const auto& ec : threadChains) {
+            chains.push_back(ec);
         }
     }
 
     for (const auto& [_, t] : mMmapThreads) {
         audio_utils::lock_guard _l(t->mutex());
-        const Vector<sp<IAfEffectChain>> threadChains = t->getEffectChains_l();
-        for (size_t j = 0; j < threadChains.size(); j++) {
-            sp<IAfEffectChain> ec = threadChains[j];
-            chains.push(ec);
+        const std::vector<sp<IAfEffectChain>>& threadChains = t->getEffectChains_l();
+        for (const auto& ec : threadChains) {
+            chains.push_back(ec);
         }
     }
 
-    for (size_t i = 0; i < chains.size(); i++) {
-         // clang-tidy suggests const ref
-        sp<IAfEffectChain> ec = chains[i];  // NOLINT(performance-unnecessary-copy-initialization)
+    std::vector<sp<IAfEffectModule>> removedEffects;
+    for (const auto& ec : chains) {
         int sessionid = ec->sessionId();
         const auto t = ec->thread().promote();
         if (t == 0) {
             continue;
         }
-        size_t numsessionrefs = mAudioSessionRefs.size();
         bool found = false;
-        for (size_t k = 0; k < numsessionrefs; k++) {
-            AudioSessionRef *ref = mAudioSessionRefs.itemAt(k);
+        for (const auto* ref : mAudioSessionRefs) {
             if (ref->mSessionid == sessionid) {
                 ALOGV(" session %d still exists for %d with %d refs",
                     sessionid, ref->mPid, ref->mCnt);
@@ -3807,17 +3742,13 @@ std::vector< sp<IAfEffectModule> > AudioFlinger::purgeOrphanEffectChains_l()
 {
     ALOGV("purging stale effects from orphan chains");
     std::vector< sp<IAfEffectModule> > removedEffects;
-    for (size_t index = 0; index < mOrphanEffectChains.size(); index++) {
-        sp<IAfEffectChain> chain = mOrphanEffectChains.valueAt(index);
-        audio_session_t session = mOrphanEffectChains.keyAt(index);
+    for (const auto& [session, chain] : mOrphanEffectChains) {
         if (session == AUDIO_SESSION_OUTPUT_MIX || session == AUDIO_SESSION_DEVICE
                 || session == AUDIO_SESSION_OUTPUT_STAGE) {
             continue;
         }
-        size_t numSessionRefs = mAudioSessionRefs.size();
         bool found = false;
-        for (size_t k = 0; k < numSessionRefs; k++) {
-            AudioSessionRef *ref = mAudioSessionRefs.itemAt(k);
+        for (const auto* ref : mAudioSessionRefs) {
             if (ref->mSessionid == session) {
                 ALOGV(" session %d still exists for %d with %d refs", session, ref->mPid,
                         ref->mCnt);
@@ -4843,7 +4774,7 @@ status_t AudioFlinger::moveEffectChain_ll(audio_session_t sessionId,
     // transfer all effects one by one so that new effect chain is created on new thread with
     // correct buffer sizes and audio parameters and effect engines reconfigured accordingly
     sp<IAfEffectChain> dstChain;
-    Vector<sp<IAfEffectModule>> removed;
+    std::vector<sp<IAfEffectModule>> removed;
     status_t status = NO_ERROR;
     std::string errorString;
     // process effects one by one.
@@ -4854,7 +4785,7 @@ status_t AudioFlinger::moveEffectChain_ll(audio_session_t sessionId,
         } else {
             chain->removeEffect(effect);
         }
-        removed.add(effect);
+        removed.push_back(effect);
         status = dstThread->addEffect_ll(effect);
         if (status != NO_ERROR) {
             errorString = StringPrintf(
@@ -4937,10 +4868,10 @@ status_t AudioFlinger::moveEffectChain_ll(audio_session_t sessionId,
 {
     sp<IAfEffectChain> chain = nullptr;
     if (srcThread != 0) {
-        const Vector<sp<IAfEffectChain>> effectChains = srcThread->getEffectChains_l();
-        for (size_t i = 0; i < effectChains.size(); i ++) {
-             if (effectChains[i]->sessionId() == sessionId) {
-                 chain = effectChains[i];
+        const std::vector<sp<IAfEffectChain>>& effectChains = srcThread->getEffectChains_l();
+        for (const auto& ec : effectChains) {
+             if (ec->sessionId() == sessionId) {
+                 chain = ec;
                  break;
              }
         }
@@ -5053,26 +4984,27 @@ status_t AudioFlinger::putOrphanEffectChain_l(const sp<IAfEffectChain>& chain)
     chain->setEffectSuspended_l(FX_IID_NS, false);
 
     audio_session_t session = chain->sessionId();
-    ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("putOrphanEffectChain_l session %d index %zd", session, index);
-    if (index >= 0) {
-        ALOGW("putOrphanEffectChain_l chain for session %d already present", session);
+    ALOGV("%s: session %d", __func__, session);
+    if (auto it = mOrphanEffectChains.find(session);
+            it != mOrphanEffectChains.end()) {
+        ALOGW("%s: chain for session %d already present", __func__, session);
         return ALREADY_EXISTS;
     }
-    mOrphanEffectChains.add(session, chain);
+    mOrphanEffectChains[session] = chain;
     return NO_ERROR;
 }
 
 sp<IAfEffectChain> AudioFlinger::getOrphanEffectChain_l(audio_session_t session)
 {
-    sp<IAfEffectChain> chain;
-    ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("getOrphanEffectChain_l session %d index %zd", session, index);
-    if (index >= 0) {
-        chain = mOrphanEffectChains.valueAt(index);
-        mOrphanEffectChains.removeItemsAt(index);
+    ALOGV("%s: session %d", __func__, session);
+    if (auto it = mOrphanEffectChains.find(session);
+            it != mOrphanEffectChains.end()) {
+        sp<IAfEffectChain> chain = it->second;
+        mOrphanEffectChains.erase(it);
+        return chain;
+    } else {
+        return {};
     }
-    return chain;
 }
 
 bool AudioFlinger::updateOrphanEffectChains(const sp<IAfEffectModule>& effect)
@@ -5084,13 +5016,13 @@ bool AudioFlinger::updateOrphanEffectChains(const sp<IAfEffectModule>& effect)
 bool AudioFlinger::updateOrphanEffectChains_l(const sp<IAfEffectModule>& effect)
 {
     audio_session_t session = effect->sessionId();
-    ssize_t index = mOrphanEffectChains.indexOfKey(session);
-    ALOGV("updateOrphanEffectChains session %d index %zd", session, index);
-    if (index >= 0) {
-        sp<IAfEffectChain> chain = mOrphanEffectChains.valueAt(index);
+    ALOGV("%s: session %d", __func__, session);
+    if (auto it = mOrphanEffectChains.find(session);
+            it != mOrphanEffectChains.end()) {
+        sp<IAfEffectChain> chain = it->second;
         if (chain->removeEffect(effect, true) == 0) {
-            ALOGV("updateOrphanEffectChains removing effect chain at index %zd", index);
-            mOrphanEffectChains.removeItemsAt(index);
+            ALOGV("%s: removing effect chain", __func__);
+            mOrphanEffectChains.erase(it);
         }
         return true;
     }
@@ -5201,8 +5133,6 @@ status_t AudioFlinger::onTransactWrapper(TransactionCode code,
                                          const std::function<status_t()>& delegate) {
     // make sure transactions reserved to AudioPolicyManager do not come from other processes
     switch (code) {
-        case TransactionCode::SET_STREAM_VOLUME:
-        case TransactionCode::SET_STREAM_MUTE:
         case TransactionCode::OPEN_OUTPUT:
         case TransactionCode::OPEN_DUPLICATE_OUTPUT:
         case TransactionCode::CLOSE_OUTPUT:

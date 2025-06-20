@@ -73,6 +73,8 @@ namespace {
 
 using namespace std::chrono_literals;
 
+namespace flags = ::android::companion::virtualdevice::flags;
+
 // Prefix of camera name - "device@1.1/virtual/{camera_id}"
 const char* kDevicePathPrefix = "device@1.1/virtual/";
 
@@ -442,8 +444,12 @@ VirtualCameraDevice::VirtualCameraDevice(
       mVirtualCameraClientCallback(configuration.virtualCameraCallback),
       mSupportedInputConfigurations(configuration.supportedStreamConfigs),
       mPerFrameCameraMetadataEnabled(
-          configuration.perFrameCameraMetadataEnabled),
-      mConfigCameraCharacteristics(configuration.cameraCharacteristics) {
+          flags::virtual_camera_metadata()
+              ? configuration.perFrameCameraMetadataEnabled
+              : false),
+      mConfigCameraCharacteristics(flags::virtual_camera_metadata()
+                                       ? configuration.cameraCharacteristics
+                                       : std::nullopt) {
   std::optional<AidlCameraMetadata> metadata = initCameraCharacteristics(
       mSupportedInputConfigurations, configuration.sensorOrientation,
       configuration.lensFacing, mConfigCameraCharacteristics, deviceId);

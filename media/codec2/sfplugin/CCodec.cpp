@@ -40,6 +40,7 @@
 #include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
+#include <gui/Flags.h> // Remove with mediaflagtools::
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 #include <gui/bufferqueue/1.0/H2BGraphicBufferProducer.h>
@@ -2120,7 +2121,9 @@ sp<PersistentSurface> CCodec::CreateOmxInputSurface() {
                 gbs = source;
             });
     if (transStatus.isOk() && s == OmxStatus::OK) {
-        return new PersistentSurface(new H2BGraphicBufferProducer(gbp), gbs);
+        // This should be changed to a Surface in a follow up CL.
+        auto bgpb = new H2BGraphicBufferProducer(gbp);
+        return new PersistentSurface(mediaflagtools::igbpToSurfaceType(bgpb), gbs);
     }
 
     return nullptr;
@@ -2138,7 +2141,7 @@ sp<PersistentSurface> CCodec::CreateCompatibleInputSurface() {
 
 void CCodec::createInputSurface() {
     status_t err;
-    sp<IGraphicBufferProducer> bufferProducer;
+    sp<MediaSurfaceType> surface;
 
     sp<AMessage> outputFormat;
     uint64_t usage = 0;
@@ -2160,7 +2163,7 @@ void CCodec::createInputSurface() {
             (void)outputFormat->findInt32("height", &height);
             err = setupInputSurface(std::make_shared<AGraphicBufferSourceWrapper>(
                     gbs, width, height, usage));
-            bufferProducer = persistentSurface->getBufferProducer();
+            surface = persistentSurface->getSurface();
         } else {
             ALOGE("Corrupted input surface(aidl)");
             mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
@@ -2178,7 +2181,7 @@ void CCodec::createInputSurface() {
             (void)outputFormat->findInt32("height", &height);
             err = setupInputSurface(std::make_shared<HGraphicBufferSourceWrapper>(
                     gbs, width, height, usage));
-            bufferProducer = persistentSurface->getBufferProducer();
+            surface = persistentSurface->getSurface();
         } else {
             ALOGE("Corrupted input surface");
             mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
@@ -2200,10 +2203,17 @@ void CCodec::createInputSurface() {
         inputFormat = config->mInputFormat;
         outputFormat = config->mOutputFormat;
     }
+#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
     mCallback->onInputSurfaceCreated(
             inputFormat,
             outputFormat,
-            new BufferProducerWrapper(bufferProducer));
+            surface);
+#else
+    mCallback->onInputSurfaceCreated(
+            inputFormat,
+            outputFormat,
+            new BufferProducerWrapper(surface));
+#endif
 }
 
 status_t CCodec::setupInputSurface(const std::shared_ptr<InputSurfaceWrapper> &surface) {
@@ -3336,8 +3346,10 @@ PersistentSurface *CCodec::CreateInputSurface() {
         std::shared_ptr<WAidlGraphicBufferSource> wrapper =
                 ::ndk::SharedRefBase::make<WAidlGraphicBufferSource>(gbs);
 
+        // Update this to use a MediaSurfaceType in a follow up CL.
         return new PersistentSurface(
-              gbs->getIGraphicBufferProducer(), wrapper->asBinder());
+              mediaflagtools::igbpToSurfaceType(gbs->getIGraphicBufferProducer()),
+              wrapper->asBinder());
     } else {
         return nullptr;
     }

@@ -1186,7 +1186,10 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                         }
 
                         if (4 == profile || 7 == profile ||
-                                (profile >= 8 && profile < 11 && create_two_tracks)) {
+                                ((8 == profile ||
+                                  9 == profile ||
+                                 10 == profile ||
+                                 20 == profile) && create_two_tracks)) {
                             // we need a backward compatible track
                             ALOGV("Adding new backward compatible track");
                             Track *track_b = new Track;
@@ -1221,7 +1224,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                             AMediaFormat_setBuffer(track_b->meta, AMEDIAFORMAT_KEY_CSD_2,
                                                    emptybuffer, 0);
 
-                            if (4 == profile || 7 == profile || 8 == profile ) {
+                            if (4 == profile || 7 == profile || 8 == profile || 20 == profile) {
                                 AMediaFormat_setString(track_b->meta,
                                         AMEDIAFORMAT_KEY_MIME, MEDIA_MIMETYPE_VIDEO_HEVC);
                             } else if (9 == profile) {
@@ -4651,8 +4654,11 @@ MediaTrackHelper *MPEG4Extractor::getTrack(size_t index) {
         }
 
         const uint8_t *ptr = (const uint8_t *)data;
-        // dv_major.dv_minor Should be 1.0 or 2.1
-        if ((ptr[0] != 1 || ptr[1] != 0) && (ptr[0] != 2 || ptr[1] != 1)) {
+        // dv_major.dv_minor Should be 1.0, 2.1 or 3.0
+        if ((ptr[0] != 1 || ptr[1] != 0) &&
+            (ptr[0] != 2 || ptr[1] != 1) &&
+            (ptr[0] != 3 || ptr[1] != 0)) {
+            ALOGE("unsupported Size %zu, dv_major %d, dv_minor %d", size, ptr[0], ptr[1]);
             return NULL;
         }
    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1)
@@ -5308,18 +5314,25 @@ MPEG4Source::MPEG4Source(
 
         CHECK(size == 24);
 
-        // dv_major.dv_minor Should be 1.0 or 2.1
-        CHECK(!((ptr[0] != 1 || ptr[1] != 0) && (ptr[0] != 2 || ptr[1] != 1)));
+        // dv_major.dv_minor Should be 1.0, 2.1 or 3.0
+        if (size != 24 ||
+            ((ptr[0] != 1 || ptr[1] != 0) &&
+             (ptr[0] != 2 || ptr[1] != 1) &&
+             (ptr[0] != 3 || ptr[1] != 0))) {
+            ALOGE("MPEG4Source, unsupported Size %zu, dv_major %d, dv_minor %d",
+                size, ptr[0], ptr[1]);
+        }
+        CHECK(!((ptr[0] != 1 || ptr[1] != 0) &&
+                (ptr[0] != 2 || ptr[1] != 1) &&
+                (ptr[0] != 3 || ptr[1] != 0)));
 
         const uint8_t profile = ptr[2] >> 1;
-        // profile == (4,5,6,7,8) --> HEVC; profile == (9) --> AVC; profile == (10) --> AV1
-        if (profile > 3 && profile < 9) {
+        // profile == (4,5,6,7,8,20) --> HEVC; profile == (9) --> AVC; profile == (10) --> AV1
+        if ((profile > 3 && profile < 9) || 20 == profile) {
             CHECK(AMediaFormat_getBuffer(format, AMEDIAFORMAT_KEY_CSD_HEVC, &data, &size));
-
             mNALLengthSize = getNALLengthSizeFromHevcCsd((const uint8_t *)data, size);
         } else if (9 == profile) {
             CHECK(AMediaFormat_getBuffer(format, AMEDIAFORMAT_KEY_CSD_AVC, &data, &size));
-
             mNALLengthSize = getNALLengthSizeFromAvcCsd((const uint8_t *)data, size);
         } else if (10 == profile) {
             /* AV1 profile nothing to do */

@@ -4228,14 +4228,6 @@ namespace {
 
 class AudioPolicyManagerTestClientVolumeChecker : public AudioPolicyManagerTestClient {
 public:
-    status_t setStreamVolume(audio_stream_type_t stream,
-                             float volume,
-                             bool /*muted*/,
-                             audio_io_handle_t /*output*/,
-                             int /*delayMs*/) override {
-        mLastStreamVolume[stream] = volume;
-        return NO_ERROR;
-    }
 
     status_t setPortsVolume(const std::vector<audio_port_handle_t>& ports, float volume,
                             bool /*muted*/, audio_io_handle_t /*output*/,
@@ -4255,17 +4247,12 @@ public:
         return mLastPortVolume[port];
     }
 
-    float getLastStreamVolume(audio_stream_type_t stream) {
-        return mLastStreamVolume[stream];
-    }
-
     float getLastVoiceVolume() const {
         return mLastVoiceVolume;
     }
 
 private:
     std::unordered_map<audio_port_handle_t, float> mLastPortVolume;
-    std::unordered_map<audio_stream_type_t, float> mLastStreamVolume;
     float mLastVoiceVolume;
 };
 
@@ -4282,9 +4269,9 @@ protected:
         return mVolumeCheckerClient = new AudioPolicyManagerTestClientVolumeChecker();
     }
 
-    void setVolumeIndexForAttributesForDrivingStream(bool withPortApi);
-    void setVolumeIndexForAttributesForNonDrivingStream(bool withPortApi);
-    void setVolumeIndexForDtmfAttributesOnSco(bool withPortApi);
+    void setVolumeIndexForAttributesForDrivingStream();
+    void setVolumeIndexForAttributesForNonDrivingStream();
+    void setVolumeIndexForDtmfAttributesOnSco();
 
     audio_port_handle_t mOutputPortId = AUDIO_PORT_HANDLE_NONE;
     static constexpr audio_attributes_t sMediaAttr = {
@@ -4325,8 +4312,7 @@ void AudioPolicyManagerTestAbsoluteVolume::TearDown() {
     ASSERT_NO_FATAL_FAILURE(AudioPolicyManagerTestWithConfigurationFile::TearDown());
 }
 
-void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForDrivingStream(
-        bool withPortApi) {
+void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForDrivingStream() {
     DeviceIdVector selectedDeviceIds;
     audio_io_handle_t mediaOutput = AUDIO_IO_HANDLE_NONE;
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
@@ -4345,33 +4331,19 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForDriving
                                                               /*muted=*/false,
                                                               AUDIO_DEVICE_OUT_USB_DEVICE));
 
-    if (withPortApi) {
-        EXPECT_EQ(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
-    } else {
-        EXPECT_EQ(1.f, mVolumeCheckerClient->getLastStreamVolume(AUDIO_STREAM_MUSIC));
-    }
+    EXPECT_EQ(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
 
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
                                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                                            "", "", AUDIO_FORMAT_DEFAULT));
 }
 
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-                  SetVolumeIndexForAttributesForDrivingStreamWithPortApi,
-                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                      portid_volume_management))) {
-    setVolumeIndexForAttributesForDrivingStream(/*withPortApi=*/true);
+TEST_F(AudioPolicyManagerTestAbsoluteVolume,
+                  SetVolumeIndexForAttributesForDrivingStreamWithPortApi) {
+    setVolumeIndexForAttributesForDrivingStream();
 }
 
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-                  SetVolumeIndexForAttributesForDrivingStreamWithStreamApi,
-                  REQUIRES_FLAGS_DISABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                       portid_volume_management))) {
-    setVolumeIndexForAttributesForDrivingStream(/*withPortApi=*/false);
-}
-
-void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForNonDrivingStream(
-        bool withPortApi) {
+void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForNonDrivingStream() {
     DeviceIdVector selectedDeviceIds;
     audio_io_handle_t notifOutput = AUDIO_IO_HANDLE_NONE;
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
@@ -4390,29 +4362,16 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForAttributesForNonDriv
                                                               /*muted=*/false,
                                                               AUDIO_DEVICE_OUT_USB_DEVICE));
 
-    if (withPortApi) {
-        EXPECT_GT(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
-    } else {
-        EXPECT_GT(1.f, mVolumeCheckerClient->getLastStreamVolume(AUDIO_STREAM_NOTIFICATION));
-    }
+    EXPECT_GT(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
 
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
                                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                                            "", "", AUDIO_FORMAT_DEFAULT));
 }
 
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-       SetVolumeIndexForAttributesForNonDrivingStreamWithPortApi,
-                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                      portid_volume_management))) {
-    setVolumeIndexForAttributesForNonDrivingStream(/*withPortApi=*/true);
-}
-
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-                  SetVolumeIndexForAttributesForNonDrivingStreamWithStreamApi,
-                  REQUIRES_FLAGS_DISABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                      portid_volume_management))) {
-    setVolumeIndexForAttributesForNonDrivingStream(/*withPortApi=*/false);
+TEST_F(AudioPolicyManagerTestAbsoluteVolume,
+       SetVolumeIndexForAttributesForNonDrivingStreamWithPortApi) {
+    setVolumeIndexForAttributesForNonDrivingStream();
 }
 
 TEST_F(AudioPolicyManagerTestAbsoluteVolume, SetVolumeIndexForVoiceCallAttributesNoScoBle) {
@@ -4477,7 +4436,7 @@ TEST_F(AudioPolicyManagerTestAbsoluteVolume, SetVolumeIndexForVoiceCallAttribute
             DEVICE_ROLE_PREFERRED));
 }
 
-void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForDtmfAttributesOnSco(bool withPortApi) {
+void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForDtmfAttributesOnSco() {
     mManager->setPhoneState(AUDIO_MODE_IN_COMMUNICATION);
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
             AUDIO_DEVICE_OUT_BLUETOOTH_SCO, AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
@@ -4509,11 +4468,7 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForDtmfAttributesOnSco(
                                                               /*muted=*/false,
                                                               AUDIO_DEVICE_OUT_BLUETOOTH_SCO));
 
-    if (withPortApi) {
-        EXPECT_EQ(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
-    } else {
-        EXPECT_EQ(1.f, mVolumeCheckerClient->getLastStreamVolume(AUDIO_STREAM_DTMF));
-    }
+    EXPECT_EQ(1.f, mVolumeCheckerClient->getLastPortVolume(mOutputPortId));
 
     EXPECT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_BLUETOOTH_SCO,
                                                            AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
@@ -4524,18 +4479,9 @@ void AudioPolicyManagerTestAbsoluteVolume::setVolumeIndexForDtmfAttributesOnSco(
             DEVICE_ROLE_PREFERRED));
 }
 
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-                  SetVolumeIndexForDtmfAttributesOnScoWithPortApi,
-                  REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                      portid_volume_management))) {
-    setVolumeIndexForDtmfAttributesOnSco(/*withPortApi=*/true);
-}
-
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestAbsoluteVolume,
-                  SetVolumeIndexForDtmfAttributesOnScoWithStreamApi,
-                  REQUIRES_FLAGS_DISABLED(ACONFIG_FLAG(com::android::media::audioserver,
-                                                      portid_volume_management))) {
-    setVolumeIndexForDtmfAttributesOnSco(/*withPortApi=*/false);
+TEST_F(AudioPolicyManagerTestAbsoluteVolume,
+                  SetVolumeIndexForDtmfAttributesOnScoWithPortApi) {
+    setVolumeIndexForDtmfAttributesOnSco();
 }
 
 class AudioPolicyManagerTestVolumeGroupID : public AudioPolicyManagerTestWithConfigurationFile {
