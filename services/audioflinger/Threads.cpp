@@ -5813,10 +5813,20 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 }
                 sp<AudioTrackServerProxy> proxy = track->audioTrackServerProxy();
                 float volume;
-                if (track->isPlaybackRestricted() || track->getPortMute()) {
-                    volume = 0.f;
+
+                if (com_android_media_audio_ring_my_car()) {
+                    if (!track->canBypassMute()
+                        && (track->isPlaybackRestricted() || track->getPortMute())) {
+                        volume = 0.f;
+                    } else {
+                        volume = masterVolume * track->getPortVolume();
+                    }
                 } else {
-                    volume = masterVolume * track->getPortVolume();
+                    if (track->isPlaybackRestricted() || track->getPortMute()) {
+                        volume = 0.f;
+                    } else {
+                        volume = masterVolume * track->getPortVolume();
+                    }
                 }
 
                 const auto amn = mAfThreadCallback->getAudioManagerNative();
@@ -5835,15 +5845,29 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 float vlf = float_from_gain(gain_minifloat_unpack_left(vlr));
                 float vrf = float_from_gain(gain_minifloat_unpack_right(vlr));
                 if (amn) {
+                    bool portMute = false;
+                    bool portVolumeMute = false;
+                    if (com_android_media_audio_ring_my_car()) {
+                        portMute = track->canBypassMute()
+                                   ? false
+                                   : track->getPortVolume() == 0.f;
+                        portVolumeMute = track->canBypassMute()
+                                         ? false
+                                         : track->getPortMute();
+                    } else {
+                        portMute = track->getPortVolume() == 0.f;
+                        portVolumeMute = track->getPortMute();
+                    }
                     track->processMuteEvent(*amn,
-                            /*muteState=*/{masterVolume == 0.f,
-                                           track->getPortVolume() == 0.f,
-                                           /* muteFromStreamMuted= */ false,
-                                           track->isPlaybackRestrictedOp(),
-                                           vlf == 0.f && vrf == 0.f,
-                                           vh == 0.f,
-                                       track->getPortMute(),
-                                       track->isPlaybackRestrictedControl()});
+                            /*muteState=*/{/*muteFromMasterMute*/ masterVolume == 0.f,
+                                           /*muteFromStreamVolume*/ portMute,
+                                           /* muteFromStreamMuted*/ false,
+                                           /*muteFromPlaybackRestricted*/ track->isPlaybackRestrictedOp(),
+                                           /*muteFromClientVolume*/ vlf == 0.f && vrf == 0.f,
+                                           /*muteFromVolumeShaper*/ vh == 0.f,
+                                           /*muteFromPortVolume*/ portVolumeMute,
+                                           /*muteFromOpAudioControl*/
+                                               track->isPlaybackRestrictedControl()});
                 }
                 vlf *= volume;
                 vrf *= volume;
@@ -6000,11 +6024,22 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
             const float vh = track->getVolumeHandler()->getVolume(
                     track->audioTrackServerProxy()->framesReleased()).first;
             float v;
-            if (track->isPlaybackRestricted() || track->getPortMute()) {
-                v = 0;
+
+            if (com_android_media_audio_ring_my_car()) {
+                if (!track->canBypassMute()
+                    && (track->isPlaybackRestricted() || track->getPortMute())) {
+                    v = 0;
+                } else {
+                    v = masterVolume * track->getPortVolume();
+                }
             } else {
-                v = masterVolume * track->getPortVolume();
+                if (track->isPlaybackRestricted() || track->getPortMute()) {
+                    v = 0;
+                } else {
+                    v = masterVolume * track->getPortVolume();
+                }
             }
+
             handleVoipVolume_l(&v);
             const auto amn = mAfThreadCallback->getAudioManagerNative();
             if (amn) {
@@ -6029,15 +6064,31 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                     vrf = GAIN_FLOAT_UNITY;
                 }
                 if (amn) {
+                    bool portMute;
+                    bool getPortMute;
+                    if (com_android_media_audio_ring_my_car()) {
+                        portMute = track->canBypassMute()
+                                   ? false
+                                   : track->getPortVolume() == 0.f;;
+                        getPortMute = track->canBypassMute()
+                                      ? false
+                                      : track->getPortMute();
+                    } else {
+                        portMute = track->getPortVolume() == 0.f;
+                        getPortMute = track->getPortMute();
+
+                    }
                     track->processMuteEvent(*amn,
-                            /*muteState=*/{masterVolume == 0.f,
-                                           track->getPortVolume() == 0.f,
-                                           /* muteFromStreamMuted= */ false,
-                                           track->isPlaybackRestrictedOp(),
-                                           vlf == 0.f && vrf == 0.f,
-                                           vh == 0.f,
-                                           track->getPortMute(),
-                                           track->isPlaybackRestrictedControl()});
+                            /*muteState=*/{/*muteFromMasterMute*/ masterVolume == 0.f,
+                                           /*muteFromStreamVolume*/ portMute,
+                                           /*muteFromStreamMuted= */ false,
+                                           /*muteFromPlaybackRestricted*/
+                                                   track->isPlaybackRestrictedOp(),
+                                           /*muteFromClientVolume*/ vlf == 0.f && vrf == 0.f,
+                                           /*muteFromVolumeShaper*/ vh == 0.f,
+                                           /*muteFromPortVolume*/ getPortMute,
+                                           /*muteFromOpAudioControl*/
+                                                   track->isPlaybackRestrictedControl()});
                 }
                 // now apply the master volume and stream type volume and shaper volume
                 vlf *= v * vh;
@@ -6791,15 +6842,29 @@ void DirectOutputThread::processVolume_l(const sp<IAfTrack>& track, bool lastTra
         }
     }
     if (amn) {
+        bool portMute = false;
+        bool portVolumeMute = false;
+        if (com_android_media_audio_ring_my_car()) {
+            portMute = track->canBypassMute()
+                       ? false
+                       : track->getPortVolume() == 0.f;
+            portVolumeMute = track->canBypassMute()
+                             ? false
+                             : track->getPortMute();
+        } else {
+            portMute = track->getPortVolume() == 0.f;
+            portVolumeMute = track->getPortMute();
+        }
         track->processMuteEvent(*amn,
-                /*muteState=*/{mMasterMute,
-                               track->getPortVolume() == 0.f,
-                               /* muteFromStreamMuted= */ false,
-                               track->isPlaybackRestrictedOp(),
-                               clientVolumeMute,
-                               shaperVolume == 0.f,
-                               track->getPortMute(),
-                               track->isPlaybackRestrictedControl()});
+                /*muteState=*/{/*muteFromMasterMute*/ mMasterMute,
+                               /*muteFromStreamVolume*/ portMute,
+                               /*muteFromStreamMuted*/ false,
+                               /*muteFromPlaybackRestricted*/ track->isPlaybackRestrictedOp(),
+                               /*muteFromClientVolume*/ clientVolumeMute,
+                               /*muteFromVolumeShaper*/ shaperVolume == 0.f,
+                               /*muteFromPortVolume*/ portVolumeMute,
+                               /*muteFromOpAudioControl*/
+                                       track->isPlaybackRestrictedControl()});
 
         track->maybeLogPlaybackHardening(*amn);
     }

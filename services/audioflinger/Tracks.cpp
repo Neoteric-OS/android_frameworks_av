@@ -722,6 +722,13 @@ sp<OpPlayAudioMonitor> OpPlayAudioMonitor::createIfNeeded(
             id, attr.flags);
         return nullptr;
     }
+    if (com_android_media_audio_ring_my_car()) {
+        if ((attr.flags & AUDIO_FLAG_BYPASS_MUTE) == AUDIO_FLAG_BYPASS_MUTE) {
+            ALOGD("OpPlayAudio: not muting track:%d flags %#x have FLAG_BYPASS_MUTE",
+                  id, attr.flags);
+            return nullptr;
+        }
+    }
     return sp<OpPlayAudioMonitor>::make(thread, attributionSource, attr.usage, id, uid);
 }
 
