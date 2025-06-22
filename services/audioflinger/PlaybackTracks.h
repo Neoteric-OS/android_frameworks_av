@@ -22,6 +22,7 @@
 #include <android/os/BnExternalVibrationController.h>
 #include <audio_utils/mutex.h>
 #include <audio_utils/LinearMap.h>
+#include <com_android_media_audio.h>
 #include <binder/AppOpsManager.h>
 #include <utils/RWLock.h>
 
@@ -286,6 +287,13 @@ protected:
 
     bool isPlaybackRestricted() const final {
         return isPlaybackRestrictedOp() || isPlaybackRestrictedControl();
+    }
+
+    bool canBypassMute() const final {
+        if (com_android_media_audio_ring_my_car()) {
+            return ((attributes().flags & AUDIO_FLAG_BYPASS_MUTE) == AUDIO_FLAG_BYPASS_MUTE);
+        }
+        return false;
     }
 
     const sp<AudioTrackServerProxy>& audioTrackServerProxy() const final {

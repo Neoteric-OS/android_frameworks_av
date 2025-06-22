@@ -975,6 +975,17 @@ void C2SoftAvcDec::process(
         mSignalledOutputEos = true;
     } else if (!hasPicture) {
         fillEmptyWork(work);
+    } else if (work->worklets.front()->output.configUpdate.size() > 0) {
+        auto fillWork = [&work](const std::unique_ptr<C2Work>& cloneWork) {
+            cloneWork->worklets.front()->output.flags = (C2FrameData::flags_t)0;
+            cloneWork->worklets.front()->output.buffers.clear();
+            cloneWork->worklets.front()->output.configUpdate =
+                    std::move(work->worklets.front()->output.configUpdate);
+            cloneWork->worklets.front()->output.ordinal = work->input.ordinal;
+            cloneWork->workletsProcessed = 1u;
+        };
+        uint64_t frameIndex = work->input.ordinal.frameIndex.peeku();
+        cloneAndSend(frameIndex, work, fillWork);
     }
 
     work->input.buffers.clear();

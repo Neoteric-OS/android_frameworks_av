@@ -1289,6 +1289,12 @@ NO_THREAD_SAFETY_ANALYSIS  // update for trylock.
 
         mPackageManager.dump(fd);
 
+        if (mPermissionController != nullptr) {
+            std::string perm_dump = "\nPermission Controller Dump:\n"
+                    + mPermissionController->dumpString();
+            write(fd, perm_dump.c_str(), perm_dump.size());
+        }
+
         dumpReleaseLock(mMutex, locked);
 
         if (mSpatializer != nullptr) {

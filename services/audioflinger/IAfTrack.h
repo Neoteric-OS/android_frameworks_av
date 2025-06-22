@@ -565,6 +565,8 @@ public:
 
     virtual bool isPlaybackRestricted() const = 0;
 
+    virtual bool canBypassMute() const = 0;
+
     // Used by thread only
 
     virtual bool isPausing() const = 0;
