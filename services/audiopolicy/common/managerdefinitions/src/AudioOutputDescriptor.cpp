@@ -738,7 +738,8 @@ status_t SwAudioOutputDescriptor::open(const audio_config_t *halConfig,
                                                    device,
                                                    &mLatency,
                                                    &mFlags,
-                                                   attributes);
+                                                   attributes,
+                                                   mProfile->getHalId());
     *flags = mFlags;
 
     if (status == NO_ERROR) {
