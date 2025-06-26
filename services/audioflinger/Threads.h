@@ -1051,6 +1051,7 @@ protected:
 
     // Playback variables for Direct/Offload modes
     bool mFlushPending = false;
+    std::optional<audio_offload_info_t> mOffloadInfo GUARDED_BY(mutex());
 };
 
 // --- PlaybackThread ---
@@ -1851,8 +1852,6 @@ protected:
 
     void onAddNewTrack_l() final REQUIRES(mutex());
 
-    const       audio_offload_info_t mOffloadInfo;
-
     audioflinger::MonotonicFrameCounter mMonotonicFrameCounter;  // for VolumeShaper
     bool mVolumeShaperActive = false;
 
@@ -1860,7 +1859,9 @@ protected:
                        audio_io_handle_t id, ThreadBase::type_t type, bool systemReady,
                        const audio_offload_info_t& offloadInfo);
     void processVolume_l(const sp<IAfTrack>& track, bool lastTrack) REQUIRES(mutex());
-    bool isTunerStream() const { return (mOffloadInfo.content_id > 0); }
+    bool isTunerStream_l() const REQUIRES(mutex()) {
+        return mOffloadInfo.has_value() && mOffloadInfo.value().content_id > 0;
+    }
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
     sp<IAfTrack>               mActiveTrack;
@@ -2417,10 +2418,6 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
                                 }
                             }
 
-    virtual std::optional<audio_offload_info_t> offloadInfo_l() const REQUIRES(mutex()) {
-        return std::nullopt;
-    }
-
  protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) override REQUIRES(mutex());
     void dumpTracks_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
@@ -2488,10 +2485,6 @@ public:
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
 
-    std::optional<audio_offload_info_t> offloadInfo_l() const final REQUIRES(mutex()) {
-        return mOffloadInfo;
-    }
-
     sp<VolumeInterface> asVolumeInterface() final {
        return static_cast<VolumeInterface*>(this);
     }
@@ -2502,7 +2495,6 @@ protected:
     audio_stream_type_t mStreamType GUARDED_BY(mutex());
     float mMasterVolume GUARDED_BY(mutex());
     bool mMasterMute GUARDED_BY(mutex());
-    std::optional<audio_offload_info_t> mOffloadInfo GUARDED_BY(mutex());
     mediautils::atomic_sp<audio_utils::MelProcessor> mMelProcessor;  // locked internally
 };
 
