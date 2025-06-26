@@ -2224,8 +2224,22 @@ bool ThreadBase::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
         }
     }
 
-    // TODO(b/410038399) consider to apply to all threads for symmetry.
-    if (trackMatch && (type() == MMAP_PLAYBACK || type() == MMAP_CAPTURE)) {
+    if (trackMatch) {
+        if (type() == OFFLOAD) {
+            // On invalidating an offload track, the IAudioTrack instance is
+            // destroyed and the offload output is released. If it so happens
+            // that APM::getOutputForAttr for the new IAudioTrack is called before
+            // OffloadThread::prepareTracks_l checks and removes an invalid track,
+            // the same output can get reused.
+            //
+            // The side effect of this is data present in HAL and below from before the
+            // invalidate will be rendered before data from the new seek position
+            // is rendered. This is unexpected.
+            //
+            // To fix this, set hint to issue flush when an offload track is invalidated.
+            mFlushPending = true;
+        }
+
         broadcast_l();
     }
     return trackMatch;
@@ -2297,7 +2311,7 @@ PlaybackThread::PlaybackThread(const sp<IAfThreadCallback>& afThreadCallback,
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::sMaxFastTracks) - 1) & ~1),
 // QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
-        mHwSupportsPause(false), mHwPaused(false), mFlushPending(false), mHwSupportsSuspend(false),
+        mHwSupportsPause(false), mHwPaused(false), mHwSupportsSuspend(false),
 // QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mLeftVolFloat(-1.0), mRightVolFloat(-1.0),
         mDownStreamPatch{},
@@ -7862,8 +7876,6 @@ void OffloadThread::flushHw_l()
     }
 }
 
-// TODO(b/410038399) move to base class and unify with Mmap implementation for clarity.
-
 void MixerThread::onIdleMixer()
 // QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 {
@@ -7902,25 +7914,6 @@ void MixerThread::onIdleMixer()
 }
 
 // QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
-bool OffloadThread::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
-    const bool trackMatch = ThreadBase::invalidateTracks_l(portIds);
-    if (trackMatch) {
-        // On invalidating an offload track, the IAudioTrack instance is
-        // destroyed and the offload output is released. If it so happens
-        // that APM::getOutputForAttr for the new IAudioTrack is called before
-        // OffloadThread::prepareTracks_l checks and removes an invalid track,
-        // the same output can get reused.
-        //
-        // The side effect of this is data present in HAL and below from before the
-        // invalidate will be rendered before data from the new seek position
-        // is rendered. This is unexpected.
-        //
-        // To fix this, set hint to issue flush when an offload track is invalidated.
-        mFlushPending = true;
-    }
-    return trackMatch;
-}
-
 // ----------------------------------------------------------------------------
 
 /* static */
