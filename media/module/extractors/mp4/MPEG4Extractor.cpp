@@ -3415,15 +3415,37 @@ status_t MPEG4Extractor::parseAC4SpecificBox(off64_t offset) {
     if (!ac4Presentations.empty()) {
         for (const auto& ac4Presentation : ac4Presentations) {
             auto& presentation = ac4Presentation.second;
-            if (!presentation.mEnabled) {
-                continue;
-            }
             AudioPresentationV1 ap;
             ap.mPresentationId = presentation.mGroupIndex;
             ap.mProgramId = presentation.mProgramID;
             ap.mLanguage = presentation.mLanguage;
             if (presentation.mPreVirtualized) {
                 ap.mMasteringIndication = MASTERED_FOR_HEADPHONE;
+            } else if (!presentation.mChannelCoded) {
+                ap.mMasteringIndication = MASTERED_FOR_3D;
+                // The ETSI TS 103 190-2 V1.2.1 (2018-02) specification defines the parameter
+                // n_umx_objects_minus1 in Annex E (E.11.11) to specify the number of fullband
+                // objects. While the elementary stream specification (section 6.3.2.8.1 and
+                // 6.3.2.10.4) provides information about the presence of an LFE channel within
+                // the set of dynamic objects, this detail is not explicitly stated in the ISO
+                // Base Media File Format (Annex E). However, current implementation practices
+                // consistently include the LFE channel when creating an object-based substream.
+                // As a result, it has been decided that when interpreting the ISO Base Media File
+                // Format, the LFE channel should always be counted as part of the total channel
+                // count.
+                int lfeChannelCount = 1;
+                channelCount = presentation.mNumOfUmxObjects + lfeChannelCount;
+                // TODO: There is a bug in ETSI TS 103 190-2 V1.2.1 (2018-02), E.11.11
+                // For AC-4 level 4 stream, the intention is to set 19 to n_umx_objects_minus1 but
+                // it is equal to 15 based on current specification. Dolby has filed a bug report
+                // to ETSI. The following sentence should be deleted after ETSI specification error
+                // is fixed.
+                if (presentation.mLevel == 4) {
+                    channelCount = channelCount == 17 ? 21 : channelCount;
+                }
+                ALOGD("AJOC channelCount = %d", channelCount);
+                AMediaFormat_setInt32(mLastTrack->meta,
+                    AMEDIAFORMAT_KEY_CHANNEL_COUNT, channelCount);
             } else {
                 switch (presentation.mChannelMode) {
                     case AC4Parser::AC4Presentation::kChannelMode_Mono:
