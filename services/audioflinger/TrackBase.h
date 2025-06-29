@@ -348,6 +348,14 @@ protected:
 
     audio_utils::trace::Object createDeviceIntervalTrace(const std::string& devices);
 
+    virtual bool isOffloaded() const { return false; }
+
+    bool isNonOffloadableEffectEnabled_l() const final
+            REQUIRES(audio_utils::AudioFlinger_Mutex);
+
+    bool isNonOffloadableEffectEnabled() const final
+            EXCLUDES(audio_utils::AudioFlinger_Mutex);
+
     const wp<IAfThreadBase> mThread;
     const alloc_type     mAllocType;
     /*const*/ sp<Client> mClient;   // see explanation at ~TrackBase() why not const

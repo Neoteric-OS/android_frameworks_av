@@ -9835,8 +9835,7 @@ status_t AudioPolicyManager::getDevicesForAttributes(
         const audio_attributes_t &attr, DeviceVector &devices, bool forVolume) {
     // attr containing source set by AudioAttributes.Builder.setCapturePreset() has precedence
     // over any usage or content type also present in attr.
-    if (com::android::media::audioserver::enable_audio_input_device_routing() &&
-        attr.source != AUDIO_SOURCE_INVALID) {
+    if (attr.source != AUDIO_SOURCE_INVALID) {
         return getInputDevicesForAttributes(attr, devices);
     }
 

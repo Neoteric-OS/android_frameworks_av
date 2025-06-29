@@ -369,10 +369,10 @@ public:
     virtual void onEffectDisable(const sp<IAfEffectModule>& effect) EXCLUDES_ThreadBase_Mutex = 0;
 
     // invalidateTracksForAudioSession_l must be called with holding mLock.
-    virtual void invalidateTracksForAudioSession_l(audio_session_t sessionId) const
+    virtual bool invalidateTracksForAudioSession_l(audio_session_t sessionId) const
             REQUIRES(mutex()) = 0;
     // Invalidate all the tracks with the given audio session.
-    virtual void invalidateTracksForAudioSession(audio_session_t sessionId) const
+    virtual bool invalidateTracksForAudioSession(audio_session_t sessionId) const
             EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual bool isStreamInitialized_l() const REQUIRES(mutex()) = 0;

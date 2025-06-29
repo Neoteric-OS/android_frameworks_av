@@ -103,7 +103,8 @@ public:
     void appendDumpHeader(String8& result) const final;
     void appendDump(String8& result, bool active) const final;
     status_t start(AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
-            audio_session_t triggerSession = AUDIO_SESSION_NONE) override;
+            audio_session_t triggerSession = AUDIO_SESSION_NONE) override
+            EXCLUDES_ThreadBase_Mutex;
     void stop() override;
     void pause() final;
     void flush() final;
@@ -441,9 +442,10 @@ public:
                                 const AttributionSourceState& attributionSource);
     ~OutputTrack() override;
 
-    status_t start(AudioSystem::sync_event_t event =
-                                    AudioSystem::SYNC_EVENT_NONE,
-                             audio_session_t triggerSession = AUDIO_SESSION_NONE) final;
+    status_t start(
+            AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            audio_session_t triggerSession = AUDIO_SESSION_NONE) final
+            EXCLUDES_ThreadBase_Mutex;
     void stop() final;
     ssize_t write(void* data, uint32_t frames) final;
     bool bufferQueueEmpty() const final { return mBufferQueue.size() == 0; }
@@ -521,9 +523,10 @@ public:
 
     size_t framesReady() const final;
 
-    status_t start(AudioSystem::sync_event_t event =
-                                    AudioSystem::SYNC_EVENT_NONE,
-                             audio_session_t triggerSession = AUDIO_SESSION_NONE) final;
+    status_t start(
+            AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
+            audio_session_t triggerSession = AUDIO_SESSION_NONE) final
+            EXCLUDES_ThreadBase_Mutex;
 
     // AudioBufferProvider interface
     status_t getNextBuffer(AudioBufferProvider::Buffer* buffer) final;

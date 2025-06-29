@@ -547,26 +547,6 @@ public:
     void onEffectEnable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
     void onEffectDisable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
 
-                // invalidateTracksForAudioSession_l must be called with holding mutex().
-    void invalidateTracksForAudioSession_l(audio_session_t /* sessionId */) const override
-            REQUIRES(mutex()) {}
-                // Invalidate all the tracks with the given audio session.
-    void invalidateTracksForAudioSession(audio_session_t sessionId) const final
-            EXCLUDES_ThreadBase_Mutex {
-        audio_utils::lock_guard _l(mutex());
-                    invalidateTracksForAudioSession_l(sessionId);
-                }
-
-                template <typename T>
-    void invalidateTracksForAudioSession_l(audio_session_t sessionId,
-            const T& tracks) const REQUIRES(mutex()) {
-                    for (const auto& track : tracks) {
-                        if (sessionId == track->sessionId()) {
-                            track->invalidate();
-                        }
-                    }
-                }
-
     void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) override
             REQUIRES(audio_utils::AudioFlinger_Mutex);
     void stopMelComputation_l() override
@@ -959,6 +939,24 @@ protected:
     bool invalidateTracks(std::set<audio_port_handle_t>* portIds = {}) override
             EXCLUDES_ThreadBase_Mutex;
 
+    // Invalidate all the tracks with the given audio session.
+    bool invalidateTracksForAudioSession(audio_session_t sessionId) const final
+            EXCLUDES_ThreadBase_Mutex {
+        audio_utils::lock_guard _l(mutex());
+        return invalidateTracksForAudioSession_l(sessionId);
+    }
+    bool invalidateTracksForAudioSession_l(audio_session_t sessionId) const final
+            REQUIRES(mutex())  {
+        bool invalidated = false;
+        for (const auto& track : mTracks) {
+            if (sessionId == track->sessionId()) {
+                track->invalidate();
+                invalidated = true;
+            }
+        }
+        return invalidated;
+    }
+
     status_t setPortsVolume(const std::vector<audio_port_handle_t>& portIds, float volume,
                             bool muted) final EXCLUDES_ThreadBase_Mutex;
 
@@ -1050,6 +1048,10 @@ protected:
     // Haptic playback.
     audio_channel_mask_t mHapticChannelMask = AUDIO_CHANNEL_NONE;
     uint32_t mHapticChannelCount = 0;
+
+    // Playback variables for Direct/Offload modes
+    bool mFlushPending = false;
+    std::optional<audio_offload_info_t> mOffloadInfo GUARDED_BY(mutex());
 };
 
 // --- PlaybackThread ---
@@ -1517,11 +1519,6 @@ protected:
 
                 uint32_t    trackCountForUid_l(uid_t uid) const;
 
-                void        invalidateTracksForAudioSession_l(
-            audio_session_t sessionId) const override REQUIRES(mutex()) {
-                                ThreadBase::invalidateTracksForAudioSession_l(sessionId, mTracks);
-                            }
-
     DISALLOW_COPY_AND_ASSIGN(PlaybackThread);
 
     status_t addTrack_l(const sp<IAfTrack>& track) final REQUIRES(mutex());
@@ -1628,7 +1625,6 @@ protected:
      uint32_t mFastTrackAvailMask;  // bit i set if fast track [i] is available
                 bool        mHwSupportsPause;
                 bool        mHwPaused;
-                bool        mFlushPending;
 // QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
                 bool        mHwSupportsSuspend;
 // QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
@@ -1856,8 +1852,6 @@ protected:
 
     void onAddNewTrack_l() final REQUIRES(mutex());
 
-    const       audio_offload_info_t mOffloadInfo;
-
     audioflinger::MonotonicFrameCounter mMonotonicFrameCounter;  // for VolumeShaper
     bool mVolumeShaperActive = false;
 
@@ -1865,7 +1859,9 @@ protected:
                        audio_io_handle_t id, ThreadBase::type_t type, bool systemReady,
                        const audio_offload_info_t& offloadInfo);
     void processVolume_l(const sp<IAfTrack>& track, bool lastTrack) REQUIRES(mutex());
-    bool isTunerStream() const { return (mOffloadInfo.content_id > 0); }
+    bool isTunerStream_l() const REQUIRES(mutex()) {
+        return mOffloadInfo.has_value() && mOffloadInfo.value().content_id > 0;
+    }
 
     // prepareTracks_l() tells threadLoop_mix() the name of the single active track
     sp<IAfTrack>               mActiveTrack;
@@ -1925,7 +1921,6 @@ protected:
 
     bool waitingAsyncCallback() final;
     bool waitingAsyncCallback_l() final REQUIRES(mutex());
-    bool invalidateTracks_l(std::set<audio_port_handle_t>* portIds) final REQUIRES(mutex());
 
     bool keepWakeLock() const final { return (mKeepWakeLock || (mDrainSequence & 1)); }
 
@@ -2423,10 +2418,6 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
                                 }
                             }
 
-    virtual std::optional<audio_offload_info_t> offloadInfo_l() const REQUIRES(mutex()) {
-        return std::nullopt;
-    }
-
  protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) override REQUIRES(mutex());
     void dumpTracks_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
@@ -2494,10 +2485,6 @@ public:
     void stopMelComputation_l() final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
 
-    std::optional<audio_offload_info_t> offloadInfo_l() const final REQUIRES(mutex()) {
-        return mOffloadInfo;
-    }
-
     sp<VolumeInterface> asVolumeInterface() final {
        return static_cast<VolumeInterface*>(this);
     }
@@ -2508,7 +2495,6 @@ protected:
     audio_stream_type_t mStreamType GUARDED_BY(mutex());
     float mMasterVolume GUARDED_BY(mutex());
     bool mMasterMute GUARDED_BY(mutex());
-    std::optional<audio_offload_info_t> mOffloadInfo GUARDED_BY(mutex());
     mediautils::atomic_sp<audio_utils::MelProcessor> mMelProcessor;  // locked internally
 };
 

@@ -451,6 +451,30 @@ void TrackBase::signal() {
     }
 }
 
+bool TrackBase::isNonOffloadableEffectEnabled_l() const {
+    if (!isOffloaded()) return false;
+    if (const sp<IAfThreadBase> thread = mThread.promote();
+            thread != nullptr) {
+        const bool nonOffloadableGlobalEffectEnabled =
+                thread->afThreadCallback()->isNonOffloadableGlobalEffectEnabled_l();
+        audio_utils::lock_guard _lth(thread->mutex());
+        const sp<IAfEffectChain>& ec = thread->getEffectChain_l(mSessionId);
+        if (nonOffloadableGlobalEffectEnabled ||
+                (ec != nullptr && ec->isNonOffloadableEnabled())) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TrackBase::isNonOffloadableEffectEnabled() const {
+    if (!isOffloaded()) return false;
+    const sp<IAfThreadBase> thread = mThread.promote();
+    if (thread == nullptr) return false;
+    audio_utils::lock_guard _laf(thread->afThreadCallback()->mutex());
+    return isNonOffloadableEffectEnabled_l();
+}
+
 PatchTrackBase::PatchTrackBase(const sp<ClientProxy>& proxy,
         IAfThreadBase* thread, const Timeout& timeout)
     : mProxy(proxy)
@@ -545,7 +569,15 @@ Status TrackHandle::getCblk(
 }
 
 Status TrackHandle::start(int32_t* _aidl_return) {
-    *_aidl_return = mTrack->start();
+    status_t status = NO_ERROR;
+    if (mTrack->isOffloaded() && mTrack->isNonOffloadableEffectEnabled()) {
+        mTrack->invalidate();
+        status = PERMISSION_DENIED;
+    }
+    if (status == NO_ERROR) {
+        status = mTrack->start();
+    }
+    *_aidl_return = status;
     return Status::ok();
 }
 
@@ -1387,18 +1419,6 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
 
     const sp<IAfThreadBase> thread = mThread.promote();
     if (thread != 0) {
-        if (isOffloaded()) {
-            audio_utils::lock_guard _laf(thread->afThreadCallback()->mutex());
-            const bool nonOffloadableGlobalEffectEnabled =
-                    thread->afThreadCallback()->isNonOffloadableGlobalEffectEnabled_l();
-            audio_utils::lock_guard _lth(thread->mutex());
-            sp<IAfEffectChain> ec = thread->getEffectChain_l(mSessionId);
-            if (nonOffloadableGlobalEffectEnabled ||
-                    (ec != 0 && ec->isNonOffloadableEnabled())) {
-                invalidate();
-                return PERMISSION_DENIED;
-            }
-        }
         audio_utils::unique_lock ul(thread->mutex());
         thread->waitWhileThreadBusy_l(ul);
 
@@ -3840,6 +3860,7 @@ sp<IAfMmapTrack> IAfMmapTrack::create(IAfThreadBase* thread,
           audio_format_t format,
           audio_channel_mask_t channelMask,
           audio_session_t sessionId,
+          std::variant<audio_input_flags_t, audio_output_flags_t> flags,
           bool isOut,
           const android::content::AttributionSourceState& attributionSource,
           pid_t creatorPid,
@@ -3852,6 +3873,7 @@ sp<IAfMmapTrack> IAfMmapTrack::create(IAfThreadBase* thread,
             format,
             channelMask,
             sessionId,
+            flags,
             isOut,
             attributionSource,
             creatorPid,
@@ -3864,6 +3886,7 @@ MmapTrack::MmapTrack(IAfThreadBase* thread,
         audio_format_t format,
         audio_channel_mask_t channelMask,
         audio_session_t sessionId,
+        std::variant<audio_input_flags_t, audio_output_flags_t> flags,
         bool isOut,
         const AttributionSourceState& attributionSource,
         pid_t creatorPid,
@@ -3881,6 +3904,7 @@ MmapTrack::MmapTrack(IAfThreadBase* thread,
                   std::string(AMEDIAMETRICS_KEY_PREFIX_AUDIO_MMAP) + std::to_string(portId)),
         mPid(VALUE_OR_FATAL(aidl2legacy_int32_t_uid_t(attributionSource.pid))),
         mUid(VALUE_OR_FATAL(aidl2legacy_int32_t_uid_t(attributionSource.uid))),
+        mFlags(flags),
             mSilenced(false), mSilencedNotified(false)
 {
     // Once this item is logged by the server, the client can add properties.

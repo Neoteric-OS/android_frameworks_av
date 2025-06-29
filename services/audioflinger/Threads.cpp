@@ -1550,11 +1550,6 @@ status_t ThreadBase::checkEffectCompatibility_l(
         // Treat direct threads similar to offload threads,
         // since mixing and post processing should be done by DSP here as well.
 // QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
-    case OFFLOAD:
-        // nothing actionable on offload threads, if the effect:
-        //   - is offloadable: the effect can be created
-        //   - is NOT offloadable: the effect should still be created, but EffectHandle::enable()
-        //     will take care of invalidating the tracks of the thread
         break;
     case DUPLICATING:
         if (audio_is_global_session(sessionId)) {
@@ -1639,17 +1634,29 @@ status_t ThreadBase::checkEffectCompatibility_l(
         }
         break;
     case MMAP_CAPTURE:
-    case MMAP_PLAYBACK: {
-        // No global effect sessions on mmap threads (DEVICE, STAGE, or MIX).
-        if (audio_is_global_session(sessionId)) {
-            ALOGW("%s: no global effect (session %d) %s on MMAP thread %s",
-                    __func__, sessionId, desc->name, mThreadName);
+    case MMAP_PLAYBACK:
+        if (!mOffloadInfo.has_value()) {
+            ALOGW("%s: cannot use effect %s session id %d on MMap thread %s",
+                    __func__, desc->name, sessionId, mThreadName);
             return BAD_VALUE;
         }
+    FALLTHROUGH_INTENDED;
+    case OFFLOAD:
+        // nothing actionable on offload threads, if the effect:
+        //   - is offloadable: the effect can be created
+        //   - is NOT offloadable: the effect should still be created,
+        //     but EffectHandle::enable() and ThreadBase::onEffectEnable()
+        //     will take care of invalidating the tracks of the thread.
+        //     Also APM::openDirectOutput will prevent opening if there is a
+        //     non-offloadable effect.
 
-        ALOGW("%s: cannot use effect %s on MMap thread %s", __func__, desc->name, mThreadName);
-        return BAD_VALUE;
-    }
+        if ((desc->flags & EFFECT_FLAG_OFFLOAD_MASK) == EFFECT_FLAG_OFFLOAD_SUPPORTED) {
+            ALOGV("%s: offload effect %s accepted", __func__, desc->name);
+        } else {
+            ALOGV("%s: offload not compatible with effect %s, will invalidate",
+                    __func__, desc->name);
+        }
+        break;
     default:
         LOG_ALWAYS_FATAL("checkEffectCompatibility_l(): wrong thread type %d", mType);
     }
@@ -1800,11 +1807,8 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
         broadcast_l();
     }
     if (!effect->isOffloadable()) {
-// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
-        if (mType == ThreadBase::OFFLOAD || mType == ThreadBase::DIRECT) {
-// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
-            PlaybackThread *t = (PlaybackThread *)this;
-            t->invalidateTracks();
+        if (mOutput && (mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+            invalidateTracks();
         }
         if (effect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
             mAfThreadCallback->onNonOffloadableGlobalEffectEnable();
@@ -2224,8 +2228,22 @@ bool ThreadBase::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
         }
     }
 
-    // TODO(b/410038399) consider to apply to all threads for symmetry.
-    if (trackMatch && (type() == MMAP_PLAYBACK || type() == MMAP_CAPTURE)) {
+    if (trackMatch) {
+        if (type() == OFFLOAD) {
+            // On invalidating an offload track, the IAudioTrack instance is
+            // destroyed and the offload output is released. If it so happens
+            // that APM::getOutputForAttr for the new IAudioTrack is called before
+            // OffloadThread::prepareTracks_l checks and removes an invalid track,
+            // the same output can get reused.
+            //
+            // The side effect of this is data present in HAL and below from before the
+            // invalidate will be rendered before data from the new seek position
+            // is rendered. This is unexpected.
+            //
+            // To fix this, set hint to issue flush when an offload track is invalidated.
+            mFlushPending = true;
+        }
+
         broadcast_l();
     }
     return trackMatch;
@@ -2297,7 +2315,7 @@ PlaybackThread::PlaybackThread(const sp<IAfThreadCallback>& afThreadCallback,
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::sMaxFastTracks) - 1) & ~1),
 // QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
-        mHwSupportsPause(false), mHwPaused(false), mFlushPending(false), mHwSupportsSuspend(false),
+        mHwSupportsPause(false), mHwPaused(false), mHwSupportsSuspend(false),
 // QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mLeftVolFloat(-1.0), mRightVolFloat(-1.0),
         mDownStreamPatch{},
@@ -6763,13 +6781,13 @@ DirectOutputThread::DirectOutputThread(const sp<IAfThreadCallback>& afThreadCall
         AudioStreamOut* output, audio_io_handle_t id, ThreadBase::type_t type, bool systemReady,
         const audio_offload_info_t& offloadInfo)
     :   PlaybackThread(afThreadCallback, output, id, type, systemReady)
-        , mOffloadInfo(offloadInfo)
         , mVolumeShaperActive(false)
         , mFramesWrittenAtStandby(0)
 // QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
         , mFramesWrittenForSleep(0)
 // QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
 {
+    mOffloadInfo = offloadInfo;
     setMasterBalance(afThreadCallback->getMasterBalance_l());
 }
 
@@ -7096,7 +7114,7 @@ PlaybackThread::mixer_state DirectOutputThread::prepareTracks_l(
                 // fill a buffer, then remove it from active list.
                 // Only consider last track started for mixer state control
                 bool isTimestampAdvancing = mIsTimestampAdvancing.check(mOutput);
-                if (!isTunerStream()  // tuner streams remain active in underrun
+                if (!isTunerStream_l()  // tuner streams remain active in underrun
                         && --(track->retryCount()) <= 0) {
                     if (isTimestampAdvancing) { // HAL is still playing audio, give us more time.
                         track->retryCount() = kMaxTrackRetriesOffload;
@@ -7778,7 +7796,7 @@ PlaybackThread::mixer_state OffloadThread::prepareTracks_l(
                 // No buffers for this track. Give it a few chances to
                 // fill a buffer, then remove it from active list.
                 bool isTimestampAdvancing = mIsTimestampAdvancing.check(mOutput);
-                if (!isTunerStream()  // tuner streams remain active in underrun
+                if (!isTunerStream_l()  // tuner streams remain active in underrun
                         && --(track->retryCount()) <= 0) {
                     if (isTimestampAdvancing) { // HAL is still playing audio, give us more time.
                         track->retryCount() = kMaxTrackRetriesOffload;
@@ -7862,8 +7880,6 @@ void OffloadThread::flushHw_l()
     }
 }
 
-// TODO(b/410038399) move to base class and unify with Mmap implementation for clarity.
-
 void MixerThread::onIdleMixer()
 // QTI_BEGIN: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
 {
@@ -7902,25 +7918,6 @@ void MixerThread::onIdleMixer()
 }
 
 // QTI_END: 2019-04-10: Audio: audioflinger: Throttle output if no active tracks
-bool OffloadThread::invalidateTracks_l(std::set<audio_port_handle_t>* portIds) {
-    const bool trackMatch = ThreadBase::invalidateTracks_l(portIds);
-    if (trackMatch) {
-        // On invalidating an offload track, the IAudioTrack instance is
-        // destroyed and the offload output is released. If it so happens
-        // that APM::getOutputForAttr for the new IAudioTrack is called before
-        // OffloadThread::prepareTracks_l checks and removes an invalid track,
-        // the same output can get reused.
-        //
-        // The side effect of this is data present in HAL and below from before the
-        // invalidate will be rendered before data from the new seek position
-        // is rendered. This is unexpected.
-        //
-        // To fix this, set hint to issue flush when an offload track is invalidated.
-        mFlushPending = true;
-    }
-    return trackMatch;
-}
-
 // ----------------------------------------------------------------------------
 
 /* static */
@@ -10662,6 +10659,7 @@ status_t MmapThread::start(const AudioClient& client,
     const auto localSessionId = mSessionId;
     auto localAttr = mAttr;
 
+    std::variant<audio_input_flags_t, audio_output_flags_t> vflags;
     if (isOutput()) {
         audio_config_t config = AUDIO_CONFIG_INITIALIZER;
         config.sample_rate = mSampleRate;
@@ -10670,10 +10668,11 @@ status_t MmapThread::start(const AudioClient& client,
         audio_stream_type_t stream = streamType_l();
         audio_output_flags_t flags =
                 (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
-        if (auto offloadInfo = offloadInfo_l(); offloadInfo.has_value()) {
+        if (mOffloadInfo.has_value()) {
             flags = (audio_output_flags_t)(flags | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
-            config.offload_info = offloadInfo.value();
+            config.offload_info = mOffloadInfo.value();
         }
+        vflags = flags;
         DeviceIdVector deviceIds = mDeviceIds;
         std::vector<audio_io_handle_t> secondaryOutputs;
         bool isSpatialized;
@@ -10701,6 +10700,7 @@ status_t MmapThread::start(const AudioClient& client,
         config.format = mFormat;
         audio_port_handle_t deviceId = getFirstDeviceId(mDeviceIds);
         audio_source_t source = AUDIO_SOURCE_DEFAULT;
+        vflags = (audio_input_flags_t)(AUDIO_INPUT_FLAG_NONE);
         mutex().unlock();
         ret = AudioSystem::getInputForAttr(&localAttr, &io,
                                               RECORD_RIID_INVALID,
@@ -10761,7 +10761,7 @@ status_t MmapThread::start(const AudioClient& client,
     // Given that MmapThread::mAttr is mutable, should a MmapTrack have attributes ?
     const auto track = IAfMmapTrack::create(
             this, attr == nullptr ? mAttr : *attr, mSampleRate, mFormat,
-                                        mChannelMask, mSessionId, isOutput(),
+                                        mChannelMask, mSessionId, vflags, isOutput(),
                                         adjAttributionSource,
                                         IPCThreadState::self()->getCallingPid(), portId);
 
@@ -10771,7 +10771,16 @@ status_t MmapThread::start(const AudioClient& client,
     }
     // MMAP tracks are only created when they are started, so mark them as Start for the purposes
     // of the IAfTrackBase interface
+    bool checkEffect = mOutput && (mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0;
+
+    mutex().unlock();
+    if (checkEffect && track->isNonOffloadableEffectEnabled()) {
+        mutex().lock();
+        track->invalidate();
+        return PERMISSION_DENIED;
+    }
     track->start();
+    mutex().lock();
     if (!isOutput()) {
         track->setSilenced_l(isClientSilenced_l(portId));
     }
@@ -11304,6 +11313,17 @@ void MmapThread::checkInvalidTracks_l()
 
 void MmapThread::dumpInternals_l(int fd, const Vector<String16>& /* args */)
 {
+    if (isOutput()) {
+        AudioStreamOut *output = mOutput;
+        audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
+        dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n",
+                output, flags, toString(flags).c_str());
+    } else {
+        AudioStreamIn *input = mInput;
+        audio_input_flags_t flags = input != NULL ? input->flags : AUDIO_INPUT_FLAG_NONE;
+        dprintf(fd, "  AudioStreamIn: %p flags %#x (%s)\n",
+                input, flags, toString(flags).c_str());
+    }
     dprintf(fd, "  Attributes: content type %d usage %d source %d\n",
             mAttr.content_type, mAttr.usage, mAttr.source);
     dprintf(fd, "  Session: %d port Id: %d\n", mSessionId, mPortId);

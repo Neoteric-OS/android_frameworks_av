@@ -177,9 +177,14 @@ public:
     };
 
     virtual status_t initCheck() const = 0;
+    virtual bool isNonOffloadableEffectEnabled_l() const
+            REQUIRES(audio_utils::AudioFlinger_Mutex) = 0;
+    virtual bool isNonOffloadableEffectEnabled() const
+            EXCLUDES_AudioFlinger_Mutex = 0;
     virtual status_t start(
             AudioSystem::sync_event_t event = AudioSystem::SYNC_EVENT_NONE,
-            audio_session_t triggerSession = AUDIO_SESSION_NONE) = 0;
+            audio_session_t triggerSession = AUDIO_SESSION_NONE)
+            EXCLUDES_ThreadBase_Mutex = 0;
     virtual void stop() = 0;
     virtual sp<IMemory> getCblk() const = 0;
     virtual audio_track_cblk_t* cblk() const = 0;
@@ -651,6 +656,7 @@ public:
             audio_format_t format,
             audio_channel_mask_t channelMask,
             audio_session_t sessionId,
+            std::variant<audio_input_flags_t, audio_output_flags_t> flags,
             bool isOut,
             const android::content::AttributionSourceState& attributionSource,
             pid_t creatorPid,
