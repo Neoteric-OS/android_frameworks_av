@@ -36,6 +36,11 @@ class AidlConversionSpatializer : public EffectConversionHelperAidl {
     bool isSpatializerParameterSupported();
     status_t setParameter(utils::EffectParamReader& param) override;
     status_t getParameter(utils::EffectParamWriter& param) override;
+    template <typename SpatializerType>
+    bool isValidRange(const SpatializerType& spatializer) const {
+        return inRange<::aidl::android::hardware::audio::effect::Range::spatializer>
+                                                    (spatializer, mDesc.capability);
+    }
 };
 
 }  // namespace effect
