@@ -2057,15 +2057,46 @@ status_t StagefrightRecorder::setupCameraSource(
             return BAD_VALUE;
         }
 
-        mCameraSourceTimeLapse = CameraSourceTimeLapse::CreateFromCamera(
+#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+         if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
+        sp<Surface> surface = new Surface(mPreviewSurface);
+        mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
+                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
+                videoSize, mFrameRate, mediaflagtools::mediaSurfaceToCameraSurfaceType(surface),
+                std::llround(1e6 / mCaptureFps));
+#else
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+        mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid, videoSize, mFrameRate,
                 mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface),
                 std::llround(1e6 / mCaptureFps));
+#endif
         *cameraSource = mCameraSourceTimeLapse;
     } else {
+#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
+        if (!mPreviewSurface) {
+            // `Surface(...)` below does not support nullptr in its ctor
+            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
+            return INVALID_OPERATION;
+        }
+
+        sp<Surface> surface = new Surface(mPreviewSurface);
         *cameraSource = CameraSource::CreateFromCamera(
-                mCamera, mCameraProxy, mCameraId, clientName, uid, pid, videoSize, mFrameRate,
-                mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
+                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
+                videoSize, mFrameRate,
+                mediaflagtools::mediaSurfaceToCameraSurfaceType(surface));
+#else
+        *cameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
+               mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
+               videoSize, mFrameRate,
+               mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
+#endif
     }
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
