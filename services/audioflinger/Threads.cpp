@@ -1868,10 +1868,10 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
     bool chainCreated = false;
 
 // QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
-    ALOGD_IF((mType == OFFLOAD || mType == DIRECT) && !effect->isOffloadable(),
+    ALOGD_IF((mIsOffload || mType == DIRECT) && !effect->isOffloadable(),
 // QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
-             "%s: on offloaded thread %p: effect %s does not support offload flags %#x",
-             __func__, this, effect->desc().name, effect->desc().flags);
+             "%s: on offload thread(%d): effect %s does not support offload flags %#x",
+             __func__, mId, effect->desc().name, effect->desc().flags);
 
 
     if (chain == 0) {
@@ -1890,7 +1890,7 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
         return BAD_VALUE;
     }
 
-    effect->setOffloaded_l((mType == OFFLOAD || mType == DIRECT), mId);
+    effect->setOffloaded_l(mIsOffload || mType == DIRECT, mId);
 
     status_t status = chain->addEffect(effect);
     if (status != NO_ERROR) {
