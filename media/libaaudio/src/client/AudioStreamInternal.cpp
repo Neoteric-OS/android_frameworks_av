@@ -151,6 +151,7 @@ aaudio_result_t AudioStreamInternal::open(const AudioStreamBuilder &builder) {
     request.getConfiguration().setBufferCapacity(builder.getBufferCapacity());
 
     request.getConfiguration().setPerformanceMode(getPerformanceMode());
+    request.getConfiguration().setSessionId(builder.getSessionId());
 
     mServiceStreamHandleInfo = mServiceInterface.openStream(request, configurationOutput);
     if (getServiceHandle() < 0

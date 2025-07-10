@@ -389,9 +389,13 @@ private:
             EXCLUDES_AudioFlinger_Mutex;
 
     status_t moveEffectChain_ll(audio_session_t sessionId,
-            IAfPlaybackThread* srcThread, IAfPlaybackThread* dstThread,
+            IAfThreadBase* srcThread, IAfThreadBase* dstThread,
             IAfEffectChain* srcChain = nullptr) final
             REQUIRES(mutex(), audio_utils::ThreadBase_Mutex);
+
+    status_t tryMoveEffectChain(
+            audio_session_t sessionId, const sp<IAfThreadBase>& dstThread) final
+            EXCLUDES_AudioFlinger_Mutex EXCLUDES_ThreadBase_Mutex;
 
     sp<audioflinger::SyncEvent> createSyncEvent(AudioSystem::sync_event_t type,
             audio_session_t triggerSession,

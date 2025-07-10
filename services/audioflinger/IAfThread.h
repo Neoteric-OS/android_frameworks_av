@@ -48,6 +48,7 @@ class IAfDirectOutputThread;
 class IAfDuplicatingThread;
 class IAfPlaybackThread;
 class IAfRecordThread;
+class IAfThreadBase;
 
 class IAfEffectChain;
 class IAfEffectHandle;
@@ -94,9 +95,12 @@ public:
     virtual bool updateOrphanEffectChains(const sp<IAfEffectModule>& effect)
             EXCLUDES_AudioFlinger_Mutex = 0;
     virtual status_t moveEffectChain_ll(audio_session_t sessionId,
-            IAfPlaybackThread* srcThread, IAfPlaybackThread* dstThread,
+            IAfThreadBase* srcThread, IAfThreadBase* dstThread,
             IAfEffectChain* srcChain = nullptr)
             REQUIRES(mutex(), audio_utils::ThreadBase_Mutex) = 0;
+    virtual status_t tryMoveEffectChain(
+            audio_session_t sessionId, const sp<IAfThreadBase>& dstThread)
+            EXCLUDES_AudioFlinger_Mutex EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual sp<audioflinger::SyncEvent> createSyncEvent(AudioSystem::sync_event_t type,
             audio_session_t triggerSession,

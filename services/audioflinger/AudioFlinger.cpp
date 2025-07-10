@@ -4738,7 +4738,7 @@ void AudioFlinger::setEffectSuspended(int effectId,
 // moveEffectChain_ll must be called with the AudioFlinger::mutex()
 // and both srcThread and dstThread mutex()s held
 status_t AudioFlinger::moveEffectChain_ll(audio_session_t sessionId,
-        IAfPlaybackThread* srcThread, IAfPlaybackThread* dstThread,
+        IAfThreadBase* srcThread, IAfThreadBase* dstThread,
         IAfEffectChain* srcChain)
 {
     ALOGV("%s: session %d from thread %p to thread %p %s",
@@ -4860,6 +4860,47 @@ status_t AudioFlinger::moveEffectChain_ll(audio_session_t sessionId,
     return status;
 }
 
+// TODO(b/427752980): use the same logic in createTrack
+status_t AudioFlinger::tryMoveEffectChain(
+        audio_session_t sessionId, const sp<IAfThreadBase>& dstThread) {
+    std::vector<int> effectIds;
+    status_t status = NO_ERROR;
+    {
+        audio_utils::lock_guard _l(mutex());
+        // Move effect chain on other threads
+        for (const auto &[outputId, t]: mPlaybackThreads) {
+            if (outputId != dstThread->id() &&
+                (t->hasAudioSession(sessionId) & IAfThreadBase::EFFECT_SESSION) != 0) {
+                audio_utils::lock_guard _dl(dstThread->mutex());
+                {
+                    audio_utils::lock_guard_no_thread_safety_analysis _sl(t->mutex());
+                    status = moveEffectChain_ll(sessionId, t.get(), dstThread.get());
+                }
+                if (status == NO_ERROR) {
+                    effectIds = dstThread->getEffectIds_l(sessionId);
+                }
+                break;
+            }
+        }
+        if (status == NO_ERROR && effectIds.empty()) {
+            // Check orphan effects if there is not effect chain with the given session id
+            // attached to a particular thread.
+            sp<IAfEffectChain> effectChain = getOrphanEffectChain_l(sessionId);
+            if (effectChain != nullptr) {
+                audio_utils::lock_guard _dl(dstThread->mutex());
+                status = moveEffectChain_ll(
+                        sessionId, nullptr /*srcThread*/, dstThread.get(), effectChain.get());
+                if (status == NO_ERROR) {
+                    effectIds = dstThread->getEffectIds_l(sessionId);
+                }
+            }
+        }
+    }
+    if (status == NO_ERROR && !effectIds.empty()) {
+        AudioSystem::moveEffectsToIo(effectIds, dstThread->id());
+    }
+    return status;
+}
 
 // moveEffectChain_ll must be called with both srcThread (if not null) and dstThread (if not null)
 // mutex()s held
