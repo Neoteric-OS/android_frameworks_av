@@ -233,6 +233,8 @@ public:
     virtual const AudioDeviceTypeAddrVector& outDeviceTypeAddrs() const = 0;
     virtual const AudioDeviceTypeAddr& inDeviceTypeAddr() const = 0;
     virtual bool isOutput() const = 0;
+    virtual bool isOffload() const = 0;
+    virtual bool isOffloadOrDirect() const = 0;
     virtual bool isOffloadOrMmap() const = 0;
     virtual sp<StreamHalInterface> stream() const = 0;
     virtual sp<IAfEffectHandle> createEffect_l(

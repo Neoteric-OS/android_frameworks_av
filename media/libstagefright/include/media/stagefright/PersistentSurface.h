@@ -25,6 +25,7 @@
 #include <hidl/HybridInterface.h>
 #include <gui/Flags.h> // Remove with MediaSurfaceType
 #include <gui/Surface.h>
+#include <gui/view/Surface.h>
 #include <media/stagefright/foundation/ABase.h>
 
 namespace android {
@@ -68,7 +69,7 @@ struct PersistentSurface : public RefBase {
 
     status_t writeToParcel(Parcel *parcel) const {
 #if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
-        parcel->writeParcelable(view::Surface::fromSurface(surface));
+        parcel->writeParcelable(view::Surface::fromSurface(mSurface));
 #else
         parcel->writeStrongBinder(IInterface::asBinder(mSurface));
 #endif

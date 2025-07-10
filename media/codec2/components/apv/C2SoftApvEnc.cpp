@@ -220,6 +220,9 @@ class C2SoftApvEnc::IntfImpl : public SimpleInterface<void>::BaseParams {
         if (isHalPixelFormatSupported((AHardwareBuffer_Format)AHARDWAREBUFFER_FORMAT_YCbCr_P210)) {
             pixelFormats.push_back(AHARDWAREBUFFER_FORMAT_YCbCr_P210);
         }
+        if (isHalPixelFormatSupported((AHardwareBuffer_Format)HAL_PIXEL_FORMAT_RGBA_1010102)) {
+            pixelFormats.push_back(HAL_PIXEL_FORMAT_RGBA_1010102);
+        }
         addParameter(DefineParam(mPixelFormat, C2_PARAMKEY_PIXEL_FORMAT)
                              .withDefault(new C2StreamPixelFormatInfo::input(
                                      0u, HAL_PIXEL_FORMAT_YCBCR_420_888))

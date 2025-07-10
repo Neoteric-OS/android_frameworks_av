@@ -668,7 +668,9 @@ ThreadBase::ThreadBase(const sp<IAfThreadCallback>& afThreadCallback, audio_io_h
         mSystemReady(systemReady),
         mSignalPending(false),
         mInput(input),
-        mOutput(output)
+        mOutput(output),
+        mIsOffload(output != nullptr &&
+                (output->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0)
 {
     mThreadMetrics.logConstructor(getpid(), threadTypeToString(type), id);
     memset(&mPatch, 0, sizeof(struct audio_patch));
@@ -1653,7 +1655,8 @@ status_t ThreadBase::checkEffectCompatibility_l(
         if ((desc->flags & EFFECT_FLAG_OFFLOAD_MASK) == EFFECT_FLAG_OFFLOAD_SUPPORTED) {
             ALOGV("%s: offload effect %s accepted", __func__, desc->name);
         } else {
-            ALOGV("%s: offload not compatible with effect %s, will invalidate",
+            // actual invalidation is logged on enable.
+            ALOGV("%s: offload not compatible with effect %s, will invalidate if enabled",
                     __func__, desc->name);
         }
         break;
@@ -1808,6 +1811,8 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
     }
     if (!effect->isOffloadable()) {
         if (mOutput && (mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+            ALOGD("%s: offload not compatible with effect %s, invalidate the track",
+                    __func__, effect->desc().name);
             invalidateTracks();
         }
         if (effect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
