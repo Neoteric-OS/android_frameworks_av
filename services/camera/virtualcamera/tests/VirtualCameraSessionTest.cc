@@ -34,6 +34,7 @@
 #include "android/binder_interface_utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "util/AidlUtil.h"
 #include "util/MetadataUtil.h"
 
 namespace android {
@@ -54,9 +55,11 @@ constexpr int kSecondStreamId = 1;
 constexpr int kDefaultDeviceId = 0;
 constexpr int kDeviceId = 5;
 constexpr FpsRange kFpsRange = FpsRange(5, 10);
+constexpr float kFocalLength = 2.1f;
 
 using ::aidl::android::companion::virtualcamera::BnVirtualCameraCallback;
 using ::aidl::android::companion::virtualcamera::Format;
+using ::aidl::android::companion::virtualcamera::ICaptureResultConsumer;
 using ::aidl::android::companion::virtualcamera::LensFacing;
 using ::aidl::android::companion::virtualcamera::SensorOrientation;
 using ::aidl::android::companion::virtualcamera::SupportedStreamConfiguration;
@@ -80,6 +83,7 @@ using ::android::hardware::camera::common::helper::CameraMetadata;
 using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Eq;
+using ::testing::Optional;
 using ::testing::Return;
 using ::testing::SizeIs;
 
@@ -109,6 +113,11 @@ class MockCameraDeviceCallback : public BnCameraDeviceCallback {
 class MockVirtualCameraCallback : public BnVirtualCameraCallback {
  public:
   MOCK_METHOD(ndk::ScopedAStatus, onOpenCamera, (), (override));
+  MOCK_METHOD(
+      ndk::ScopedAStatus, onConfigureSession,
+      (const VirtualCameraMetadata& in_sessionParameters,
+       const std::shared_ptr<ICaptureResultConsumer>& in_captureResultConsumer),
+      (override));
   MOCK_METHOD(ndk::ScopedAStatus, onStreamConfigured,
               (int, const Surface&, int32_t, int32_t, Format), (override));
   MOCK_METHOD(ndk::ScopedAStatus, onProcessCaptureRequest,
@@ -138,6 +147,8 @@ class VirtualCameraSessionTestBase : public ::testing::Test {
     ON_CALL(*mMockCameraDeviceCallback, returnStreamBuffers)
         .WillByDefault(ndk::ScopedAStatus::ok);
 
+    ON_CALL(*mMockVirtualCameraClientCallback, onConfigureSession)
+        .WillByDefault(ndk::ScopedAStatus::ok);
     ON_CALL(*mMockVirtualCameraClientCallback, onStreamConfigured)
         .WillByDefault(ndk::ScopedAStatus::ok);
     ON_CALL(*mMockVirtualCameraClientCallback, onProcessCaptureRequest)
@@ -235,9 +246,11 @@ class VirtualCameraSessionWithMetadata : public VirtualCameraSessionTestBase {
     metadataHelper.update(ANDROID_SENSOR_ORIENTATION,
                           sensorOrientationVec.data(),
                           sensorOrientationVec.size());
-    auto aidlCameraMetadata = cameraMetadataToHal(metadataHelper);
-    auto cameraCharacteristics =
-        aidlToVirtualCameraMetadata(*aidlCameraMetadata);
+    auto deviceCameraMetadata = cameraMetadataToHal(metadataHelper);
+
+    VirtualCameraMetadata cameraCharacteristics;
+    convertDeviceToVirtualCameraMetadata(*deviceCameraMetadata,
+                                         cameraCharacteristics);
 
     mVirtualCameraDevice = ndk::SharedRefBase::make<VirtualCameraDevice>(
         kCameraId,
@@ -558,15 +571,29 @@ TEST_F_WITH_FLAGS(VirtualCameraSessionWithMetadata,
   StreamConfiguration streamConfiguration;
   streamConfiguration.streams = {createStream(kStreamId, kVgaWidth, kVgaHeight,
                                               PixelFormat::YCBCR_420_888)};
+  streamConfiguration.sessionParams =
+      *(MetadataBuilder()
+            .setFlashAvailable(true)
+            .setFocalLength(kFocalLength)
+            .setControlAeTargetFpsRange(kFpsRange)
+            .build());
+
   std::vector<CaptureRequest> requests(1);
   requests[0].frameNumber = 42;
   requests[0].settings = *(MetadataBuilder()
                                .setControlAfMode(ANDROID_CONTROL_AF_MODE_AUTO)
                                .setControlAeTargetFpsRange(kFpsRange)
                                .build());
+  VirtualCameraMetadata expectedCaptureRequestSettings;
+  convertDeviceToVirtualCameraMetadata(requests[0].settings,
+                                       expectedCaptureRequestSettings);
+  VirtualCameraMetadata expectedSessionParams;
+  convertDeviceToVirtualCameraMetadata(streamConfiguration.sessionParams,
+                                       expectedSessionParams);
 
-  auto expectedCaptureRequestSettings =
-      aidlToVirtualCameraMetadata(requests[0].settings);
+  EXPECT_CALL(*mMockVirtualCameraClientCallback,
+              onConfigureSession(expectedSessionParams, _))
+      .WillOnce(Return(ndk::ScopedAStatus::ok()));
 
   std::vector<HalStream> halStreams;
   ASSERT_TRUE(
@@ -575,8 +602,9 @@ TEST_F_WITH_FLAGS(VirtualCameraSessionWithMetadata,
 
   EXPECT_CALL(*mMockVirtualCameraClientCallback,
               onProcessCaptureRequest(kStreamId, requests[0].frameNumber,
-                                      expectedCaptureRequestSettings))
+                                      Optional(expectedCaptureRequestSettings)))
       .WillOnce(Return(ndk::ScopedAStatus::ok()));
+
   int32_t aidlReturn = 0;
   ASSERT_TRUE(virtualCameraSession
                   ->processCaptureRequest(requests, /*in_cachesToRemove=*/{},
@@ -595,6 +623,13 @@ TEST_F_WITH_FLAGS(
   StreamConfiguration streamConfiguration;
   streamConfiguration.streams = {createStream(kStreamId, kVgaWidth, kVgaHeight,
                                               PixelFormat::YCBCR_420_888)};
+  streamConfiguration.sessionParams =
+      *(MetadataBuilder()
+            .setFlashAvailable(true)
+            .setFocalLength(kFocalLength)
+            .setControlAeTargetFpsRange(kFpsRange)
+            .build());
+
   std::vector<CaptureRequest> requests(1);
   requests[0].frameNumber = 42;
   requests[0].settings = *(MetadataBuilder()
@@ -602,8 +637,16 @@ TEST_F_WITH_FLAGS(
                                .setControlAeTargetFpsRange(kFpsRange)
                                .build());
 
-  auto expectedCaptureRequestSettings =
-      aidlToVirtualCameraMetadata(requests[0].settings);
+  VirtualCameraMetadata expectedCaptureRequestSettings;
+  convertDeviceToVirtualCameraMetadata(requests[0].settings,
+                                       expectedCaptureRequestSettings);
+  VirtualCameraMetadata expectedSessionParams;
+  convertDeviceToVirtualCameraMetadata(streamConfiguration.sessionParams,
+                                       expectedSessionParams);
+
+  EXPECT_CALL(*mMockVirtualCameraClientCallback,
+              onConfigureSession(expectedSessionParams, _))
+      .WillOnce(Return(ndk::ScopedAStatus::ok()));
 
   std::vector<HalStream> halStreams;
   ASSERT_TRUE(
@@ -612,8 +655,9 @@ TEST_F_WITH_FLAGS(
 
   EXPECT_CALL(*mMockVirtualCameraClientCallback,
               onProcessCaptureRequest(kStreamId, requests[0].frameNumber,
-                                      expectedCaptureRequestSettings))
+                                      Optional(expectedCaptureRequestSettings)))
       .WillOnce(Return(ndk::ScopedAStatus::ok()));
+
   int32_t aidlReturn = 0;
   ASSERT_TRUE(virtualCameraSession
                   ->processCaptureRequest(requests, /*in_cachesToRemove=*/{},

@@ -89,6 +89,16 @@ public:
         return AAUDIO_ERROR_UNAVAILABLE;
     }
 
+    virtual aaudio_result_t drain() {
+        ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
+        return AAUDIO_ERROR_UNAVAILABLE;
+    }
+
+    virtual aaudio_result_t activate() {
+        ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
+        return AAUDIO_ERROR_UNAVAILABLE;
+    }
+
     /**
      * @param positionFrames
      * @param timeNanos

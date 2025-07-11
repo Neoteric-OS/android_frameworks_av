@@ -23,8 +23,10 @@
 #include <chrono>
 #include <thread>
 
+#include <audio_utils/mutex.h>
 #include <media/MediaMetricsItem.h>
 #include <mediautils/Runnable.h>
+#include <utils/SystemClock.h>
 #include <utils/Trace.h>
 
 #include "client/AudioStreamInternalPlay.h"
@@ -42,6 +44,8 @@ using android::status_t;
 using android::WrappingBuffer;
 
 using namespace aaudio;
+
+using android::audio_utils::TimerQueue;
 
 AudioStreamInternalPlay::AudioStreamInternalPlay(AAudioServiceInterface  &serviceInterface,
                                                        bool inService)
@@ -77,15 +81,26 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
         !isDataCallbackSet() && mPresentationEndCallbackProc != nullptr) {
         // Client is not using data callback but has presentation end callback for offload playback,
         // initialize an executor for presentation end callback.
+        std::lock_guard _l(mStreamMutex);
         mStreamEndExecutor.emplace();
     }
-    mOffloadSafeMarginInFrames = std::max(
-            getDeviceSampleRate() * kOffloadSafeMarginMs / AAUDIO_MILLIS_PER_SECOND,
-            getDeviceFramesPerBurst());
+    // Use 100ms + burst size as a safe margin to wake up the callback thread for writing more
+    // data to avoid glitch.
+    mOffloadSafeMarginInFrames =
+            getDeviceSampleRate() * kOffloadSafeMarginMs / AAUDIO_MILLIS_PER_SECOND +
+            getDeviceFramesPerBurst();
+    if (result == AAUDIO_OK &&
+        getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
+        isDataCallbackSet()) {
+        mTq = std::make_unique<TimerQueue>(false /*alarm*/);
+        if (!mTq->ready()) {
+            ALOGE("%s timer queue is not ready to use", __func__);
+        }
+    }
     return result;
 }
 
-// This must be called under mStreamLock.
+// This must be called under mStreamMutex.
 aaudio_result_t AudioStreamInternalPlay::requestPause_l()
 {
     aaudio_result_t result = stopCallback_l();
@@ -103,7 +118,7 @@ aaudio_result_t AudioStreamInternalPlay::requestPause_l()
 
     // When pause is called, the service will notify the HAL so that no more data will be consumed.
     // In that case, it is no longer needed to wait for stream end.
-    dropPresentationEndCallback();
+    dropPresentationEndCallback_l();
 
     return mServiceInterface.pauseStream(mServiceStreamHandleInfo);
 }
@@ -118,7 +133,7 @@ aaudio_result_t AudioStreamInternalPlay::requestFlush_l() {
 
     // When flush is called, the service will notify the HAL so that no more data will be consumed.
     // In that case, it is no longer needed to wait for stream end.
-    dropPresentationEndCallback();
+    dropPresentationEndCallback_l();
 
     return mServiceInterface.flushStream(mServiceStreamHandleInfo);
 }
@@ -215,7 +230,78 @@ void AudioStreamInternalPlay::onFlushFromServer() {
 // Write the data, block if needed and timeoutMillis > 0
 aaudio_result_t AudioStreamInternalPlay::write(const void *buffer, int32_t numFrames,
                                                int64_t timeoutNanoseconds) {
-    return processData((void *)buffer, numFrames, timeoutNanoseconds);
+    if (mayNeedToDrain() && !isDataCallbackSet()) {
+        std::lock_guard _l(mStreamMutex);
+        if (mDraining) {
+            if (aaudio_result_t result = activateStream_l(); result != AAUDIO_OK) {
+                return result;
+            }
+            mDraining = false;
+        }
+    }
+    aaudio_result_t result = processData((void *)buffer, numFrames, timeoutNanoseconds);
+    if (isDataCallbackSet() && result != numFrames) {
+        // For callback case, it must always be able to write all data
+        if (result >= 0) {
+            // Only wrote some of the frames requested. The stream can be disconnected
+            // or timed out.
+            ALOGW("%s from callback thread, %d frames written, %d frames provided",
+                  __func__, result, numFrames);
+            processCommands();
+            result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : AAUDIO_ERROR_TIMEOUT;
+        }
+        maybeCallErrorCallback(result);
+        return result;
+    }
+    if (result >= 0 && mayNeedToDrain()) {
+        // If it is buffer size is big and the buffer is pretty full, sleep to drain data
+        // to save battery.
+        int32_t fullFrames = mAudioEndpoint->getFullFramesAvailable();
+        if (fullFrames > getDeviceBufferSize() - mOffloadSafeMarginInFrames &&
+            fullFrames > getDeviceSampleRate()) {
+            android::audio_utils::unique_lock ul(mStreamMutex);
+            if (aaudio_result_t ret = drainStream_l(); ret != AAUDIO_OK) {
+                ALOGE("%s() failed to drain, error=%d", __func__, ret);
+                return ret;
+            }
+            mDraining = true;
+            if (isDataCallbackSet()) {
+                // This should not take too long to complete. But it is good to query
+                // the current full frames to get a more accurate sleep time.
+                const int64_t drainNanos = mClockModel.convertDeltaPositionToTime(std::max(
+                        mAudioEndpoint->getFullFramesAvailable() - mOffloadSafeMarginInFrames, 0));
+                if (drainNanos > 0) {
+                    // Prefer using TimerQueue to wake up as it is more accurate on timing out.
+                    if (mTq->ready()) {
+                        const auto timeToWakeUp = android::elapsedRealtimeNano() + drainNanos;
+                        mCallbackTimerHandle = mTq->add([this]() {
+                            mCallbackCV.notify_one();
+                        }, timeToWakeUp);
+                        mCallbackCV.wait(ul,
+                                         [this]() REQUIRES(mStreamMutex) { return !mDraining; });
+                        mCallbackTimerHandle = TimerQueue::INVALID_HANDLE;
+                    } else {
+                        mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
+                                             [this]() REQUIRES(mStreamMutex) {
+                            return !mDraining;
+                        });
+                    }
+                } else {
+                    // When this happens, it indicates that taking the lock and calling to service
+                    // to drain the stream cost more than 1 second, which is significantly longer
+                    // than expected. That may indicate something wrong happen. If there is
+                    // something wrong, it should be propagated when calling activateStream below.
+                    ALOGE("%s from callback thread, no need to suspend as the drain time is 0",
+                          __func__);
+                }
+                if (aaudio_result_t ret = activateStream_l(); ret != AAUDIO_OK) {
+                    ALOGE("%s() failed to activate stream, error=%d", __func__, ret);
+                    return ret;
+                }
+            }
+        }
+    }
+    return result;
 }
 
 // Write as much data as we can without blocking.
@@ -432,30 +518,30 @@ aaudio_result_t AudioStreamInternalPlay::setOffloadEndOfStream() {
         // Offload playback must be exclusive mode.
         return AAUDIO_ERROR_UNIMPLEMENTED;
     }
-    std::lock_guard<std::mutex> lock(mStreamLock);
+    std::lock_guard<std::mutex> lock(mStreamMutex);
     if (getState() != AAUDIO_STREAM_STATE_STARTED || mClockModel.isStarting()) {
         // If the stream is not running or there is not timestamp from the service side,
         // it is not possible to set offload end of stream.
         return AAUDIO_ERROR_INVALID_STATE;
     }
-    {
-        std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
-        mOffloadEosPending = true;
-    }
+    mOffloadEosPending = true;
     if (!isDataCallbackSet()) {
         const int64_t streamEndNanos = mClockModel.convertDeltaPositionToTime(
                 std::max(0, mAudioEndpoint->getFullFramesAvailable() - getDeviceFramesPerBurst()));
         auto streamPtr = getPtr();
         mStreamEndExecutor->enqueue(android::mediautils::Runnable{
             [streamPtr, streamEndNanos]() {
-                std::unique_lock<std::mutex> ul(streamPtr->mStreamEndMutex);
-                streamPtr->mStreamEndCV.wait_for(
-                        ul, std::chrono::nanoseconds(streamEndNanos),
-                        [streamPtr]() { return !streamPtr->mOffloadEosPending; });
-                if (streamPtr->mOffloadEosPending) {
-                    streamPtr->maybeCallPresentationEndCallback();
+                {
+                    android::audio_utils::unique_lock ul(streamPtr->mStreamMutex);
+                    streamPtr->mStreamEndCV.wait_for(
+                            ul, std::chrono::nanoseconds(streamEndNanos),
+                            [streamPtr]() REQUIRES(streamPtr->mStreamMutex) {
+                                return !streamPtr->mOffloadEosPending;
+                            });
+                    if (!streamPtr->mOffloadEosPending) return;
                     streamPtr->mOffloadEosPending = false;
                 }
+                streamPtr->maybeCallPresentationEndCallback();
             }});
     }
     return AAUDIO_OK;
@@ -465,7 +551,7 @@ bool AudioStreamInternalPlay::shouldStopStream() {
     if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
         return true;
     }
-    std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
+    std::lock_guard _l(mStreamMutex);
     return !mOffloadEosPending;
 }
 
@@ -482,24 +568,30 @@ void AudioStreamInternalPlay::maybeCallPresentationEndCallback() {
     }
 }
 
-void AudioStreamInternalPlay::dropPresentationEndCallback() {
-    {
-        std::lock_guard<std::mutex> offloadEosLock(mStreamEndMutex);
-        mOffloadEosPending = false;
-    }
+void AudioStreamInternalPlay::dropPresentationEndCallback_l() {
+    mOffloadEosPending = false;
     mStreamEndCV.notify_one();
 }
 
 aaudio_result_t AudioStreamInternalPlay::requestStop_l() {
     // When stop is called, the service will notify the HAL so that no more data will be consumed.
     // In that case, it is no longer needed to wait for stream end.
-    dropPresentationEndCallback();
+    dropPresentationEndCallback_l();
     return AudioStreamInternal::requestStop_l();
 }
 
-void AudioStreamInternalPlay::wakeupCallbackThread() {
-    std::lock_guard<std::mutex> _l(mCallbackMutex);
+void AudioStreamInternalPlay::wakeupCallbackThread_l() {
     mSuspendCallback = false;
+    if (!isDataCallbackSet()) {
+        return;
+    }
+    mOffloadEosPending = false;
+    mDraining = false;
+    if (mTq != nullptr) {
+        mTq->remove(mStreamEndTimerHandle);
+        mTq->remove(mCallbackTimerHandle);
+    }
+    mStreamEndCV.notify_one();
     mCallbackCV.notify_one();
 }
 
@@ -551,11 +643,31 @@ aaudio_result_t AudioStreamInternalPlay::flushFromFrame_l(
         mLastFramesWritten = actualPosition;
         mAudioEndpoint->setDataWriteCounter(actualPosition - mFramesOffsetFromService);
     }
-    {
-        std::lock_guard _streamEndLock(mStreamEndMutex);
-        mOffloadEosPending = false;
+    wakeupCallbackThread_l();
+    return result;
+}
+
+aaudio_result_t AudioStreamInternalPlay::drainStream_l() {
+    aaudio_result_t result = mServiceInterface.drainStream(mServiceStreamHandleInfo);
+    if (result == AAUDIO_OK) {
+        return result;
     }
-    wakeupCallbackThread();
+    ALOGE("%s() failed, error=%d", __func__, result);
+    processCommands();
+    result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : result;
+    maybeCallErrorCallback(result);
+    return result;
+}
+
+aaudio_result_t AudioStreamInternalPlay::activateStream_l() {
+    aaudio_result_t result = mServiceInterface.activateStream(mServiceStreamHandleInfo);
+    if (result == AAUDIO_OK) {
+        return result;
+    }
+    ALOGE("%s() failed, error=%d", __func__, result);
+    processCommands();
+    result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : result;
+    maybeCallErrorCallback(result);
     return result;
 }
 
@@ -570,14 +682,35 @@ void *AudioStreamInternalPlay::callbackLoop() {
     // result might be a frame count
     while (mCallbackEnabled.load() && isActive() && (result >= 0)) {
         processCommands();
-        {
-            std::unique_lock<std::mutex> ul(mStreamEndMutex);
+        if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+            android::audio_utils::unique_lock ul(mStreamMutex);
             if (mOffloadEosPending) {
                 const int64_t streamEndNanos = mClockModel.convertDeltaPositionToTime(std::max(0,
                         mAudioEndpoint->getFullFramesAvailable() - getDeviceFramesPerBurst()));
-                mStreamEndCV.wait_for(
-                        ul, std::chrono::nanoseconds(streamEndNanos),
-                        [this]() { return !mOffloadEosPending; });
+                if (result = drainStream_l(); result != AAUDIO_OK) {
+                    ALOGE("%s() failed to drain, error=%d", __func__, result);
+                    break;
+                }
+                // Prefer using TimerQueue to wake up as it is more accurate on timing out.
+                if (mTq->ready()) {
+                    const auto timeToWakeUp = android::elapsedRealtimeNano() + streamEndNanos;
+                    mStreamEndTimerHandle = mTq->add([this]() {
+                        mStreamEndCV.notify_one();
+                    }, timeToWakeUp);
+                    mStreamEndCV.wait(ul, [this]() REQUIRES(mStreamMutex) {
+                        return !mOffloadEosPending;
+                    });
+                    mStreamEndTimerHandle = TimerQueue::INVALID_HANDLE;
+                } else {
+                    mStreamEndCV.wait_for(ul, std::chrono::nanoseconds(streamEndNanos),
+                                          [this]() REQUIRES(mStreamMutex) {
+                        return !mOffloadEosPending;
+                    });
+                }
+                if (result = activateStream_l(); result != AAUDIO_OK) {
+                    ALOGE("%s() failed to activate, error=%d", __func__, result);
+                    break;
+                }
                 if (mOffloadEosPending) {
                     maybeCallPresentationEndCallback();
                     mOffloadEosPending = false;
@@ -609,31 +742,8 @@ void *AudioStreamInternalPlay::callbackLoop() {
         // the last buffer with the end of the sound, then zero pad the buffer, then return STOP.
         // If the callback has no valid data then it should zero-fill the entire buffer.
         result = write(mCallbackBuffer.get(), callbackResult, timeoutNanos);
-        if ((result != callbackResult)) {
-            if (result >= 0) {
-                // Only wrote some of the frames requested. The stream can be disconnected
-                // or timed out.
-                processCommands();
-                result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : AAUDIO_ERROR_TIMEOUT;
-            }
-            maybeCallErrorCallback(result);
+        if (result != callbackResult) {
             break;
-        }
-
-        if (getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
-            isClockModelInControl()) {
-            // If it is an offload playback and the buffer is pretty full, sleep to drain data
-            // to save battery.
-            int32_t fullFrames = mAudioEndpoint->getFullFramesAvailable();
-            if (fullFrames > getDeviceBufferSize() - mOffloadSafeMarginInFrames) {
-                int64_t drainNanos = mClockModel.convertDeltaPositionToTime(
-                        std::max(fullFrames - mOffloadSafeMarginInFrames, 0));
-                std::unique_lock<std::mutex> ul(mStreamEndMutex);
-                mSuspendCallback = true;
-                mCallbackCV.wait_for(
-                        ul, std::chrono::nanoseconds(drainNanos),
-                        [this]() { return !mSuspendCallback; });
-            }
         }
     }
 

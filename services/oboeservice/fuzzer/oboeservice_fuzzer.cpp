@@ -127,6 +127,7 @@ aaudio_channel_mask_t kAAudioChannelMasks[] = {
     AAUDIO_CHANNEL_7POINT1,
     AAUDIO_CHANNEL_7POINT1POINT2,
     AAUDIO_CHANNEL_7POINT1POINT4,
+    AAUDIO_CHANNEL_13POINT0,
     AAUDIO_CHANNEL_9POINT1POINT4,
     AAUDIO_CHANNEL_9POINT1POINT6,
 };
@@ -190,6 +191,10 @@ class FuzzAAudioClient : public virtual RefBase, public AAudioServiceInterface {
     }
 
     aaudio_result_t updateTimestamp(const AAudioHandleInfo& streamHandleInfo) override;
+
+    aaudio_result_t drainStream(const AAudioHandleInfo& streamHandleInfo) final;
+
+    aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) final;
 
     void onStreamChange(aaudio_handle_t handle, int32_t opcode, int32_t value) {}
 
@@ -348,6 +353,23 @@ aaudio_result_t FuzzAAudioClient::updateTimestamp(const AAudioHandleInfo& stream
     return service->updateTimestamp(streamHandleInfo);
 }
 
+aaudio_result_t FuzzAAudioClient::drainStream(const aaudio::AAudioHandleInfo &streamHandleInfo) {
+    AAudioServiceInterface *service = getAAudioService();
+    if (!service) {
+        return AAUDIO_ERROR_NO_SERVICE;
+    }
+    return service->drainStream(streamHandleInfo);
+}
+
+aaudio_result_t FuzzAAudioClient::activateStream(
+        const aaudio::AAudioHandleInfo &streamHandleInfo) {
+    AAudioServiceInterface *service = getAAudioService();
+    if (!service) {
+        return AAUDIO_ERROR_NO_SERVICE;
+    }
+    return service->activateStream(streamHandleInfo);
+}
+
 class OboeserviceFuzzer {
    public:
     OboeserviceFuzzer();
@@ -421,7 +443,7 @@ void OboeserviceFuzzer::process(const uint8_t *data, size_t size) {
     }
     while (fdp.remaining_bytes()) {
         AudioEndpointParcelable audioEndpointParcelable;
-        int action = fdp.ConsumeIntegralInRange<int32_t>(0, 5);
+        int action = fdp.ConsumeIntegralInRange<int32_t>(0, 7);
         switch (action) {
             case 0:
                 mClient->getStreamDescription(streamHandleInfo, audioEndpointParcelable);
@@ -440,6 +462,12 @@ void OboeserviceFuzzer::process(const uint8_t *data, size_t size) {
                 break;
             case 5:
                 mClient->updateTimestamp(streamHandleInfo);
+                break;
+            case 6:
+                mClient->drainStream(streamHandleInfo);
+                break;
+            case 7:
+                mClient->activateStream(streamHandleInfo);
                 break;
         }
     }

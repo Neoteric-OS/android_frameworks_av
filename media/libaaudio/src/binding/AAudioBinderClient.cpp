@@ -213,3 +213,18 @@ aaudio_result_t AAudioBinderClient::updateTimestamp(const AAudioHandleInfo& stre
 
     return service->updateTimestamp(streamHandleInfo);
 }
+
+aaudio_result_t AAudioBinderClient::drainStream(const AAudioHandleInfo& streamHandleInfo) {
+    std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
+    if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
+
+    return service->drainStream(streamHandleInfo);
+}
+
+aaudio_result_t AAudioBinderClient::activateStream(
+        const aaudio::AAudioHandleInfo &streamHandleInfo) {
+    std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
+    if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
+
+    return service->activateStream(streamHandleInfo);
+}

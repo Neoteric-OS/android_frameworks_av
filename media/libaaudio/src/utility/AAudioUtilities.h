@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include <android/media/audio/common/AudioMMapPolicyInfo.h>
+#include <media/AudioResamplerPublic.h>
 #include <utils/Errors.h>
 #include <system/audio.h>
 
@@ -374,5 +375,11 @@ aaudio_policy_t AAudioConvert_androidToAAudioMMapPolicy(
         android::media::audio::common::AudioMMapPolicy policy);
 
 bool AAudio_isCompressedFormat(audio_format_t format);
+
+aaudio_result_t AAudioConvert_aaudioToAndroidPlaybackParameters(
+        const AAudioPlaybackParameters& parameters, android::AudioPlaybackRate* rate);
+
+aaudio_result_t AAudioConvert_androidToAAudioPlaybackParameters(
+        const android::AudioPlaybackRate& rate, AAudioPlaybackParameters* parameters);
 
 #endif //UTILITY_AAUDIO_UTILITIES_H

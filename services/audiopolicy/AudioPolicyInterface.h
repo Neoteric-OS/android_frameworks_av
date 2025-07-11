@@ -357,8 +357,8 @@ public:
 
     virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
 
-    virtual status_t registerPolicyMixes(const Vector<AudioMix>& mixes) = 0;
-    virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes) = 0;
+    virtual status_t registerPolicyMixes(const std::vector<AudioMix>& mixes) = 0;
+    virtual status_t unregisterPolicyMixes(const std::vector<AudioMix>& mixes) = 0;
     virtual status_t getRegisteredPolicyMixes(std::vector<AudioMix>& mixes) = 0;
 
     virtual status_t updatePolicyMix(

@@ -17,6 +17,7 @@
 package android.companion.virtualcamera;
 
 import android.companion.virtualcamera.Format;
+import android.companion.virtualcamera.ICaptureResultConsumer;
 import android.companion.virtualcamera.VirtualCameraMetadata;
 import android.view.Surface;
 
@@ -41,8 +42,20 @@ oneway interface IVirtualCameraCallback {
     void onOpenCamera();
 
     /**
-     * Called when there's new video stream. This callback is send after clients opens and
-     * configures camera. Implementation should hold onto the surface until corresponding
+     * Called when there's a new camera session. This callback is sent when clients open and
+     * configure the video session for the virtual camera.
+     *
+     * @param sessionParameters - native CameraMetadata of the session parameters packed
+     *      as VirtualCameraMetadata.
+     * @param captureResultConsumer - consumer interface to inject the metadata of capture results
+     *      to the virtual camera service.
+     */
+    void onConfigureSession(in VirtualCameraMetadata sessionParameters,
+        in ICaptureResultConsumer captureResultConsumer);
+
+    /**
+     * Called when there's new video stream. This callback is sent after the client opens and
+     * configures the camera. Implementation should hold onto the surface until corresponding
      * terminateStream call is received.
      *
      * @param streamId - id of the video stream.

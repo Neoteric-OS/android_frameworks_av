@@ -218,3 +218,13 @@ flag {
     description: "Add support for still capture latency mitigations in the EFV layer"
     bug: "423674832"
 }
+
+flag {
+    namespace: "camera_platform"
+    name: "surface_format_fix"
+    description: "Consider format overrides for RGB output formats"
+    bug: "424865503"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}

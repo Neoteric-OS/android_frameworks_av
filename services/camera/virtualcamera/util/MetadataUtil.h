@@ -413,6 +413,12 @@ class MetadataBuilder {
   // See ANDROID_RESULT_AVAILABLE_REQUEST_KEYS in CameraMetadataTag.aidl.
   MetadataBuilder& setAvailableResultKeys(const std::vector<int32_t>& keys);
 
+  // A list of all keys that the camera device has available to use with
+  // SessionConfiguration params as part of the capture session initialization.
+  //
+  // See ANDROID_REQUEST_AVAILABLE_SESSION_KEYS in CameraMetadataTag.aidl.
+  MetadataBuilder& setAvailableSessionKeys(const std::vector<int32_t>& keys);
+
   // See ANDROID_REQUEST_AVAILABLE_CAPABILITIES in CameraMetadataTag.aidl.
   MetadataBuilder& setAvailableCapabilities(
       const std::vector<
@@ -495,16 +501,17 @@ std::optional<int32_t> getDeviceId(
 std::optional<int32_t> getSensorOrientation(
     const aidl::android::hardware::camera::device::CameraMetadata& cameraMetadata);
 
+void convertStreamConfigurationsToMetadataValues(
+    const std::vector<MetadataBuilder::StreamConfiguration>& streamConfigurations,
+    std::vector<int32_t>& metadataStreamConfigs,
+    std::vector<int64_t>& metadataMinFrameDurations,
+    std::vector<int64_t>& metadataStallDurations);
+
 // Converts a HelperCameraMetadata object to a HAL AidlCameraMetadata.
 std::unique_ptr<aidl::android::hardware::camera::device::CameraMetadata>
 cameraMetadataToHal(
     const android::hardware::camera::common::helper::CameraMetadata&
         metadataHelper);
-
-// Converts a HAL CameraMetadata object to a VirtualCameraMetadata optional.
-std::optional<aidl::android::companion::virtualcamera::VirtualCameraMetadata>
-aidlToVirtualCameraMetadata(
-    const aidl::android::hardware::camera::device::CameraMetadata& cameraMetadata);
 
 }  // namespace virtualcamera
 }  // namespace companion

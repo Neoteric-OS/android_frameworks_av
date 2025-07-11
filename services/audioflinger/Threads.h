@@ -1342,10 +1342,9 @@ public:
                         mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
                 }
 
-    bool waitForHalStart() final EXCLUDES_ThreadBase_Mutex {
+    bool waitForHalStart(uint32_t timeoutMs) final EXCLUDES_ThreadBase_Mutex {
                     audio_utils::unique_lock _l(mutex());
-                    static const nsecs_t kWaitHalTimeoutNs = seconds(2);
-                    nsecs_t endWaitTimetNs = systemTime() + kWaitHalTimeoutNs;
+                    nsecs_t endWaitTimetNs = systemTime() + milliseconds(timeoutMs);
                     while (!mHalStarted) {
                         nsecs_t timeNs = systemTime();
                         if (timeNs >= endWaitTimetNs) {
@@ -2344,6 +2343,8 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     status_t reportData(const void* buffer, size_t frameCount) override EXCLUDES_ThreadBase_Mutex;
+    status_t drain() override EXCLUDES_ThreadBase_Mutex;
+    status_t activate() override EXCLUDES_ThreadBase_Mutex;
 
     // RefBase
     void onFirstRef() final;
@@ -2485,6 +2486,9 @@ public:
     status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const final;
 
     status_t reportData(const void* buffer, size_t frameCount) final;
+
+    status_t drain() final;
+    status_t activate() final;
 
     void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) final
             REQUIRES(audio_utils::AudioFlinger_Mutex);

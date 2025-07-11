@@ -726,8 +726,7 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "hvc1";
         } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
             return "av01";
-        } else if (editing_flags::muxer_mp4_enable_apv() &&
-                   !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) {
+        } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) {
             return "apv1";
         }
     } else if (!strncasecmp(mime, "application/", 12)) {
@@ -2379,7 +2378,7 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
     mIsAvc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AVC);
     mIsHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
     mIsAv1 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1);
-    mIsApv = editing_flags::muxer_mp4_enable_apv() && !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV);
+    mIsApv = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV);
     mIsDovi = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION);
     mIsAudio = !strncasecmp(mime, "audio/", 6);
     mIsVideo = !strncasecmp(mime, "video/", 6);
@@ -2958,8 +2957,7 @@ void MPEG4Writer::Track::getCodecSpecificDataFromInputFormatIfPossible() {
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_AV1) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_IMAGE_AVIF)) {
         mMeta->findData(kKeyAV1C, &type, &data, &size);
-    } else if (editing_flags::muxer_mp4_enable_apv() &&
-               !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV)) {
+    } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_APV)) {
         mMeta->findData(kKeyAPVC, &type, &data, &size);
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_DOLBY_VISION)) {
         getDolbyVisionProfile();
@@ -4806,7 +4804,7 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime) ||
-        (editing_flags::muxer_mp4_enable_apv() && !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_IMAGE_ANDROID_HEIC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_IMAGE_AVIF, mime)) {
@@ -4981,8 +4979,7 @@ void MPEG4Writer::Track::writeVideoFourCCBox() {
         writeHvccBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime)) {
         writeAv1cBox();
-    } else if (editing_flags::muxer_mp4_enable_apv() &&
-               !strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) {
+    } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_APV, mime)) {
         writeApvcBox();
     } else if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_DOLBY_VISION, mime)) {
         if (mDoviProfile <= DolbyVisionProfileDvheSt) {

@@ -179,4 +179,29 @@ aaudio_result_t AAudioBinderAdapter::updateTimestamp(
     return result;
 }
 
+aaudio_result_t AAudioBinderAdapter::drainStream(const aaudio::AAudioHandleInfo &streamHandleInfo) {
+    if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+    aaudio_result_t result;
+    Status status = mDelegate->drainStream(streamHandleInfo.getHandle(), &result);
+    if (!status.isOk()) {
+        result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
+    }
+    return result;
+}
+
+aaudio_result_t AAudioBinderAdapter::activateStream(
+        const aaudio::AAudioHandleInfo &streamHandleInfo) {
+    if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+    aaudio_result_t result;
+    Status status = mDelegate->activateStream(streamHandleInfo.getHandle(), &result);
+    if (!status.isOk()) {
+        result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
+    }
+    return result;
+}
+
 }  // namespace aaudio

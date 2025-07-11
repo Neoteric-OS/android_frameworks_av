@@ -451,6 +451,7 @@ public:
      */
     void onCheckSpatializer() override;
     void onCheckSpatializer_l() REQUIRES(mMutex);
+    void maybeCheckSpatializer_l() REQUIRES(mMutex);
     void doOnCheckSpatializer();
 
     void onUpdateActiveSpatializerTracks_l() REQUIRES(mMutex);

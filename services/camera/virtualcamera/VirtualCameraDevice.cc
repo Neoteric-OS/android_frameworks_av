@@ -40,6 +40,7 @@
 #include "android/binder_auto_utils.h"
 #include "android/binder_status.h"
 #include "system/camera_metadata.h"
+#include "util/AidlUtil.h"
 #include "util/MetadataUtil.h"
 #include "util/Util.h"
 
@@ -224,6 +225,44 @@ std::map<Resolution, int> getResolutionToMaxFpsMap(
   return resolutionToMaxFpsMap;
 }
 
+// Populates the maxResolution and the outputConfigurations
+// from the list of supported stream configs
+status_t convertSupportedStreams(
+    const std::vector<SupportedStreamConfiguration>& supportedInputConfig,
+    Resolution& maxResolution,
+    std::vector<MetadataBuilder::StreamConfiguration>& outputConfigurations) {
+  std::optional<Resolution> resolution = getMaxResolution(supportedInputConfig);
+  if (!resolution.has_value()) {
+    return BAD_VALUE;
+  }
+  maxResolution.width = resolution.value().width;
+  maxResolution.height = resolution.value().height;
+
+  // TODO(b/301023410) Add also all "standard" resolutions we can rescale the
+  // streams to (all standard resolutions with same aspect ratio).
+
+  std::map<Resolution, int> resolutionToMaxFpsMap =
+      getResolutionToMaxFpsMap(supportedInputConfig);
+
+  // Add configurations for all unique input resolutions and output formats.
+  for (const PixelFormat format : kOutputFormats) {
+    std::transform(
+        resolutionToMaxFpsMap.begin(), resolutionToMaxFpsMap.end(),
+        std::back_inserter(outputConfigurations), [format](const auto& entry) {
+          Resolution resolution = entry.first;
+          int maxFps = entry.second;
+          return MetadataBuilder::StreamConfiguration{
+              .width = resolution.width,
+              .height = resolution.height,
+              .format = static_cast<int32_t>(format),
+              .minFrameDuration = std::chrono::nanoseconds(1s) / maxFps,
+              .minStallDuration = 0s};
+        });
+  }
+
+  return OK;
+}
+
 std::unique_ptr<AidlCameraMetadata> createDefaultCameraCharacteristics(
     const std::vector<SupportedStreamConfiguration>& supportedInputConfig,
     const SensorOrientation sensorOrientation, const LensFacing lensFacing,
@@ -351,44 +390,95 @@ std::unique_ptr<AidlCameraMetadata> createDefaultCameraCharacteristics(
           .setAvailableCapabilities(
               {ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE});
 
-  // Active array size must correspond to largest supported input resolution.
-  std::optional<Resolution> maxResolution =
-      getMaxResolution(supportedInputConfig);
-  if (!maxResolution.has_value()) {
+  std::vector<MetadataBuilder::StreamConfiguration> outputConfigurations;
+  Resolution maxResolution;
+  if (convertSupportedStreams(supportedInputConfig, maxResolution,
+                              outputConfigurations) != OK) {
+    ALOGE(
+        "Can not get max resolution from the input stream configs, output "
+        "streams not configured!");
     return nullptr;
   }
-  builder.setSensorActiveArraySize(0, 0, maxResolution->width,
-                                   maxResolution->height);
-  builder.setSensorPixelArraySize(maxResolution->width, maxResolution->height);
 
-  std::vector<MetadataBuilder::StreamConfiguration> outputConfigurations;
+  builder.setSensorActiveArraySize(0, 0, maxResolution.width,
+                                   maxResolution.height);
+  builder.setSensorPixelArraySize(maxResolution.width, maxResolution.height);
 
-  // TODO(b/301023410) Add also all "standard" resolutions we can rescale the
-  // streams to (all standard resolutions with same aspect ratio).
-
-  std::map<Resolution, int> resolutionToMaxFpsMap =
-      getResolutionToMaxFpsMap(supportedInputConfig);
-
-  // Add configurations for all unique input resolutions and output formats.
-  for (const PixelFormat format : kOutputFormats) {
-    std::transform(
-        resolutionToMaxFpsMap.begin(), resolutionToMaxFpsMap.end(),
-        std::back_inserter(outputConfigurations), [format](const auto& entry) {
-          Resolution resolution = entry.first;
-          int maxFps = entry.second;
-          return MetadataBuilder::StreamConfiguration{
-              .width = resolution.width,
-              .height = resolution.height,
-              .format = static_cast<int32_t>(format),
-              .minFrameDuration = std::chrono::nanoseconds(1s) / maxFps,
-              .minStallDuration = 0s};
-        });
-  }
-
-  ALOGV("Adding %zu output configurations", outputConfigurations.size());
+  ALOGV("Adding %zu output configurations to default CameraCharacteristics.",
+        outputConfigurations.size());
   builder.setAvailableOutputStreamConfigurations(outputConfigurations);
 
   return builder.setAvailableCharacteristicKeys().build();
+}
+
+status_t updateStreamConfigurations(
+    HelperCameraMetadata& metadataHelper,
+    const std::vector<SupportedStreamConfiguration>& supportedInputConfig) {
+  std::vector<MetadataBuilder::StreamConfiguration> outputConfigurations;
+  Resolution maxResolution;
+
+  status_t ret = convertSupportedStreams(supportedInputConfig, maxResolution,
+                                         outputConfigurations);
+  if (ret != OK) {
+    ALOGE(
+        "Can not get max resolution from the input stream configs, output "
+        "streams not configured!");
+    return ret;
+  }
+
+  auto activeArraySizeVec =
+      std::vector<int32_t>({0, 0, maxResolution.width, maxResolution.height});
+  ret = metadataHelper.update(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE,
+                              activeArraySizeVec.data(),
+                              activeArraySizeVec.size());
+  if (ret != OK) {
+    ALOGE("Can not set SENSOR_INFO_ACTIVE_ARRAY_SIZE!");
+    return ret;
+  }
+  auto pixelArraySizeVec =
+      std::vector<int32_t>({maxResolution.width, maxResolution.height});
+  ret =
+      metadataHelper.update(ANDROID_SENSOR_INFO_PIXEL_ARRAY_SIZE,
+                            pixelArraySizeVec.data(), pixelArraySizeVec.size());
+  if (ret != OK) {
+    ALOGE("Can not set ANDROID_SENSOR_INFO_PIXEL_ARRAY_SIZE!");
+    return ret;
+  }
+
+  ALOGV("Adding %zu output configurations to configured CameraCharacteristics.",
+        outputConfigurations.size());
+  std::vector<int32_t> metadataStreamConfigs;
+  std::vector<int64_t> metadataMinFrameDurations;
+  std::vector<int64_t> metadataStallDurations;
+
+  convertStreamConfigurationsToMetadataValues(
+      outputConfigurations, metadataStreamConfigs, metadataMinFrameDurations,
+      metadataStallDurations);
+  ret = metadataHelper.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,
+                              metadataStreamConfigs.data(),
+                              metadataStreamConfigs.size());
+  if (ret != OK) {
+    ALOGE("Can not set ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS!");
+    return ret;
+  }
+
+  ret = metadataHelper.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
+                              metadataMinFrameDurations.data(),
+                              metadataMinFrameDurations.size());
+  if (ret != OK) {
+    ALOGE("Can not set ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS!");
+    return ret;
+  }
+
+  ret = metadataHelper.update(ANDROID_SCALER_AVAILABLE_STALL_DURATIONS,
+                              metadataStallDurations.data(),
+                              metadataStallDurations.size());
+  if (ret != OK) {
+    ALOGE("Can not set ANDROID_SCALER_AVAILABLE_STALL_DURATIONS!");
+    return ret;
+  }
+
+  return ret;
 }
 
 std::optional<AidlCameraMetadata> initCameraCharacteristics(
@@ -410,15 +500,33 @@ std::optional<AidlCameraMetadata> initCameraCharacteristics(
   // If the camera metadata is set by the VD owner, add the deviceId and pass it as it is
   if (configCameraCharacteristics.has_value()) {
     ALOGD("VirtualCameraDevice - using config CameraCharacteristics");
+    AidlCameraMetadata deviceCameraMetadata;
+    status_t ret = convertVirtualToDeviceCameraMetadata(
+        configCameraCharacteristics.value(), deviceCameraMetadata);
+    if (ret != OK) {
+      ALOGE("Failed to convert virtual to device camera characteristics!");
+      return AidlCameraMetadata();
+    }
+
+    HelperCameraMetadata metadataHelper = HelperCameraMetadata(
+        clone_camera_metadata(reinterpret_cast<const camera_metadata_t*>(
+            deviceCameraMetadata.metadata.data())));
 
     auto deviceIdVec = std::vector<int32_t>({deviceId});
-    const auto configMetadata = reinterpret_cast<const camera_metadata_t*>(
-        configCameraCharacteristics.value().metadata.data());
+    ret = metadataHelper.update(ANDROID_INFO_DEVICE_ID, deviceIdVec.data(),
+                                deviceIdVec.size());
+    if (ret != OK) {
+      ALOGE(
+          "Failed to update ANDROID_INFO_DEVICE_ID for camera "
+          "characteristics!");
+    }
 
-    HelperCameraMetadata metadataHelper =
-        HelperCameraMetadata(clone_camera_metadata(configMetadata));
-    metadataHelper.update(ANDROID_INFO_DEVICE_ID, deviceIdVec.data(),
-                          deviceIdVec.size());
+    ret = updateStreamConfigurations(metadataHelper, supportedInputConfig);
+    if (ret != OK) {
+      ALOGE(
+          "Failed to update output stream configurations for camera "
+          "characteristics!");
+    }
 
     aidlMetadata = cameraMetadataToHal(metadataHelper);
   } else {

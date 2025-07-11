@@ -446,6 +446,22 @@ aaudio_result_t AAudioServiceEndpointMMAP::exitStandby(AudioEndpointParcelable* 
     return result;
 }
 
+aaudio_result_t AAudioServiceEndpointMMAP::drain() {
+    const std::lock_guard lock(mMmapStreamLock);
+    if (mMmapStream == nullptr) {
+        return AAUDIO_ERROR_NULL;
+    }
+    return AAudioConvert_androidToAAudioResult(mMmapStream->drain());
+}
+
+aaudio_result_t AAudioServiceEndpointMMAP::activate() {
+    const std::lock_guard lock(mMmapStreamLock);
+    if (mMmapStream == nullptr) {
+        return AAUDIO_ERROR_NULL;
+    }
+    return AAudioConvert_androidToAAudioResult(mMmapStream->activate());
+}
+
 // Get free-running DSP or DMA hardware position from the HAL.
 aaudio_result_t AAudioServiceEndpointMMAP::getFreeRunningPosition(int64_t *positionFrames,
                                                                 int64_t *timeNanos) {

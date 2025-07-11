@@ -96,10 +96,10 @@ public:
     }
 
 protected:
-    aaudio_result_t requestStart_l() REQUIRES(mStreamLock) override;
-    aaudio_result_t requestStop_l() REQUIRES(mStreamLock) override;
+    aaudio_result_t requestStart_l() REQUIRES(mStreamMutex) override;
+    aaudio_result_t requestStop_l() REQUIRES(mStreamMutex) override;
 
-    aaudio_result_t release_l() REQUIRES(mStreamLock) override;
+    aaudio_result_t release_l() REQUIRES(mStreamMutex) override;
 
     aaudio_result_t processData(void *buffer,
                          int32_t numFrames,
@@ -119,7 +119,7 @@ protected:
 
     aaudio_result_t drainTimestampsFromService();
 
-    aaudio_result_t stopCallback_l();
+    aaudio_result_t stopCallback_l() REQUIRES(mStreamMutex);
 
     virtual void prepareBuffersForStart() {}
 
@@ -129,7 +129,7 @@ protected:
 
     virtual void onFlushFromServer() {}
 
-    virtual void wakeupCallbackThread() {}
+    virtual void wakeupCallbackThread_l() REQUIRES(mStreamMutex) {}
 
     aaudio_result_t onEventFromServer(AAudioServiceMessage *message);
 
@@ -155,7 +155,9 @@ protected:
      */
     bool isClockModelInControl() const;
 
-    aaudio_result_t startCallback_l() REQUIRES(mStreamLock);
+    aaudio_result_t startCallback_l() REQUIRES(mStreamMutex);
+
+    virtual bool mayNeedToDrain() const { return false; }
 
     IsochronousClockModel    mClockModel;      // timing model for chasing the HAL
 
@@ -199,7 +201,7 @@ private:
                                      int32_t numFrames);
 
     // Exit the stream from standby, will reconstruct data path.
-    aaudio_result_t exitStandby_l() REQUIRES(mStreamLock);
+    aaudio_result_t exitStandby_l() REQUIRES(mStreamMutex);
 
     // Adjust timing model based on timestamp from service.
     void processTimestamp(uint64_t position, int64_t time);
