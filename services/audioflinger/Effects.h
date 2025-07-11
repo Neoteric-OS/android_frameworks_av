@@ -690,8 +690,11 @@ public:
         void setThread(const sp<IAfThreadBase>& thread) {
             mThread = thread;
             if (thread != nullptr) {
-                mThreadType = thread->type();
                 mAfThreadCallback = thread->afThreadCallback();
+                mThreadType = thread->type();
+                mIsOffload = thread->isOffload();
+                mIsOffloadOrDirect = thread->isOffloadOrDirect();
+                mIsOffloadOrMmap = thread->isOffloadOrMmap();
             }
         }
         bool hasThreadAttached() const {
@@ -702,6 +705,9 @@ public:
         mediautils::atomic_wp<IAfThreadBase> mThread;
         sp<IAfThreadCallback> mAfThreadCallback;
         IAfThreadBase::type_t mThreadType = IAfThreadBase::MIXER;
+        bool mIsOffload = false;
+        bool mIsOffloadOrDirect = false;
+        bool mIsOffloadOrMmap = false;
     };
 
     DISALLOW_COPY_AND_ASSIGN(EffectChain);

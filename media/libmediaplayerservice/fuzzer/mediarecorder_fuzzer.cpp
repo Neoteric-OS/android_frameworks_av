@@ -22,7 +22,6 @@
 #include <camera/Camera.h>
 #include <camera/android/hardware/ICamera.h>
 #include <fakeservicemanager/FakeServiceManager.h>
-#include <gui/IGraphicBufferProducer.h>
 #include <gui/Surface.h>
 #include <gui/Flags.h>
 #include <gui/SurfaceComposerClient.h>
@@ -200,7 +199,7 @@ void MediaRecorderClientFuzzer::getConfig() {
     Parcel parcel;
     mStfRecorder->getMetrics(&parcel);
 
-    sp<IGraphicBufferProducer> buffer = mStfRecorder->querySurfaceMediaSource();
+    sp<MediaSurfaceType> buffer = mStfRecorder->querySurfaceMediaSource();
 }
 
 template <typename FuncWrapper>
@@ -221,7 +220,7 @@ void MediaRecorderClientFuzzer::setConfig() {
                         mFdp.ConsumeIntegral<int32_t>() /* flags */);
                 if (mSurfaceControl) {
                     mSurface = mSurfaceControl->getSurface();
-                    mStfRecorder->setPreviewSurface(mSurface->getIGraphicBufferProducer());
+                    mStfRecorder->setPreviewSurface(mediaflagtools::surfaceToSurfaceType(mSurface));
                 }
             },
             &mFdp);

@@ -474,7 +474,7 @@ status_t StreamHalAidl::getObservablePosition(int64_t* frames, int64_t* timestam
     RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply, statePositions));
     if (reply.observable.frames == StreamDescriptor::Position::UNKNOWN ||
         reply.observable.timeNs == StreamDescriptor::Position::UNKNOWN) {
-        return INVALID_OPERATION;
+        return NOT_ENOUGH_DATA;
     }
     *frames = reply.observable.frames;
     *timestamp = reply.observable.timeNs;
@@ -490,7 +490,7 @@ status_t StreamHalAidl::getHardwarePosition(int64_t *frames, int64_t *timestamp)
     if (reply.hardware.frames == StreamDescriptor::Position::UNKNOWN ||
         reply.hardware.timeNs == StreamDescriptor::Position::UNKNOWN) {
         AUGMENT_LOG(W, "No position was reported by the HAL");
-        return INVALID_OPERATION;
+        return NOT_ENOUGH_DATA;
     }
     if (mSupportsCreateMmapBuffer) {
         // HAL is required to report continuous position. Reset for compatibility.
@@ -511,7 +511,7 @@ status_t StreamHalAidl::getXruns(int32_t *frames) {
     StreamDescriptor::Reply reply;
     RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply));
     if (reply.xrunFrames == StreamDescriptor::Position::UNKNOWN) {
-        return INVALID_OPERATION;
+        return NOT_ENOUGH_DATA;
     }
     *frames = reply.xrunFrames;
     return OK;

@@ -389,10 +389,14 @@ public:
 
     bool isOutput() const final { return mIsOut; }
 
+    bool isOffload() const final { return mIsOffload; }
+
+    bool isOffloadOrDirect() const final { return mIsOffload || mType == DIRECT; }
+
     bool isOffloadOrMmap() const final {
         switch (mType) {
         case OFFLOAD:
-        case MMAP_PLAYBACK:
+        case MMAP_PLAYBACK:  // inclusive of Mmap Offload.
         case MMAP_CAPTURE:
             return true;
         default:
@@ -1048,6 +1052,8 @@ protected:
     // Haptic playback.
     audio_channel_mask_t mHapticChannelMask = AUDIO_CHANNEL_NONE;
     uint32_t mHapticChannelCount = 0;
+
+    const bool mIsOffload;
 
     // Playback variables for Direct/Offload modes
     bool mFlushPending = false;

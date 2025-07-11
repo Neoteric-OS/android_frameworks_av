@@ -668,7 +668,9 @@ ThreadBase::ThreadBase(const sp<IAfThreadCallback>& afThreadCallback, audio_io_h
         mSystemReady(systemReady),
         mSignalPending(false),
         mInput(input),
-        mOutput(output)
+        mOutput(output),
+        mIsOffload(output != nullptr &&
+                (output->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0)
 {
     mThreadMetrics.logConstructor(getpid(), threadTypeToString(type), id);
     memset(&mPatch, 0, sizeof(struct audio_patch));
@@ -1653,7 +1655,8 @@ status_t ThreadBase::checkEffectCompatibility_l(
         if ((desc->flags & EFFECT_FLAG_OFFLOAD_MASK) == EFFECT_FLAG_OFFLOAD_SUPPORTED) {
             ALOGV("%s: offload effect %s accepted", __func__, desc->name);
         } else {
-            ALOGV("%s: offload not compatible with effect %s, will invalidate",
+            // actual invalidation is logged on enable.
+            ALOGV("%s: offload not compatible with effect %s, will invalidate if enabled",
                     __func__, desc->name);
         }
         break;
@@ -1808,6 +1811,8 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
     }
     if (!effect->isOffloadable()) {
         if (mOutput && (mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
+            ALOGD("%s: offload not compatible with effect %s, invalidate the track",
+                    __func__, effect->desc().name);
             invalidateTracks();
         }
         if (effect->sessionId() == AUDIO_SESSION_OUTPUT_MIX) {
@@ -1863,10 +1868,10 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
     bool chainCreated = false;
 
 // QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
-    ALOGD_IF((mType == OFFLOAD || mType == DIRECT) && !effect->isOffloadable(),
+    ALOGD_IF((mIsOffload || mType == DIRECT) && !effect->isOffloadable(),
 // QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
-             "%s: on offloaded thread %p: effect %s does not support offload flags %#x",
-             __func__, this, effect->desc().name, effect->desc().flags);
+             "%s: on offload thread(%d): effect %s does not support offload flags %#x",
+             __func__, mId, effect->desc().name, effect->desc().flags);
 
 
     if (chain == 0) {
@@ -1885,7 +1890,7 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
         return BAD_VALUE;
     }
 
-    effect->setOffloaded_l((mType == OFFLOAD || mType == DIRECT), mId);
+    effect->setOffloaded_l(mIsOffload || mType == DIRECT, mId);
 
     status_t status = chain->addEffect(effect);
     if (status != NO_ERROR) {
@@ -10774,10 +10779,16 @@ status_t MmapThread::start(const AudioClient& client,
     bool checkEffect = mOutput && (mOutput->flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0;
 
     mutex().unlock();
-    if (checkEffect && track->isNonOffloadableEffectEnabled()) {
-        mutex().lock();
-        track->invalidate();
-        return PERMISSION_DENIED;
+    if (checkEffect) {
+        ret = mAfThreadCallback->tryMoveEffectChain(track->sessionId(), this);
+        if (ret == NO_ERROR && track->isNonOffloadableEffectEnabled()) {
+            ret = PERMISSION_DENIED;
+        }
+        if (ret != NO_ERROR) {
+            mutex().lock();
+            track->invalidate();
+            return ret;
+        }
     }
     track->start();
     mutex().lock();

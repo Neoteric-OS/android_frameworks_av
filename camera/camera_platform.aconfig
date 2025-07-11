@@ -210,3 +210,11 @@ flag {
     description: "Unhide the size and format getters in OutputConfiguration class"
     bug: "383609887"
 }
+
+flag {
+    namespace: "camera_platform"
+    name: "efv_capture_latency"
+    is_exported: true
+    description: "Add support for still capture latency mitigations in the EFV layer"
+    bug: "423674832"
+}

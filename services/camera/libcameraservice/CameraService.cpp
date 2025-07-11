@@ -111,6 +111,13 @@ namespace {
         ALOGE("%s: Unexpected appOpMode %d", __FUNCTION__, res);
         return android::PermissionChecker::PERMISSION_HARD_DENIED;
     }
+
+    bool isInvalidPolicy(int32_t devicePolicy) {
+        return devicePolicy != android::companion::virtualnative::IVirtualDeviceManagerNative
+                    ::DEVICE_POLICY_DEFAULT
+               && devicePolicy != android::companion::virtualnative::IVirtualDeviceManagerNative
+                    ::DEVICE_POLICY_CUSTOM;
+    }
 } // namespace anonymous
 
 namespace android {
@@ -799,6 +806,12 @@ Status CameraService::getNumberOfCameras(int32_t type,
         const AttributionSourceState& clientAttribution, int32_t devicePolicy,
         int32_t* numCameras) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        *numCameras = 0;
+        return Status::ok();
+    }
+
     if (clientAttribution.deviceId != kDefaultDeviceId
             && (devicePolicy != IVirtualDeviceManagerNative::DEVICE_POLICY_DEFAULT)) {
         *numCameras = mVirtualDeviceCameraIdMapper.getNumberOfCameras(clientAttribution.deviceId);
@@ -838,6 +851,11 @@ Status CameraService::createDefaultRequest(const std::string& unresolvedCameraId
         /* out */
         hardware::camera2::impl::CameraMetadataNative* request) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
 
     if (!mInitialized) {
         ALOGE("%s: Camera subsystem is not available", __FUNCTION__);
@@ -897,6 +915,11 @@ Status CameraService::isSessionConfigurationWithParametersSupported(
         const AttributionSourceState& clientAttribution, int32_t devicePolicy,
         /*out*/ bool* supported) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
 
     if (!mInitialized) {
         ALOGE("%s: Camera HAL couldn't be initialized", __FUNCTION__);
@@ -996,6 +1019,11 @@ Status CameraService::getSessionCharacteristics(const std::string& unresolvedCam
                 fmt::sprintf("Camera %s: Invalid 'outMetadata' input!", unresolvedCameraId.c_str());
         ALOGE("%s: %s", __FUNCTION__, msg.c_str());
         return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.c_str());
+    }
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
     }
 
     if (!mInitialized) {
@@ -1214,6 +1242,12 @@ Status CameraService::getCameraInfo(int cameraId,  int rotationOverride,
         const AttributionSourceState& clientAttribution, int32_t devicePolicy,
         CameraInfo* cameraInfo) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
     Mutex::Autolock l(mServiceLock);
     std::string cameraIdStr =
             cameraIdIntToStrLocked(cameraId, clientAttribution.deviceId, devicePolicy);
@@ -1302,6 +1336,11 @@ Status CameraService::getCameraCharacteristics(const std::string& unresolvedCame
         return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT, "cameraInfo is NULL");
     }
 
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
     if (!mInitialized) {
         ALOGE("%s: Camera HAL couldn't be initialized", __FUNCTION__);
         logServiceError("Camera subsystem is not available", ERROR_DISCONNECTED);
@@ -1350,6 +1389,12 @@ Status CameraService::getTorchStrengthLevel(const std::string& unresolvedCameraI
         const AttributionSourceState& clientAttribution,
         int32_t devicePolicy, int32_t* torchStrength) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
     Mutex::Autolock l(mServiceLock);
 
     std::optional<std::string> cameraIdOptional = resolveCameraId(unresolvedCameraId,
@@ -2160,6 +2205,12 @@ Status CameraService::connect(
         /*out*/
         sp<ICamera>* device) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
     Status ret = Status::ok();
 
     std::string cameraIdStr =
@@ -2306,6 +2357,12 @@ Status CameraService::connectDeviceImpl(
         bool sharedMode, bool isVendorClient,
         /*out*/sp<hardware::camera2::ICameraDeviceUser>* device) {
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
     RunThreadWithRealtimePriority priorityBump;
     Status ret = Status::ok();
     sp<CameraDeviceClient> client = nullptr;
@@ -2860,14 +2917,19 @@ status_t CameraService::addOfflineClient(const std::string &cameraId,
 Status CameraService::turnOnTorchWithStrengthLevel(const std::string& unresolvedCameraId,
         int32_t torchStrength, const sp<IBinder>& clientBinder,
         const AttributionSourceState& clientAttribution, int32_t devicePolicy) {
-    Mutex::Autolock lock(mServiceLock);
-
     ATRACE_CALL();
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
     if (clientBinder == nullptr) {
         ALOGE("%s: torch client binder is NULL", __FUNCTION__);
         return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
                 "Torch client binder in null.");
     }
+
+    Mutex::Autolock lock(mServiceLock);
 
     int uid = getCallingUid();
     std::optional<std::string> cameraIdOptional = resolveCameraId(unresolvedCameraId,
@@ -2998,14 +3060,20 @@ Status CameraService::turnOnTorchWithStrengthLevel(const std::string& unresolved
 Status CameraService::setTorchMode(const std::string& unresolvedCameraId, bool enabled,
         const sp<IBinder>& clientBinder, const AttributionSourceState& clientAttribution,
         int32_t devicePolicy) {
-    Mutex::Autolock lock(mServiceLock);
-
     ATRACE_CALL();
+
     if (enabled && clientBinder == nullptr) {
         ALOGE("%s: torch client binder is NULL", __FUNCTION__);
         return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
                 "Torch client Binder is null");
     }
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
+    }
+
+    Mutex::Autolock lock(mServiceLock);
 
     int uid = getCallingUid();
     std::optional<std::string> cameraIdOptional = resolveCameraId(unresolvedCameraId,
@@ -3398,6 +3466,11 @@ Status CameraService::isConcurrentSessionConfigurationSupported(
     if (!isSupported) {
         ALOGE("%s: isSupported is NULL", __FUNCTION__);
         return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT, "isSupported is NULL");
+    }
+
+    if (isInvalidPolicy(devicePolicy)) {
+        return STATUS_ERROR(ERROR_ILLEGAL_ARGUMENT,
+                "Invalid device policy associated with context");
     }
 
     if (!mInitialized) {

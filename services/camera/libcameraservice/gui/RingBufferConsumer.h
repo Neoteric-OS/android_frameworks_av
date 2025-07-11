@@ -200,7 +200,9 @@ class RingBufferConsumer
 
     // List of acquired buffers in our ring buffer
     List<RingBufferItem>       mBufferItemList;
+#if not WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
     uint64_t                   mConsumerUsage;
+#endif
     const int                  mBufferCount;
 
     // Timestamp of latest buffer

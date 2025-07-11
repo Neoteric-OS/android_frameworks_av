@@ -3236,23 +3236,15 @@ bool EffectChain::EffectCallback::isOutput() const {
 }
 
 bool EffectChain::EffectCallback::isOffload() const {
-    return mThreadType == IAfThreadBase::OFFLOAD;
+    return mIsOffload;
 }
 
 bool EffectChain::EffectCallback::isOffloadOrDirect() const {
-    return mThreadType == IAfThreadBase::OFFLOAD
-            || mThreadType == IAfThreadBase::DIRECT;
+    return mIsOffloadOrDirect;
 }
 
 bool EffectChain::EffectCallback::isOffloadOrMmap() const {
-    switch (mThreadType) {
-    case IAfThreadBase::OFFLOAD:
-    case IAfThreadBase::MMAP_PLAYBACK:
-    case IAfThreadBase::MMAP_CAPTURE:
-        return true;
-    default:
-        return false;
-    }
+    return mIsOffloadOrMmap;
 }
 
 bool EffectChain::EffectCallback::isSpatializer() const {
