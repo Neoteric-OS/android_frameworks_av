@@ -1584,7 +1584,7 @@ protected:
 
     status_t addPolicyMix(const AudioMix& mix);
 
-    status_t removePolicyMixes(const Vector<AudioMix>& mixes);
+    status_t removePolicyMixes(const std::vector<AudioMix>& mixes);
 
     std::vector<AudioMix> getRegisteredPolicyMixes();
     void clearPolicyMix();
@@ -1596,7 +1596,7 @@ protected:
             audio_config_base_t config=DEFAULT_INPUT_CONFIG,
             audio_input_flags_t inputFlags=AUDIO_INPUT_FLAG_NONE);
 
-    Vector<AudioMix> mAudioMixes;
+    std::vector<AudioMix> mAudioMixes;
     const std::string mMixAddress = "remote_submix_media";
 
     audio_port_handle_t mLoopbackInputPortId = AUDIO_PORT_HANDLE_NONE;
@@ -1628,7 +1628,7 @@ status_t AudioPolicyManagerTestDynamicPolicy::addPolicyMix(int mixType, int mixF
 }
 
 status_t AudioPolicyManagerTestDynamicPolicy::addPolicyMix(const AudioMix& mix) {
-    mAudioMixes.add(mix);
+    mAudioMixes.push_back(mix);
 
     // As the policy mixes registration may fail at some case,
     // caller need to check the returned status.
@@ -1636,7 +1636,8 @@ status_t AudioPolicyManagerTestDynamicPolicy::addPolicyMix(const AudioMix& mix) 
     return ret;
 }
 
-status_t AudioPolicyManagerTestDynamicPolicy::removePolicyMixes(const Vector<AudioMix>& mixes) {
+status_t AudioPolicyManagerTestDynamicPolicy::removePolicyMixes(
+        const std::vector<AudioMix>& mixes) {
     status_t ret = mManager->unregisterPolicyMixes(mixes);
     return ret;
 }
@@ -1879,9 +1880,10 @@ TEST_F_WITH_FLAGS(
                              MIX_ROUTE_FLAG_LOOP_BACK, String8(mMixAddress.c_str()), 0);
     invalidAudioMix.mDeviceType = AUDIO_DEVICE_OUT_REMOTE_SUBMIX;
 
-    Vector<AudioMix> mixes;
-    mixes.add(invalidAudioMix);
-    mixes.add(validAudioMix);
+    std::vector<AudioMix> mixes{
+        invalidAudioMix,
+        validAudioMix,
+    };
     ret = removePolicyMixes(mixes);
 
     ASSERT_EQ(INVALID_OPERATION, ret);
@@ -5285,7 +5287,7 @@ TEST_F_WITH_FLAGS(
         EXPECT_EQ(usbInMixPortProfiles[i]->getHalId(), inProfile->getHalId());
 
         DeviceVector outDevices(outDevDesc);
-        SortedVector<audio_io_handle_t> outIoHandles =
+        std::set<audio_io_handle_t> outIoHandles =
               mManager->getOutputsForDevices(outDevices, mManager->getOutputs());
 
         for (audio_io_handle_t handle : outIoHandles) {

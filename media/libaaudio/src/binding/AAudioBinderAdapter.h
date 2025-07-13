@@ -62,6 +62,10 @@ public:
 
     aaudio_result_t updateTimestamp(const AAudioHandleInfo& streamHandleInfo) override;
 
+    aaudio_result_t drainStream(const AAudioHandleInfo& streamHandleInfo) override;
+
+    aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) override;
+
 private:
     IAAudioService* const mDelegate;
     // A unique id to recognize the service that the adapter connected to.

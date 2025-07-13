@@ -395,7 +395,7 @@ status_t Spatializer::loadEngineConfiguration(sp<EffectHalInterface> effect) {
     }
     for (const auto channelMask : channelMasks) {
         const bool channel_mask_spatialized =
-                SpatializerHelper::isStereoSpatializationFeatureEnabled()
+                SpatializerHelper::isStereoSpatializationFeatureEnabled({})
                         ? audio_channel_mask_contains_stereo(channelMask)
                         : audio_is_channel_mask_spatialized(channelMask);
         if (!channel_mask_spatialized) {
@@ -1290,7 +1290,7 @@ std::string Spatializer::toString(unsigned level) const {
     // 4. Show flag or property state.
     base::StringAppendF(
             &ss, "%sStereo Spatialization: %s\n", prefixSpace.c_str(),
-            SpatializerHelper::isStereoSpatializationFeatureEnabled() ? "true" : "false");
+            SpatializerHelper::isStereoSpatializationFeatureEnabled({}) ? "true" : "false");
 
     ss.append(prefixSpace + "CommandLog:\n");
     ss += mLocalLog.dumpToString((prefixSpace + " ").c_str(), mMaxLocalLogLine);

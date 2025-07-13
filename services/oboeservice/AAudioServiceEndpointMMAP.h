@@ -71,6 +71,10 @@ public:
     aaudio_result_t exitStandby(AudioEndpointParcelable* parcelable) override
             EXCLUDES(mMmapStreamLock);
 
+    aaudio_result_t drain() final EXCLUDES(mMmapStreamLock);
+
+    aaudio_result_t activate() final EXCLUDES(mMmapStreamLock);
+
     aaudio_result_t getFreeRunningPosition(int64_t *positionFrames, int64_t *timeNanos) override
              EXCLUDES(mMmapStreamLock);
 

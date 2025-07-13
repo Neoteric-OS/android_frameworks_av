@@ -82,4 +82,18 @@ interface IAAudioService {
     int exitStandby(int streamHandle, out Endpoint endpoint);
 
     int updateTimestamp(int streamHandle);
+
+    /**
+     * This is currently only used for offload playback.
+     *
+     * Notify the service that there are enough data in the mmap buffer. The client is suspended
+     * to wait for draining written data.
+     */
+    int drainStream(int streamHandle);
+
+    /**
+     * This is called when the client is no longer suspended to drain data. It may happen when
+     * all data is drained or the client want to flush from a given position and rewrite the data.
+     */
+    int activateStream(int streamHandle);
 }

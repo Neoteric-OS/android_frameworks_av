@@ -124,6 +124,10 @@ public:
 
     aaudio_result_t updateTimestamp() EXCLUDES(mLock);
 
+    aaudio_result_t drain() EXCLUDES(mLock);
+
+    aaudio_result_t activate() EXCLUDES(mLock);
+
     virtual aaudio_result_t startClient(const android::AudioClient& client,
                                         const audio_attributes_t *attr __unused,
                                         audio_port_handle_t *clientHandle __unused) {
@@ -239,6 +243,9 @@ protected:
     virtual aaudio_result_t stop_l() REQUIRES(mLock);
     void disconnect_l() REQUIRES(mLock);
     aaudio_result_t flush_l() REQUIRES(mLock);
+    aaudio_result_t activate_l(TimestampScheduler* scheduler,
+                               int64_t* nextTimestampReportTime,
+                               int64_t* nextDataReportTime) REQUIRES(mLock);
 
     class RegisterAudioThreadParam : public AAudioCommandParam {
     public:
@@ -408,6 +415,8 @@ protected:
         START_CLIENT,
         STOP_CLIENT,
         UPDATE_TIMESTAMP,
+        DRAIN,
+        ACTIVATE,
     };
     AAudioThread            mCommandThread;
     std::atomic_bool        mThreadEnabled{false};
@@ -469,6 +478,8 @@ private:
     bool                    mDisconnected GUARDED_BY(mLock) {false};
 
     bool                    mStandby GUARDED_BY(mLock) = false;
+
+    bool                    mIsDraining GUARDED_BY(mLock) = false;
 
 protected:
     // Locking order is important.

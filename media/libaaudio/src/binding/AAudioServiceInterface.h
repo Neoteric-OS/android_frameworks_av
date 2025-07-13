@@ -117,6 +117,27 @@ public:
      * @return
      */
     virtual aaudio_result_t updateTimestamp(const AAudioHandleInfo& streamHandleInfo) = 0;
+
+    /**
+     * This is currently only used for offload playback.
+     *
+     * Notify service to drain all data. Client won't write any more data before it is closed
+     * to render all data.
+     *
+     * @param streamHandleInfo
+     * @return
+     */
+    virtual aaudio_result_t drainStream(const AAudioHandleInfo& streamHandleInfo) = 0;
+
+    /**
+     * This is currently only used for offload playback.
+     *
+     * This method is used to when the client is no longer suspended for draining.
+     *
+     * @param streamHandleInfo
+     * @return
+     */
+    virtual aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) = 0;
 };
 
 } /* namespace aaudio */

@@ -407,6 +407,29 @@ aaudio_result_t AAudioServiceStreamBase::updateTimestamp() {
     return sendCommand(UPDATE_TIMESTAMP, nullptr /*param*/, true /*waitForReply*/, TIMEOUT_NANOS);
 }
 
+aaudio_result_t AAudioServiceStreamBase::drain() {
+    sendCommand(DRAIN);
+    return AAUDIO_OK;
+}
+
+aaudio_result_t AAudioServiceStreamBase::activate() {
+    return sendCommand(ACTIVATE, nullptr /*param*/, true /*waitForReply*/, TIMEOUT_NANOS);
+}
+
+aaudio_result_t AAudioServiceStreamBase::activate_l(TimestampScheduler* scheduler,
+                                                    int64_t* nextTimestampReportTime,
+                                                    int64_t* nextDataReportTime) {
+    scheduler->start(AudioClock::getNanoseconds());
+    *nextTimestampReportTime = scheduler->nextAbsoluteTime();
+    *nextDataReportTime = nextDataReportTime_l();
+    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
+    if (endpoint == nullptr) {
+        ALOGE("%s() has no endpoint", __func__);
+        return AAUDIO_ERROR_INVALID_STATE;
+    }
+    return endpoint->activate();
+}
+
 // implement Runnable, periodically send timestamps to client and process commands from queue.
 // Enter standby mode if idle for a while.
 __attribute__((no_sanitize("integer")))
@@ -483,6 +506,12 @@ void AAudioServiceStreamBase::run() {
             ALOGD("%s() got COMMAND opcode %d after %d loops",
                     __func__, command->operationCode, loopCount);
             std::scoped_lock<std::mutex> _commandLock(command->lock);
+            if (mIsDraining) {
+                // After receiving a new command from draining, the client is not longer
+                // suspended for draining.
+                mIsDraining = false;
+                activate_l(&timestampScheduler, &nextTimestampReportTime, &nextDataReportTime);
+            }
             switch (command->operationCode) {
                 case START: {
                     command->result = start_l();
@@ -553,6 +582,38 @@ void AAudioServiceStreamBase::run() {
                 } break;
                 case UPDATE_TIMESTAMP: {
                     command->result = sendCurrentTimestamp_l();
+                } break;
+                case DRAIN: {
+                    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+                        // No return value required
+                        break;
+                    }
+                    reportData_l();
+                    timestampScheduler.stop();
+                    nextDataReportTime = std::numeric_limits<int64_t>::max();
+                    mIsDraining = true;
+                    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
+                    if (endpoint != nullptr) {
+                        endpoint->drain();
+                    } else {
+                        // When this happens, it indicates the stream was disconnected.
+                        // There should be message already sent to client.
+                        ALOGD("Cannot drain as the service endpoint is null");
+                    }
+                } break;
+                case ACTIVATE: {
+                    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+                        command->result = AAUDIO_ERROR_UNIMPLEMENTED;
+                        break;
+                    }
+                    if (mIsDraining) {
+                        command->result = sendCurrentTimestamp_l();
+                        if (command->result == AAUDIO_OK) {
+                            command->result = activate_l(&timestampScheduler,
+                                                         &nextTimestampReportTime,
+                                                         &nextDataReportTime);
+                        }
+                    }
                 } break;
                 default:
                     ALOGE("Invalid command op code: %d", command->operationCode);

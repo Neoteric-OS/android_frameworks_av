@@ -564,7 +564,10 @@ public:
 
     virtual void setStandby() EXCLUDES_ThreadBase_Mutex = 0;
     virtual void setStandby_l() REQUIRES(mutex()) = 0;
-    virtual bool waitForHalStart() EXCLUDES_ThreadBase_Mutex = 0;
+
+    static constexpr uint32_t kWaitHalTimeoutMs = 2'000;
+    virtual bool waitForHalStart(uint32_t timeoutMs = kWaitHalTimeoutMs)
+            EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const = 0;
     virtual const std::atomic<int64_t>& framesWritten() const = 0;
@@ -699,6 +702,8 @@ public:
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t reportData(const void* buffer, size_t frameCount)
             EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t drain() EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t activate() EXCLUDES_ThreadBase_Mutex = 0;
 
     // Sets the UID records silence - TODO(b/291317898)  move to IAfMmapCaptureThread
     virtual void setRecordSilenced(audio_port_handle_t portId, bool silenced)

@@ -7721,7 +7721,12 @@ void MediaCodec::onOutputFormatChanged() {
     if (mCallback != NULL) {
         sp<AMessage> msg = mCallback->dup();
         msg->setInt32("callbackID", CB_OUTPUT_FORMAT_CHANGED);
-        msg->setMessage("format", mOutputFormat);
+
+        // Here format is MediaCodec's internal copy of output format.
+        // Make a copy since codec internal or the client might modify it.
+        sp<AMessage> copy = mOutputFormat->dup();
+        msg->setMessage("format", copy);
+
         msg->post();
     }
 }

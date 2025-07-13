@@ -171,6 +171,16 @@ class MmapStreamInterface : public virtual RefBase
      */
     virtual status_t reportData(const void* buffer, size_t frameCount) = 0;
 
+    /**
+     * Notify the stream is currently draining.
+     */
+    virtual status_t drain() = 0;
+
+    /**
+     * Notify the stream is active.
+     */
+    virtual status_t activate() = 0;
+
   protected:
     // Subclasses can not be constructed directly by clients.
     MmapStreamInterface() {}

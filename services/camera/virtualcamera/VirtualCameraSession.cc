@@ -64,6 +64,7 @@
 #include "fmq/AidlMessageQueue.h"
 #include "system/camera_metadata.h"
 #include "ui/GraphicBuffer.h"
+#include "util/AidlUtil.h"
 #include "util/EglDisplayContext.h"
 #include "util/EglFramebuffer.h"
 #include "util/EglProgram.h"
@@ -315,6 +316,13 @@ VirtualCameraSession::VirtualCameraSession(
   if (!mResultMetadataQueue->isValid()) {
     ALOGE("%s: invalid result fmq", __func__);
   }
+
+  if (flags::virtual_camera_metadata() && cameraDevice != nullptr &&
+      cameraDevice->isPerFrameCameraMetadataEnabled()) {
+    // TODO: b/371167033 create and pass the CaptureResultConsumer if the per
+    // frame metadata is enabled, stub for now
+    mCaptureResultConsumer = nullptr;
+  }
 }
 
 ndk::ScopedAStatus VirtualCameraSession::close() {
@@ -435,6 +443,20 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     inputSurface = mRenderThread->getInputSurface();
     inputStreamId = mCurrentInputStreamId =
         virtualCamera->allocateInputStreamId();
+  }
+
+  // The onConfigureSession is oneway async, just informs the VD owner of
+  // the session params
+  if (flags::virtual_camera_metadata() &&
+      mVirtualCameraClientCallback != nullptr) {
+    VirtualCameraMetadata sessionParamsMetadata;
+    status_t ret = convertDeviceToVirtualCameraMetadata(
+        in_requestedConfiguration.sessionParams, sessionParamsMetadata);
+    if (ret != OK) {
+      ALOGE("Failed to convert device to virtual session parameters!");
+    }
+    mVirtualCameraClientCallback->onConfigureSession(sessionParamsMetadata,
+                                                     mCaptureResultConsumer);
   }
 
   if (mVirtualCameraClientCallback != nullptr && inputSurface != nullptr) {
@@ -652,8 +674,14 @@ ndk::ScopedAStatus VirtualCameraSession::processCaptureRequest(
     std::optional<VirtualCameraMetadata> captureRequestSettings;
     if (flags::virtual_camera_metadata() &&
         virtualCamera->isPerFrameCameraMetadataEnabled()) {
-      // Send the settings of the CaptureRequest as (virtual) camera metadata
-      captureRequestSettings = aidlToVirtualCameraMetadata(request.settings);
+      VirtualCameraMetadata virtualCameraMetadata;
+      // Send the settings of the CaptureRequest as VirtualCameraMetadata
+      status_t ret = convertDeviceToVirtualCameraMetadata(
+          request.settings, virtualCameraMetadata);
+      if (ret != OK) {
+        ALOGE("Failed to convert device to virtual capture request settings!");
+      }
+      captureRequestSettings = virtualCameraMetadata;
     }
     ndk::ScopedAStatus status =
         mVirtualCameraClientCallback->onProcessCaptureRequest(

@@ -38,6 +38,7 @@ namespace companion {
 namespace virtualcamera {
 
 using ::aidl::android::companion::virtualcamera::Format;
+using ::aidl::android::companion::virtualcamera::ICaptureResultConsumer;
 using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
 using ::aidl::android::view::Surface;
 using ::ndk::ScopedAStatus;
@@ -121,6 +122,15 @@ VirtualCameraTestInstance::VirtualCameraTestInstance(const int fps)
 }
 
 ScopedAStatus VirtualCameraTestInstance::onOpenCamera() {
+  return ScopedAStatus::ok();
+}
+
+::ndk::ScopedAStatus VirtualCameraTestInstance::onConfigureSession(
+    const VirtualCameraMetadata& sessionParameters,
+    const std::shared_ptr<ICaptureResultConsumer>& captureResultConsumer) {
+  (void)sessionParameters;
+  (void)captureResultConsumer;
+  ALOGV("%s: Not used for VirtualCameraTestInstance.", __func__);
   return ScopedAStatus::ok();
 }
 

@@ -530,27 +530,10 @@ MetadataBuilder& MetadataBuilder::setAvailableOutputStreamConfigurations(
   std::vector<int32_t> metadataStreamConfigs;
   std::vector<int64_t> metadataMinFrameDurations;
   std::vector<int64_t> metadataStallDurations;
-  metadataStreamConfigs.reserve(streamConfigurations.size());
-  metadataMinFrameDurations.reserve(streamConfigurations.size());
-  metadataStallDurations.reserve(streamConfigurations.size());
 
-  for (const auto& config : streamConfigurations) {
-    metadataStreamConfigs.push_back(config.format);
-    metadataStreamConfigs.push_back(config.width);
-    metadataStreamConfigs.push_back(config.height);
-    metadataStreamConfigs.push_back(
-        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
-
-    metadataMinFrameDurations.push_back(config.format);
-    metadataMinFrameDurations.push_back(config.width);
-    metadataMinFrameDurations.push_back(config.height);
-    metadataMinFrameDurations.push_back(config.minFrameDuration.count());
-
-    metadataStallDurations.push_back(config.format);
-    metadataStallDurations.push_back(config.width);
-    metadataStallDurations.push_back(config.height);
-    metadataStallDurations.push_back(config.minStallDuration.count());
-  }
+  convertStreamConfigurationsToMetadataValues(
+      streamConfigurations, metadataStreamConfigs, metadataMinFrameDurations,
+      metadataStallDurations);
 
   mEntryMap[ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS] =
       std::move(metadataStreamConfigs);
@@ -712,6 +695,12 @@ MetadataBuilder& MetadataBuilder::setAvailableRequestKeys(
 MetadataBuilder& MetadataBuilder::setAvailableResultKeys(
     const std::vector<int32_t>& keys) {
   mEntryMap[ANDROID_REQUEST_AVAILABLE_RESULT_KEYS] = keys;
+  return *this;
+}
+
+MetadataBuilder& MetadataBuilder::setAvailableSessionKeys(
+    const std::vector<int32_t>& keys) {
+  mEntryMap[ANDROID_REQUEST_AVAILABLE_SESSION_KEYS] = keys;
   return *this;
 }
 
@@ -957,6 +946,34 @@ std::optional<int32_t> getSensorOrientation(
   return static_cast<int32_t>(entry.data.i32[0]);
 }
 
+void convertStreamConfigurationsToMetadataValues(
+    const std::vector<MetadataBuilder::StreamConfiguration>& streamConfigurations,
+    std::vector<int32_t>& metadataStreamConfigs,
+    std::vector<int64_t>& metadataMinFrameDurations,
+    std::vector<int64_t>& metadataStallDurations) {
+  metadataStreamConfigs.reserve(streamConfigurations.size());
+  metadataMinFrameDurations.reserve(streamConfigurations.size());
+  metadataStallDurations.reserve(streamConfigurations.size());
+
+  for (const auto& config : streamConfigurations) {
+    metadataStreamConfigs.push_back(config.format);
+    metadataStreamConfigs.push_back(config.width);
+    metadataStreamConfigs.push_back(config.height);
+    metadataStreamConfigs.push_back(
+        ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
+
+    metadataMinFrameDurations.push_back(config.format);
+    metadataMinFrameDurations.push_back(config.width);
+    metadataMinFrameDurations.push_back(config.height);
+    metadataMinFrameDurations.push_back(config.minFrameDuration.count());
+
+    metadataStallDurations.push_back(config.format);
+    metadataStallDurations.push_back(config.width);
+    metadataStallDurations.push_back(config.height);
+    metadataStallDurations.push_back(config.minStallDuration.count());
+  }
+}
+
 std::unique_ptr<AidlCameraMetadata> cameraMetadataToHal(
     const HelperCameraMetadata& metadataHelper) {
   const camera_metadata_t* metadata = metadataHelper.getAndLock();
@@ -974,15 +991,6 @@ std::unique_ptr<AidlCameraMetadata> cameraMetadataToHal(
   metadataHelper.unlock(metadata);
 
   return aidlMetadata;
-}
-
-std::optional<VirtualCameraMetadata> aidlToVirtualCameraMetadata(
-    const AidlCameraMetadata& cameraMetadata) {
-  auto virtualCameraMetadata = VirtualCameraMetadata();
-  // Copy the vector as it is, it represents the byte[] of a camera_metadata_t
-  virtualCameraMetadata.metadata = cameraMetadata.metadata;
-
-  return virtualCameraMetadata;
 }
 
 }  // namespace virtualcamera

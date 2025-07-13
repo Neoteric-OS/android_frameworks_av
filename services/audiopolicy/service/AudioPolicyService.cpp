@@ -47,6 +47,8 @@
 #include <AudioPolicyConfig.h>
 #include <AudioPolicyManager.h>
 
+#include <com_android_media_audio.h>
+
 namespace android {
 using binder::Status;
 using media::audio::common::Spatialization;
@@ -553,9 +555,15 @@ void AudioPolicyService::onRoutingUpdated()
 
 void AudioPolicyService::doOnRoutingUpdated()
 {
-  audio_utils::lock_guard _l(mNotificationClientsMutex);
-    for (size_t i = 0; i < mNotificationClients.size(); i++) {
-        mNotificationClients.valueAt(i)->onRoutingUpdated();
+    {
+        audio_utils::lock_guard _l(mNotificationClientsMutex);
+        for (size_t i = 0; i < mNotificationClients.size(); i++) {
+            mNotificationClients.valueAt(i)->onRoutingUpdated();
+        }
+    }
+
+    if (com_android_media_audio_stereo_spatialization_binaural_transaural()) {
+        doOnCheckSpatializer();
     }
 }
 
@@ -585,47 +593,56 @@ void AudioPolicyService::onCheckSpatializer_l()
     }
 }
 
+void AudioPolicyService::maybeCheckSpatializer_l() {
+    if (mSpatializer == nullptr ||
+            com_android_media_audio_stereo_spatialization_binaural_transaural()) {
+        return;
+    }
+    onCheckSpatializer_l();
+}
+
 void AudioPolicyService::doOnCheckSpatializer()
 {
     ALOGV("%s mSpatializer %p level %d",
         __func__, mSpatializer.get(), (int)mSpatializer->getLevel());
 
-    if (mSpatializer != nullptr) {
-        // Note: mSpatializer != nullptr =>  mAudioPolicyManager != nullptr
-        if (mSpatializer->getLevel() != Spatialization::Level::NONE) {
-            audio_io_handle_t currentOutput = mSpatializer->getOutput();
-            audio_io_handle_t newOutput;
-            const audio_attributes_t attr = attributes_initializer(AUDIO_USAGE_MEDIA);
-            audio_config_base_t config = mSpatializer->getAudioInConfig();
+    if (mSpatializer == nullptr) {
+        return;
+    }
+    // Note: mSpatializer != nullptr =>  mAudioPolicyManager != nullptr
+    if (mSpatializer->getLevel() != Spatialization::Level::NONE) {
+        audio_io_handle_t currentOutput = mSpatializer->getOutput();
+        audio_io_handle_t newOutput;
+        const audio_attributes_t attr = attributes_initializer(AUDIO_USAGE_MEDIA);
+        audio_config_base_t config = mSpatializer->getAudioInConfig();
 
+        audio_utils::lock_guard _l(mMutex);
+        status_t status =
+                mAudioPolicyManager->getSpatializerOutput(&config, &attr, &newOutput);
+        ALOGV("%s currentOutput %d newOutput %d channel_mask %#x",
+                __func__, currentOutput, newOutput, config.channel_mask);
+        if (status == NO_ERROR && currentOutput == newOutput) {
+            return;
+        }
+        std::vector<audio_channel_mask_t> activeTracksMasks =
+                getActiveTracksMasks_l(newOutput);
+        mMutex.unlock();
+        // It is OK to call detachOutput() is none is already attached.
+        mSpatializer->detachOutput();
+        if (status == NO_ERROR && newOutput != AUDIO_IO_HANDLE_NONE) {
+            status = mSpatializer->attachOutput(newOutput, activeTracksMasks);
+        }
+        mMutex.lock();
+        if (status != NO_ERROR) {
+            mAudioPolicyManager->releaseSpatializerOutput(newOutput);
+        }
+    } else if (mSpatializer->getLevel() == Spatialization::Level::NONE &&
+               mSpatializer->getOutput() != AUDIO_IO_HANDLE_NONE) {
+        audio_io_handle_t output = mSpatializer->detachOutput();
+
+        if (output != AUDIO_IO_HANDLE_NONE) {
             audio_utils::lock_guard _l(mMutex);
-            status_t status =
-                    mAudioPolicyManager->getSpatializerOutput(&config, &attr, &newOutput);
-            ALOGV("%s currentOutput %d newOutput %d channel_mask %#x",
-                    __func__, currentOutput, newOutput, config.channel_mask);
-            if (status == NO_ERROR && currentOutput == newOutput) {
-                return;
-            }
-            std::vector<audio_channel_mask_t> activeTracksMasks =
-                    getActiveTracksMasks_l(newOutput);
-            mMutex.unlock();
-            // It is OK to call detachOutput() is none is already attached.
-            mSpatializer->detachOutput();
-            if (status == NO_ERROR && newOutput != AUDIO_IO_HANDLE_NONE) {
-                status = mSpatializer->attachOutput(newOutput, activeTracksMasks);
-            }
-            mMutex.lock();
-            if (status != NO_ERROR) {
-                mAudioPolicyManager->releaseSpatializerOutput(newOutput);
-            }
-        } else if (mSpatializer->getLevel() == Spatialization::Level::NONE &&
-                   mSpatializer->getOutput() != AUDIO_IO_HANDLE_NONE) {
-            audio_io_handle_t output = mSpatializer->detachOutput();
-
-            if (output != AUDIO_IO_HANDLE_NONE) {
-                audio_utils::lock_guard _l(mMutex);
-                mAudioPolicyManager->releaseSpatializerOutput(output);
-            }
+            mAudioPolicyManager->releaseSpatializerOutput(output);
         }
     }
 }

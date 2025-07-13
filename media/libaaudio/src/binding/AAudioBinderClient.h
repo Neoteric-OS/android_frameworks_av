@@ -118,6 +118,10 @@ public:
 
     aaudio_result_t updateTimestamp(const AAudioHandleInfo& streamHandleInfo) override;
 
+    aaudio_result_t drainStream(const AAudioHandleInfo& streamHandleInfo) override;
+
+    aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) override;
+
     void onStreamChange(aaudio_handle_t /*handle*/, int32_t /*opcode*/, int32_t /*value*/) {
         // TODO This is just a stub so we can have a client Binder to pass to the service.
         // TODO Implemented in a later CL.

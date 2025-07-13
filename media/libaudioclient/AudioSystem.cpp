@@ -1221,7 +1221,13 @@ status_t AudioSystem::handleDeviceConfigChange(audio_devices_t device,
 }
 
 status_t AudioSystem::setPhoneState(audio_mode_t state, uid_t uid) {
-    if (uint32_t(state) >= AUDIO_MODE_CNT) return BAD_VALUE;
+    if (uint32_t(state) >= AUDIO_MODE_CNT) {
+        return BAD_VALUE;
+    }
+    if (state == AUDIO_MODE_ASSISTANT_CONVERSATION) {
+        ALOGE("%s: AUDIO_MODE_ASSISTANT_CONVERSATION not supported", __func__);
+        return BAD_VALUE;
+    }
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
 
