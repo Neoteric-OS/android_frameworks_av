@@ -260,6 +260,8 @@ public:
 
     virtual status_t openOutput(const media::OpenOutputRequest& request,
                                 media::OpenOutputResponse* response) = 0;
+    virtual status_t openMmapStream(const media::OpenMmapRequest& request,
+                                    media::OpenMmapResponse* response) = 0;
     virtual audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                     audio_io_handle_t output2) = 0;
     virtual status_t closeOutput(audio_io_handle_t output) = 0;
@@ -441,6 +443,8 @@ public:
                               audio_channel_mask_t channelMask) const override;
     status_t openOutput(const media::OpenOutputRequest& request,
                         media::OpenOutputResponse* response) override;
+    status_t openMmapStream(const media::OpenMmapRequest& request,
+                            media::OpenMmapResponse* response) override;
     audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
                                           audio_io_handle_t output2) override;
     status_t closeOutput(audio_io_handle_t output) override;
@@ -685,6 +689,8 @@ public:
                               int64_t* _aidl_return) override;
     Status openOutput(const media::OpenOutputRequest& request,
                       media::OpenOutputResponse* _aidl_return) override;
+    Status openMmapStream(const media::OpenMmapRequest& request,
+                      media::OpenMmapResponse* _aidl_return) override;
     Status openDuplicateOutput(int32_t output1, int32_t output2, int32_t* _aidl_return) override;
     Status closeOutput(int32_t output) override;
     Status suspendOutput(int32_t output) override;

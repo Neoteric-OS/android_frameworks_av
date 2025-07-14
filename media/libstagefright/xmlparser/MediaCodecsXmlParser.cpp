@@ -43,10 +43,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <memory>
+#include <mutex>
 #include <string>
 // QTI_BEGIN: 2018-06-05: Video: media: Add changes to pick target specific media xml's
 #include <cutils/properties.h>
 // QTI_END: 2018-06-05: Video: media: Add changes to pick target specific media xml's
+#include <vector>
 
 namespace android {
 

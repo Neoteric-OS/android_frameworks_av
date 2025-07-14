@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,22 @@
  * limitations under the License.
  */
 
-package android.companion.virtualcamera;
+package android.media;
 
-import android.companion.virtualcamera.VirtualCameraMetadata;
+import android.media.audio.common.AudioAttributes;
+import android.media.audio.common.AudioConfigBase;
+import android.media.audio.common.AudioOffloadInfo;
+import android.media.AudioClient;
+import android.media.IMmapStreamCallback;
 
-/**
- * AIDL Interface to inject capture results metadata to the virtual camera service.
- * @hide
- */
-oneway interface ICaptureResultConsumer {
-
-    /**
-     * Injects the CameraMetadata of the CaptureResult to be sent for the timestamp on all streams
-     * for the associated session.
-     */
-    void acceptCaptureResult(long timestamp, in VirtualCameraMetadata captureResultMetadata);
+/** {@hide} */
+parcelable OpenMmapRequest {
+    boolean isOutput;
+    AudioAttributes attr;
+    AudioConfigBase config;
+    AudioClient client;
+    int[] deviceIds;
+    int sessionId;
+    IMmapStreamCallback callback;
+    AudioOffloadInfo offloadInfo;
 }

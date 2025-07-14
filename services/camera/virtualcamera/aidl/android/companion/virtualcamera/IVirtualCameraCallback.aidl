@@ -48,10 +48,10 @@ oneway interface IVirtualCameraCallback {
      * @param sessionParameters - native CameraMetadata of the session parameters packed
      *      as VirtualCameraMetadata.
      * @param captureResultConsumer - consumer interface to inject the metadata of capture results
-     *      to the virtual camera service.
+     *      to the virtual camera service. It is null if per frame camera metadata is not enabled.
      */
     void onConfigureSession(in VirtualCameraMetadata sessionParameters,
-        in ICaptureResultConsumer captureResultConsumer);
+        in @nullable ICaptureResultConsumer captureResultConsumer);
 
     /**
      * Called when there's new video stream. This callback is sent after the client opens and

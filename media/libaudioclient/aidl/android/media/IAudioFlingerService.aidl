@@ -31,15 +31,20 @@ import android.media.CreateTrackResponse;
 import android.media.DeviceConnectedState;
 import android.media.OpenInputRequest;
 import android.media.OpenInputResponse;
+import android.media.OpenMmapRequest;
+import android.media.OpenMmapResponse;
 import android.media.OpenOutputRequest;
 import android.media.OpenOutputResponse;
 import android.media.EffectDescriptor;
 import android.media.IAudioFlingerClient;
 import android.media.IAudioRecord;
 import android.media.IAudioTrack;
+import android.media.IMmapStream;
+import android.media.IMmapStreamCallback;
 import android.media.ISoundDose;
 import android.media.ISoundDoseCallback;
 import android.media.MicrophoneInfoFw;
+import android.media.MmapBufferInfo;
 import android.media.RenderPosition;
 import android.media.TrackInternalMuteInfo;
 import android.media.TrackSecondaryOutputInfo;
@@ -134,6 +139,8 @@ interface IAudioFlingerService {
 
     OpenInputResponse openInput(in OpenInputRequest request);
     void closeInput(int /* audio_io_handle_t */ input);
+
+    OpenMmapResponse openMmapStream(in OpenMmapRequest request);
 
     void setVoiceVolume(float volume);
 

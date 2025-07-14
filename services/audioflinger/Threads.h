@@ -2312,7 +2312,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void configure(const audio_attributes_t* attr,
                    audio_stream_type_t streamType,
                    audio_session_t sessionId,
-                   const sp<MmapStreamCallback>& callback,
+                   const sp<media::IMmapStreamCallback>& callback,
                    const DeviceIdVector& deviceIds,
                    audio_port_handle_t portId,
                    [[maybe_unused]]const audio_offload_info_t* offloadInfo)
@@ -2324,7 +2324,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void configure_l(const audio_attributes_t* attr,
             audio_stream_type_t streamType,
             audio_session_t sessionId,
-            const sp<MmapStreamCallback>& callback,
+            const sp<media::IMmapStreamCallback>& callback,
             const DeviceIdVector& deviceIds,
             audio_port_handle_t portId) REQUIRES(mutex());
 
@@ -2340,7 +2340,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
             audio_port_handle_t* handle) final EXCLUDES_ThreadBase_Mutex;
     status_t stop(audio_port_handle_t handle) final EXCLUDES_ThreadBase_Mutex;
     status_t standby() final EXCLUDES_ThreadBase_Mutex;
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     status_t reportData(const void* buffer, size_t frameCount) override EXCLUDES_ThreadBase_Mutex;
     status_t drain() override EXCLUDES_ThreadBase_Mutex;
@@ -2438,7 +2438,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     audio_session_t mSessionId GUARDED_BY(mutex());
     audio_port_handle_t mPortId GUARDED_BY(mutex());
 
-    wp<MmapStreamCallback> mCallback GUARDED_BY(mutex());
+    wp<media::IMmapStreamCallback> mCallback GUARDED_BY(mutex());
     sp<StreamHalInterface> mHalStream; // NO_THREAD_SAFETY_ANALYSIS
     sp<DeviceHalInterface> mHalDevice GUARDED_BY(mutex());
     AudioHwDevice* const mAudioHwDev GUARDED_BY(mutex());
@@ -2460,7 +2460,7 @@ public:
     void configure(const audio_attributes_t* attr,
                    audio_stream_type_t streamType,
                    audio_session_t sessionId,
-                   const sp<MmapStreamCallback>& callback,
+                   const sp<media::IMmapStreamCallback>& callback,
                    const DeviceIdVector& deviceIds,
                    audio_port_handle_t portId,
                    const audio_offload_info_t* offloadInfo) final EXCLUDES_ThreadBase_Mutex;
@@ -2483,7 +2483,7 @@ public:
 
     void toAudioPortConfig(struct audio_port_config* config) final;
 
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const final;
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const final;
 
     status_t reportData(const void* buffer, size_t frameCount) final;
 
@@ -2521,7 +2521,7 @@ public:
 
     void toAudioPortConfig(struct audio_port_config* config) final;
 
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const final;
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const final;
 };
 
 class BitPerfectThread : public MixerThread {

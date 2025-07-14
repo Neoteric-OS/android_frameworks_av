@@ -42,11 +42,6 @@
 #include <android/media/AudioMixerAttributesInternal.h>
 #include <android/media/audio/common/AudioVolumeGroupChangeEvent.h>
 
-#define VALUE_OR_RETURN_BINDER_STATUS(x) \
-    ({ auto _tmp = (x); \
-       if (!_tmp.ok()) return aidl_utils::binderStatusFromStatusT(_tmp.error()); \
-       std::move(_tmp.value()); })
-
 // ----------------------------------------------------------------------------
 
 namespace audio_flags = android::media::audiopolicy;

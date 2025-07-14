@@ -427,6 +427,11 @@ status_t AudioFlingerClientAdapter::openOutput(const media::OpenOutputRequest& r
     return statusTFromBinderStatus(mDelegate->openOutput(request, response));
 }
 
+status_t AudioFlingerClientAdapter::openMmapStream(const media::OpenMmapRequest& request,
+                                                   media::OpenMmapResponse* response) {
+    return statusTFromBinderStatus(mDelegate->openMmapStream(request, response));
+}
+
 audio_io_handle_t AudioFlingerClientAdapter::openDuplicateOutput(audio_io_handle_t output1,
                                                                  audio_io_handle_t output2) {
     auto result = [&]() -> ConversionResult<audio_io_handle_t> {
@@ -1068,6 +1073,11 @@ Status AudioFlingerServerAdapter::getInputBufferSize(int32_t sampleRate,
 Status AudioFlingerServerAdapter::openOutput(const media::OpenOutputRequest& request,
                                              media::OpenOutputResponse* _aidl_return) {
     return Status::fromStatusT(mDelegate->openOutput(request, _aidl_return));
+}
+
+Status AudioFlingerServerAdapter::openMmapStream(const media::OpenMmapRequest& request,
+                                                 media::OpenMmapResponse* _aidl_return) {
+    return Status::fromStatusT(mDelegate->openMmapStream(request, _aidl_return));
 }
 
 Status AudioFlingerServerAdapter::openDuplicateOutput(int32_t output1, int32_t output2,

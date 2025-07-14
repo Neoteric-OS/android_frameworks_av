@@ -55,7 +55,7 @@ class VirtualCameraSessionContext {
       const ::aidl::android::hardware::camera::device::StreamConfiguration&
           streamConfiguration) EXCLUDES(mLock);
 
-  // Importored all not-yet imported buffers referenced by the capture request.
+  // Import all not-yet imported buffers referenced by the capture request.
   bool importBuffersFromCaptureRequest(
       const ::aidl::android::hardware::camera::device::CaptureRequest&
           captureRequest) EXCLUDES(mLock);

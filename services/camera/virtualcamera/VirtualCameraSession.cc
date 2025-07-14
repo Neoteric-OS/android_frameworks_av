@@ -39,9 +39,11 @@
 
 #include "CameraMetadata.h"
 #include "EGL/egl.h"
+#include "VirtualCameraCaptureResultConsumer.h"
 #include "VirtualCameraDevice.h"
 #include "VirtualCameraRenderThread.h"
 #include "VirtualCameraStream.h"
+#include "aidl/android/companion/virtualcamera/ICaptureResultConsumer.h"
 #include "aidl/android/companion/virtualcamera/SupportedStreamConfiguration.h"
 #include "aidl/android/companion/virtualcamera/VirtualCameraMetadata.h"
 #include "aidl/android/hardware/camera/common/Status.h"
@@ -76,6 +78,7 @@ namespace android {
 namespace companion {
 namespace virtualcamera {
 
+using ::aidl::android::companion::virtualcamera::ICaptureResultConsumer;
 using ::aidl::android::companion::virtualcamera::IVirtualCameraCallback;
 using ::aidl::android::companion::virtualcamera::SupportedStreamConfiguration;
 using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
@@ -317,11 +320,12 @@ VirtualCameraSession::VirtualCameraSession(
     ALOGE("%s: invalid result fmq", __func__);
   }
 
-  if (flags::virtual_camera_metadata() && cameraDevice != nullptr &&
-      cameraDevice->isPerFrameCameraMetadataEnabled()) {
-    // TODO: b/371167033 create and pass the CaptureResultConsumer if the per
-    // frame metadata is enabled, stub for now
-    mCaptureResultConsumer = nullptr;
+ std::shared_ptr<VirtualCameraDevice> virtualCamera = mCameraDevice.lock();
+ if (flags::virtual_camera_metadata() && virtualCamera != nullptr &&
+    virtualCamera->isPerFrameCameraMetadataEnabled()) {
+    // create a shared reference to the capture result consumer if it's enabled.
+    std::lock_guard<std::mutex> lock(mLock);
+    mCaptureResultConsumer = ndk::SharedRefBase::make<VirtualCameraCaptureResultConsumer>();
   }
 }
 
@@ -382,6 +386,7 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
   sp<Surface> inputSurface = nullptr;
   int inputStreamId = -1;
   std::optional<SupportedStreamConfiguration> inputConfig;
+  std::shared_ptr<ICaptureResultConsumer> captureResultConsumer = nullptr;
   {
     std::lock_guard<std::mutex> lock(mLock);
     for (int i = 0; i < in_requestedConfiguration.streams.size(); ++i) {
@@ -443,6 +448,9 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     inputSurface = mRenderThread->getInputSurface();
     inputStreamId = mCurrentInputStreamId =
         virtualCamera->allocateInputStreamId();
+
+    // initialize under the lock to avoid race conditions.
+    captureResultConsumer = mCaptureResultConsumer;
   }
 
   // The onConfigureSession is oneway async, just informs the VD owner of
@@ -455,8 +463,9 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     if (ret != OK) {
       ALOGE("Failed to convert device to virtual session parameters!");
     }
+
     mVirtualCameraClientCallback->onConfigureSession(sessionParamsMetadata,
-                                                     mCaptureResultConsumer);
+                                                     captureResultConsumer);
   }
 
   if (mVirtualCameraClientCallback != nullptr && inputSurface != nullptr) {

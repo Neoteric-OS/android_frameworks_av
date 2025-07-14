@@ -664,7 +664,7 @@ public:
     // may be passed back to the client.
     //
     // Only one AIDL MmapStreamInterface interface adapter should be created per MmapThread.
-    static sp<MmapStreamInterface> createMmapStreamInterfaceAdapter(
+  static sp<media::IMmapStream> createMmapStreamInterfaceAdapter(
             const sp<IAfMmapThread>& mmapThread);
 
     // Creates a Mmap playback thread from an AudioStreamOut ptr.
@@ -681,7 +681,7 @@ public:
             const audio_attributes_t* attr,
             audio_stream_type_t streamType,
             audio_session_t sessionId,
-            const sp<MmapStreamCallback>& callback,
+            const sp<media::IMmapStreamCallback>& callback,
             const DeviceIdVector& deviceIds,
             audio_port_handle_t portId,
             const audio_offload_info_t* offloadInfo) EXCLUDES_ThreadBase_Mutex = 0;
@@ -698,7 +698,7 @@ public:
             audio_port_handle_t* handle) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t stop(audio_port_handle_t handle) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t standby() EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
+    virtual status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t reportData(const void* buffer, size_t frameCount)
             EXCLUDES_ThreadBase_Mutex = 0;

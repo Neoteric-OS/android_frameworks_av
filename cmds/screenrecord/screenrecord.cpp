@@ -982,9 +982,9 @@ static status_t recordScreen(const char* fileName) {
         // Change recordingData to use Surface too in a follow up CL.
         sp<IGraphicBufferProducer> igbp =
                 android::mediaflagtools::surfaceTypeToIGBP(encoderInputSurface);
-        sp<IGraphicBufferProducer> bufferProducer =
-                android::mediaflagtools::surfaceTypeToIGBP(surface);
+        sp<IGraphicBufferProducer> bufferProducer;
         err = recordingData.overlay->start(igbp, &bufferProducer);
+        surface = android::mediaflagtools::igbpToSurfaceType(bufferProducer);
         if (err != NO_ERROR) {
             return err;
         }

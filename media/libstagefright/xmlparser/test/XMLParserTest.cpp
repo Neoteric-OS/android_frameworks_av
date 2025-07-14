@@ -19,6 +19,7 @@
 
 #include <utils/Log.h>
 
+#include <algorithm>
 #include <fstream>
 
 #include <media/stagefright/xmlparser/MediaCodecsXmlParser.h>

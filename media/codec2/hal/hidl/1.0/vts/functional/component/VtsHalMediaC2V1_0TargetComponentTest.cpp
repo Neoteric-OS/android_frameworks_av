@@ -112,6 +112,23 @@ class Codec2ComponentHidlTestBase : public ::testing::Test {
         }
     }
 
+    void configureComponent() {
+        // Query Component Domain Type
+        std::vector<std::unique_ptr<C2Param>> queried;
+        c2_status_t err = mComponent->query({}, {C2PortMediaTypeSetting::input::PARAM_TYPE},
+                                            C2_DONT_BLOCK, &queried);
+        ASSERT_EQ(err, C2_OK) << "query call failed";
+        ASSERT_NE(queried.size(), 0u) << "queried.size() is empty";
+
+        // Configure Component Domain
+        std::vector<std::unique_ptr<C2SettingResult>> failures;
+        C2PortMediaTypeSetting::input* portMediaType =
+                C2PortMediaTypeSetting::input::From(queried[0].get());
+        err = mComponent->config({portMediaType}, C2_DONT_BLOCK, &failures);
+        ASSERT_EQ(err, C2_OK) << "config call failed";
+        ASSERT_EQ(failures.size(), 0u);
+    }
+
     std::string mInstanceName;
     std::string mComponentName;
     bool mEos;
@@ -197,6 +214,20 @@ TEST_P(Codec2ComponentHidlTest, Config) {
     }
 }
 
+// Test create -> reset -> config
+TEST_P(Codec2ComponentHidlTest, CreateResetConfig) {
+    ALOGV("Create reset config Test");
+    mComponent->reset();
+    ASSERT_NO_FATAL_FAILURE(configureComponent());
+}
+
+// Test create -> stop -> config
+TEST_P(Codec2ComponentHidlTest, CreateStopConfig) {
+    ALOGV("Create stop config Test");
+    mComponent->stop();
+    ASSERT_NO_FATAL_FAILURE(configureComponent());
+}
+
 // Test Multiple Start Stop Reset Test
 TEST_P(Codec2ComponentHidlTest, MultipleStartStopReset) {
     ALOGV("Multiple Start Stop and Reset Test");
@@ -225,20 +256,7 @@ TEST_P(Codec2ComponentHidlTest, MultipleRelease) {
     c2_status_t err = mComponent->start();
     ASSERT_EQ(err, C2_OK);
 
-    // Query Component Domain Type
-    std::vector<std::unique_ptr<C2Param>> queried;
-    err = mComponent->query({}, {C2PortMediaTypeSetting::input::PARAM_TYPE}, C2_DONT_BLOCK,
-                            &queried);
-    EXPECT_NE(queried.size(), 0u);
-
-    // Configure Component Domain
-    std::vector<std::unique_ptr<C2SettingResult>> failures;
-    C2PortMediaTypeSetting::input* portMediaType =
-            C2PortMediaTypeSetting::input::From(queried[0].get());
-    err = mComponent->config({portMediaType}, C2_DONT_BLOCK, &failures);
-    ASSERT_EQ(err, C2_OK);
-    ASSERT_EQ(failures.size(), 0u);
-
+    ASSERT_NO_FATAL_FAILURE(configureComponent());
     for (size_t i = 0; i < MAX_RETRY; i++) {
         mComponent->release();
     }

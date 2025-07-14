@@ -152,6 +152,7 @@ private:
     android::audio_utils::TimerQueue::handle_t mCallbackTimerHandle
             GUARDED_BY(mStreamMutex){android::audio_utils::TimerQueue::INVALID_HANDLE};
     std::unique_ptr<android::audio_utils::TimerQueue> mTq;
+    bool mTqNotified GUARDED_BY(mStreamMutex){false};
 
     std::mutex mEndpointMutex;
 };
