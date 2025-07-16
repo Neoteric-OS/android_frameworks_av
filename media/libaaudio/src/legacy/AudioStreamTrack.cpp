@@ -425,6 +425,7 @@ aaudio_result_t AudioStreamTrack::requestFlush_l() {
     mAudioTrack->flush();
     mFramesRead.reset32(); // service reads frames, service position reset on flush
     mTimestampPosition.reset32();
+    mFixedBlockReader.flush();
     return AAUDIO_OK;
 }
 

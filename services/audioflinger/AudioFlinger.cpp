@@ -337,7 +337,6 @@ void AudioFlinger::onFirstRef()
 
     mMode = AUDIO_MODE_NORMAL;
 
-    gAudioFlinger = this;  // we are already refcounted, store into atomic pointer.
     mDeviceEffectManager = sp<DeviceEffectManager>::make(
             sp<IAfDeviceEffectManagerCallback>::fromExisting(this)),
     mDevicesFactoryHalCallback = new DevicesFactoryHalCallbackImpl;
@@ -500,41 +499,53 @@ AudioFlinger::~AudioFlinger()
     mPatchCommandThread->exit();
 }
 
-//static
-__attribute__ ((visibility ("default")))
-status_t MmapStreamInterface::openMmapStream(MmapStreamInterface::stream_direction_t direction,
-                                             const audio_attributes_t *attr,
-                                             audio_config_base_t *config,
-                                             const AudioClient& client,
-                                             DeviceIdVector *deviceIds,
-                                             audio_session_t *sessionId,
-                                             const sp<MmapStreamCallback>& callback,
-                                             const audio_offload_info_t* offloadInfo,
-                                             sp<MmapStreamInterface>& interface,
-                                             audio_port_handle_t *handle)
+status_t AudioFlinger::openMmapStream(const media::OpenMmapRequest& request,
+                                media::OpenMmapResponse* response)
 {
-    // TODO(b/292281786): Use ServiceManager to get IAudioFlinger instead of by atomic pointer.
-    // This allows moving oboeservice (AAudio) to a separate process in the future.
-    sp<AudioFlinger> af = AudioFlinger::gAudioFlinger.load();  // either nullptr or singleton AF.
-    status_t ret = NO_INIT;
-    if (af != 0) {
-        ret = af->openMmapStream(
-                direction, attr, config, client, deviceIds,
-                sessionId, callback, offloadInfo, interface, handle);
+    bool isOutput;
+    audio_attributes_t attr;
+    audio_config_base_t config;
+    AudioClient client;
+    DeviceIdVector deviceIds;
+    audio_session_t sessionId;
+    sp<media::IMmapStreamCallback> callback;
+    audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+
+    status_t status = MmapStreamInterface::parseRequest(
+            request, &isOutput, &attr, &config, &client, &deviceIds,
+            &sessionId, &callback, &offloadInfo);
+    if (status != OK) {
+        return status;
     }
-    return ret;
+
+    sp<media::IMmapStream> interface;
+    audio_port_handle_t portId;
+    status = openMmapStreamImpl(isOutput, attr, &config, client, &deviceIds,
+                                &sessionId, callback,
+                                offloadInfo.format == AUDIO_FORMAT_DEFAULT ?
+                                        nullptr : &offloadInfo,
+                                interface, &portId);
+    if (status != OK) {
+        return status;
+    }
+
+    status = MmapStreamInterface::buildResponse(
+        isOutput, config, deviceIds, sessionId, interface, portId, response);
+
+    ALOGW_IF(status != NO_ERROR, "%s: buildResponse status: %d", __func__, status);
+    return status;
 }
 
-status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t direction,
-                                      const audio_attributes_t *attr,
-                                      audio_config_base_t *config,
-                                      const AudioClient& client,
-                                      DeviceIdVector *deviceIds,
-                                      audio_session_t *sessionId,
-                                      const sp<MmapStreamCallback>& callback,
-                                      const audio_offload_info_t* offloadInfo,
-                                      sp<MmapStreamInterface>& interface,
-                                      audio_port_handle_t *handle)
+status_t AudioFlinger::openMmapStreamImpl(bool isOutput,
+                                          const audio_attributes_t& attr,
+                                          audio_config_base_t* config,
+                                          const AudioClient& client,
+                                          DeviceIdVector* deviceIds,
+                                          audio_session_t* sessionId,
+                                          const sp<media::IMmapStreamCallback>& callback,
+                                          const audio_offload_info_t* offloadInfo,
+                                          sp<media::IMmapStream>& interface,
+                                          audio_port_handle_t* handle)
 {
     status_t ret = initCheck();
     if (ret != NO_ERROR) {
@@ -547,7 +558,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT;
     audio_io_handle_t io = AUDIO_IO_HANDLE_NONE;
     audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
-    audio_attributes_t localAttr = *attr;
+    audio_attributes_t localAttr = attr;
 
     // TODO b/182392553: refactor or make clearer
     AttributionSourceState adjAttributionSource;
@@ -587,7 +598,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
         adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
     }
 
-    if (direction == MmapStreamInterface::DIRECTION_OUTPUT) {
+    if (isOutput) {
         audio_config_t fullConfig = AUDIO_CONFIG_INITIALIZER;
         fullConfig.sample_rate = config->sample_rate;
         fullConfig.channel_mask = config->channel_mask;
@@ -634,7 +645,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     }
     if (ret != NO_ERROR) {
         if (audioserver_flags::enable_gmap_mode()
-                && direction == MmapStreamInterface::DIRECTION_INPUT) {
+                && !isOutput) {
             audio_utils::lock_guard _l(mutex());
             setHasAlreadyCaptured_l(adjAttributionSource.uid);
         }
@@ -650,7 +661,6 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     if (const auto it = mMmapThreads.find(io);
             it != mMmapThreads.end()) {
         const sp<IAfMmapThread>& thread = it->second;
-        interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
         thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId,
                           offloadInfo);
         *handle = portId;
@@ -658,9 +668,10 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
         config->sample_rate = thread->sampleRate();
         config->channel_mask = thread->channelMask();
         config->format = thread->format();
+        interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
     } else {
         l.unlock();
-        if (direction == MmapStreamInterface::DIRECTION_OUTPUT) {
+        if (isOutput) {
             AudioSystem::releaseOutput(portId);
         } else {
             AudioSystem::releaseInput(portId);

@@ -117,6 +117,7 @@ cc_library {
         "AudioTrack.cpp",
         "AudioTrackShared.cpp",
         "IAudioFlinger.cpp",
+        "MmapStreamInterface.cpp",
         "PlayerBase.cpp",
         "RecordingActivityTracker.cpp",
         "ToneGenerator.cpp",
@@ -427,6 +428,12 @@ aidl_interface {
         "aidl/android/media/IAudioRecord.aidl",
         "aidl/android/media/IAudioTrack.aidl",
         "aidl/android/media/IAudioTrackCallback.aidl",
+
+        "aidl/android/media/IMmapStream.aidl",
+        "aidl/android/media/IMmapStreamCallback.aidl",
+        "aidl/android/media/MmapBufferInfo.aidl",
+        "aidl/android/media/OpenMmapRequest.aidl",
+        "aidl/android/media/OpenMmapResponse.aidl",
 
         "aidl/android/media/ISoundDose.aidl",
         "aidl/android/media/ISoundDoseCallback.aidl",

@@ -58,11 +58,6 @@ using media::audio::common::Spatialization;
 
 using namespace std::chrono_literals;
 
-#define VALUE_OR_RETURN_BINDER_STATUS(x) \
-    ({ auto _tmp = (x); \
-       if (!_tmp.ok()) return aidl_utils::binderStatusFromStatusT(_tmp.error()); \
-       std::move(_tmp.value()); })
-
 static audio_channel_mask_t getMaxChannelMask(
         const std::vector<audio_channel_mask_t>& masks, size_t channelLimit = SIZE_MAX) {
     uint32_t maxCount = 0;

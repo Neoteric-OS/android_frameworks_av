@@ -130,8 +130,7 @@ class VirtualCameraSession
       mVirtualCameraClientCallback;
 
   std::shared_ptr<::aidl::android::companion::virtualcamera::ICaptureResultConsumer>
-      mCaptureResultConsumer;
-
+      mCaptureResultConsumer GUARDED_BY(mLock);
   VirtualCameraSessionContext mSessionContext;
 
   using RequestMetadataQueue = AidlMessageQueue<

@@ -65,14 +65,6 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-// TODO: Remove when this is put into AidlConversionUtil.h
-#define VALUE_OR_RETURN_BINDER_STATUS(x)    \
-    ({                                      \
-       auto _tmp = (x);                     \
-       if (!_tmp.ok()) return ::android::aidl_utils::binderStatusFromStatusT(_tmp.error()); \
-       std::move(_tmp.value());             \
-     })
-
 namespace audioserver_flags = com::android::media::audioserver;
 
 namespace android {

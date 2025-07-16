@@ -273,12 +273,19 @@ aaudio_result_t AudioStreamInternalPlay::write(const void *buffer, int32_t numFr
                 if (drainNanos > 0) {
                     // Prefer using TimerQueue to wake up as it is more accurate on timing out.
                     if (mTq->ready()) {
+                        mTqNotified = false;
                         const auto timeToWakeUp = android::elapsedRealtimeNano() + drainNanos;
                         mCallbackTimerHandle = mTq->add([this]() {
+                            {
+                                std::lock_guard _l(mStreamMutex);
+                                mTqNotified = true;
+                            }
                             mCallbackCV.notify_one();
                         }, timeToWakeUp);
-                        mCallbackCV.wait(ul,
-                                         [this]() REQUIRES(mStreamMutex) { return !mDraining; });
+                        mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
+                                         [this]() REQUIRES(mStreamMutex) {
+                            return !mDraining || mTqNotified;
+                        });
                         mCallbackTimerHandle = TimerQueue::INVALID_HANDLE;
                     } else {
                         mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
@@ -693,12 +700,18 @@ void *AudioStreamInternalPlay::callbackLoop() {
                 }
                 // Prefer using TimerQueue to wake up as it is more accurate on timing out.
                 if (mTq->ready()) {
+                    mTqNotified = false;
                     const auto timeToWakeUp = android::elapsedRealtimeNano() + streamEndNanos;
                     mStreamEndTimerHandle = mTq->add([this]() {
+                        {
+                            std::lock_guard _l(mStreamMutex);
+                            mTqNotified = true;
+                        }
                         mStreamEndCV.notify_one();
                     }, timeToWakeUp);
-                    mStreamEndCV.wait(ul, [this]() REQUIRES(mStreamMutex) {
-                        return !mOffloadEosPending;
+                    mStreamEndCV.wait_for(ul, std::chrono::nanoseconds(streamEndNanos),
+                                          [this]() REQUIRES(mStreamMutex) {
+                        return !mOffloadEosPending || mTqNotified;
                     });
                     mStreamEndTimerHandle = TimerQueue::INVALID_HANDLE;
                 } else {
