@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <android-base/thread_annotations.h>
+#include <android/media/audio/common/AudioPlaybackRate.h>
 
 #include "client/AudioStreamInternal.h"
 #include "client/AudioStreamInternalPlay.h"
@@ -95,6 +96,18 @@ public:
     }
 
     virtual aaudio_result_t activate() {
+        ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
+        return AAUDIO_ERROR_UNAVAILABLE;
+    }
+
+    virtual aaudio_result_t setPlaybackParameters(
+            const android::media::audio::common::AudioPlaybackRate& /*rate*/) {
+        ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
+        return AAUDIO_ERROR_UNAVAILABLE;
+    }
+
+    virtual aaudio_result_t getPlaybackParameters(
+            android::media::audio::common::AudioPlaybackRate* /*rate*/) {
         ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
         return AAUDIO_ERROR_UNAVAILABLE;
     }

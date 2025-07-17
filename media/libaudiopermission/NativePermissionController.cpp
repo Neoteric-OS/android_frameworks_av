@@ -174,13 +174,14 @@ BinderResult<bool> NativePermissionController::checkPermission(PermissionEnum pe
 
 std::string NativePermissionController::dumpString() const {
     std::lock_guard l{m_};
-    std::string res {"Permission map: \n"};
+    std::string res{"Permission map: \n"};
     for (size_t i = 0; i < permission_map_.size(); i++) {
-        res += std::to_string(i) + ": ";
+        res += toString(static_cast<PermissionEnum>(i)) + ": ";
         bool is_first = true;
         for (uid_t uid : permission_map_[i]) {
             if (!is_first) {
                 res += ", ";
+            } else {
                 is_first = false;
             }
             res += std::to_string(uid);

@@ -66,6 +66,12 @@ public:
 
     aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) override;
 
+    aaudio_result_t setPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                          const android::AudioPlaybackRate& rate) override;
+
+    aaudio_result_t getPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                          android::AudioPlaybackRate* rate) override;
+
 private:
     IAAudioService* const mDelegate;
     // A unique id to recognize the service that the adapter connected to.

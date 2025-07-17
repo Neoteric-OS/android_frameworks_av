@@ -323,9 +323,10 @@ VirtualCameraSession::VirtualCameraSession(
  std::shared_ptr<VirtualCameraDevice> virtualCamera = mCameraDevice.lock();
  if (flags::virtual_camera_metadata() && virtualCamera != nullptr &&
     virtualCamera->isPerFrameCameraMetadataEnabled()) {
-    // create a shared reference to the capture result consumer if it's enabled.
-    std::lock_guard<std::mutex> lock(mLock);
-    mCaptureResultConsumer = ndk::SharedRefBase::make<VirtualCameraCaptureResultConsumer>();
+   // create a capture result consumer shared reference and set it in the
+   // session context.
+   mSessionContext.setCaptureResultConsumer(
+       ndk::SharedRefBase::make<VirtualCameraCaptureResultConsumer>());
   }
 }
 
@@ -386,7 +387,6 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
   sp<Surface> inputSurface = nullptr;
   int inputStreamId = -1;
   std::optional<SupportedStreamConfiguration> inputConfig;
-  std::shared_ptr<ICaptureResultConsumer> captureResultConsumer = nullptr;
   {
     std::lock_guard<std::mutex> lock(mLock);
     for (int i = 0; i < in_requestedConfiguration.streams.size(); ++i) {
@@ -448,9 +448,6 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     inputSurface = mRenderThread->getInputSurface();
     inputStreamId = mCurrentInputStreamId =
         virtualCamera->allocateInputStreamId();
-
-    // initialize under the lock to avoid race conditions.
-    captureResultConsumer = mCaptureResultConsumer;
   }
 
   // The onConfigureSession is oneway async, just informs the VD owner of
@@ -465,7 +462,7 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     }
 
     mVirtualCameraClientCallback->onConfigureSession(sessionParamsMetadata,
-                                                     captureResultConsumer);
+                                                     mSessionContext.getCaptureResultConsumer());
   }
 
   if (mVirtualCameraClientCallback != nullptr && inputSurface != nullptr) {

@@ -347,6 +347,32 @@ Status AAudioService::activateStream(int32_t streamHandle, int32_t* _aidl_return
     AIDL_RETURN(serviceStream->activate());
 }
 
+Status AAudioService::setPlaybackParameters(int32_t streamHandle,
+                                            const media::audio::common::AudioPlaybackRate& rate,
+                                            int32_t* _aidl_return) {
+    static_assert(std::is_same_v<aaudio_result_t, std::decay_t<typeof(*_aidl_return)>>);
+
+    const sp<AAudioServiceStreamBase> serviceStream = convertHandleToServiceStream(streamHandle);
+    if (serviceStream.get() == nullptr) {
+        ALOGW("%s(), invalid streamHandle = 0x%0x", __func__, streamHandle);
+        AIDL_RETURN(AAUDIO_ERROR_INVALID_HANDLE);
+    }
+    AIDL_RETURN(serviceStream->setPlaybackParameters(rate));
+}
+
+Status AAudioService::getPlaybackParameters(int32_t streamHandle,
+                                            media::audio::common::AudioPlaybackRate* rateOut,
+                                            int32_t* _aidl_return) {
+    static_assert(std::is_same_v<aaudio_result_t, std::decay_t<typeof(*_aidl_return)>>);
+
+    const sp<AAudioServiceStreamBase> serviceStream = convertHandleToServiceStream(streamHandle);
+    if (serviceStream.get() == nullptr) {
+        ALOGW("%s(), invalid streamHandle = 0x%0x", __func__, streamHandle);
+        AIDL_RETURN(AAUDIO_ERROR_INVALID_HANDLE);
+    }
+    AIDL_RETURN(serviceStream->getPlaybackParameters(rateOut));
+}
+
 bool AAudioService::isCallerInService() {
     const pid_t clientPid = VALUE_OR_FATAL(
             aidl2legacy_int32_t_pid_t(mAudioClient.attributionSource.pid));

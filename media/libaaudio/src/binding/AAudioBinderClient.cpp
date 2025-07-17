@@ -228,3 +228,19 @@ aaudio_result_t AAudioBinderClient::activateStream(
 
     return service->activateStream(streamHandleInfo);
 }
+
+aaudio_result_t AAudioBinderClient::setPlaybackParameters(
+        const AAudioHandleInfo& streamHandleInfo, const android::AudioPlaybackRate& rate) {
+    std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
+    if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
+
+    return service->setPlaybackParameters(streamHandleInfo, rate);
+}
+
+aaudio_result_t AAudioBinderClient::getPlaybackParameters(
+        const AAudioHandleInfo& streamHandleInfo, android::AudioPlaybackRate* rate) {
+    std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
+    if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
+
+    return service->getPlaybackParameters(streamHandleInfo, rate);
+}

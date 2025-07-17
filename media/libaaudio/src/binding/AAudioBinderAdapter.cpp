@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+#include <android/media/audio/common/AudioPlaybackRate.h>
 #include <binding/AAudioBinderAdapter.h>
+#include <media/AidlConversionCppNdk.h>
 #include <media/AidlConversionUtil.h>
 #include <utility/AAudioUtilities.h>
 
@@ -201,6 +203,47 @@ aaudio_result_t AAudioBinderAdapter::activateStream(
     if (!status.isOk()) {
         result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
     }
+    return result;
+}
+
+aaudio_result_t AAudioBinderAdapter::setPlaybackParameters(
+    const AAudioHandleInfo& streamHandleInfo, const android::AudioPlaybackRate& rate) {
+    if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+    auto aidl = android::legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(rate);
+    if (!aidl.ok()) {
+        return AAudioConvert_androidToAAudioResult(aidl.error());
+    }
+    aaudio_result_t result;
+    Status status = mDelegate->setPlaybackParameters(
+            streamHandleInfo.getHandle(), aidl.value(), &result);
+    if (!status.isOk()) {
+        result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
+    }
+    return result;
+}
+
+aaudio_result_t AAudioBinderAdapter::getPlaybackParameters(
+    const AAudioHandleInfo& streamHandleInfo, android::AudioPlaybackRate* rate) {
+    if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
+        return AAUDIO_ERROR_DISCONNECTED;
+    }
+    android::media::audio::common::AudioPlaybackRate aidlRate;
+    aaudio_result_t result;
+    Status status = mDelegate->getPlaybackParameters(
+            streamHandleInfo.getHandle(), &aidlRate, &result);
+    if (!status.isOk()) {
+        return AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
+    }
+    if (result != AAUDIO_OK) {
+        return result;
+    }
+    auto legacy = android::aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(aidlRate);
+    if (!legacy.ok()) {
+        return AAudioConvert_androidToAAudioResult(legacy.error());
+    }
+    *rate = legacy.value();
     return result;
 }
 

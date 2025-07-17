@@ -18,6 +18,7 @@
 
 #include <android/media/IAudioTrackCallback.h>
 #include <android/media/IEffectClient.h>
+#include <android/media/audio/common/AudioPlaybackRate.h>
 #include <audiomanager/IAudioManager.h>
 #include <audio_utils/DeferredExecutor.h>
 #include <audio_utils/MelProcessor.h>
@@ -704,6 +705,10 @@ public:
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t drain() EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t activate() EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t setPlaybackParameters(
+            const media::audio::common::AudioPlaybackRate& rate) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t getPlaybackParameters(
+            media::audio::common::AudioPlaybackRate* rate) EXCLUDES_ThreadBase_Mutex = 0;
 
     // Sets the UID records silence - TODO(b/291317898)  move to IAfMmapCaptureThread
     virtual void setRecordSilenced(audio_port_handle_t portId, bool silenced)

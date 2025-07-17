@@ -382,4 +382,12 @@ aaudio_result_t AAudioConvert_aaudioToAndroidPlaybackParameters(
 aaudio_result_t AAudioConvert_androidToAAudioPlaybackParameters(
         const android::AudioPlaybackRate& rate, AAudioPlaybackParameters* parameters);
 
+static inline bool isAAudioPlaybackParametersEqual(
+        const AAudioPlaybackParameters& p1, const AAudioPlaybackParameters& p2) {
+    return fabs(p1.speed - p2.speed) < AUDIO_TIMESTRETCH_SPEED_MIN_DELTA &&
+            fabs(p1.pitch - p2.pitch) < AUDIO_TIMESTRETCH_PITCH_MIN_DELTA &&
+            p1.stretchMode == p2.stretchMode &&
+            p1.fallbackMode == p2.fallbackMode;
+}
+
 #endif //UTILITY_AAUDIO_UTILITIES_H

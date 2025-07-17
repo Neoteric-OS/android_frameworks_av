@@ -468,10 +468,6 @@ AttributionSourceState getCallingAttributionSource() {
   return attributionSource;
 }
 
-void purgePermissionCache() {
-    PermissionCache::purgeCache();
-}
-
 status_t checkIMemory(const sp<IMemory>& iMemory)
 {
     if (iMemory == 0) {

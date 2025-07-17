@@ -754,7 +754,7 @@ aaudio_result_t AudioStreamTrack::setPlaybackParameters_l(
 }
 
 aaudio_result_t AudioStreamTrack::getPlaybackParameters_l(
-        AAudioPlaybackParameters* parameters) const {
+        AAudioPlaybackParameters* parameters) {
     if (mAudioTrack.get() == nullptr) {
         ALOGE("%s() no AudioTrack", __func__);
         return AAUDIO_ERROR_INVALID_STATE;

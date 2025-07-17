@@ -75,11 +75,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     android::startRecording(attributionSource, deviceId, msgStr16, source);
     android::finishRecording(attributionSource, deviceId, source);
     android::captureAudioOutputAllowed(attributionSource);
-    android::captureMediaOutputAllowed(attributionSource);
-    android::captureHotwordAllowed(attributionSource);
     android::modifyPhoneStateAllowed(attributionSource);
     android::bypassInterruptionPolicyAllowed(attributionSource);
-    android::settingsAllowed();
     android::modifyAudioRoutingAllowed();
     android::modifyDefaultAudioEffectsAllowed();
     android::dumpAllowed();

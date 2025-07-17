@@ -18,6 +18,7 @@ package android.media;
 
 import android.media.AudioClient;
 import android.media.audio.common.AudioAttributes;
+import android.media.audio.common.AudioPlaybackRate;
 import android.media.MmapBufferInfo;
 
 /**
@@ -114,4 +115,8 @@ interface IMmapStream {
      * Notify the stream is active.
      */
     void activate();
+
+    void setPlaybackParameters(in AudioPlaybackRate rate);
+
+    void getPlaybackParameters(out AudioPlaybackRate rate);
 }

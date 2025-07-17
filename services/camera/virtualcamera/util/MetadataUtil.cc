@@ -28,6 +28,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <set>
 
 #include "CameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
@@ -46,7 +47,6 @@ using AidlCameraMetadata =
     ::aidl::android::hardware::camera::device::CameraMetadata;
 using HelperCameraMetadata =
     ::android::hardware::camera::common::helper::CameraMetadata;
-using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
 
 template <typename To, typename From>
 std::vector<To> convertTo(const std::vector<From>& from) {
@@ -724,19 +724,18 @@ MetadataBuilder& MetadataBuilder::setAvailableCharacteristicKeys() {
   return *this;
 }
 
-std::unique_ptr<AidlCameraMetadata> MetadataBuilder::build() {
-  if (mExtendWithAvailableCharacteristicsKeys) {
-    std::vector<camera_metadata_tag_t> availableKeys;
-    availableKeys.reserve(mEntryMap.size());
-    for (const auto& [key, _] : mEntryMap) {
-      if (key != ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS) {
-        availableKeys.push_back(key);
-      }
-    }
-    setAvailableCharacteristicKeys(availableKeys);
+MetadataBuilder& MetadataBuilder::setCustomMetadata(
+    const camera_metadata_t* customMetadata) {
+  if (mCustomMetadata != nullptr) {
+    free_camera_metadata(mCustomMetadata);
   }
+  mCustomMetadata = clone_camera_metadata(customMetadata);
+  return *this;
+}
 
+std::unique_ptr<AidlCameraMetadata> MetadataBuilder::build() {
   HelperCameraMetadata metadataHelper;
+  std::set<camera_metadata_tag_t> availableKeys;
   for (const auto& entry : mEntryMap) {
     status_t ret = std::visit(
         [&](auto&& arg) {
@@ -749,6 +748,37 @@ std::unique_ptr<AidlCameraMetadata> MetadataBuilder::build() {
             ::android::statusToString(ret).c_str());
       return nullptr;
     }
+    if (mExtendWithAvailableCharacteristicsKeys) {
+      availableKeys.insert(entry.first);
+    }
+  }
+
+  if (mCustomMetadata != nullptr) {
+    for (int i = 0; i < get_camera_metadata_entry_count(mCustomMetadata); ++i) {
+      camera_metadata_ro_entry_t entry;
+      if (get_camera_metadata_ro_entry(mCustomMetadata, i, &entry) != OK) {
+        continue;
+      }
+
+      status_t ret = metadataHelper.update(entry);
+      if (ret != NO_ERROR) {
+        ALOGE("Failed to update metadata with custom key %d - %s: %s",
+              entry.tag, get_camera_metadata_tag_name(entry.tag),
+              ::android::statusToString(ret).c_str());
+        // only log custom metadata errors and continue
+        continue;
+      }
+
+      if (mExtendWithAvailableCharacteristicsKeys) {
+        availableKeys.insert(static_cast<camera_metadata_tag_t>(entry.tag));
+      }
+    }
+  }
+
+  if (mExtendWithAvailableCharacteristicsKeys) {
+    availableKeys.erase(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
+    setAvailableCharacteristicKeys(std::vector<camera_metadata_tag_t>(
+        availableKeys.begin(), availableKeys.end()));
   }
 
   return cameraMetadataToHal(metadataHelper);

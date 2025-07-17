@@ -109,7 +109,7 @@ protected:
         return AAUDIO_ERROR_UNIMPLEMENTED;
     }
     virtual aaudio_result_t getPlaybackParameters_l(
-            AAudioPlaybackParameters* parameters [[maybe_unused]]) const
+            AAudioPlaybackParameters* parameters [[maybe_unused]])
             REQUIRES(mStreamMutex) {
         return AAUDIO_ERROR_UNIMPLEMENTED;
     }

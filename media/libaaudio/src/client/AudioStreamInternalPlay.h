@@ -33,6 +33,14 @@ using android::sp;
 
 namespace aaudio {
 
+// Keep this the same as AUDIO_PLAYBACK_RATE_INITIALIZER;
+static constexpr AAudioPlaybackParameters AAUDIO_PLAYBACK_PARAMETERS_DEFAULT = {
+        .fallbackMode = AAUDIO_FALLBACK_MODE_FAIL,
+        .stretchMode = AAUDIO_STRETCH_MODE_DEFAULT,
+        .pitch = 1.0f,
+        .speed = 1.0f,
+};
+
 class AudioStreamInternalPlay : public AudioStreamInternal {
 public:
     explicit AudioStreamInternalPlay(AAudioServiceInterface  &serviceInterface,
@@ -113,6 +121,12 @@ protected:
                isClockModelInControl() &&
                getDeviceBufferSize() > getDeviceSampleRate();
     }
+
+    aaudio_result_t setPlaybackParameters_l(const AAudioPlaybackParameters* parameters)
+            REQUIRES(mStreamMutex) final;
+    aaudio_result_t getPlaybackParameters_l(AAudioPlaybackParameters* parameters)
+            REQUIRES(mStreamMutex) final;
+
 private:
     /*
      * Asynchronous write with data conversion.
@@ -155,6 +169,8 @@ private:
     bool mTqNotified GUARDED_BY(mStreamMutex){false};
 
     std::mutex mEndpointMutex;
+
+    AAudioPlaybackParameters mPlaybackParameters = AAUDIO_PLAYBACK_PARAMETERS_DEFAULT;
 };
 
 } /* namespace aaudio */

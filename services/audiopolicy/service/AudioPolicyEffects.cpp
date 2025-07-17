@@ -24,7 +24,6 @@
 #include <cutils/misc.h>
 #include <media/AudioEffect.h>
 #include <media/EffectsConfig.h>
-#include <mediautils/ServiceUtilities.h>
 #include <system/audio.h>
 #include <system/audio_effects/audio_effects_conf.h>
 #include <utils/Vector.h>

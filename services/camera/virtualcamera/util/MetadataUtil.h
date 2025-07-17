@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "CameraMetadata.h"
-#include "aidl/android/companion/virtualcamera/VirtualCameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
 #include "system/camera_metadata.h"
 #include "util/Util.h"
@@ -62,7 +61,11 @@ class MetadataBuilder {
   };
 
   MetadataBuilder() = default;
-  ~MetadataBuilder() = default;
+  ~MetadataBuilder() {
+    if (mCustomMetadata != nullptr) {
+      free_camera_metadata(mCustomMetadata);
+    }
+  };
 
   // See ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL in CameraMetadataTag.aidl.
   MetadataBuilder& setSupportedHardwareLevel(
@@ -435,6 +438,12 @@ class MetadataBuilder {
   // containing all set tags.
   MetadataBuilder& setAvailableCharacteristicKeys();
 
+  // Add custom metadata to the built metadata.
+  //
+  // Its keys and values have priority and will update the Builder set values
+  // when build() is called.
+  MetadataBuilder& setCustomMetadata(const camera_metadata_t* customMetadata);
+
   // Build CameraMetadata instance.
   //
   // Returns nullptr in case something went wrong.
@@ -451,6 +460,10 @@ class MetadataBuilder {
       mEntryMap;
   // Extend metadata with ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS.
   bool mExtendWithAvailableCharacteristicsKeys = false;
+
+  // Additional custom metadata to be added to the built metadata.
+  // Its keys and values have priority and will update the Builder set values.
+  camera_metadata_t* mCustomMetadata = nullptr;
 };
 
 // Returns JPEG_QUALITY from metadata, or nullopt if the key is not present.

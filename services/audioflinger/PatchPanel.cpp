@@ -27,7 +27,6 @@
 #include <media/AudioValidator.h>
 #include <media/DeviceDescriptorBase.h>
 #include <media/PatchBuilder.h>
-#include <mediautils/ServiceUtilities.h>
 #include <utils/Log.h>
 
 // ----------------------------------------------------------------------------

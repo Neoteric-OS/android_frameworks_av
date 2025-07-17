@@ -430,6 +430,48 @@ aaudio_result_t AAudioServiceStreamBase::activate_l(TimestampScheduler* schedule
     return endpoint->activate();
 }
 
+aaudio_result_t AAudioServiceStreamBase::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    return sendCommand(SET_PLAYBACK_PARAMETERS,
+                       std::make_shared<SetPlaybackParametersParam>(rate),
+                       true /*waitForReply*/,
+                       TIMEOUT_NANOS);
+}
+
+aaudio_result_t AAudioServiceStreamBase::onSetPlaybackParameters_l(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
+    if (endpoint == nullptr) {
+        ALOGE("%s() has no endpoint", __func__);
+        return AAUDIO_ERROR_INVALID_STATE;
+    }
+    return endpoint->setPlaybackParameters(rate);
+}
+
+aaudio_result_t AAudioServiceStreamBase::getPlaybackParameters(
+        media::audio::common::AudioPlaybackRate* rate) {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    return sendCommand(GET_PLAYBACK_PARAMETERS,
+                       std::make_shared<GetPlaybackParametersParam>(rate),
+                       true /*waitForReply*/,
+                       TIMEOUT_NANOS);
+}
+
+aaudio_result_t AAudioServiceStreamBase::onGetPlaybackParameters_l(
+        media::audio::common::AudioPlaybackRate* rate) {
+    sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
+    if (endpoint == nullptr) {
+        ALOGE("%s() has no endpoint", __func__);
+        return AAUDIO_ERROR_INVALID_STATE;
+    }
+    return endpoint->getPlaybackParameters(rate);
+}
+
 // implement Runnable, periodically send timestamps to client and process commands from queue.
 // Enter standby mode if idle for a while.
 __attribute__((no_sanitize("integer")))
@@ -614,6 +656,14 @@ void AAudioServiceStreamBase::run() {
                                                          &nextDataReportTime);
                         }
                     }
+                } break;
+                case SET_PLAYBACK_PARAMETERS: {
+                    auto param = (SetPlaybackParametersParam *) command->parameter.get();
+                    command->result = onSetPlaybackParameters_l(param->mRate);
+                } break;
+                case GET_PLAYBACK_PARAMETERS: {
+                    auto param = (GetPlaybackParametersParam *) command->parameter.get();
+                    command->result = onGetPlaybackParameters_l(param->mRate);
                 } break;
                 default:
                     ALOGE("Invalid command op code: %d", command->operationCode);

@@ -50,7 +50,6 @@ using android::audio_utils::TimerQueue;
 AudioStreamInternalPlay::AudioStreamInternalPlay(AAudioServiceInterface  &serviceInterface,
                                                        bool inService)
         : AudioStreamInternal(serviceInterface, inService) {
-
 }
 
 constexpr int kRampMSec = 10; // time to apply a change in volume
@@ -676,6 +675,65 @@ aaudio_result_t AudioStreamInternalPlay::activateStream_l() {
     result = isDisconnected() ? AAUDIO_ERROR_DISCONNECTED : result;
     maybeCallErrorCallback(result);
     return result;
+}
+
+aaudio_result_t AudioStreamInternalPlay::setPlaybackParameters_l(
+        const AAudioPlaybackParameters* parameters) {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        // Setting playback parameters is not supported for offload stream.
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+    if (isAAudioPlaybackParametersEqual(*parameters, mPlaybackParameters)) {
+        return AAUDIO_OK;
+    }
+    android::AudioPlaybackRate rate = android::AUDIO_PLAYBACK_RATE_DEFAULT;
+    if (aaudio_result_t result =
+                AAudioConvert_aaudioToAndroidPlaybackParameters(*parameters, &rate);
+            result != AAUDIO_OK) {
+        ALOGE("%s failed to convert to android playback parameters", __func__);
+        return result;
+    }
+    if (!android::isAudioPlaybackRateValid(rate)) {
+        ALOGE("%s failed, the playback parameters are not valid", __func__);
+        return AAUDIO_ERROR_ILLEGAL_ARGUMENT;
+    }
+
+    const aaudio_result_t result = mServiceInterface.setPlaybackParameters(
+            mServiceStreamHandleInfo, rate);
+    if (result == AAUDIO_OK) {
+        mPlaybackParameters = *parameters;
+        // The playback speed is guaranteed to be greater than 0 by `isAudioPlaybackRateValid`.
+        mClockModel.setPlaybackSpeed(mPlaybackParameters.speed);
+    } else {
+        ALOGE("%s failed, error=%d", __func__, result);
+    }
+    return result;
+}
+
+aaudio_result_t AudioStreamInternalPlay::getPlaybackParameters_l(
+        AAudioPlaybackParameters* parameters) {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        // Setting playback parameters is not supported for offload stream.
+        return AAUDIO_ERROR_UNIMPLEMENTED;
+    }
+
+    android::AudioPlaybackRate rate;
+    aaudio_result_t result = mServiceInterface.getPlaybackParameters(
+            mServiceStreamHandleInfo, &rate);
+    if (result != AAUDIO_OK) {
+        ALOGE("%s failed to query from service", __func__);
+        return result;
+    }
+    AAudioPlaybackParameters tempParam;
+    if (result = AAudioConvert_androidToAAudioPlaybackParameters(rate, &tempParam);
+        result != AAUDIO_OK) {
+        ALOGE("%s failed to convert to aaudio playback parameters", __func__);
+        return result;
+    }
+    mPlaybackParameters = tempParam;
+    mClockModel.setPlaybackSpeed(mPlaybackParameters.speed);
+    *parameters = tempParam;
+    return AAUDIO_OK;
 }
 
 // Render audio in the application callback and then write the data to the stream.

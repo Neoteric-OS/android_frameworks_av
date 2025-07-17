@@ -74,7 +74,6 @@ using ::com::android::media::audio::hardening_impl;
 using ::com::android::media::audio::hardening_partial;
 using ::com::android::media::audio::hardening_strict;
 using binder::Status;
-using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using content::AttributionSourceState;
 using media::VolumeShaper;
@@ -3299,22 +3298,14 @@ status_t RecordTrack::shareAudioHistory(
     attributionSource.pid = VALUE_OR_RETURN_STATUS(legacy2aidl_uid_t_int32_t(callingPid));
     attributionSource.token = sp<BBinder>::make();
     const sp<IAfThreadBase> thread = mThread.promote();
-    if (audioserver_permissions()) {
-        const auto res = thread->afThreadCallback()->getPermissionProvider().checkPermission(
-                    CAPTURE_AUDIO_HOTWORD,
-                    attributionSource.uid);
-            if (!res.ok()) {
-                return aidl_utils::statusTFromBinderStatus(res.error());
-            }
-            if (!res.value()) {
-                return PERMISSION_DENIED;
-            }
-    } else {
-        if (!captureHotwordAllowed(attributionSource)) {
-            return PERMISSION_DENIED;
-        }
+    const auto res = thread->afThreadCallback()->getPermissionProvider().checkPermission(
+            CAPTURE_AUDIO_HOTWORD, attributionSource.uid);
+    if (!res.ok()) {
+        return aidl_utils::statusTFromBinderStatus(res.error());
     }
-
+    if (!res.value()) {
+        return PERMISSION_DENIED;
+    }
     if (thread != 0) {
         auto* const recordThread = thread->asIAfRecordThread().get();
         status_t status = recordThread->shareAudioHistory(

@@ -99,23 +99,15 @@ void finishRecording(const AttributionSourceState& attributionSource, uint32_t v
 std::optional<AttributionSourceState> resolveAttributionSource(
     const AttributionSourceState& callerAttributionSource, uint32_t virtualDeviceId);
 bool captureAudioOutputAllowed(const AttributionSourceState& attributionSource);
-bool captureMediaOutputAllowed(const AttributionSourceState& attributionSource);
 bool captureTunerAudioInputAllowed(const AttributionSourceState& attributionSource);
-bool captureVoiceCommunicationOutputAllowed(const AttributionSourceState& attributionSource);
-bool bypassConcurrentPolicyAllowed(const AttributionSourceState& attributionSource) ;
-bool accessUltrasoundAllowed(const AttributionSourceState& attributionSource);
-bool captureHotwordAllowed(const AttributionSourceState& attributionSource);
-bool settingsAllowed();
 bool modifyAudioRoutingAllowed();
 bool modifyAudioRoutingAllowed(const AttributionSourceState& attributionSource);
 bool modifyDefaultAudioEffectsAllowed();
 bool modifyDefaultAudioEffectsAllowed(const AttributionSourceState& attributionSource);
-bool modifyAudioSettingsPrivilegedAllowed(const AttributionSourceState& attributionSource);
 bool dumpAllowed();
 bool modifyPhoneStateAllowed(const AttributionSourceState& attributionSource);
 bool bypassInterruptionPolicyAllowed(const AttributionSourceState& attributionSource);
 bool callAudioInterceptionAllowed(const AttributionSourceState& attributionSource);
-void purgePermissionCache();
 
 void anonymizeBluetoothAddress(char *address);
 

@@ -197,11 +197,12 @@ public:
         // mediautils::getService() installs a persistent new service notification.
         auto service = mediautils::getService<
             media::IAudioFlingerService>(waitMs);
-        ALOGD("%s: checking for service %s: %p", __func__, getServiceName(), service.get());
 
         ul.lock();
         // return the IAudioFlinger interface which is adapted
         // from the media::IAudioFlingerService.
+        ALOGD("%s: IAudioFlingerService retrieved: %p  IAudioFlinger cached: %p",
+                __func__, service.get(), mService.get());
         return mService;
     }
 
@@ -1066,12 +1067,13 @@ public:
 
         auto service = mediautils::getService<
                 media::IAudioPolicyService>(waitMs);
-        ALOGD("%s: checking for service %s: %p", __func__, getServiceName(), service.get());
 
         // mediautils::getService() will return early if setLocalService() is called
         // (whereupon mService contained the actual local service pointer to use).
         // we should always return mService.
         ul.lock();
+        ALOGD("%s: IAudioPolicyService retrieved: %p  cached: %p",
+                __func__, service.get(), mService.get());
         return mService;
     }
 

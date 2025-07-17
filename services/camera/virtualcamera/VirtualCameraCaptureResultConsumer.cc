@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
- #define LOG_TAG "VirtualCameraCaptureResultConsumer"
+#define LOG_TAG "VirtualCameraCaptureResultConsumer"
 
- #include "VirtualCameraCaptureResultConsumer.h"
+#include "VirtualCameraCaptureResultConsumer.h"
 
 #include "util/AidlUtil.h"
 #include "utils/Log.h"
@@ -26,31 +26,51 @@ namespace companion {
 namespace virtualcamera {
 
 using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
-using ::aidl::android::hardware::camera::device::CameraMetadata;
 
- ndk::ScopedAStatus VirtualCameraCaptureResultConsumer::acceptCaptureResult(
-     int64_t timestamp,
-     const VirtualCameraMetadata& captureResultMetadata) {
-    auto metadata = std::make_unique<CameraMetadata>();
-    status_t ret =
-        convertVirtualToDeviceCameraMetadata(captureResultMetadata, *metadata);
-    if (ret != OK) {
-      ALOGE("Failed to convert virtual to device CaptureResult!");
-      // Return OK to the client, we just log the error and drop the metadata.
-      return ndk::ScopedAStatus::ok();
-    }
+VirtualCameraCaptureResultConsumer::~VirtualCameraCaptureResultConsumer() {
+  std::lock_guard<std::mutex> lock(mLock);
+  if (mLastMetadata != nullptr) {
+    free_camera_metadata(mLastMetadata);
+    mLastMetadata = nullptr;
+  }
+}
 
-    {
-      std::lock_guard<std::mutex> lock(mLock);
-      mLastTimestamp = timestamp;
-      mLastMetadata = std::move(metadata);
-    }
+ndk::ScopedAStatus VirtualCameraCaptureResultConsumer::acceptCaptureResult(
+    int64_t timestamp, const VirtualCameraMetadata& captureResultMetadata) {
+  ::aidl::android::hardware::camera::device::CameraMetadata deviceCameraMetadata;
+  status_t ret = convertVirtualToDeviceCameraMetadata(captureResultMetadata,
+                                                      deviceCameraMetadata);
+  if (ret != OK) {
+    ALOGE("Failed to convert virtual to device CaptureResult!");
+    // Return OK to the client, we just log the error and drop the metadata.
+    return ndk::ScopedAStatus::ok();
+  }
 
-    // TODO: b/371167033 merge the capture result metadata in submitCaptureResult
+  const camera_metadata_t* rawMetadata =
+      reinterpret_cast<const camera_metadata_t*>(
+          deviceCameraMetadata.metadata.data());
+  camera_metadata_t* newMetadata = clone_camera_metadata(rawMetadata);
 
-   return ndk::ScopedAStatus::ok();
- }
+  std::lock_guard<std::mutex> lock(mLock);
+  if (mLastMetadata) {
+    free_camera_metadata(mLastMetadata);
+  }
+  mLastTimestamp = timestamp;
+  mLastMetadata = newMetadata;
 
- }  // namespace virtualcamera
- }  // namespace companion
- }  // namespace android
+  return ndk::ScopedAStatus::ok();
+}
+
+const camera_metadata_t*
+VirtualCameraCaptureResultConsumer::getCaptureResultMetadataForTimestamp(
+    int64_t timestamp) {
+  std::lock_guard<std::mutex> lock(mLock);
+  if (mLastTimestamp == timestamp && mLastMetadata != nullptr) {
+    return clone_camera_metadata(mLastMetadata);
+  }
+  return nullptr;
+}
+
+}  // namespace virtualcamera
+}  // namespace companion
+}  // namespace android

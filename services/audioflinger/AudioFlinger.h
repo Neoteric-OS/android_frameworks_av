@@ -38,7 +38,6 @@
 #include <media/IAudioPolicyServiceLocal.h>
 #include <media/MediaMetricsItem.h>
 #include <media/audiohal/DevicesFactoryHalInterface.h>
-#include <mediautils/ServiceUtilities.h>
 #include <mediautils/Synchronization.h>
 #include <psh_utils/AudioPowerManager.h>
 
