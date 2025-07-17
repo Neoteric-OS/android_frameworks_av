@@ -1207,6 +1207,8 @@ String16 ThreadBase::getWakeLockTag()
         return String16("AudioSpatial");
     case BIT_PERFECT:
         return String16("AudioBitPerfect");
+    case DIRECT_RECORD:
+        return String16("AudioDirectIn");
     default:
         ALOG_ASSERT(false);
         return String16("AudioUnknown");
