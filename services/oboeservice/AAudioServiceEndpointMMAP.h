@@ -75,6 +75,13 @@ public:
 
     aaudio_result_t activate() final EXCLUDES(mMmapStreamLock);
 
+    aaudio_result_t setPlaybackParameters(
+            const android::media::audio::common::AudioPlaybackRate& rate)
+            final EXCLUDES(mMmapStreamLock);
+
+    aaudio_result_t getPlaybackParameters(
+            android::media::audio::common::AudioPlaybackRate* rate) final EXCLUDES(mMmapStreamLock);
+
     aaudio_result_t getFreeRunningPosition(int64_t *positionFrames, int64_t *timeNanos) override
              EXCLUDES(mMmapStreamLock);
 

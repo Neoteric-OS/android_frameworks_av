@@ -20,6 +20,7 @@
 
 #include "VirtualCameraCaptureRequest.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
+#include "system/camera_metadata.h"
 #include "util/MetadataUtil.h"
 
 namespace android {
@@ -38,7 +39,8 @@ static constexpr uint8_t kPipelineDepth = 2;
 std::unique_ptr<CameraMetadata> createCaptureResultMetadata(
     const std::chrono::nanoseconds timestamp,
     const RequestSettings& requestSettings,
-    const Resolution reportedSensorSize) {
+    const Resolution reportedSensorSize,
+    const camera_metadata_t* customMetadata) {
   // All of the keys used in the response needs to be referenced in
   // availableResultKeys in CameraCharacteristics (see initCameraCharacteristics
   // in VirtualCameraDevice.cc).
@@ -95,7 +97,8 @@ std::unique_ptr<CameraMetadata> createCaptureResultMetadata(
               ANDROID_STATISTICS_HOT_PIXEL_MAP_MODE_OFF)
           .setStatisticsLensShadingMapMode(
               ANDROID_STATISTICS_LENS_SHADING_MAP_MODE_OFF)
-          .setStatisticsSceneFlicker(ANDROID_STATISTICS_SCENE_FLICKER_NONE);
+          .setStatisticsSceneFlicker(ANDROID_STATISTICS_SCENE_FLICKER_NONE)
+          .setCustomMetadata(customMetadata);
 
   if (requestSettings.fpsRange.has_value()) {
     builder.setControlAeTargetFpsRange(requestSettings.fpsRange.value());

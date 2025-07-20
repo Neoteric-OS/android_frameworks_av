@@ -25,6 +25,7 @@
 namespace android {
 
 using media::IMmapStream;
+using media::audio::common::AudioPlaybackRate;
 using aidl_utils::statusTFromBinderStatus;
 
 class MmapStreamCallbackAdapter : public android::media::BnMmapStreamCallback {
@@ -302,6 +303,16 @@ status_t MmapStreamInterface::drain() {
 
 status_t MmapStreamInterface::activate() {
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mStream->activate()));
+    return NO_ERROR;
+}
+
+status_t MmapStreamInterface::setPlaybackParameters(const AudioPlaybackRate& rate) {
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mStream->setPlaybackParameters(rate)));
+    return NO_ERROR;
+}
+
+status_t MmapStreamInterface::getPlaybackParameters(AudioPlaybackRate* rate) {
+    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mStream->getPlaybackParameters(rate)));
     return NO_ERROR;
 }
 

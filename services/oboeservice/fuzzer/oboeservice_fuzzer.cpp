@@ -196,6 +196,12 @@ class FuzzAAudioClient : public virtual RefBase, public AAudioServiceInterface {
 
     aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) final;
 
+    aaudio_result_t setPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                          const AudioPlaybackRate& rate) final;
+
+    aaudio_result_t getPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                          AudioPlaybackRate* rate) final;
+
     void onStreamChange(aaudio_handle_t handle, int32_t opcode, int32_t value) {}
 
     int getDeathCount() { return mDeathCount; }
@@ -370,6 +376,24 @@ aaudio_result_t FuzzAAudioClient::activateStream(
     return service->activateStream(streamHandleInfo);
 }
 
+aaudio_result_t FuzzAAudioClient::setPlaybackParameters(
+        const AAudioHandleInfo& streamHandleInfo, const AudioPlaybackRate& rate) {
+    AAudioServiceInterface* service = getAAudioService();
+    if (!service) {
+        return AAUDIO_ERROR_NO_SERVICE;
+    }
+    return service->setPlaybackParameters(streamHandleInfo, rate);
+}
+
+aaudio_result_t FuzzAAudioClient::getPlaybackParameters(
+        const AAudioHandleInfo& streamHandleInfo, AudioPlaybackRate* rate) {
+    AAudioServiceInterface* service = getAAudioService();
+    if (!service) {
+        return AAUDIO_ERROR_NO_SERVICE;
+    }
+    return service->getPlaybackParameters(streamHandleInfo, rate);
+}
+
 class OboeserviceFuzzer {
    public:
     OboeserviceFuzzer();
@@ -443,7 +467,8 @@ void OboeserviceFuzzer::process(const uint8_t *data, size_t size) {
     }
     while (fdp.remaining_bytes()) {
         AudioEndpointParcelable audioEndpointParcelable;
-        int action = fdp.ConsumeIntegralInRange<int32_t>(0, 7);
+        AudioPlaybackRate rate = AUDIO_PLAYBACK_RATE_DEFAULT;
+        int action = fdp.ConsumeIntegralInRange<int32_t>(0, 9);
         switch (action) {
             case 0:
                 mClient->getStreamDescription(streamHandleInfo, audioEndpointParcelable);
@@ -468,6 +493,12 @@ void OboeserviceFuzzer::process(const uint8_t *data, size_t size) {
                 break;
             case 7:
                 mClient->activateStream(streamHandleInfo);
+                break;
+            case 8:
+                mClient->setPlaybackParameters(streamHandleInfo, rate);
+                break;
+            case 9:
+                mClient->getPlaybackParameters(streamHandleInfo, &rate);
                 break;
         }
     }

@@ -21,6 +21,7 @@
 #include <mutex>
 
 #include <android-base/thread_annotations.h>
+#include <android/media/audio/common/AudioPlaybackRate.h>
 #include <media/AidlConversion.h>
 #include <media/AudioClient.h>
 #include <utils/RefBase.h>
@@ -127,6 +128,11 @@ public:
     aaudio_result_t drain() EXCLUDES(mLock);
 
     aaudio_result_t activate() EXCLUDES(mLock);
+
+    aaudio_result_t setPlaybackParameters(
+            const android::media::audio::common::AudioPlaybackRate& rate) EXCLUDES(mLock);
+    aaudio_result_t getPlaybackParameters(
+            android::media::audio::common::AudioPlaybackRate* rate) EXCLUDES(mLock);
 
     virtual aaudio_result_t startClient(const android::AudioClient& client,
                                         const audio_attributes_t *attr __unused,
@@ -246,6 +252,10 @@ protected:
     aaudio_result_t activate_l(TimestampScheduler* scheduler,
                                int64_t* nextTimestampReportTime,
                                int64_t* nextDataReportTime) REQUIRES(mLock);
+    aaudio_result_t onSetPlaybackParameters_l(
+            const android::media::audio::common::AudioPlaybackRate& rate) REQUIRES(mLock);
+    aaudio_result_t onGetPlaybackParameters_l(
+            android::media::audio::common::AudioPlaybackRate* rate) REQUIRES(mLock);
 
     class RegisterAudioThreadParam : public AAudioCommandParam {
     public:
@@ -281,6 +291,24 @@ protected:
     };
     aaudio_result_t getDescription_l(AudioEndpointParcelable* parcelable)
             REQUIRES(mLock) EXCLUDES(mUpMessageQueueLock);
+
+    class SetPlaybackParametersParam : public AAudioCommandParam {
+    public:
+        explicit SetPlaybackParametersParam(
+                const android::media::audio::common::AudioPlaybackRate& rate)
+                : AAudioCommandParam(), mRate(rate) { }
+
+        const android::media::audio::common::AudioPlaybackRate mRate;
+    };
+
+    class GetPlaybackParametersParam : public AAudioCommandParam {
+    public:
+        explicit GetPlaybackParametersParam(
+                android::media::audio::common::AudioPlaybackRate* rate)
+                : AAudioCommandParam(), mRate(rate) { }
+
+        android::media::audio::common::AudioPlaybackRate* mRate;
+    };
 
     void setState(aaudio_stream_state_t state);
 
@@ -417,6 +445,8 @@ protected:
         UPDATE_TIMESTAMP,
         DRAIN,
         ACTIVATE,
+        SET_PLAYBACK_PARAMETERS,
+        GET_PLAYBACK_PARAMETERS,
     };
     AAudioThread            mCommandThread;
     std::atomic_bool        mThreadEnabled{false};

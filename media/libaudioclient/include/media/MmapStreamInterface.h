@@ -20,6 +20,7 @@
 #include <android/media/OpenMmapRequest.h>
 #include <android/media/OpenMmapResponse.h>
 #include <android/media/IMmapStream.h>
+#include <android/media/audio/common/AudioPlaybackRate.h>
 #include <media/AidlConversion.h>
 #include <media/AudioClient.h>
 #include <media/AudioContainers.h>
@@ -215,6 +216,12 @@ class MmapStreamInterface : public virtual RefBase
      * Notify the stream is active.
      */
     virtual status_t activate();
+
+    virtual status_t setPlaybackParameters(
+            const android::media::audio::common::AudioPlaybackRate& rate);
+
+    virtual status_t getPlaybackParameters(
+            android::media::audio::common::AudioPlaybackRate* rate);
 
   protected:
     const audio_config_base_t mConfig;

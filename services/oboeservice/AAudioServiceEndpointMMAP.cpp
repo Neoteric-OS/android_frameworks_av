@@ -459,6 +459,24 @@ aaudio_result_t AAudioServiceEndpointMMAP::activate() {
     return AAudioConvert_androidToAAudioResult(mMmapStream->activate());
 }
 
+aaudio_result_t AAudioServiceEndpointMMAP::setPlaybackParameters(
+        const android::media::audio::common::AudioPlaybackRate& rate) {
+    const std::lock_guard lock(mMmapStreamLock);
+    if (mMmapStream == nullptr) {
+        return AAUDIO_ERROR_NULL;
+    }
+    return AAudioConvert_androidToAAudioResult(mMmapStream->setPlaybackParameters(rate));
+}
+
+aaudio_result_t AAudioServiceEndpointMMAP::getPlaybackParameters(
+        android::media::audio::common::AudioPlaybackRate* rate) {
+    const std::lock_guard lock(mMmapStreamLock);
+    if (mMmapStream == nullptr) {
+        return AAUDIO_ERROR_NULL;
+    }
+    return AAudioConvert_androidToAAudioResult(mMmapStream->getPlaybackParameters(rate));
+}
+
 // Get free-running DSP or DMA hardware position from the HAL.
 aaudio_result_t AAudioServiceEndpointMMAP::getFreeRunningPosition(int64_t *positionFrames,
                                                                 int64_t *timeNanos) {

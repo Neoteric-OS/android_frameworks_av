@@ -37,7 +37,6 @@
 #include <media/audiohal/EffectHalInterface.h>
 #include <media/audiohal/EffectsFactoryHalInterface.h>
 #include <mediautils/MethodStatistics.h>
-#include <mediautils/ServiceUtilities.h>
 #include <mediautils/TimeCheck.h>
 #include <system/audio_effects/audio_effects_utils.h>
 #include <system/audio_effects/effect_aec.h>

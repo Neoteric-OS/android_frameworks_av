@@ -28,7 +28,6 @@
 #include "ResamplerBufferProvider.h"
 
 #include <afutils/FallibleLockGuard.h>
-#include <afutils/Permission.h>
 #include <afutils/TypedLogger.h>
 #include <afutils/Vibrator.h>
 #include <android/media/BnMmapStream.h>
@@ -116,7 +115,6 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using com::android::media::permission::ValidatedAttributionSourceState;
 namespace audioserver_flags = com::android::media::audioserver;
@@ -1209,6 +1207,8 @@ String16 ThreadBase::getWakeLockTag()
         return String16("AudioSpatial");
     case BIT_PERFECT:
         return String16("AudioBitPerfect");
+    case DIRECT_RECORD:
+        return String16("AudioDirectIn");
     default:
         ALOG_ASSERT(false);
         return String16("AudioUnknown");
@@ -9240,22 +9240,15 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
     }
 
     if (maxSharedAudioHistoryMs != 0) {
-        if (audioserver_permissions()) {
-            const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
-                    CAPTURE_AUDIO_HOTWORD,
-                    attributionSource.uid);
-            if (!res.ok()) {
-                lStatus = aidl_utils::statusTFromBinderStatus(res.error());
-            }
-            if (!res.value()) {
-                lStatus = PERMISSION_DENIED;
-                goto Exit;
-            }
-        } else {
-            if (!captureHotwordAllowed(attributionSource)) {
-                lStatus = PERMISSION_DENIED;
-                goto Exit;
-            }
+        const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
+                CAPTURE_AUDIO_HOTWORD,
+                attributionSource.uid);
+        if (!res.ok()) {
+            lStatus = aidl_utils::statusTFromBinderStatus(res.error());
+        }
+        if (!res.value()) {
+            lStatus = PERMISSION_DENIED;
+            goto Exit;
         }
         if (maxSharedAudioHistoryMs < 0
                 || maxSharedAudioHistoryMs > kMaxSharedAudioHistoryMs) {
@@ -9376,11 +9369,9 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         if (!mSharedAudioPackageName.empty()
                 && mSharedAudioPackageName == attributionSource.packageName
                 && mSharedAudioSessionId == sessionId
-                && (audioserver_permissions() ?
-                      mAfThreadCallback->getPermissionProvider().checkPermission(
+                && mAfThreadCallback->getPermissionProvider().checkPermission(
                           CAPTURE_AUDIO_HOTWORD,
-                          attributionSource.uid).value_or(false)
-                    : captureHotwordAllowed(attributionSource))) {
+                          attributionSource.uid).value_or(false)) {
             startFrames = mSharedAudioStartFrames;
         }
 
@@ -10465,6 +10456,10 @@ public:
     binder::Status reportData(const ::std::vector<uint8_t>& buffer) final;
     binder::Status drain() final;
     binder::Status activate() final;
+    binder::Status setPlaybackParameters(
+            const media::audio::common::AudioPlaybackRate& rate) final;
+    binder::Status getPlaybackParameters(
+            media::audio::common::AudioPlaybackRate* rate) final;
 private:
     const sp<IAfMmapThread> mThread;
 };
@@ -10582,6 +10577,18 @@ binder::Status MmapThreadHandle::drain() {
 
 binder::Status MmapThreadHandle::activate() {
     const status_t status = mThread->activate();
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    const status_t status = mThread->setPlaybackParameters(rate);
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::getPlaybackParameters(
+        media::audio::common::AudioPlaybackRate* rate) {
+    const status_t status = mThread->getPlaybackParameters(rate);
     return aidl_utils::binderStatusFromStatusT(status);
 }
 
@@ -10712,22 +10719,14 @@ status_t MmapThread::start(const AudioClient& client,
 
     audio_io_handle_t io = mId;
     AttributionSourceState adjAttributionSource;
-    if (!com::android::media::audio::audioserver_permissions()) {
-        adjAttributionSource = afutils::checkAttributionSourcePackage(
-                client.attributionSource);
-    } else {
-        // TODO(b/342475009) validate in oboeservice, and plumb downwards
-        auto validatedRes = ValidatedAttributionSourceState::createFromTrustedUidNoPackage(
-                    client.attributionSource,
-                    mAfThreadCallback->getPermissionProvider()
-                );
-        if (!validatedRes.has_value()) {
-            ALOGE("MMAP client package validation fail: %s",
-                    validatedRes.error().toString8().c_str());
-            return aidl_utils::statusTFromBinderStatus(validatedRes.error());
-        }
-        adjAttributionSource = std::move(validatedRes.value()).unwrapInto();
+    // TODO(b/342475009) validate in oboeservice, and plumb downwards
+    auto validatedRes = ValidatedAttributionSourceState::createFromTrustedUidNoPackage(
+            client.attributionSource, mAfThreadCallback->getPermissionProvider());
+    if (!validatedRes.has_value()) {
+        ALOGE("MMAP client package validation fail: %s", validatedRes.error().toString8().c_str());
+        return aidl_utils::statusTFromBinderStatus(validatedRes.error());
     }
+    adjAttributionSource = std::move(validatedRes.value()).unwrapInto();
 
     const auto localSessionId = mSessionId;
     auto localAttr = mAttr;
@@ -10990,6 +10989,17 @@ status_t MmapThread::drain() {
 }
 
 status_t MmapThread::activate() {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
+status_t MmapThread::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& /*rate*/) {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
+status_t MmapThread::getPlaybackParameters(media::audio::common::AudioPlaybackRate* /*rate*/) {
     // This is a stub implementation. The MmapPlaybackThread overrides this function.
     return INVALID_OPERATION;
 }
@@ -11672,6 +11682,29 @@ status_t MmapPlaybackThread::drain() {
 
 status_t MmapPlaybackThread::activate() {
     acquireWakeLock();
+    return NO_ERROR;
+}
+
+status_t MmapPlaybackThread::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    const audio_playback_rate_t legacy = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(rate));
+    audio_utils::lock_guard lock(mutex());
+    return mOutput->stream->setPlaybackRateParameters(legacy);
+}
+
+status_t MmapPlaybackThread::getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate) {
+    audio_playback_rate_t legacy;
+    {
+        audio_utils::lock_guard lock(mutex());
+        if (status_t status = mOutput->stream->getPlaybackRateParameters(&legacy);
+            status != NO_ERROR) {
+            ALOGE("%s failed, result=%d", __func__, status);
+            return status;
+        }
+    }
+    *rate = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(legacy));
     return NO_ERROR;
 }
 

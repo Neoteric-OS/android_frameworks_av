@@ -1316,7 +1316,7 @@ class Camera3Device :
         Vector<int32_t>    mSessionParamKeys;
         CameraMetadata     mLatestSessionParams;
         CameraMetadata     mInjectedSessionParams;
-        bool               mForceNewRequestAfterReconfigure;
+        bool               mForceNewRequest;
 
         std::map<int32_t, std::set<std::string>> mGroupIdPhysicalCameraMap;
 

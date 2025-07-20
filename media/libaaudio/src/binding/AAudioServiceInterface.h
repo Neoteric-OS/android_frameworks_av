@@ -17,8 +17,9 @@
 #ifndef ANDROID_AAUDIO_BINDING_AAUDIO_SERVICE_INTERFACE_H
 #define ANDROID_AAUDIO_BINDING_AAUDIO_SERVICE_INTERFACE_H
 
-#include <utils/StrongPointer.h>
 #include <media/AudioClient.h>
+#include <media/AudioResamplerPublic.h>
+#include <utils/StrongPointer.h>
 
 #include "aaudio/IAAudioClient.h"
 #include "binding/AAudioServiceDefinitions.h"
@@ -138,6 +139,26 @@ public:
      * @return
      */
     virtual aaudio_result_t activateStream(const AAudioHandleInfo& streamHandleInfo) = 0;
+
+    /**
+     * Set playback parameters for the stream.
+     *
+     * @param streamHandleInfo
+     * @param rate
+     * @return
+     */
+    virtual aaudio_result_t setPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                                  const android::AudioPlaybackRate& rate) = 0;
+
+    /**
+     * Get playback parameters for the stream.
+     *
+     * @param streamHandleInfo
+     * @param rate
+     * @return
+     */
+    virtual aaudio_result_t getPlaybackParameters(const AAudioHandleInfo& streamHandleInfo,
+                                                  android::AudioPlaybackRate* rate) = 0;
 };
 
 } /* namespace aaudio */

@@ -38,7 +38,6 @@
 #include <media/AudioEffect.h>
 #include <media/AudioParameter.h>
 #include <mediautils/MethodStatistics.h>
-#include <mediautils/ServiceUtilities.h>
 #include <mediautils/TimeCheck.h>
 #include <sensorprivacy/SensorPrivacyManager.h>
 
@@ -1508,16 +1507,12 @@ status_t AudioPolicyService::onTransact(
 // ------------------- Shell command implementation -------------------
 
 // NOTE: This is a remote API - make sure all args are validated
-status_t AudioPolicyService::shellCommand(int in, int out, int err, Vector<String16>& args) {
+status_t AudioPolicyService::shellCommand(int in, int out, int err, Vector<String16>& /* args */) {
     if (!checkCallingPermission(sManageAudioPolicyPermission, nullptr, nullptr)) {
         return PERMISSION_DENIED;
     }
     if (in == BAD_TYPE || out == BAD_TYPE || err == BAD_TYPE) {
         return BAD_VALUE;
-    }
-    if (args.size() >= 1 && args[0] == String16("purge_permission-cache")) {
-        purgePermissionCache();
-        return NO_ERROR;
     }
     return BAD_VALUE;
 }

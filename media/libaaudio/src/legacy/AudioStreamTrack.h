@@ -54,7 +54,7 @@ protected:
     aaudio_result_t setPlaybackParameters_l(
             const AAudioPlaybackParameters* parameters) final REQUIRES(mStreamMutex);
     aaudio_result_t getPlaybackParameters_l(
-            struct AAudioPlaybackParameters* parameters) const final REQUIRES(mStreamMutex);
+            struct AAudioPlaybackParameters* parameters) final REQUIRES(mStreamMutex);
 
     bool collidesWithCallback() const final;
 

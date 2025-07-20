@@ -20,6 +20,7 @@ import aaudio.Endpoint;
 import aaudio.IAAudioClient;
 import aaudio.StreamParameters;
 import aaudio.StreamRequest;
+import android.media.audio.common.AudioPlaybackRate;
 
 interface IAAudioService {
     /**
@@ -96,4 +97,8 @@ interface IAAudioService {
      * all data is drained or the client want to flush from a given position and rewrite the data.
      */
     int activateStream(int streamHandle);
+
+    int setPlaybackParameters(int streamHandle, in AudioPlaybackRate rate);
+
+    int getPlaybackParameters(int streamHandle, out AudioPlaybackRate rate);
 }
