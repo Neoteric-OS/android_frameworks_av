@@ -64,7 +64,6 @@ private:
 
     bool mHeaderGenerated;
     bool mIsFirstFrame;
-    bool mEncoderFlushed;
     bool mBufferAvailable;
     bool mSignalledEos;
     bool mSignalledError;

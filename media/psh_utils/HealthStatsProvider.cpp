@@ -19,6 +19,7 @@
 #include <android-base/logging.h>
 #include <android/binder_manager.h>
 #include <mediautils/ServiceSingleton.h>
+#include <psh_utils/AudioPowerManager.h>
 
 using ::aidl::android::hardware::health::HealthInfo;
 using ::aidl::android::hardware::health::IHealth;
@@ -30,6 +31,7 @@ static auto getHealthService() {
 }
 
 status_t HealthStatsDataProvider::fill(PowerStats* stat) const {
+    if (!AudioPowerManager::enabled()) return NO_INIT;
     if (stat == nullptr) return BAD_VALUE;
     HealthStats& stats = stat->health_stats;
     auto healthService = getHealthService();

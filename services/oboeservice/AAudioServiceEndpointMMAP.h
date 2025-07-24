@@ -95,6 +95,8 @@ public:
     void onVolumeChanged(float volume) override;
 
     void onRoutingChanged(const android::DeviceIdVector& deviceIds) override;
+
+    void onSoundDoseChanged(bool active) final;
     // ------------------------------------------------------------------------------
 
     aaudio_result_t getDownDataDescription(AudioEndpointParcelable* parcelable);

@@ -1390,7 +1390,6 @@ status_t AudioPolicyService::onTransact(
         case TRANSACTION_setMinVolumeIndexForGroup:
         case TRANSACTION_getMaxVolumeIndexForGroup:
         case TRANSACTION_setMaxVolumeIndexForGroup:
-        case TRANSACTION_getVolumeGroupIdForStreamType:
         case TRANSACTION_isStreamActive:
         case TRANSACTION_isStreamActiveRemotely:
         case TRANSACTION_isSourceActive:

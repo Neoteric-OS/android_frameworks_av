@@ -246,7 +246,6 @@ c2_status_t C2SoftOpusEnc::initEncoder() {
     mSignalledError = false;
     mHeaderGenerated = false;
     mIsFirstFrame = true;
-    mEncoderFlushed = false;
     mBufferAvailable = false;
     mAnchorTimeStamp = 0;
     mProcessedSamples = 0;
@@ -268,7 +267,6 @@ c2_status_t C2SoftOpusEnc::onStop() {
     mSignalledEos = false;
     mSignalledError = false;
     mIsFirstFrame = true;
-    mEncoderFlushed = false;
     mBufferAvailable = false;
     mAnchorTimeStamp = 0;
     mProcessedSamples = 0u;
@@ -309,6 +307,7 @@ c2_status_t C2SoftOpusEnc::onFlush_sm() {
 
 // Drain the encoder to get last frames (if any)
 int C2SoftOpusEnc::drainEncoder(uint8_t* outPtr) {
+    if (mFilledLen == 0) return 0;
     memset((uint8_t *)mInputBufferPcm16 + mFilledLen, 0,
         (mNumPcmBytesPerInputFrame - mFilledLen));
     int encodedBytes = opus_multistream_encode(
@@ -321,7 +320,6 @@ int C2SoftOpusEnc::drainEncoder(uint8_t* outPtr) {
     }
     ALOGV("encoded %i Opus bytes from %zu PCM bytes", encodedBytes,
           mNumPcmBytesPerInputFrame);
-    mEncoderFlushed = true;
     mFilledLen = 0;
     return encodedBytes;
 }
@@ -392,7 +390,6 @@ void C2SoftOpusEnc::process(const std::unique_ptr<C2Work>& work,
     size_t inPos = 0;
     size_t processSize = 0;
     mBytesEncoded = 0;
-    int64_t outTimeStamp = 0;
     std::shared_ptr<C2Buffer> buffer;
     uint64_t inputIndex = work->input.ordinal.frameIndex.peeku();
     const uint8_t* inPtr = rView.data() + inOffset;
@@ -475,16 +472,20 @@ void C2SoftOpusEnc::process(const std::unique_ptr<C2Work>& work,
      * to be processed. The next call will fill mNumPcmBytesPerInputFrame - mFilledLen
      * bytes to input and send it to the encoder.
      */
-    while (inPos < inSize) {
+    int64_t currentOutputPts;
+    int64_t prevOutputPts;
+    while ((inPos < inSize) || eos) {
         const uint8_t* pcmBytes = inPtr + inPos;
         int filledSamples = mFilledLen / sizeof(int16_t);
+        currentOutputPts =
+                mAnchorTimeStamp + mProcessedSamples * 1000000ll / mChannelCount / mSampleRate;
         if ((inPos + (mNumPcmBytesPerInputFrame - mFilledLen)) <= inSize) {
             processSize = mNumPcmBytesPerInputFrame - mFilledLen;
             mBufferAvailable = true;
         } else {
             processSize = inSize - inPos;
             mBufferAvailable = false;
-            if (eos) {
+            if (eos && ((processSize + filledSamples) != 0)) {
                 memset(mInputBufferPcm16 + filledSamples, 0,
                        (mNumPcmBytesPerInputFrame - mFilledLen));
                 mBufferAvailable = true;
@@ -515,7 +516,7 @@ void C2SoftOpusEnc::process(const std::unique_ptr<C2Work>& work,
         }
         if (buffer) {
             outOrdinal.frameIndex = mOutIndex++;
-            outOrdinal.timestamp = mAnchorTimeStamp + outTimeStamp;
+            outOrdinal.timestamp = prevOutputPts;
             cloneAndSend(
                 inputIndex, work,
                 FillWork(C2FrameData::FLAG_INCOMPLETE, outOrdinal, buffer));
@@ -527,10 +528,7 @@ void C2SoftOpusEnc::process(const std::unique_ptr<C2Work>& work,
         }
         mBytesEncoded += encodedBytes;
         mProcessedSamples += (filledSamples + nInputSamples);
-        outTimeStamp =
-            mProcessedSamples * 1000000ll / mChannelCount / mSampleRate;
-        if ((processSize + mFilledLen) < mNumPcmBytesPerInputFrame)
-            mEncoderFlushed = true;
+        prevOutputPts = currentOutputPts;
         mFilledLen = 0;
     }
 
@@ -538,23 +536,11 @@ void C2SoftOpusEnc::process(const std::unique_ptr<C2Work>& work,
     if (eos) {
         ALOGV("signalled eos");
         mSignalledEos = true;
-        if (!mEncoderFlushed) {
-            if (buffer) {
-                outOrdinal.frameIndex = mOutIndex++;
-                outOrdinal.timestamp = mAnchorTimeStamp + outTimeStamp;
-                cloneAndSend(
-                    inputIndex, work,
-                    FillWork(C2FrameData::FLAG_INCOMPLETE, outOrdinal, buffer));
-                buffer.reset();
-            }
-            // drain the encoder for last buffer
-            drainInternal(pool, work);
-        }
         flags = C2FrameData::FLAG_END_OF_STREAM;
     }
     if (buffer) {
         outOrdinal.frameIndex = mOutIndex++;
-        outOrdinal.timestamp = mAnchorTimeStamp + outTimeStamp;
+        outOrdinal.timestamp = currentOutputPts;
         FillWork((C2FrameData::flags_t)(flags), outOrdinal, buffer)(work);
         buffer.reset();
     }
@@ -584,14 +570,14 @@ c2_status_t C2SoftOpusEnc::drainInternal(
     }
 
     int encBytes = drainEncoder(wView.data());
-    if (encBytes > 0) mBytesEncoded += encBytes;
-    if (mBytesEncoded > 0) {
+    if (encBytes > 0) {
+        mBytesEncoded += encBytes;
         buffer = createLinearBuffer(mOutputBlock, 0, mBytesEncoded);
         mOutputBlock.reset();
     }
-    mProcessedSamples += (mNumPcmBytesPerInputFrame / sizeof(int16_t));
     int64_t outTimeStamp =
         mProcessedSamples * 1000000ll / mChannelCount / mSampleRate;
+    mProcessedSamples += (mNumPcmBytesPerInputFrame / sizeof(int16_t));
     outOrdinal.frameIndex = mOutIndex++;
     outOrdinal.timestamp = mAnchorTimeStamp + outTimeStamp;
     work->worklets.front()->output.flags =
@@ -617,9 +603,6 @@ c2_status_t C2SoftOpusEnc::drain(uint32_t drainMode,
         ALOGW("DRAIN_CHAIN not supported");
         return C2_OMITTED;
     }
-    mIsFirstFrame = true;
-    mAnchorTimeStamp = 0;
-    mProcessedSamples = 0u;
     return drainInternal(pool, nullptr);
 }
 

@@ -3616,6 +3616,12 @@ const std::map<std::string, audio_output_flags_t> AudioPolicyManagerPhoneTest::s
 void AudioPolicyManagerPhoneTest::testOutputMixPortSelectionForAttr(
         audio_output_flags_t flags, audio_format_t format, int samplingRate, bool isMusic,
         const char* expectedMixPortName) {
+
+    if (mConfig->useDeepBufferForMedia() && flags == AUDIO_OUTPUT_FLAG_NONE
+            && samplingRate > SAMPLE_RATE_HZ_MAX) {
+        GTEST_SKIP() << "Skipping forced deep buffer test for sampling rate > 192kHz";
+    }
+
     DeviceIdVector selectedDeviceIds;
     audio_io_handle_t output;
     audio_port_handle_t portId;

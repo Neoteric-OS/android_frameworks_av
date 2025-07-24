@@ -48,6 +48,14 @@ class MmapStreamCallback : public virtual RefBase {
      */
     virtual void onRoutingChanged(const DeviceIdVector& deviceIds) = 0;
 
+    /**
+     * The sound dose computation state has changed
+     * \param[in] active true if the sound dose computation is active and
+     *            the client is required to use IMmapStream::reportData,
+     *            false otherwise.
+     */
+    virtual void onSoundDoseChanged(bool active) = 0;
+
   protected:
     MmapStreamCallback() {}
     virtual ~MmapStreamCallback() {}

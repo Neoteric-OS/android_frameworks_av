@@ -726,10 +726,18 @@ MetadataBuilder& MetadataBuilder::setAvailableCharacteristicKeys() {
 
 MetadataBuilder& MetadataBuilder::setCustomMetadata(
     const camera_metadata_t* customMetadata) {
+  std::lock_guard<std::mutex> lock(mLock);
   if (mCustomMetadata != nullptr) {
     free_camera_metadata(mCustomMetadata);
   }
-  mCustomMetadata = clone_camera_metadata(customMetadata);
+
+  int ret = validate_camera_metadata_structure(customMetadata, /*size*/ NULL);
+  if (ret == OK) {
+    mCustomMetadata = clone_camera_metadata(customMetadata);
+  } else {
+    ALOGE("%s: Validate custom metadata failed with status: %d", __func__, ret);
+    mCustomMetadata = nullptr;
+  }
   return *this;
 }
 
@@ -753,33 +761,44 @@ std::unique_ptr<AidlCameraMetadata> MetadataBuilder::build() {
     }
   }
 
-  if (mCustomMetadata != nullptr) {
-    for (int i = 0; i < get_camera_metadata_entry_count(mCustomMetadata); ++i) {
-      camera_metadata_ro_entry_t entry;
-      if (get_camera_metadata_ro_entry(mCustomMetadata, i, &entry) != OK) {
-        continue;
-      }
+  {
+    std::lock_guard<std::mutex> lock(mLock);
+    if (mCustomMetadata != nullptr) {
+      ALOGD("%s: Updating %zu keys from custom metadata.", __func__,
+            get_camera_metadata_entry_count(mCustomMetadata));
 
-      status_t ret = metadataHelper.update(entry);
-      if (ret != NO_ERROR) {
-        ALOGE("Failed to update metadata with custom key %d - %s: %s",
-              entry.tag, get_camera_metadata_tag_name(entry.tag),
-              ::android::statusToString(ret).c_str());
-        // only log custom metadata errors and continue
-        continue;
-      }
+      for (int i = 0; i < get_camera_metadata_entry_count(mCustomMetadata);
+           ++i) {
+        camera_metadata_ro_entry_t entry;
+        if (get_camera_metadata_ro_entry(mCustomMetadata, i, &entry) != OK) {
+          continue;
+        }
 
-      if (mExtendWithAvailableCharacteristicsKeys) {
-        availableKeys.insert(static_cast<camera_metadata_tag_t>(entry.tag));
+        status_t ret = metadataHelper.update(entry);
+        if (ret != NO_ERROR) {
+          ALOGE("Failed to update metadata with custom key %d - %s: %s",
+                entry.tag, get_camera_metadata_tag_name(entry.tag),
+                ::android::statusToString(ret).c_str());
+          // only log custom metadata errors and continue
+          continue;
+        }
+
+        if (mExtendWithAvailableCharacteristicsKeys) {
+          availableKeys.insert(static_cast<camera_metadata_tag_t>(entry.tag));
+        }
       }
     }
   }
 
   if (mExtendWithAvailableCharacteristicsKeys) {
-    availableKeys.erase(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS);
-    setAvailableCharacteristicKeys(std::vector<camera_metadata_tag_t>(
-        availableKeys.begin(), availableKeys.end()));
+    // update the key for available keys directly in the metadata helper
+    auto v = std::vector<int32_t>(availableKeys.begin(), availableKeys.end());
+    metadataHelper.update(ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS,
+                          v.data(), v.size());
   }
+
+  ALOGD("%s: Built metadata has number of keys: %zu", __func__,
+        metadataHelper.entryCount());
 
   return cameraMetadataToHal(metadataHelper);
 }

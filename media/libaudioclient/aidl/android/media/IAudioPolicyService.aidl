@@ -159,8 +159,6 @@ interface IAudioPolicyService {
 
     void setMinVolumeIndexForGroup(int groupId, int minIndex);
 
-    int getVolumeGroupIdForStreamType(AudioStreamType stream);
-
     int /* product_strategy_t */ getStrategyForStream(AudioStreamType stream);
 
     AudioDevice[] getDevicesForAttributes(in AudioAttributes attr, boolean forVolume);

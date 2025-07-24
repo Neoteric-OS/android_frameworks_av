@@ -521,7 +521,7 @@ void AAudioServiceEndpointMMAP::handleTearDownAsync(audio_port_handle_t portHand
         const aaudio_result_t result = mAAudioService.disconnectStreamByPortHandle(portHandle);
         ALOGD("%s(%d) disconnectStreamByPortHandle returned %d", __func__, portHandle, result);
     }
-};
+}
 
 // This is called by AudioFlinger when it wants to destroy a stream.
 void AAudioServiceEndpointMMAP::onTearDown(audio_port_handle_t portHandle) {
@@ -540,10 +540,10 @@ void AAudioServiceEndpointMMAP::onVolumeChanged(float volume) {
         return;
     }
     const std::lock_guard<std::mutex> lock(mLockStreams);
-    for(const auto& stream : mRegisteredStreams) {
+    for (const auto& stream : mRegisteredStreams) {
         stream->onVolumeChanged(volume);
     }
-};
+}
 
 void AAudioServiceEndpointMMAP::onRoutingChanged(const android::DeviceIdVector& deviceIds) {
     ALOGD("%s() called with dev %s, old = %s", __func__, android::toString(deviceIds).c_str(),
@@ -568,7 +568,15 @@ void AAudioServiceEndpointMMAP::onRoutingChanged(const android::DeviceIdVector& 
             setDeviceIds(deviceIds);
         }
     }
-};
+}
+
+void AAudioServiceEndpointMMAP::onSoundDoseChanged(bool active) {
+    ALOGD("%s() active = %s", __func__, active ? "true" : "false");
+    const std::lock_guard lock(mLockStreams);
+    for (const auto& stream : mRegisteredStreams) {
+        stream->onSoundDoseChanged(active);
+    }
+}
 
 /**
  * Get an immutable description of the data queue from the HAL.

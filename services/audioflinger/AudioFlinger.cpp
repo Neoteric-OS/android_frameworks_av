@@ -348,6 +348,8 @@ void AudioFlinger::onFirstRef()
     mPatchPanel = IAfPatchPanel::create(sp<IAfPatchPanelCallback>::fromExisting(this));
     mMelReporter = sp<MelReporter>::make(sp<IAfMelReporterCallback>::fromExisting(this),
                                          mPatchPanel);
+
+    ALOGD("%s: TimerQueue %s", __func__, mTimerQueue.ready() ? "ready" : "uninitialized");
 }
 
 status_t AudioFlinger::setAudioHalPids(const std::vector<pid_t>& pids) {
@@ -968,13 +970,12 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         mDeviceEffectManager->dump(fd);
         writeStr(fd, mMelReporter->dump());
 
-        if (media::psh_utils::AudioPowerManager::enabled()) {
-            char value[PROPERTY_VALUE_MAX];
-            property_get("ro.build.display.id", value, "Unknown build");
-            std::string build(value);
-            writeStr(fd, build + "\n");
-            writeStr(fd, media::psh_utils::AudioPowerManager::getAudioPowerManager().toString());
-        }
+        dprintf(fd, "\n ## BEGIN power dump\n");
+        char value[PROPERTY_VALUE_MAX];
+        property_get("ro.build.display.id", value, "Unknown build");
+        std::string build(value);
+        writeStr(fd, build + "\n");
+        writeStr(fd, media::psh_utils::AudioPowerManager::getAudioPowerManager().toString());
 
         if (parsedArgs.shouldDumpEffects) {
             dprintf(fd, "\n ## BEGIN effects dump \n");
@@ -2213,9 +2214,7 @@ AudioFlinger::NotificationClient::NotificationClient(const sp<AudioFlinger>& aud
                                                      pid_t pid,
                                                      uid_t uid)
     : mAudioFlinger(audioFlinger), mPid(pid), mUid(uid), mAudioFlingerClient(client)
-    , mClientToken(media::psh_utils::AudioPowerManager::enabled()
-            ? media::psh_utils::createAudioClientToken(pid, uid)
-            : nullptr)
+    , mClientToken(media::psh_utils::createAudioClientToken(pid, uid))
 {
 }
 

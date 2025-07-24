@@ -88,7 +88,7 @@ std::string AudioPowerManager::toString() const {
     for (const auto& info: tokenInfo) {
         result.append(prefix).append(info).append("\n");
     }
-    result.append("Power Clients:\n");
+    result.append("Power Clients: (some snapshots quantized in time)\n");
     for (const auto& [uid, powerClientStats]: mPowerClientStats) {
         result.append(powerClientStats->toString(true, prefix));
     }

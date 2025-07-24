@@ -248,10 +248,6 @@ public:
          */
         virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index);
 
-        virtual volume_group_t getVolumeGroupIdForStreamType(audio_stream_type_t stream) {
-            return mEngine->getVolumeGroupForStreamType(stream, /* fallbackOnDefault= */ false);
-        }
-
         status_t setVolumeCurveIndex(int index,
                                      bool muted,
                                      audio_devices_t device,

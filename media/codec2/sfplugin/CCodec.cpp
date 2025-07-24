@@ -34,7 +34,6 @@
 #include <aidl/android/media/IAidlGraphicBufferSource.h>
 #include <aidl/android/media/IAidlBufferSource.h>
 #include <android/IOMXBufferSource.h>
-#include <android/hardware/media/c2/1.0/IInputSurface.h>
 #include <android/hardware/media/omx/1.0/IGraphicBufferSource.h>
 #include <android/hardware/media/omx/1.0/IOmx.h>
 #include <android-base/properties.h>
@@ -76,7 +75,6 @@ namespace android {
 using namespace std::chrono_literals;
 using ::android::hardware::graphics::bufferqueue::V1_0::utils::H2BGraphicBufferProducer;
 using android::base::StringPrintf;
-using ::android::hardware::media::c2::V1_0::IInputSurface;
 using ::aidl::android::media::IAidlBufferSource;
 using ::aidl::android::media::IAidlNode;
 using ::android::media::AidlGraphicBufferSource;
@@ -2153,7 +2151,8 @@ void CCodec::createInputSurface() {
     }
 
     sp<PersistentSurface> persistentSurface = CreateCompatibleInputSurface();
-    if (persistentSurface->isTargetAidl()) {
+    PersistentSurface::SurfaceType surfaceType = persistentSurface->getType();
+    if (surfaceType == PersistentSurface::TYPE_AIDLSOURCE) {
         ::ndk::SpAIBinder aidlTarget = persistentSurface->getAidlTarget();
         std::shared_ptr<AGraphicBufferSource> gbs = AGraphicBufferSource::fromBinder(aidlTarget);
         if (gbs) {
@@ -2169,9 +2168,8 @@ void CCodec::createInputSurface() {
             mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
             return;
         }
-    } else {
+    } else if (surfaceType == PersistentSurface::TYPE_HIDLSOURCE) {
         sp<hidl::base::V1_0::IBase> hidlTarget = persistentSurface->getHidlTarget();
-        sp<IInputSurface> hidlInputSurface = IInputSurface::castFrom(hidlTarget);
         sp<HGraphicBufferSource> gbs = HGraphicBufferSource::castFrom(hidlTarget);
 
         if (gbs) {
@@ -2183,11 +2181,32 @@ void CCodec::createInputSurface() {
                     gbs, width, height, usage));
             surface = persistentSurface->getSurface();
         } else {
-            ALOGE("Corrupted input surface");
+            ALOGE("Corrupted input surface(hidl)");
             mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
             return;
         }
-    }
+    } else if (surfaceType == PersistentSurface::TYPE_INPUTSURFACE) {
+        ::ndk::SpAIBinder interface = persistentSurface->getHalInputSurface();
+        if (interface.get()) {
+            int32_t width = 0;
+            (void)outputFormat->findInt32("width", &width);
+            int32_t height = 0;
+            (void)outputFormat->findInt32("height", &height);
+            std::shared_ptr<Codec2Client::InputSurface> inputSurface =
+                    Codec2Client::CreateInputSurfaceFromInterface(interface);
+            err = setupInputSurface(std::make_shared<C2InputSurfaceWrapper>(
+                    inputSurface, width, height, usage));
+            surface = persistentSurface->getSurface();
+        } else {
+            ALOGE("Corrupted input surface(inputsurface)");
+            mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
+            return;
+        }
+    } else {
+        ALOGE("Corrupted input surface(invalid %d)", (int)surfaceType);
+        mCallback->onInputSurfaceCreationFailed(UNKNOWN_ERROR);
+        return;
+   }
 
     if (err != OK) {
         ALOGE("Failed to set up input surface: %d", err);
@@ -2288,7 +2307,8 @@ void CCodec::setInputSurface(const sp<PersistentSurface> &surface) {
         outputFormat = config->mOutputFormat;
         usage = config->mISConfig ? config->mISConfig->mUsage : 0;
     }
-    if (surface->isTargetAidl()) {
+    PersistentSurface::SurfaceType surfaceType = surface->getType();
+    if (surfaceType == PersistentSurface::TYPE_AIDLSOURCE) {
         ::ndk::SpAIBinder aidlTarget = surface->getAidlTarget();
         std::shared_ptr<AGraphicBufferSource> gbs = AGraphicBufferSource::fromBinder(aidlTarget);
         if (gbs) {
@@ -2309,9 +2329,8 @@ void CCodec::setInputSurface(const sp<PersistentSurface> &surface) {
             mCallback->onInputSurfaceDeclined(UNKNOWN_ERROR);
             return;
         }
-    } else {
+    } else if (surfaceType == PersistentSurface::TYPE_HIDLSOURCE) {
         sp<hidl::base::V1_0::IBase> hidlTarget = surface->getHidlTarget();
-        sp<IInputSurface> inputSurface = IInputSurface::castFrom(hidlTarget);
         sp<HGraphicBufferSource> gbs = HGraphicBufferSource::castFrom(hidlTarget);
         if (gbs) {
             int32_t width = 0;
@@ -2321,15 +2340,40 @@ void CCodec::setInputSurface(const sp<PersistentSurface> &surface) {
             status_t err = setupInputSurface(std::make_shared<HGraphicBufferSourceWrapper>(
                     gbs, width, height, usage));
             if (err != OK) {
-                ALOGE("Failed to set up input surface: %d", err);
+                ALOGE("Failed to set up input surface(hidl): %d", err);
                 mCallback->onInputSurfaceDeclined(err);
                 return;
             }
         } else {
-            ALOGE("Failed to set input surface: Corrupted surface.");
+            ALOGE("Failed to set input surface(hidl): Corrupted surface.");
             mCallback->onInputSurfaceDeclined(UNKNOWN_ERROR);
             return;
         }
+    } else if (surfaceType == PersistentSurface::TYPE_INPUTSURFACE) {
+        ::ndk::SpAIBinder interface = surface->getHalInputSurface();
+        if (interface.get()) {
+            int32_t width = 0;
+            (void)outputFormat->findInt32("width", &width);
+            int32_t height = 0;
+            (void)outputFormat->findInt32("height", &height);
+            std::shared_ptr<Codec2Client::InputSurface> inputSurface =
+                    Codec2Client::CreateInputSurfaceFromInterface(interface);
+            status_t err = setupInputSurface(std::make_shared<C2InputSurfaceWrapper>(
+                    inputSurface, width, height, usage));
+            if (err != OK) {
+                ALOGE("Failed to set up input surface(inputsurface): %d", err);
+                mCallback->onInputSurfaceDeclined(err);
+                return;
+            }
+        } else {
+            ALOGE("Failed to set input surface(inputsurface): Corrupted surface.");
+            mCallback->onInputSurfaceDeclined(UNKNOWN_ERROR);
+            return;
+        }
+    } else {
+        ALOGE("Failed to set input surface(invalid %d): Corrupted surface.", (int)surfaceType);
+        mCallback->onInputSurfaceDeclined(UNKNOWN_ERROR);
+        return;
     }
     // Formats can change after setupInputSurface
     sp<AMessage> inputFormat;
@@ -3334,6 +3378,15 @@ void CCodec::initiateReleaseIfStuck() {
 // static
 PersistentSurface *CCodec::CreateInputSurface() {
     using namespace android;
+    std::shared_ptr<Codec2Client::InputSurface> inputSurface =
+            Codec2Client::CreateInputSurface();
+    if (inputSurface) {
+        ::ndk::SpAIBinder interface = inputSurface->getHalInterface();
+        ANativeWindow *window = inputSurface->getNativeWindow();
+        return new PersistentSurface(PersistentSurface::TYPE_INPUTSURFACE,
+                mediaflagtools::nativeWindowToSurfaceType(window),
+                interface);
+    }
     if (property_get_int32("debug.stagefright.c2inputsurface", 0) == -1) {
         sp<IGraphicBufferProducer> gbp;
         sp<AidlGraphicBufferSource> gbs = new AidlGraphicBufferSource();
@@ -3348,6 +3401,7 @@ PersistentSurface *CCodec::CreateInputSurface() {
 
         // Update this to use a MediaSurfaceType in a follow up CL.
         return new PersistentSurface(
+              PersistentSurface::TYPE_AIDLSOURCE,
               mediaflagtools::igbpToSurfaceType(gbs->getIGraphicBufferProducer()),
               wrapper->asBinder());
     } else {

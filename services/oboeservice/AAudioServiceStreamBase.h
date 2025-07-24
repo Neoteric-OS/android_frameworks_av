@@ -206,6 +206,8 @@ public:
 
     void onVolumeChanged(float volume);
 
+    aaudio_stream_state_t onSoundDoseChanged(bool active);
+
     /**
      * Set false when the stream is started.
      * Set true when data is first read from the stream.
@@ -424,6 +426,19 @@ protected:
         return AAUDIO_ERROR_UNAVAILABLE;
     }
 
+    class SoundDoseChangedParam : public AAudioCommandParam {
+    public:
+        explicit SoundDoseChangedParam(bool active)
+                : AAudioCommandParam(), mActive(active) {
+        }
+        const bool mActive;
+    };
+
+    virtual void changeSoundDose_l(
+            bool active, int64_t* /* nextDataReportTime */ ) REQUIRES(mLock) {
+        ALOGD("AAudioServiceStreamBase::%s(%d) ignored for base class", __func__, active);
+    }
+
     pid_t                   mRegisteredClientThread = ILLEGAL_THREAD_ID;
 
     std::mutex              mUpMessageQueueLock;
@@ -447,6 +462,7 @@ protected:
         ACTIVATE,
         SET_PLAYBACK_PARAMETERS,
         GET_PLAYBACK_PARAMETERS,
+        SOUND_DOSE_CHANGED,
     };
     AAudioThread            mCommandThread;
     std::atomic_bool        mThreadEnabled{false};
@@ -468,6 +484,7 @@ protected:
     android::wp<AAudioServiceEndpoint> mServiceEndpointWeak;
 
     std::string mMetricsId;  // set once during open()
+    bool mSoundDoseActive GUARDED_BY(mLock) {false};  // true when audio data must be reported.
 
 private:
 

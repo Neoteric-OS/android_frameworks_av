@@ -44,4 +44,12 @@ oneway interface IMmapStreamCallback {
      * @param deviceIds the new device ids.
      */
     void onRoutingChanged(in int[] deviceIds);
+
+    /**
+     * Indicates that the sound dose computation requirement has changed and the
+     * client needs to use the IMmapStream to reportData if active.
+     *
+     * @param active true if the sound dose computation is active, false otherwise.
+     */
+    void onSoundDoseChanged(in boolean active);
 }

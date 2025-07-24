@@ -1409,20 +1409,6 @@ Status AudioPolicyService::setMaxVolumeIndexForGroup(int32_t groupIdAidl, int32_
     return binderStatusFromStatusT(mAudioPolicyManager->setMaxVolumeIndexForGroup(groupId, index));
 }
 
-Status AudioPolicyService::getVolumeGroupIdForStreamType(AudioStreamType streamAidl,
-                                                int32_t *_aidl_return) {
-    if (mAudioPolicyManager == NULL) {
-        return binderStatusFromStatusT(NO_INIT);
-    }
-    audio_stream_type_t stream = VALUE_OR_RETURN_BINDER_STATUS(
-            aidl2legacy_AudioStreamType_audio_stream_type_t(streamAidl));
-    audio_utils::lock_guard _l(mMutex);
-    *_aidl_return = VALUE_OR_RETURN_BINDER_STATUS(legacy2aidl_volume_group_t_int32_t(
-            mAudioPolicyManager->getVolumeGroupIdForStreamType(stream)));
-    return Status::ok();
-}
-
-
 Status AudioPolicyService::getStrategyForStream(AudioStreamType streamAidl,
                                                 int32_t* _aidl_return) {
     audio_stream_type_t stream = VALUE_OR_RETURN_BINDER_STATUS(

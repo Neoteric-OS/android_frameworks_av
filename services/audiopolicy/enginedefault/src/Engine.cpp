@@ -254,10 +254,16 @@ product_strategy_t Engine::remapStrategyFromContext(product_strategy_t strategy,
                                                  const SwAudioOutputCollection &outputs) const {
     auto legacyStrategy = getLegacyStrategyFromProduct(strategy);
 
+    // TODO: b/429390420 remove when ASSISTANT strategy is in use
+    if (legacyStrategy == STRATEGY_ASSISTANT) {
+        legacyStrategy = STRATEGY_MEDIA;
+    }
+
     if (isInCall()) {
         switch (legacyStrategy) {
         case STRATEGY_ACCESSIBILITY:
         case STRATEGY_DTMF:
+        case STRATEGY_ASSISTANT:
         case STRATEGY_MEDIA:
         case STRATEGY_SONIFICATION:
         case STRATEGY_SONIFICATION_RESPECTFUL:
@@ -414,6 +420,7 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
     case STRATEGY_ACCESSIBILITY:
     case STRATEGY_SONIFICATION_RESPECTFUL:
     case STRATEGY_REROUTING:
+    case STRATEGY_ASSISTANT:
     case STRATEGY_MEDIA: {
         if (isInCall() && devices.isEmpty()) {
           // when in call, get the device for Phone strategy

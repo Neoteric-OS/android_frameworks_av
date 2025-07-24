@@ -1687,19 +1687,6 @@ status_t AudioSystem::setMinVolumeIndexForGroup(volume_group_t groupId, int inde
     return statusTFromBinderStatus(aps->setMinVolumeIndexForGroup(groupIdAidl, indexAidl));
 }
 
-status_t AudioSystem::getVolumeGroupIdForStreamType(audio_stream_type_t stream, int &groupId) {
-    const sp<IAudioPolicyService> aps = get_audio_policy_service();
-    if (aps == 0) return PERMISSION_DENIED;
-
-    AudioStreamType aidlStream = VALUE_OR_RETURN_STATUS(
-            legacy2aidl_audio_stream_type_t_AudioStreamType(stream));
-    int32_t groupIdAidl;
-    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(aps->getVolumeGroupIdForStreamType(aidlStream,
-            &groupIdAidl)));
-    groupId = VALUE_OR_RETURN_STATUS(convertIntegral<int>(groupIdAidl));
-    return OK;
-}
-
 product_strategy_t AudioSystem::getStrategyForStream(audio_stream_type_t stream) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return PRODUCT_STRATEGY_NONE;

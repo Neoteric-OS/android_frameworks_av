@@ -65,6 +65,15 @@ public:
         return binder::Status::ok();
     }
 
+    ::android::binder::Status onSoundDoseChanged(bool active) final {
+        if (const auto callback = mCallback.promote()) {
+            callback->onSoundDoseChanged(active);
+        } else {
+            ALOGW_IF(mCallbackWarn++ < kSpamLimit, "%s: null callback", __func__);
+        }
+        return binder::Status::ok();
+    }
+
 private:
     static constexpr uint32_t kSpamLimit = 30;
     const wp<MmapStreamCallback> mCallback;
