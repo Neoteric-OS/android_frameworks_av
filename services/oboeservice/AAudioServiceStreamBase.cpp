@@ -422,6 +422,7 @@ aaudio_result_t AAudioServiceStreamBase::activate_l(TimestampScheduler* schedule
     scheduler->start(AudioClock::getNanoseconds());
     *nextTimestampReportTime = scheduler->nextAbsoluteTime();
     *nextDataReportTime = nextDataReportTime_l();
+    ALOGV("%s: SoundDose nextDataReportTime: %lld", __func__, (long long)*nextDataReportTime);
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {
         ALOGE("%s() has no endpoint", __func__);
@@ -517,8 +518,12 @@ void AAudioServiceStreamBase::run() {
         if (isRunning() && !isDisconnected_l()) {
             auto currentTimestamp = AudioClock::getNanoseconds();
             if (currentTimestamp >= nextDataReportTime) {
+                ALOGV("%s: currentTimestamp: %lld > nextDataReportTime: %lld",
+                        __func__, (long long)currentTimestamp, (long long)nextDataReportTime);
                 reportData_l();
                 nextDataReportTime = nextDataReportTime_l();
+                ALOGV("%s: new nextDataReportTime: %lld",
+                        __func__, (long long)nextDataReportTime);
             }
             if (currentTimestamp >= nextTimestampReportTime) {
                 // It is time to update timestamp.
@@ -567,6 +572,8 @@ void AAudioServiceStreamBase::run() {
                     timestampScheduler.start(AudioClock::getNanoseconds());
                     nextTimestampReportTime = timestampScheduler.nextAbsoluteTime();
                     nextDataReportTime = nextDataReportTime_l();
+                    ALOGV("%s: SoundDose nextDataReportTime: %lld",
+                            __func__, (long long)nextDataReportTime);
                 } break;
                 case PAUSE: {
                     command->result = pause_l();
@@ -630,6 +637,7 @@ void AAudioServiceStreamBase::run() {
                         // No return value required
                         break;
                     }
+                    ALOGV("%s: DRAIN SoundDose report data", __func__);
                     reportData_l();
                     timestampScheduler.stop();
                     nextDataReportTime = std::numeric_limits<int64_t>::max();
@@ -664,6 +672,13 @@ void AAudioServiceStreamBase::run() {
                 case GET_PLAYBACK_PARAMETERS: {
                     auto param = (GetPlaybackParametersParam *) command->parameter.get();
                     command->result = onGetPlaybackParameters_l(param->mRate);
+                } break;
+                case SOUND_DOSE_CHANGED: {
+                    const auto param = (SoundDoseChangedParam *) command->parameter.get();
+                    changeSoundDose_l(param->mActive, &nextDataReportTime);
+                    ALOGV("%s: SoundDose SOUND_DOSE_CHANGED active: %s  nextDataReportTime: %lld",
+                            __func__, (param->mActive ? "true" : "false"),
+                            (long long)nextDataReportTime);
                 } break;
                 default:
                     ALOGE("Invalid command op code: %d", command->operationCode);
@@ -899,6 +914,15 @@ aaudio_result_t AAudioServiceStreamBase::sendStopClientCommand(audio_port_handle
 
 void AAudioServiceStreamBase::onVolumeChanged(float volume) {
     sendServiceEvent(AAUDIO_SERVICE_EVENT_VOLUME, volume);
+}
+
+aaudio_result_t AAudioServiceStreamBase::onSoundDoseChanged(bool active) {
+    auto command = std::make_shared<AAudioCommand>(
+           SOUND_DOSE_CHANGED,
+           std::make_shared<SoundDoseChangedParam>(active),
+           false /*waitForReply*/,
+           TIMEOUT_NANOS);
+    return mCommandQueue.sendCommand(command);
 }
 
 aaudio_result_t AAudioServiceStreamBase::sendCommand(aaudio_command_opcode opCode,

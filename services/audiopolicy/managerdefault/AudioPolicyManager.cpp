@@ -1814,15 +1814,12 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
     // This prevents creating an offloaded track and tearing it down immediately after start
     // when audioflinger detects there is an active non offloadable effect.
-    // FIXME: We should check the audio session here but we do not have it in this context.
-    // This may prevent offloading in rare situations where effects are left active by apps
-    // in the background.
     sp<IOProfile> profile;
 // QTI_BEGIN: 2025-02-02: Audio: audiopolicy: Allow MMap when global effects are enabled
     if ((((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) == 0) &&
             flags != AUDIO_OUTPUT_FLAG_DIRECT) ||
 // QTI_END: 2025-02-02: Audio: audiopolicy: Allow MMap when global effects are enabled
-            !(mEffects.isNonOffloadableEffectEnabled() || mMasterMono)) {
+            !(mEffects.isNonOffloadableEffectEnabled(session) || mMasterMono)) {
         profile = getProfileForOutput(
                 devices, config->sample_rate, config->format, config->channel_mask,
                 flags, true /* directOnly */);
@@ -2020,6 +2017,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
 // QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE || *flags == AUDIO_OUTPUT_FLAG_DIRECT ||
                 (*flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) && !isInCall() &&
+                audio_channel_count_from_out_mask(config->channel_mask) == 2 &&
+                config->sample_rate <= SAMPLE_RATE_HZ_MAX &&
 // QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
 // QTI_BEGIN: 2024-12-26: Audio: audiopolicy : Fix force deep buffer condition
                 mConfig->useDeepBufferForMedia()) {
@@ -5357,7 +5356,9 @@ bool AudioPolicyManager::isOffloadPossible(const audio_offload_info_t &offloadIn
     // Do not allow offloading if one non offloadable effect is enabled. This prevents from
     // creating an offloaded track and tearing it down immediately after start when audioflinger
     // detects there is an active non offloadable effect.
-    // FIXME: We should check the audio session here but we do not have it in this context.
+    // Given that we do not have a session Id in this context we can only check if a global music
+    // effect is enabled. The check on the session will happen later when if an offload track
+    // is created.
     // This may prevent offloading in rare situations where effects are left active by apps
     // in the background.
     if (mEffects.isNonOffloadableEffectEnabled()) {
@@ -5447,6 +5448,9 @@ audio_direct_mode_t AudioPolicyManager::getDirectPlaybackSupport(const audio_att
 
 status_t AudioPolicyManager::getDirectProfilesForAttributes(const audio_attributes_t* attr,
                                                 AudioProfileVector& audioProfilesVector) {
+    // Given that we do not have a session Id in this context we can only check if a global music
+    // effect is enabled. The check on the session will happen later when if an offload track
+    // is created.
     if (mEffects.isNonOffloadableEffectEnabled()) {
         return OK;
     }

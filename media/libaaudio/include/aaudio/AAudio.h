@@ -2740,7 +2740,8 @@ typedef enum AAudio_FallbackMode : int32_t {
      */
     AAUDIO_FALLBACK_MODE_MUTE = 1,
     /**
-     * Stop processing and indicate an error.
+     * When the requested speed and or pitch is out of range, processing will be
+     * stopped and {@link AAUDIO_ERROR_ILLEGAL_ARGUMENT} will be returned.
      */
     AAUDIO_FALLBACK_MODE_FAIL = 2,
 } AAudio_FallbackMode;
@@ -2779,12 +2780,12 @@ typedef struct AAudioPlaybackParameters {
     /**
      * Increases or decreases the tonal frequency of the audio content.
      * It is expressed as a multiplicative factor, where normal pitch is 1.0f.
-     * This value must be greater than 0.
+     * The pitch must be in range of [0.25f, 4.0f].
      */
     float pitch;
     /**
      * Increases or decreases the time to play back a set of audio frames.
-     * Normal speed is 1.0f.
+     * Normal speed is 1.0f. The speed must in range of [0.01f, 20.0f].
      */
     float speed;
 } AAudioPlaybackParameters;

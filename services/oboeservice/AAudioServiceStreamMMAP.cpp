@@ -252,6 +252,10 @@ aaudio_result_t AAudioServiceStreamMMAP::getAudioDataDescription_l(
 }
 
 int64_t AAudioServiceStreamMMAP::nextDataReportTime_l() {
+    // check if audio data needs to be reported for sound dose.
+    ALOGV("%s() mSoundDoseActive: %s", __func__, (mSoundDoseActive ? "true" : "false"));
+    if (!mSoundDoseActive) return std::numeric_limits<int64_t>::max();
+
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {
         ALOGE("%s() has no endpoint", __func__);
@@ -263,6 +267,9 @@ int64_t AAudioServiceStreamMMAP::nextDataReportTime_l() {
 }
 
 void AAudioServiceStreamMMAP::reportData_l() {
+    ALOGV("%s() mSoundDoseActive: %s", __func__, (mSoundDoseActive ? "true" : "false"));
+    if (!mSoundDoseActive) return;  // prevent reporting if called in from drain.
+
     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
     if (endpoint == nullptr) {
         ALOGE("%s() has no endpoint", __func__);

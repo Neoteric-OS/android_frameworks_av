@@ -21,11 +21,13 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <variant>
 #include <vector>
 
 #include "CameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
+#include "android-base/thread_annotations.h"
 #include "system/camera_metadata.h"
 #include "util/Util.h"
 
@@ -62,8 +64,10 @@ class MetadataBuilder {
 
   MetadataBuilder() = default;
   ~MetadataBuilder() {
+    std::lock_guard<std::mutex> lock(mLock);
     if (mCustomMetadata != nullptr) {
       free_camera_metadata(mCustomMetadata);
+      mCustomMetadata = nullptr;
     }
   };
 
@@ -461,9 +465,10 @@ class MetadataBuilder {
   // Extend metadata with ANDROID_REQUEST_AVAILABLE_CHARACTERISTICS_KEYS.
   bool mExtendWithAvailableCharacteristicsKeys = false;
 
+  std::mutex mLock;
   // Additional custom metadata to be added to the built metadata.
   // Its keys and values have priority and will update the Builder set values.
-  camera_metadata_t* mCustomMetadata = nullptr;
+  camera_metadata_t* mCustomMetadata GUARDED_BY(mLock) = nullptr;
 };
 
 // Returns JPEG_QUALITY from metadata, or nullopt if the key is not present.

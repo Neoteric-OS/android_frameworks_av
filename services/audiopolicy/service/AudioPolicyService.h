@@ -162,8 +162,6 @@ public:
     binder::Status setMaxVolumeIndexForGroup(int32_t groupId, int32_t index) override;
     binder::Status getMinVolumeIndexForGroup(int32_t groupId, int32_t* _aidl_return) override;
     binder::Status setMinVolumeIndexForGroup(int32_t groupId, int32_t index) override;
-    binder::Status getVolumeGroupIdForStreamType(AudioStreamType stream,
-                                        int32_t *_aidl_return) override;
     binder::Status getStrategyForStream(AudioStreamType stream,
                                         int32_t* _aidl_return) override;
     binder::Status getDevicesForAttributes(const AudioAttributes& attr,

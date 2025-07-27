@@ -293,13 +293,6 @@ public:
      */
     virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index) = 0;
 
-    /**
-     * Get volume group id for stream
-     * @param stream type to query
-     * @return volume group for stream type
-     */
-    virtual volume_group_t getVolumeGroupIdForStreamType(audio_stream_type_t stream) = 0;
-
     // return the strategy corresponding to a given stream type
     virtual product_strategy_t getStrategyForStream(audio_stream_type_t stream) = 0;
 
