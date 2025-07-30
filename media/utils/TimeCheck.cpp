@@ -132,7 +132,7 @@ static size_t commonTimePrefixPosition(std::string_view time1, std::string_view 
         }
     }
 
-    // Go backwards until we find a delimeter or space.
+    // Go backwards until we find a delimiter or space.
     for (; i > 0
            && isdigit(time1[i]) // still a number
            && time1[i - 1] != ' '

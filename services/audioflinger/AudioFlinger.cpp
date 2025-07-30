@@ -525,15 +525,17 @@ status_t AudioFlinger::openMmapStream(const media::OpenMmapRequest& request,
                                 offloadInfo.format == AUDIO_FORMAT_DEFAULT ?
                                         nullptr : &offloadInfo,
                                 interface, &portId);
+
+    // we always build the response to fill config to permit retry on error.
+    const status_t statusResponse = MmapStreamInterface::buildResponse(
+        isOutput, config, deviceIds, sessionId, interface, portId, response);
+
     if (status != OK) {
         return status;
     }
 
-    status = MmapStreamInterface::buildResponse(
-        isOutput, config, deviceIds, sessionId, interface, portId, response);
-
-    ALOGW_IF(status != NO_ERROR, "%s: buildResponse status: %d", __func__, status);
-    return status;
+    ALOGW_IF(statusResponse != NO_ERROR, "%s: buildResponse status: %d", __func__, status);
+    return statusResponse;
 }
 
 status_t AudioFlinger::openMmapStreamImpl(bool isOutput,

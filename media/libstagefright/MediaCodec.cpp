@@ -231,6 +231,9 @@ static const char *kCodecFramesReleased = "android.media.mediacodec.frames-relea
 static const char *kCodecFramesRendered = "android.media.mediacodec.frames-rendered";
 static const char *kCodecFramesDropped = "android.media.mediacodec.frames-dropped";
 static const char *kCodecFramesSkipped = "android.media.mediacodec.frames-skipped";
+static const char *kCodecFramesStagnant = "android.media.mediacodec.frames-stagnant";
+static const char *kCodecFramesBackward = "android.media.mediacodec.frames-backward";
+static const char *kCodecFramesForward = "android.media.mediacodec.frames-forward";
 static const char *kCodecFramerateContent = "android.media.mediacodec.framerate-content";
 static const char *kCodecFramerateDesired = "android.media.mediacodec.framerate-desired";
 static const char *kCodecFramerateActual = "android.media.mediacodec.framerate-actual";
@@ -1754,6 +1757,9 @@ void MediaCodec::updateMediametrics() {
             mediametrics_setInt64(mMetricsHandle, kCodecFramesRendered, m.frameRenderedCount);
             mediametrics_setInt64(mMetricsHandle, kCodecFramesSkipped, m.frameSkippedCount);
             mediametrics_setInt64(mMetricsHandle, kCodecFramesDropped, m.frameDroppedCount);
+            mediametrics_setInt64(mMetricsHandle, kCodecFramesStagnant, m.frameStagnantCount);
+            mediametrics_setInt64(mMetricsHandle, kCodecFramesBackward, m.frameJumpBackwardCount);
+            mediametrics_setInt64(mMetricsHandle, kCodecFramesForward, m.frameJumpForwardCount);
             mediametrics_setDouble(mMetricsHandle, kCodecFramerateContent, m.contentFrameRate);
             mediametrics_setDouble(mMetricsHandle, kCodecFramerateDesired, m.desiredFrameRate);
             mediametrics_setDouble(mMetricsHandle, kCodecFramerateActual, m.actualFrameRate);

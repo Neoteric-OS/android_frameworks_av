@@ -22,6 +22,7 @@
 #include <audiomanager/IAudioManager.h>
 #include <audio_utils/DeferredExecutor.h>
 #include <audio_utils/MelProcessor.h>
+#include <audio_utils/TimerQueue.h>
 #include <audio_utils/mutex.h>
 #include <binder/MemoryDealer.h>
 #include <datapath/AudioStreamIn.h>
@@ -703,8 +704,10 @@ public:
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t reportData(const void* buffer, size_t frameCount)
             EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t drain() EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t activate() EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                           audio_utils::TimerQueue::handle_t* handle) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t activate(audio_utils::TimerQueue::handle_t handle)
+            EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t setPlaybackParameters(
             const media::audio::common::AudioPlaybackRate& rate) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t getPlaybackParameters(

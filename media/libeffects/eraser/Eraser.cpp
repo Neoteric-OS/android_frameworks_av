@@ -34,11 +34,6 @@ using aidl::android::hardware::audio::effect::getEffectTypeUuidEraser;
 using aidl::android::hardware::audio::effect::IEffect;
 using aidl::android::hardware::audio::effect::State;
 using aidl::android::media::audio::common::AudioUuid;
-using aidl::android::media::audio::eraser::ClassifierCapability;
-using aidl::android::media::audio::eraser::Mode;
-using aidl::android::media::audio::eraser::RemixerCapability;
-using aidl::android::media::audio::eraser::SeparatorCapability;
-using aidl::android::media::audio::eraser::SoundClassification;
 
 extern "C" binder_exception_t createEffect(const AudioUuid* in_impl_uuid,
                                            std::shared_ptr<IEffect>* instanceSpp) {

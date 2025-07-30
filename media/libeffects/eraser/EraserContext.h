@@ -23,6 +23,7 @@
 #include <aidl/android/hardware/audio/effect/Eraser.h>
 #include <aidl/android/media/audio/eraser/Capability.h>
 #include <aidl/android/media/audio/eraser/Configuration.h>
+#include <aidl/android/media/audio/eraser/IEraserCallback.h>
 
 #include "effect-impl/EffectContext.h"
 #include "LiteRTInstance.h"
@@ -51,8 +52,11 @@ class EraserContext final : public EffectContext {
 
     // supported default configurations for the eraser implementation
     static constexpr int kClassifierSampleRate = 16000;
+    // 1 second classifier window
     static constexpr int kClassifierWindowSizeMs = 1000;
+    // max number of sounds can be separated
     static constexpr int kSeparatorMaxSoundNum = 8;
+    // max gain factor for the remixer
     static constexpr float kRemixerGainFactorMax = 1.2f;
 
     static const EraserConfiguration kDefaultConfig;
@@ -72,12 +76,15 @@ class EraserContext final : public EffectContext {
     const std::string kSeparatorModelPath =
             "/apex/com.android.hardware.audio/etc/models/separator.tflite";
 
-    int mChannelCount;
+    int mChannelCount = 0;
     Parameter::Common mCommon;
     EraserConfiguration mConfig;
+    int mSoundId = 0;
+    std::shared_ptr<android::media::audio::eraser::IEraserCallback> mCallback;
 
     std::unique_ptr<LiteRTInstance> mClassifierInstance;
     std::unique_ptr<LiteRTInstance> mSeparatorInstance;
+    std::vector<float> mWorkBuffer;
 
     void init();
 };

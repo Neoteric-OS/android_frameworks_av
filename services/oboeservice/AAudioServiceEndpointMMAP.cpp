@@ -443,20 +443,24 @@ aaudio_result_t AAudioServiceEndpointMMAP::exitStandby(AudioEndpointParcelable* 
     return result;
 }
 
-aaudio_result_t AAudioServiceEndpointMMAP::drain() {
-    const std::lock_guard lock(mMmapStreamLock);
+aaudio_result_t AAudioServiceEndpointMMAP::drain(
+        int64_t wakeUpNanos, bool allowSoftWakeUp,
+        android::audio_utils::TimerQueue::handle_t* handle) {
+    std::lock_guard<std::mutex> lock(mMmapStreamLock);
     if (mMmapStream == nullptr) {
         return AAUDIO_ERROR_NULL;
     }
-    return AAudioConvert_androidToAAudioResult(mMmapStream->drain());
+    return AAudioConvert_androidToAAudioResult(
+            mMmapStream->drain(wakeUpNanos, allowSoftWakeUp, handle));
 }
 
-aaudio_result_t AAudioServiceEndpointMMAP::activate() {
+aaudio_result_t AAudioServiceEndpointMMAP::activate(
+        android::audio_utils::TimerQueue::handle_t handle) {
     const std::lock_guard lock(mMmapStreamLock);
     if (mMmapStream == nullptr) {
         return AAUDIO_ERROR_NULL;
     }
-    return AAudioConvert_androidToAAudioResult(mMmapStream->activate());
+    return AAudioConvert_androidToAAudioResult(mMmapStream->activate(handle));
 }
 
 aaudio_result_t AAudioServiceEndpointMMAP::setPlaybackParameters(
@@ -575,6 +579,13 @@ void AAudioServiceEndpointMMAP::onSoundDoseChanged(bool active) {
     const std::lock_guard lock(mLockStreams);
     for (const auto& stream : mRegisteredStreams) {
         stream->onSoundDoseChanged(active);
+    }
+}
+
+void AAudioServiceEndpointMMAP::onWakeUp(android::audio_utils::TimerQueue::handle_t handle) {
+    const std::lock_guard<std::mutex> lock(mLockStreams);
+    for (const auto& stream : mRegisteredStreams) {
+        stream->onWakeUp(handle);
     }
 }
 

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstring>
 #define LOG_TAG "AHAL_EraserContext"
 
 #include <android-base/logging.h>
@@ -21,10 +22,13 @@
 #include <sys/stat.h>
 
 #include "EraserContext.h"
+#include "EraserUtils.h"
 #include "LiteRTInstance.h"
 
 using aidl::android::media::audio::common::AudioChannelLayout;
 using aidl::android::media::audio::eraser::Classification;
+using aidl::android::media::audio::eraser::ClassificationMetadata;
+using aidl::android::media::audio::eraser::ClassificationMetadataList;
 using aidl::android::media::audio::eraser::ClassifierCapability;
 using aidl::android::media::audio::eraser::Mode;
 using aidl::android::media::audio::eraser::RemixerCapability;
@@ -45,13 +49,13 @@ const ClassifierCapability EraserContext::kClassifierCapability = {
                 Classification{.classification = SoundClassification::ENVIRONMENT},
         }};
 
-const EraserContext::EraserConfiguration EraserContext::kDefaultConfig = {.mode = Mode::CLASSIFIER};
-
 const SeparatorCapability EraserContext::kSeparatorCapability = {
         .supported = true, .maxSoundSources = kSeparatorMaxSoundNum};
 
 const RemixerCapability EraserContext::kRemixerCapability = {
         .supported = true, .maxGainFactor = kRemixerGainFactorMax};
+
+const EraserContext::EraserConfiguration EraserContext::kDefaultConfig = {.mode = Mode::CLASSIFIER};
 
 const EraserContext::EraserCapability& EraserContext::getCapability() {
     static const EraserCapability cap({
@@ -117,9 +121,7 @@ RetCode EraserContext::disable() {
 }
 
 RetCode EraserContext::reset() {
-    // reset model inference indexes
-    if (mSeparatorInstance) mSeparatorInstance->resetTensorIndex();
-    if (mClassifierInstance) mClassifierInstance->resetTensorIndex();
+    mWorkBuffer.clear();
     return RetCode::SUCCESS;
 }
 
@@ -141,6 +143,7 @@ ndk::ScopedAStatus EraserContext::setParam(Eraser eraser) {
     switch (tag) {
         case Eraser::configuration: {
             mConfig = eraser.get<Eraser::configuration>();
+            mCallback = mConfig.callback;
             return ndk::ScopedAStatus::ok();
         }
         default: {
@@ -154,6 +157,7 @@ IEffect::Status EraserContext::process(float* in, float* out, int samples) {
     IEffect::Status procStatus = {EX_ILLEGAL_ARGUMENT, 0, 0};
     RETURN_VALUE_IF(!in, procStatus, "nullInput");
     RETURN_VALUE_IF(!out, procStatus, "nullOutput");
+    RETURN_VALUE_IF(!mClassifierInstance, procStatus, "nullClassifier");
 
     const auto inputChCount = common::getChannelCount(mCommon.input.base.channelMask);
     const auto outputChCount = common::getChannelCount(mCommon.output.base.channelMask);
@@ -163,15 +167,79 @@ IEffect::Status EraserContext::process(float* in, float* out, int samples) {
         return procStatus;
     }
 
-    mClassifierInstance->write(in, samples);
-    mClassifierInstance->invoke();
+    const size_t tensorSize = mClassifierInstance->inputTensorSize();
+    // Half of the Tensor size overlapping for more robust classification
+    const size_t hopSize = tensorSize >> 1;
+    // Add incoming samples to end of buffer
+    mWorkBuffer.insert(mWorkBuffer.end(), in, in + samples);
 
-    // TODO: calibrate sound type and score from typedOutputTensor after invoke
-    // TODO: run SeparatorInstance and Remixer if supported
+    while (mWorkBuffer.size() >= tensorSize) {
+        std::span<float> classifierInput = mClassifierInstance->typedInputTensor<float>();
+        // Copy Tensor size of data from buffer to the model's input
+        std::memcpy(classifierInput.data(), mWorkBuffer.data(), tensorSize * sizeof(float));
+
+        // Invoke the model
+        if (!mClassifierInstance->invoke()) {
+            LOG(ERROR) << __func__ << " classifier instance invoke failed, dropping data";
+            mWorkBuffer.clear();
+            break;
+        }
+
+        // Read the result directly from the model's output tensor
+        const std::span<float> scores = mClassifierInstance->typedOutputTensor<float>();
+        if (scores.empty()) {
+            LOG(ERROR) << __func__ << " read classifier output with size "
+                       << mClassifierInstance->outputTensorSize() << " failed or size mismatch";
+            mWorkBuffer.clear();
+            break;
+        }
+
+        // Get max scores by category
+        std::unordered_map<SoundClassification, float> categoryScores;
+        const auto& categoryMap = getYamnetToCustomCategoryMap();
+        for (const auto& [category, indices] : categoryMap) {
+            float maxScore = 0;
+            for (int index : indices) {
+                maxScore = std::max(scores[index], maxScore);
+            }
+
+            if (maxScore > 0) {
+                categoryScores.insert({category, maxScore});
+            }
+        }
+
+        // per-category thresholds
+        const auto& thresholds = getCategoryThresholds();
+        std::vector<ClassificationMetadata> activeCategories;
+        for (const auto& [category, score] : categoryScores) {
+            if (score >= thresholds.at(category)) {
+                activeCategories.push_back(ClassificationMetadata{
+                        .confidenceScore = score,
+                        .classification = Classification{.classification = category}});
+                LOG(DEBUG) << __func__ << " detected active category: " << toString(category)
+                           << ", score: " << score;
+            }
+        }
+
+        // TODO: update mSoundId with separator support
+        // TODO: update timeMs with the calculated timestamp within the audio stream
+        if (mCallback) {
+            mCallback->onClassifierUpdate(
+                    mSoundId,
+                    ClassificationMetadataList{.timeMs = 0, .metadatas = activeCategories});
+        }
+
+        // slide the window by erasing the hop data from the front of our buffer
+        mWorkBuffer.erase(mWorkBuffer.begin(), mWorkBuffer.begin() + hopSize);
+    }
+
+    // TODO: for ERASER mode, copy separated audio to output channels
+    std::memcpy(out, in, samples * sizeof(float));
 
     const int inputFrames = samples / inputChCount;
-    return IEffect::Status{STATUS_OK, static_cast<int32_t>(inputFrames * inputChCount),
-                           static_cast<int32_t>(inputFrames * outputChCount)};
+    return IEffect::Status{.status = STATUS_OK,
+                           .fmqConsumed = static_cast<int32_t>(inputFrames * inputChCount),
+                           .fmqProduced = static_cast<int32_t>(inputFrames * outputChCount)};
 }
 
 }  // namespace aidl::android::hardware::audio::effect

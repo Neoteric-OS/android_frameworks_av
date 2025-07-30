@@ -131,6 +131,9 @@ class StreamContextAidl {
 
 class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelperAidl {
   public:
+    // Closes the HAL stream and releases underlying hardware resources.
+    status_t close() override;
+
     // Return size of input/output buffer in bytes for this stream - eg. 4800.
     status_t getBufferSize(size_t *size) override;
 

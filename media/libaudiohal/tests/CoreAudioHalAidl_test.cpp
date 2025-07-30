@@ -1140,6 +1140,7 @@ class StreamHalMock : public virtual StreamHalInterface {
   public:
     StreamHalMock() = default;
     ~StreamHalMock() override = default;
+    status_t close() override { return OK; }
     status_t getBufferSize(size_t*) override { return OK; }
     status_t getAudioProperties(audio_config_base_t*) override { return OK; }
     status_t setParameters(const String8&) override { return OK; }

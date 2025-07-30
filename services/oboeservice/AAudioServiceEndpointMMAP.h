@@ -71,9 +71,12 @@ public:
     aaudio_result_t exitStandby(AudioEndpointParcelable* parcelable) override
             EXCLUDES(mMmapStreamLock);
 
-    aaudio_result_t drain() final EXCLUDES(mMmapStreamLock);
+    aaudio_result_t drain(
+            int64_t wakeUpNanos, bool allowSoftWakeUp,
+            android::audio_utils::TimerQueue::handle_t* handle) final EXCLUDES(mMmapStreamLock);
 
-    aaudio_result_t activate() final EXCLUDES(mMmapStreamLock);
+    aaudio_result_t activate(android::audio_utils::TimerQueue::handle_t handle)
+            final EXCLUDES(mMmapStreamLock);
 
     aaudio_result_t setPlaybackParameters(
             const android::media::audio::common::AudioPlaybackRate& rate)
@@ -97,6 +100,8 @@ public:
     void onRoutingChanged(const android::DeviceIdVector& deviceIds) override;
 
     void onSoundDoseChanged(bool active) final;
+
+    void onWakeUp(android::audio_utils::TimerQueue::handle_t handle) final;
     // ------------------------------------------------------------------------------
 
     aaudio_result_t getDownDataDescription(AudioEndpointParcelable* parcelable);

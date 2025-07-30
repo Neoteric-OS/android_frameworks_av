@@ -88,14 +88,6 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
     mOffloadSafeMarginInFrames =
             getDeviceSampleRate() * kOffloadSafeMarginMs / AAUDIO_MILLIS_PER_SECOND +
             getDeviceFramesPerBurst();
-    if (result == AAUDIO_OK &&
-        getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED &&
-        isDataCallbackSet()) {
-        mTq = std::make_unique<TimerQueue>(false /*alarm*/);
-        if (!mTq->ready()) {
-            ALOGE("%s timer queue is not ready to use", __func__);
-        }
-    }
     return result;
 }
 
@@ -257,53 +249,22 @@ aaudio_result_t AudioStreamInternalPlay::write(const void *buffer, int32_t numFr
         // to save battery.
         int32_t fullFrames = mAudioEndpoint->getFullFramesAvailable();
         if (fullFrames > getDeviceBufferSize() - mOffloadSafeMarginInFrames &&
-            fullFrames > getDeviceSampleRate()) {
+            fullFrames > getDeviceSampleRate() * 1 + mOffloadSafeMarginInFrames) {
+            const int64_t drainNanos = mClockModel.convertDeltaPositionToTime(
+                    fullFrames - mOffloadSafeMarginInFrames);
+            const int64_t wakeUpNanos = android::elapsedRealtimeNano() + drainNanos;
             android::audio_utils::unique_lock ul(mStreamMutex);
-            if (aaudio_result_t ret = drainStream_l(); ret != AAUDIO_OK) {
+            if (aaudio_result_t ret = drainStream_l(wakeUpNanos, isDataCallbackSet());
+                ret != AAUDIO_OK) {
                 ALOGE("%s() failed to drain, error=%d", __func__, ret);
                 return ret;
             }
             mDraining = true;
             if (isDataCallbackSet()) {
-                // This should not take too long to complete. But it is good to query
-                // the current full frames to get a more accurate sleep time.
-                const int64_t drainNanos = mClockModel.convertDeltaPositionToTime(std::max(
-                        mAudioEndpoint->getFullFramesAvailable() - mOffloadSafeMarginInFrames, 0));
-                if (drainNanos > 0) {
-                    // Prefer using TimerQueue to wake up as it is more accurate on timing out.
-                    if (mTq->ready()) {
-                        mTqNotified = false;
-                        const auto timeToWakeUp = android::elapsedRealtimeNano() + drainNanos;
-                        mCallbackTimerHandle = mTq->add([this]() {
-                            {
-                                std::lock_guard _l(mStreamMutex);
-                                mTqNotified = true;
-                            }
-                            mCallbackCV.notify_one();
-                        }, timeToWakeUp);
-                        mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
-                                         [this]() REQUIRES(mStreamMutex) {
-                            return !mDraining || mTqNotified;
-                        });
-                        mCallbackTimerHandle = TimerQueue::INVALID_HANDLE;
-                    } else {
-                        mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
-                                             [this]() REQUIRES(mStreamMutex) {
-                            return !mDraining;
-                        });
-                    }
-                } else {
-                    // When this happens, it indicates that taking the lock and calling to service
-                    // to drain the stream cost more than 1 second, which is significantly longer
-                    // than expected. That may indicate something wrong happen. If there is
-                    // something wrong, it should be propagated when calling activateStream below.
-                    ALOGE("%s from callback thread, no need to suspend as the drain time is 0",
-                          __func__);
-                }
-                if (aaudio_result_t ret = activateStream_l(); ret != AAUDIO_OK) {
-                    ALOGE("%s() failed to activate stream, error=%d", __func__, ret);
-                    return ret;
-                }
+                mCallbackCV.wait_for(ul, std::chrono::nanoseconds(drainNanos),
+                                     [this]() REQUIRES(mStreamMutex) {
+                    return !mDraining;
+                });
             }
         }
     }
@@ -587,16 +548,11 @@ aaudio_result_t AudioStreamInternalPlay::requestStop_l() {
 }
 
 void AudioStreamInternalPlay::wakeupCallbackThread_l() {
-    mSuspendCallback = false;
     if (!isDataCallbackSet()) {
         return;
     }
     mOffloadEosPending = false;
     mDraining = false;
-    if (mTq != nullptr) {
-        mTq->remove(mStreamEndTimerHandle);
-        mTq->remove(mCallbackTimerHandle);
-    }
     mStreamEndCV.notify_one();
     mCallbackCV.notify_one();
 }
@@ -653,8 +609,10 @@ aaudio_result_t AudioStreamInternalPlay::flushFromFrame_l(
     return result;
 }
 
-aaudio_result_t AudioStreamInternalPlay::drainStream_l() {
-    aaudio_result_t result = mServiceInterface.drainStream(mServiceStreamHandleInfo);
+aaudio_result_t AudioStreamInternalPlay::drainStream_l(int64_t wakeUpNanos,
+                                                       bool allowSoftWakeUp) {
+    aaudio_result_t result = mServiceInterface.drainStream(
+            mServiceStreamHandleInfo, wakeUpNanos, allowSoftWakeUp, &mWakeUpHandle);
     if (result == AAUDIO_OK) {
         return result;
     }
@@ -666,8 +624,10 @@ aaudio_result_t AudioStreamInternalPlay::drainStream_l() {
 }
 
 aaudio_result_t AudioStreamInternalPlay::activateStream_l() {
-    aaudio_result_t result = mServiceInterface.activateStream(mServiceStreamHandleInfo);
+    aaudio_result_t result = mServiceInterface.activateStream(
+            mServiceStreamHandleInfo, mWakeUpHandle);
     if (result == AAUDIO_OK) {
+        mWakeUpHandle = TimerQueue::INVALID_HANDLE;
         return result;
     }
     ALOGE("%s() failed, error=%d", __func__, result);
@@ -752,36 +712,16 @@ void *AudioStreamInternalPlay::callbackLoop() {
             if (mOffloadEosPending) {
                 const int64_t streamEndNanos = mClockModel.convertDeltaPositionToTime(std::max(0,
                         mAudioEndpoint->getFullFramesAvailable() - getDeviceFramesPerBurst()));
-                if (result = drainStream_l(); result != AAUDIO_OK) {
+                const int64_t wakeUpNanos = android::elapsedRealtimeNano() + streamEndNanos;
+                if (result = drainStream_l(wakeUpNanos, false /*allowSoftWakeUp*/);
+                    result != AAUDIO_OK) {
                     ALOGE("%s() failed to drain, error=%d", __func__, result);
                     break;
                 }
-                // Prefer using TimerQueue to wake up as it is more accurate on timing out.
-                if (mTq->ready()) {
-                    mTqNotified = false;
-                    const auto timeToWakeUp = android::elapsedRealtimeNano() + streamEndNanos;
-                    mStreamEndTimerHandle = mTq->add([this]() {
-                        {
-                            std::lock_guard _l(mStreamMutex);
-                            mTqNotified = true;
-                        }
-                        mStreamEndCV.notify_one();
-                    }, timeToWakeUp);
-                    mStreamEndCV.wait_for(ul, std::chrono::nanoseconds(streamEndNanos),
-                                          [this]() REQUIRES(mStreamMutex) {
-                        return !mOffloadEosPending || mTqNotified;
-                    });
-                    mStreamEndTimerHandle = TimerQueue::INVALID_HANDLE;
-                } else {
-                    mStreamEndCV.wait_for(ul, std::chrono::nanoseconds(streamEndNanos),
-                                          [this]() REQUIRES(mStreamMutex) {
-                        return !mOffloadEosPending;
-                    });
-                }
-                if (result = activateStream_l(); result != AAUDIO_OK) {
-                    ALOGE("%s() failed to activate, error=%d", __func__, result);
-                    break;
-                }
+                mStreamEndCV.wait_for(ul, std::chrono::nanoseconds(streamEndNanos),
+                                      [this]() REQUIRES(mStreamMutex) {
+                    return !mOffloadEosPending;
+                });
                 if (mOffloadEosPending) {
                     maybeCallPresentationEndCallback();
                     mOffloadEosPending = false;
@@ -831,4 +771,14 @@ status_t AudioStreamInternalPlay::doSetVolume() {
           __func__, mStreamVolume, getDuckAndMuteVolume(), combinedVolume);
     mFlowGraph.setTargetVolume(combinedVolume);
     return android::NO_ERROR;
+}
+
+//------------------------------------------------------------------------------
+// Implementation of AAudioClientCallback
+void AudioStreamInternalPlay::onWakeUp_l(android::audio_utils::TimerQueue::handle_t handle) {
+    if (handle != mWakeUpHandle) {
+        ALOGW("%s the wake up handle does not match %jd %jd", __func__, handle, mWakeUpHandle);
+    }
+    mWakeUpHandle = TimerQueue::INVALID_HANDLE;
+    wakeupCallbackThread_l();
 }

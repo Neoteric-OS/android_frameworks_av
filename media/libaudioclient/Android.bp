@@ -178,6 +178,7 @@ cc_library {
     ],
     header_libs: [
         "libaudioclient_headers",
+        "libaudioutils_headers",
         "libbase_headers",
         "libmedia_headers",
     ],
@@ -223,9 +224,11 @@ cc_library {
     export_include_dirs: ["include"],
     header_libs: [
         "libaudio_aidl_conversion_common_util_cpp",
+        "libaudioutils_headers",
     ],
     export_header_lib_headers: [
         "libaudio_aidl_conversion_common_util_cpp",
+        "libaudioutils_headers",
     ],
     export_shared_lib_headers: [
         "audioclient-types-aidl-cpp",
@@ -326,6 +329,7 @@ aidl_interface {
         "aidl/android/media/DeviceConnectedState.aidl",
         "aidl/android/media/EffectDescriptor.aidl",
         "aidl/android/media/SurroundSoundConfig.aidl",
+        "aidl/android/media/TimerQueueHandle.aidl",
         "aidl/android/media/TrackInternalMuteInfo.aidl",
         "aidl/android/media/TrackSecondaryOutputInfo.aidl",
     ],

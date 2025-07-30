@@ -2168,10 +2168,6 @@ status_t AudioSystem::registerPolicyMixes(const Vector<AudioMix>& mixes, bool re
 }
 
 status_t AudioSystem::getRegisteredPolicyMixes(std::vector<AudioMix>& mixes) {
-    if (!audio_flags::audio_mix_test_api()) {
-        return INVALID_OPERATION;
-    }
-
     const sp<IAudioPolicyService> aps = AudioSystem::get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
 

@@ -21,6 +21,7 @@
 #include <android/media/OpenMmapResponse.h>
 #include <android/media/IMmapStream.h>
 #include <android/media/audio/common/AudioPlaybackRate.h>
+#include <audio_utils/TimerQueue.h>
 #include <media/AidlConversion.h>
 #include <media/AudioClient.h>
 #include <media/AudioContainers.h>
@@ -210,12 +211,13 @@ class MmapStreamInterface : public virtual RefBase
     /**
      * Notify the stream is currently draining.
      */
-    virtual status_t drain();
+    virtual status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                           android::audio_utils::TimerQueue::handle_t* handle);
 
     /**
      * Notify the stream is active.
      */
-    virtual status_t activate();
+    virtual status_t activate(android::audio_utils::TimerQueue::handle_t handle);
 
     virtual status_t setPlaybackParameters(
             const android::media::audio::common::AudioPlaybackRate& rate);
