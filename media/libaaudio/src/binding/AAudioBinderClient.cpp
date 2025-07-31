@@ -32,6 +32,7 @@
 
 #define AAUDIO_SERVICE_NAME  "media.aaudio"
 
+using android::audio_utils::TimerQueue;
 using android::String16;
 using android::IServiceManager;
 using android::defaultServiceManager;
@@ -214,19 +215,22 @@ aaudio_result_t AAudioBinderClient::updateTimestamp(const AAudioHandleInfo& stre
     return service->updateTimestamp(streamHandleInfo);
 }
 
-aaudio_result_t AAudioBinderClient::drainStream(const AAudioHandleInfo& streamHandleInfo) {
+aaudio_result_t AAudioBinderClient::drainStream(const AAudioHandleInfo& streamHandleInfo,
+                                                int64_t wakeUpNanos,
+                                                bool allowSoftWakeUp,
+                                                TimerQueue::handle_t* handle) {
     std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
     if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
 
-    return service->drainStream(streamHandleInfo);
+    return service->drainStream(streamHandleInfo, wakeUpNanos, allowSoftWakeUp, handle);
 }
 
 aaudio_result_t AAudioBinderClient::activateStream(
-        const aaudio::AAudioHandleInfo &streamHandleInfo) {
+        const aaudio::AAudioHandleInfo &streamHandleInfo, TimerQueue::handle_t handle) {
     std::shared_ptr<AAudioServiceInterface> service = getAAudioService();
     if (service.get() == nullptr) return AAUDIO_ERROR_NO_SERVICE;
 
-    return service->activateStream(streamHandleInfo);
+    return service->activateStream(streamHandleInfo, handle);
 }
 
 aaudio_result_t AAudioBinderClient::setPlaybackParameters(

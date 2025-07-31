@@ -16,6 +16,7 @@
 
 #include <android/media/audio/common/AudioPlaybackRate.h>
 #include <binding/AAudioBinderAdapter.h>
+#include <media/AidlConversion.h>
 #include <media/AidlConversionCppNdk.h>
 #include <media/AidlConversionUtil.h>
 #include <utility/AAudioUtilities.h>
@@ -23,6 +24,7 @@
 namespace aaudio {
 
 using android::aidl_utils::statusTFromBinderStatus;
+using android::audio_utils::TimerQueue;
 using android::binder::Status;
 
 AAudioBinderAdapter::AAudioBinderAdapter(IAAudioService* delegate,
@@ -181,25 +183,39 @@ aaudio_result_t AAudioBinderAdapter::updateTimestamp(
     return result;
 }
 
-aaudio_result_t AAudioBinderAdapter::drainStream(const aaudio::AAudioHandleInfo &streamHandleInfo) {
+aaudio_result_t AAudioBinderAdapter::drainStream(const aaudio::AAudioHandleInfo &streamHandleInfo,
+                                                 int64_t wakeUpNanos,
+                                                 bool allowSoftWakeUp,
+                                                 TimerQueue::handle_t* handle) {
     if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
         return AAUDIO_ERROR_DISCONNECTED;
     }
     aaudio_result_t result;
-    Status status = mDelegate->drainStream(streamHandleInfo.getHandle(), &result);
+    android::media::TimerQueueHandle aidlHandle;
+    Status status = mDelegate->drainStream(
+            streamHandleInfo.getHandle(), wakeUpNanos, allowSoftWakeUp, &aidlHandle, &result);
     if (!status.isOk()) {
-        result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
+        return AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
     }
+    auto legacy = android::aidl2legacy_TimerQueueHandle_timer_queue_handle_t(aidlHandle);
+    if (!legacy.ok()) {
+        return AAudioConvert_androidToAAudioResult(legacy.error());
+    }
+    *handle = legacy.value();
     return result;
 }
 
 aaudio_result_t AAudioBinderAdapter::activateStream(
-        const aaudio::AAudioHandleInfo &streamHandleInfo) {
+        const aaudio::AAudioHandleInfo &streamHandleInfo, TimerQueue::handle_t handle) {
     if (streamHandleInfo.getServiceLifetimeId() != mServiceLifetimeId) {
         return AAUDIO_ERROR_DISCONNECTED;
     }
     aaudio_result_t result;
-    Status status = mDelegate->activateStream(streamHandleInfo.getHandle(), &result);
+    auto aidl = android::legacy2aidl_timer_queue_handle_t_TimerQueueHandle(handle);
+    if (!aidl.ok()) {
+        return AAudioConvert_androidToAAudioResult(aidl.error());
+    }
+    Status status = mDelegate->activateStream(streamHandleInfo.getHandle(), aidl.value(), &result);
     if (!status.isOk()) {
         result = AAudioConvert_androidToAAudioResult(statusTFromBinderStatus(status));
     }

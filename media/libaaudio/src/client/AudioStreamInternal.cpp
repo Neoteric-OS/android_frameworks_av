@@ -25,13 +25,13 @@
 #include <binder/IServiceManager.h>
 
 #include <aaudio/AAudio.h>
+#include <aaudio/IAAudioClientCallback.h>
 #include <cutils/properties.h>
-
 #include <media/AudioParameter.h>
 #include <media/AudioSystem.h>
 #include <media/MediaMetricsItem.h>
-#include <utils/Trace.h>
 #include <mediautils/SchedulingPolicyService.h>
+#include <utils/Trace.h>
 
 #include "AudioEndpointParcelable.h"
 #include "binding/AAudioBinderClient.h"
@@ -130,6 +130,7 @@ aaudio_result_t AudioStreamInternal::open(const AudioStreamBuilder &builder) {
     attributionSource.token = sp<android::BBinder>::make();
 
     // Build the request to send to the server.
+    request.setCallback(this);
     request.setAttributionSource(attributionSource);
     request.setSharingModeMatchRequired(isSharingModeMatchRequired());
     request.setInService(isInService());
@@ -1019,4 +1020,20 @@ int32_t AudioStreamInternal::getDeviceBufferCapacity() const {
 
 bool AudioStreamInternal::isClockModelInControl() const {
     return isActive() && mAudioEndpoint->isFreeRunning() && mClockModel.isRunning();
+}
+
+//------------------------------------------------------------------------------
+// Implementation of AAudioClientCallback
+
+android::binder::Status AudioStreamInternal::onWakeUp(
+        const android::media::TimerQueueHandle& handle) {
+    if (getPerformanceMode() != AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+        ALOGW("%s on a non-offload stream", __func__);
+        return android::binder::Status::fromStatusT(STATUS_INVALID_OPERATION);
+    }
+    android::audio_utils::TimerQueue::handle_t legacy = VALUE_OR_RETURN_BINDER_STATUS(
+            android::aidl2legacy_TimerQueueHandle_timer_queue_handle_t(handle));
+    std::lock_guard _l(mStreamMutex);
+    onWakeUp_l(legacy);
+    return android::binder::Status::ok();
 }

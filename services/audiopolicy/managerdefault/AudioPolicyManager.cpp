@@ -4660,10 +4660,6 @@ status_t AudioPolicyManager::unregisterPolicyMixes(const std::vector<AudioMix>& 
 }
 
 status_t AudioPolicyManager::getRegisteredPolicyMixes(std::vector<AudioMix>& _aidl_return) {
-    if (!audio_flags::audio_mix_test_api()) {
-        return INVALID_OPERATION;
-    }
-
     _aidl_return.clear();
     _aidl_return.reserve(mPolicyMixes.size());
     for (const auto &policyMix: mPolicyMixes) {

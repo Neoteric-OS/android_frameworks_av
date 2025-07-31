@@ -26,7 +26,11 @@ using ::aidl::android::hardware::health::IHealth;
 
 namespace android::media::psh_utils {
 
-static auto getHealthService() {
+static std::shared_ptr<IHealth> getHealthService() {
+    if (!AudioPowerManager::enabled()) {
+        LOG(ERROR) << __func__ << ": should not be called if not enabled";
+        return {};
+    }
     return mediautils::getService<IHealth>();
 }
 

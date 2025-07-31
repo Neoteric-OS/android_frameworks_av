@@ -2343,8 +2343,9 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     status_t reportData(const void* buffer, size_t frameCount) override EXCLUDES_ThreadBase_Mutex;
-    status_t drain() override EXCLUDES_ThreadBase_Mutex;
-    status_t activate() override EXCLUDES_ThreadBase_Mutex;
+    status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                   audio_utils::TimerQueue::handle_t* handle) override EXCLUDES_ThreadBase_Mutex;
+    status_t activate(audio_utils::TimerQueue::handle_t handle) override EXCLUDES_ThreadBase_Mutex;
     status_t setPlaybackParameters(const media::audio::common::AudioPlaybackRate& rate)
             override EXCLUDES_ThreadBase_Mutex;
     status_t getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate)
@@ -2491,8 +2492,9 @@ public:
 
     status_t reportData(const void* buffer, size_t frameCount) final;
 
-    status_t drain() final;
-    status_t activate() final;
+    status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                   audio_utils::TimerQueue::handle_t* handle) final;
+    status_t activate(audio_utils::TimerQueue::handle_t handle) final;
 
     status_t setPlaybackParameters(const media::audio::common::AudioPlaybackRate& rate)
             final EXCLUDES_ThreadBase_Mutex;
@@ -2508,6 +2510,8 @@ public:
        return static_cast<VolumeInterface*>(this);
     }
 
+    void onWakeUp();
+
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
 
@@ -2515,6 +2519,10 @@ protected:
     float mMasterVolume GUARDED_BY(mutex());
     bool mMasterMute GUARDED_BY(mutex());
     mediautils::atomic_sp<audio_utils::MelProcessor> mMelProcessor;  // locked internally
+
+    std::unique_ptr<audio_utils::TimerQueue> mTq GUARDED_BY(mutex());
+    audio_utils::TimerQueue::handle_t mWakeUpHandle GUARDED_BY(mutex())
+            {audio_utils::TimerQueue::INVALID_HANDLE};
 };
 
 class MmapCaptureThread : public MmapThread

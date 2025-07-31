@@ -24,6 +24,7 @@
 
 #include <android-base/thread_annotations.h>
 #include <android/media/audio/common/AudioPlaybackRate.h>
+#include <audio_utils/TimerQueue.h>
 
 #include "client/AudioStreamInternal.h"
 #include "client/AudioStreamInternalPlay.h"
@@ -90,12 +91,13 @@ public:
         return AAUDIO_ERROR_UNAVAILABLE;
     }
 
-    virtual aaudio_result_t drain() {
+    virtual aaudio_result_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                                  android::audio_utils::TimerQueue::handle_t* handle) {
         ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
         return AAUDIO_ERROR_UNAVAILABLE;
     }
 
-    virtual aaudio_result_t activate() {
+    virtual aaudio_result_t activate(android::audio_utils::TimerQueue::handle_t handle) {
         ALOGD("AAudioServiceEndpoint::%s() AAUDIO_ERROR_UNAVAILABLE", __func__);
         return AAUDIO_ERROR_UNAVAILABLE;
     }

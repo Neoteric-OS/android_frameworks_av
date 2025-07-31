@@ -10452,8 +10452,9 @@ public:
     binder::Status stop(int32_t portId) final;
     binder::Status standby() final;
     binder::Status reportData(const ::std::vector<uint8_t>& buffer) final;
-    binder::Status drain() final;
-    binder::Status activate() final;
+    binder::Status drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                         media::TimerQueueHandle* handle) final;
+    binder::Status activate(const media::TimerQueueHandle& handle) final;
     binder::Status setPlaybackParameters(
             const media::audio::common::AudioPlaybackRate& rate) final;
     binder::Status getPlaybackParameters(
@@ -10569,13 +10570,21 @@ binder::Status MmapThreadHandle::reportData(const ::std::vector<uint8_t>& buffer
     return aidl_utils::binderStatusFromStatusT(status);
 }
 
-binder::Status MmapThreadHandle::drain() {
-    const status_t status = mThread->drain();
+binder::Status MmapThreadHandle::drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                                       media::TimerQueueHandle* handle) {
+    audio_utils::TimerQueue::handle_t legacy = audio_utils::TimerQueue::INVALID_HANDLE;
+    const status_t status = mThread->drain(wakeUpNanos, allowSoftWakeUp, &legacy);
+    if (status == NO_ERROR) {
+        *handle = VALUE_OR_RETURN_BINDER_STATUS(
+                legacy2aidl_timer_queue_handle_t_TimerQueueHandle(legacy));
+    }
     return aidl_utils::binderStatusFromStatusT(status);
 }
 
-binder::Status MmapThreadHandle::activate() {
-    const status_t status = mThread->activate();
+binder::Status MmapThreadHandle::activate(const media::TimerQueueHandle& handle) {
+    audio_utils::TimerQueue::handle_t legacy = VALUE_OR_RETURN_BINDER_STATUS(
+            aidl2legacy_TimerQueueHandle_timer_queue_handle_t(handle));
+    const status_t status = mThread->activate(legacy);
     return aidl_utils::binderStatusFromStatusT(status);
 }
 
@@ -10982,12 +10991,13 @@ status_t MmapThread::reportData(const void* /*buffer*/, size_t /*frameCount*/) {
     return INVALID_OPERATION;
 }
 
-status_t MmapThread::drain() {
+status_t MmapThread::drain(int64_t /*wakeUpNanos*/, bool /*allowSoftWakeUp*/,
+                           audio_utils::TimerQueue::handle_t* /*handle*/) {
     // This is a stub implementation. The MmapPlaybackThread overrides this function.
     return INVALID_OPERATION;
 }
 
-status_t MmapThread::activate() {
+status_t MmapThread::activate(audio_utils::TimerQueue::handle_t /*handle*/) {
     // This is a stub implementation. The MmapPlaybackThread overrides this function.
     return INVALID_OPERATION;
 }
@@ -11674,12 +11684,62 @@ status_t MmapPlaybackThread::reportData(const void* buffer, size_t frameCount) {
     return NO_ERROR;
 }
 
-status_t MmapPlaybackThread::drain() {
+void MmapPlaybackThread::onWakeUp() {
+    sp<media::IMmapStreamCallback> callback = nullptr;
+    media::TimerQueueHandle handle;
+    {
+        audio_utils::lock_guard _l(mutex());
+        callback = mCallback.promote();
+        auto aidl = legacy2aidl_timer_queue_handle_t_TimerQueueHandle(mWakeUpHandle);
+        mWakeUpHandle = audio_utils::TimerQueue::INVALID_HANDLE;
+        if (!aidl.ok()) {
+            return;
+        }
+        handle = aidl.value();
+    }
+    if (callback != nullptr) {
+        callback->onWakeUp(handle);
+    }
+}
+
+status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/,
+                                   audio_utils::TimerQueue::handle_t* handle) {
+    {
+        audio_utils::lock_guard _l(mutex());
+        if (mTq == nullptr) {
+            mTq = std::make_unique<audio_utils::TimerQueue>(true /*alarm*/);
+        }
+        if (!mTq->ready()) {
+            ALOGW("%s timer queue is not ready", __func__);
+            *handle = audio_utils::TimerQueue::INVALID_HANDLE;
+            return NO_ERROR;
+        }
+        auto weakPtr = wp<MmapPlaybackThread>::fromExisting(this);
+        *handle = mTq->add([weakPtr]() {
+            auto strongPtr = weakPtr.promote();
+            strongPtr->onWakeUp();
+        }, wakeUpNanos);
+        mWakeUpHandle = *handle;
+    }
     releaseWakeLock();
     return NO_ERROR;
 }
 
-status_t MmapPlaybackThread::activate() {
+status_t MmapPlaybackThread::activate(audio_utils::TimerQueue::handle_t handle) {
+    {
+        audio_utils::lock_guard _l(mutex());
+        if (mTq != nullptr) {
+            if (!mTq->remove(handle)) {
+                ALOGW("%s(%jd), the handle does not exist", __func__, handle);
+                return BAD_VALUE;
+            }
+        }
+        if (mWakeUpHandle != handle) {
+            // This should not happen.
+            ALOGW("%s(%jd) does not match %jd", __func__, handle, mWakeUpHandle);
+        }
+        mWakeUpHandle = audio_utils::TimerQueue::INVALID_HANDLE;
+    }
     acquireWakeLock();
     return NO_ERROR;
 }

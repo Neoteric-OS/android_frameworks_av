@@ -1804,11 +1804,7 @@ TEST_F(AudioPolicyManagerTestDynamicPolicy, RegisterPolicyWithInconsistentMixFai
     ASSERT_EQ(INVALID_OPERATION, ret);
 }
 
-TEST_F_WITH_FLAGS(
-        AudioPolicyManagerTestDynamicPolicy,
-        RegisterInvalidMixesDoesNotImpactPriorMixes,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
-) {
+TEST_F(AudioPolicyManagerTestDynamicPolicy, RegisterInvalidMixesDoesNotImpactPriorMixes) {
     audio_config_t audioConfig = AUDIO_CONFIG_INITIALIZER;
     audioConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     audioConfig.format = AUDIO_FORMAT_PCM_16_BIT;
@@ -1846,11 +1842,7 @@ TEST_F_WITH_FLAGS(
     ASSERT_EQ(registeredMixes.size(), remainingMixes.size());
 }
 
-TEST_F_WITH_FLAGS(
-        AudioPolicyManagerTestDynamicPolicy,
-        UnregisterInvalidMixesReturnsError,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
-) {
+TEST_F(AudioPolicyManagerTestDynamicPolicy, UnregisterInvalidMixesReturnsError) {
     audio_config_t audioConfig = AUDIO_CONFIG_INITIALIZER;
     audioConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     audioConfig.format = AUDIO_FORMAT_PCM_16_BIT;
@@ -1892,19 +1884,12 @@ TEST_F_WITH_FLAGS(
     EXPECT_THAT(remainingMixes, IsEmpty());
 }
 
-TEST_F_WITH_FLAGS(
-        AudioPolicyManagerTestDynamicPolicy,
-        GetRegisteredPolicyMixes,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
-) {
+TEST_F(AudioPolicyManagerTestDynamicPolicy, GetRegisteredPolicyMixes) {
     std::vector<AudioMix> mixes = getRegisteredPolicyMixes();
     EXPECT_THAT(mixes, IsEmpty());
 }
 
-TEST_F_WITH_FLAGS(AudioPolicyManagerTestDynamicPolicy,
-        AddPolicyMixAndVerifyGetRegisteredPolicyMixes,
-        REQUIRES_FLAGS_ENABLED(ACONFIG_FLAG(android::media::audiopolicy, audio_mix_test_api))
-) {
+TEST_F(AudioPolicyManagerTestDynamicPolicy, AddPolicyMixAndVerifyGetRegisteredPolicyMixes) {
     audio_config_t audioConfig = AUDIO_CONFIG_INITIALIZER;
     audioConfig.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
     audioConfig.format = AUDIO_FORMAT_PCM_16_BIT;

@@ -17,6 +17,7 @@
 package android.media;
 
 import android.media.AudioClient;
+import android.media.TimerQueueHandle;
 import android.media.audio.common.AudioAttributes;
 import android.media.audio.common.AudioPlaybackRate;
 import android.media.MmapBufferInfo;
@@ -108,13 +109,23 @@ interface IMmapStream {
 
     /**
      * Notify the stream is currently draining.
+     *
+     * @param wakeUpNanos the timestamp in boottime nanoseconds that the client must be waken up.
+     * @param allowSoftWakeUp allow the service side to wake up the client even if it is not the
+     *                        requested time. This allows service side to smartly select wake up
+     *                        time instead of waiting for the exact wake up time.
+     * @param handle the handle to identify the task in TimerQueue at service side. Use this handle
+     *               to remove the wake up task if the wake up task is no longer needed.
      */
-    void drain();
+    void drain(long wakeUpNanos, boolean allowSoftWakeUp, out TimerQueueHandle handle);
 
     /**
      * Notify the stream is active.
+     *
+     * @param handle the handle to identify the wake up task in TimerQueue at service side.
+                     It is used by service side to remove wake up task.
      */
-    void activate();
+    void activate(in TimerQueueHandle handle);
 
     void setPlaybackParameters(in AudioPlaybackRate rate);
 

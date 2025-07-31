@@ -3798,9 +3798,7 @@ bool Camera3Device::RequestThread::threadLoop() {
                 (mComposerOutput && (mRotationOverride == ROTATION_OVERRIDE_NONE)) ?
                         false : overrideAutoRotateAndCrop(captureRequest);
         captureRequest->mAutoframingChanged = overrideAutoframing(captureRequest);
-        if (flags::inject_session_params()) {
-            injectSessionParams(captureRequest, mInjectedSessionParams);
-        }
+        injectSessionParams(captureRequest, mInjectedSessionParams);
     }
 
     // 'mNextRequests' will at this point contain either a set of HFR batched requests
@@ -3959,7 +3957,7 @@ status_t Camera3Device::RequestThread::prepareHalRequests() {
                          captureRequest->mRotateAndCropChanged ||
                          captureRequest->mAutoframingChanged ||
                          captureRequest->mTestPatternChanged || settingsOverrideChanged ||
-                         (flags::inject_session_params() && mForceNewRequest)) &&
+                         mForceNewRequest) &&
                 // Request settings are all the same within one batch, so only treat the first
                 // request in a batch as new
                 !(batchedRequest && i > 0);
@@ -3967,7 +3965,7 @@ status_t Camera3Device::RequestThread::prepareHalRequests() {
         if (newRequest) {
             std::set<std::string> cameraIdsWithZoom;
 
-            if (flags::inject_session_params() && mForceNewRequest) {
+            if (mForceNewRequest) {
                 // This only needs to happen once.
                 mForceNewRequest = false;
             }

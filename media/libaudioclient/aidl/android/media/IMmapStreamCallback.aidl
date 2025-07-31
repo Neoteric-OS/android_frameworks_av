@@ -16,6 +16,8 @@
 
 package android.media;
 
+import android.media.TimerQueueHandle;
+
 /**
  * The IMmapStreamCallback interface is the binder interface for AudioFlinger to notify
  * condition changes affecting the stream operation.
@@ -52,4 +54,11 @@ oneway interface IMmapStreamCallback {
      * @param active true if the sound dose computation is active, false otherwise.
      */
     void onSoundDoseChanged(in boolean active);
+
+    /**
+     * Indicates that the client should wake up to process data.
+     *
+     * @param handle the handle of the wake up task.
+     */
+    void onWakeUp(in TimerQueueHandle handle);
 }

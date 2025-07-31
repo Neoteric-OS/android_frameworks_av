@@ -127,6 +127,8 @@ protected:
     aaudio_result_t getPlaybackParameters_l(AAudioPlaybackParameters* parameters)
             REQUIRES(mStreamMutex) final;
 
+    void onWakeUp_l(android::audio_utils::TimerQueue::handle_t handle) REQUIRES(mStreamMutex) final;
+
 private:
     /*
      * Asynchronous write with data conversion.
@@ -142,7 +144,7 @@ private:
 
     void dropPresentationEndCallback_l() REQUIRES(mStreamMutex);
 
-    aaudio_result_t drainStream_l() REQUIRES(mStreamMutex);
+    aaudio_result_t drainStream_l(int64_t wakeUpNanos, bool allowSoftWakeUp) REQUIRES(mStreamMutex);
     aaudio_result_t activateStream_l() REQUIRES(mStreamMutex);
 
     android::sp<AudioStreamInternalPlay> getPtr() { return this; }
@@ -151,8 +153,6 @@ private:
     std::condition_variable mStreamEndCV;
     std::optional<android::mediautils::SingleThreadExecutor> mStreamEndExecutor
             GUARDED_BY(mStreamMutex);
-    android::audio_utils::TimerQueue::handle_t mStreamEndTimerHandle
-            GUARDED_BY(mStreamMutex){android::audio_utils::TimerQueue::INVALID_HANDLE};
 
     AAudioStream_presentationEndCallback mPresentationEndCallbackProc = nullptr;
     void                                *mPresentationEndCallbackUserData = nullptr;
@@ -161,12 +161,9 @@ private:
     static constexpr int32_t kOffloadSafeMarginMs = 100;
     int32_t mOffloadSafeMarginInFrames = 0;
     std::condition_variable mCallbackCV;
-    bool mSuspendCallback GUARDED_BY(mStreamMutex){false};
     bool mDraining GUARDED_BY(mStreamMutex){false};
-    android::audio_utils::TimerQueue::handle_t mCallbackTimerHandle
+    android::audio_utils::TimerQueue::handle_t mWakeUpHandle
             GUARDED_BY(mStreamMutex){android::audio_utils::TimerQueue::INVALID_HANDLE};
-    std::unique_ptr<android::audio_utils::TimerQueue> mTq;
-    bool mTqNotified GUARDED_BY(mStreamMutex){false};
 
     std::mutex mEndpointMutex;
 

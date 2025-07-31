@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_MMAP_STREAM_CALLBACK_H
 #define ANDROID_AUDIO_MMAP_STREAM_CALLBACK_H
 
+#include <audio_utils/TimerQueue.h>
 #include <media/AudioContainers.h>
 #include <system/audio.h>
 #include <utils/Errors.h>
@@ -55,6 +56,13 @@ class MmapStreamCallback : public virtual RefBase {
      *            false otherwise.
      */
     virtual void onSoundDoseChanged(bool active) = 0;
+
+    /**
+     * Notify the stream to wake up.
+     *
+     * @param handle the handle of the wake up task.
+     */
+    virtual void onWakeUp(android::audio_utils::TimerQueue::handle_t handle) = 0;
 
   protected:
     MmapStreamCallback() {}

@@ -296,7 +296,7 @@ void AudioCapabilities::applyLevelLimits() {
                 case IAMF_CODEC_AAC:
                     sampleRates = {7350,  8000,  11025, 12000, 16000, 22050, 24000,
                                    32000, 44100, 48000, 64000, 88200, 96000};
-                    bitRates = Range<int32_t>(8000, 128000 * maxChannels);
+                    bitRates = Range<int32_t>(6000, 128000 * maxChannels);
                     break;
                 case IAMF_CODEC_FLAC:
                     sampleRateRange = Range<int32_t>(1, 655350);

@@ -88,9 +88,16 @@ public:
 
     binder::Status updateTimestamp(int32_t streamHandle, int32_t* _aidl_return) override;
 
-    binder::Status drainStream(int32_t streamHandle, int32_t* _aidl_return) override;
+    binder::Status drainStream(int32_t streamHandle,
+                               int64_t wakeUpNanos,
+                               bool allowSoftWakeUp,
+                               android::media::TimerQueueHandle* handle,
+                               int32_t* _aidl_return) override;
 
-    binder::Status activateStream(int32_t streamHandle, int32_t* _aidl_return) override;
+    binder::Status activateStream(
+            int32_t streamHandle,
+            const android::media::TimerQueueHandle& handle,
+            int32_t* _aidl_return) override;
 
     binder::Status setPlaybackParameters(
             int32_t streamHandle,

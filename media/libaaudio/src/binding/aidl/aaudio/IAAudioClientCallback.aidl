@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 package aaudio;
 
-import aaudio.IAAudioClientCallback;
-import aaudio.StreamParameters;
-import android.content.AttributionSourceState;
+import android.media.TimerQueueHandle;
 
-parcelable StreamRequest {
-    StreamParameters       params;
-    AttributionSourceState attributionSource;
-    IAAudioClientCallback  callback;
-    boolean                sharingModeMatchRequired; // = false;
-    boolean                inService; // = false; // Stream opened by AAudioservice
+oneway interface IAAudioClientCallback {
+    /**
+     * Call from the service side to wake up the client.
+     *
+     * @param handle the handle for the wake up task.
+     */
+    void onWakeUp(in TimerQueueHandle handle);
 }
