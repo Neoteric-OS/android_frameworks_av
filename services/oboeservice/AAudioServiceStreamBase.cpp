@@ -566,6 +566,16 @@ void AAudioServiceStreamBase::run() {
             ALOGD("%s() got COMMAND opcode %d after %d loops",
                     __func__, command->operationCode, loopCount);
             std::scoped_lock<std::mutex> _commandLock(command->lock);
+            if (isDisconnected_l() && command->operationCode != CLOSE) {
+                ALOGD("Return immediately for %d as the stream is disconnected",
+                      command->operationCode);
+                command->result = AAUDIO_ERROR_DISCONNECTED;
+                if (command->isWaitingForReply) {
+                    command->isWaitingForReply = false;
+                    command->conditionVariable.notify_one();
+                }
+                continue;
+            }
             if (mIsDraining && command->operationCode != WAKE_UP &&
                 command->operationCode != ACTIVATE) {
                 // After receiving a new command from draining, the client is not longer
@@ -607,6 +617,10 @@ void AAudioServiceStreamBase::run() {
                 } break;
                 case DISCONNECT: {
                     disconnect_l();
+                    if (mTQWakeUpHandle != TimerQueue::INVALID_HANDLE) {
+                        wakeUp_l(&timestampScheduler, &nextTimestampReportTime, &nextDataReportTime,
+                                 mTQWakeUpHandle);
+                    }
                 } break;
                 case REGISTER_AUDIO_THREAD: {
                     auto param = (RegisterAudioThreadParam *) command->parameter.get();

@@ -905,7 +905,10 @@ void SwAudioOutputDescriptor::setDevices(const android::DeviceVector &devices) {
         }
         auto config = getConfig();
         for (auto device : devices) {
-            device->setPreferredConfig(&config);
+            if (!device->setPreferredConfig(&config)) {
+                ALOGE("%s, failed to set preferred config for device %s",
+                      __func__, device->toString().c_str());
+            }
         }
     }
     mDevices = devices;

@@ -1230,7 +1230,7 @@ class Camera3Device :
                 const camera_metadata_t *request);
 
         // Check and update latest session parameters based on the current request settings.
-        bool updateSessionParameters(const CameraMetadata& settings);
+        bool updateSessionParameters(const CameraMetadata& settings, bool *updatesDetected/*out*/);
 
         // Check whether FPS range session parameter re-configuration is needed in constrained
         // high speed recording camera sessions.

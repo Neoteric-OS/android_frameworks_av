@@ -946,9 +946,15 @@ void collectReturnableOutputBuffers(
 void finishReturningOutputBuffers(const std::vector<BufferToReturn> &returnableBuffers,
         sp<NotificationListener> listener, SessionStatsBuilder& sessionStatsBuilder) {
     for (auto& b : returnableBuffers) {
-        const int streamId = b.stream->getId();
+        sp<Camera3StreamInterface> stream(b.stream);
+        if (stream == nullptr) {
+            ALOGW("Cannot return buffer to null stream.");
+            continue;
+        }
 
-        status_t res = b.stream->returnBuffer(b.buffer, b.timestamp,
+        const int streamId = stream->getId();
+
+        status_t res = stream->returnBuffer(b.buffer, b.timestamp,
                 b.readoutTimestamp, b.timestampIncreasing,
                 b.surfaceIds, b.resultExtras.frameNumber, b.transform);
 
@@ -979,7 +985,7 @@ void finishReturningOutputBuffers(const std::vector<BufferToReturn> &returnableB
             // cancel the buffer
             camera_stream_buffer_t sb = b.buffer;
             sb.status = CAMERA_BUFFER_STATUS_ERROR;
-            b.stream->returnBuffer(sb, /*timestamp*/0, /*readoutTimestamp*/0,
+            stream->returnBuffer(sb, /*timestamp*/0, /*readoutTimestamp*/0,
                     b.timestampIncreasing, std::vector<size_t> (),
                     b.resultExtras.frameNumber, b.transform);
 

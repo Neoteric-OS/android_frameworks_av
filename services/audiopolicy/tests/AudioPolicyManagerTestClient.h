@@ -17,6 +17,7 @@
 #include <map>
 #include <set>
 
+#include <com_android_media_audio.h>
 #include <com_android_media_audioserver.h>
 #include <media/TypeConverter.h>
 #include <system/audio.h>
@@ -269,7 +270,8 @@ public:
         const audio_io_handle_t ioHandle = mixPort->ext.mix.handle;
 
         // Preserve the same behavior as the corresponding pre-flag logic.
-        if (!com::android::media::audioserver::enable_strict_port_routing_checks()
+        if ((!com::android::media::audioserver::enable_strict_port_routing_checks() ||
+                !com::android::media::audio::check_route_in_get_audio_mix_port())
               && ioHandle == AUDIO_IO_HANDLE_NONE) {
             // If ioHandle is not supplied, this is certainly from a caller added after
             // the change this flag is introducing, and will anticipate routing checks.

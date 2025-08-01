@@ -243,6 +243,7 @@ void AudioPolicyManager::addRoutableDeviceToProfiles(const sp<DeviceDescriptor> 
             // When flag is disabled, routable should be equivalent to supported.
             bool isRoutable =
                 !com::android::media::audioserver::enable_strict_port_routing_checks() ||
+                !com::android::media::audio::check_route_in_get_audio_mix_port() ||
                 mpClientInterface->getAudioMixPort(&devicePort, &mixPort,
                                                    profile->getHalId()) == OK;
 
@@ -8378,7 +8379,8 @@ DeviceVector AudioPolicyManager::getNewOutputDevices(const sp<SwAudioOutputDescr
             }
 
             if (!outputDesc->isDuplicated()
-                    && com::android::media::audioserver::enable_strict_port_routing_checks()) {
+                    && com::android::media::audioserver::enable_strict_port_routing_checks()
+                    && com::android::media::audio::check_route_in_get_audio_mix_port()) {
                 // Filter out devices that are indicated by the HAL as non-routable.
                 auto routableDevices = devices.filter([&](auto device) {
                       return outputDesc->mProfile->routesToDevice(device); });
@@ -8447,8 +8449,9 @@ sp<DeviceDescriptor> AudioPolicyManager::getNewInputDevice(
                 attributes, false /*ignorePreferredDevice*/, uid, session);
     }
 
-    if (com::android::media::audioserver::enable_strict_port_routing_checks() &&
-          !inputDesc->mProfile->routesToDevice(device)) {
+    if (com::android::media::audioserver::enable_strict_port_routing_checks()
+            && com::android::media::audio::check_route_in_get_audio_mix_port()
+            && !inputDesc->mProfile->routesToDevice(device)) {
         ALOGW("%s: profile %s is not routable to device %s", __func__,
               inputDesc->mProfile->getTagName().c_str(),
               inputDesc->getDevice()->toString().c_str());
@@ -8909,8 +8912,9 @@ sp<IOProfile> AudioPolicyManager::getInputProfile(const sp<DeviceDescriptor> &de
         auto bestCompatibleScore = IOProfile::NO_MATCH;
         for (const auto& hwModule : mHwModules) {
             for (const auto& profile : hwModule->getInputProfiles()) {
-                if (com::android::media::audioserver::enable_strict_port_routing_checks() &&
-                      !profile->routesToDevice(device)) {
+                if (com::android::media::audioserver::enable_strict_port_routing_checks()
+                        && com::android::media::audio::check_route_in_get_audio_mix_port()
+                        && !profile->routesToDevice(device)) {
                     continue;
                 }
 
