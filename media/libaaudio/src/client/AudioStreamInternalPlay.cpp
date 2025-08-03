@@ -83,10 +83,14 @@ aaudio_result_t AudioStreamInternalPlay::open(const AudioStreamBuilder &builder)
         std::lock_guard _l(mStreamMutex);
         mStreamEndExecutor.emplace();
     }
-    // Use 100ms + burst size as a safe margin to wake up the callback thread for writing more
+    // Use 1s + burst size as a safe margin to wake up the callback thread for writing more
     // data to avoid glitch.
     mOffloadSafeMarginInFrames =
             getDeviceSampleRate() * kOffloadSafeMarginMs / AAUDIO_MILLIS_PER_SECOND +
+            getDeviceFramesPerBurst();
+    // Use 100ms + burst size as a safe margin when calculating the safe position to flush from.
+    mOffloadFlushFromSafeMarginInFrames =
+            getDeviceSampleRate() * kOffloadFlushFromSafeMarginMs / AAUDIO_MILLIS_PER_SECOND +
             getDeviceFramesPerBurst();
     return result;
 }
@@ -586,7 +590,7 @@ aaudio_result_t AudioStreamInternalPlay::flushFromFrame_l(
             return res;
         }
         processCommands();
-        const int64_t safePosition = getFramesRead() + mOffloadSafeMarginInFrames;
+        const int64_t safePosition = getFramesRead() + mOffloadFlushFromSafeMarginInFrames;
         if (safePosition > framesWritten) {
             ALOGE("%s() do not have enough data, safePosition=%jd, frameWritten=%jd",
                   __func__, safePosition, framesWritten);
@@ -596,8 +600,8 @@ aaudio_result_t AudioStreamInternalPlay::flushFromFrame_l(
         if (accuracy == AAUDIO_FLUSH_FROM_FRAME_ACCURATE && actualPosition != *position) {
             result = AAUDIO_ERROR_OUT_OF_RANGE;
         }
+        *position = actualPosition;
         if (result != AAUDIO_OK) {
-            *position = actualPosition;
             return result;
         }
 
@@ -722,7 +726,7 @@ void *AudioStreamInternalPlay::callbackLoop() {
                                       [this]() REQUIRES(mStreamMutex) {
                     return !mOffloadEosPending;
                 });
-                if (mOffloadEosPending) {
+                if (mOffloadEosPending || android::elapsedRealtimeNano() >= wakeUpNanos) {
                     maybeCallPresentationEndCallback();
                     mOffloadEosPending = false;
                 }

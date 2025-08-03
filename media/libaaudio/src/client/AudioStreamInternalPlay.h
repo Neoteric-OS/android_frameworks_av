@@ -158,8 +158,10 @@ private:
     void                                *mPresentationEndCallbackUserData = nullptr;
     std::atomic<pid_t>                   mPresentationEndCallbackThread{CALLBACK_THREAD_NONE};
 
-    static constexpr int32_t kOffloadSafeMarginMs = 100;
+    static constexpr int32_t kOffloadSafeMarginMs = 1000;
+    static constexpr int32_t kOffloadFlushFromSafeMarginMs = 100;
     int32_t mOffloadSafeMarginInFrames = 0;
+    int32_t mOffloadFlushFromSafeMarginInFrames = 0;
     std::condition_variable mCallbackCV;
     bool mDraining GUARDED_BY(mStreamMutex){false};
     android::audio_utils::TimerQueue::handle_t mWakeUpHandle
