@@ -329,7 +329,7 @@ status_t Camera3Device::disconnectImpl() {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
 
-    ALOGI("%s: E", __FUNCTION__);
+    ALOGV("%s: E", __FUNCTION__);
 
     status_t res = OK;
     std::vector<wp<Camera3StreamInterface>> streams;
@@ -424,7 +424,7 @@ status_t Camera3Device::disconnectImpl() {
                     __FUNCTION__, stream->getId(), stream->getStrongCount() - 1);
         }
     }
-    ALOGI("%s: X", __FUNCTION__);
+    ALOGV("%s: X", __FUNCTION__);
 
     if (mCameraServiceWatchdog != NULL) {
         mCameraServiceWatchdog->requestExit();
@@ -2106,6 +2106,8 @@ void Camera3Device::notifyStatus(bool idle) {
     if (res != OK) {
         SET_ERR("Camera access permission lost mid-operation: %s (%d)",
                 strerror(-res), res);
+        // Drop frames for all streams so that they don't leak to the clients.
+        dropAllStreamBuffers();
     }
 }
 
@@ -2235,6 +2237,18 @@ status_t Camera3Device::dropStreamBuffers(bool dropping, int streamId) {
         mSessionStatsBuilder.startCounter(streamId);
     }
     return stream->dropBuffers(dropping);
+}
+
+void Camera3Device::dropAllStreamBuffers() {
+    Mutex::Autolock l(mLock);
+
+    for (auto streamId : mOutputStreams.getStreamIds()) {
+        auto stream = mOutputStreams.get(streamId);
+        if (stream != nullptr) {
+            mSessionStatsBuilder.stopCounter(streamId);
+            stream->dropBuffers(true /*dropping*/);
+        }
+    }
 }
 
 /**
@@ -2768,7 +2782,7 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
             ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
                     strerror(-res), res);
         } else {
-            ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
+            ALOGV("Set real time priority for request queue thread (tid %d)", requestThreadTid);
         }
     }
 
@@ -2904,6 +2918,11 @@ void Camera3Device::setErrorStateV(const char *fmt, va_list args) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
     setErrorStateLockedV(fmt, args);
+}
+
+bool Camera3Device::isInErrorState() {
+    Mutex::Autolock l(mLock);
+    return mStatus == STATUS_ERROR;
 }
 
 void Camera3Device::setErrorStateLocked(const char *fmt, ...) {
@@ -3827,13 +3846,17 @@ bool Camera3Device::RequestThread::threadLoop() {
         if (res == OK) {
             sp<Camera3Device> parent = mParent.promote();
             if (parent != nullptr) {
-                if (parent->reconfigureCamera(mLatestSessionParams, mStatusId)) {
-                    mReconfigured = true;
+                auto reconfigured = parent->reconfigureCamera(mLatestSessionParams, mStatusId);
+                if (parent->isInErrorState()) {
+                    ALOGE("%s: Failed to reconfigure camera due to device error!", __FUNCTION__);
+                    cleanUpFailedRequests(/*sendRequestError*/ false);
+                    return false;
                 }
+                mReconfigured = reconfigured;
             }
 
             if (mNextRequests[0].captureRequest->mInputStream != nullptr) {
-                mNextRequests[0].captureRequest->mInputStream->restoreConfiguredState();
+                res = mNextRequests[0].captureRequest->mInputStream->restoreConfiguredState();
                 if (res != OK) {
                     ALOGE("%s: Failed to restore configured input stream: %d", __FUNCTION__, res);
                     cleanUpFailedRequests(/*sendRequestError*/ false);

@@ -276,7 +276,7 @@ status_t Camera3Device::Camera3DeviceInjectionMethods::injectionConfigureStreams
 
 void Camera3Device::Camera3DeviceInjectionMethods::injectionDisconnectImpl() {
     ATRACE_CALL();
-    ALOGI("%s: Injection camera disconnect", __FUNCTION__);
+    ALOGV("%s: Injection camera disconnect", __FUNCTION__);
     mIsStreamConfigCompleteButNotInjected = false;
     mInjectionStreams.clear();
     mInjectionConfig.streams = nullptr;

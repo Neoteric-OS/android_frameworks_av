@@ -577,6 +577,8 @@ sp<IMemory> FrameDecoder::extractFrame(FrameRect *rect) {
         err = extractInternalUsingBlockModel();
     }
     if (err != OK) {
+        mSource->stop();
+        mSourceStopped = true;
         ALOGE("extractInternal error %d", err);
         return NULL;
     }
@@ -809,8 +811,6 @@ status_t FrameDecoder::extractInternalUsingBlockModel() {
     if (!mOutputFramePending.wait_for(_lk, std::chrono::microseconds(kAsyncBufferTimeOutUs),
                                  [this] { return mHandleOutputBufferAsyncDone; })) {
         ALOGE("%s timed out waiting for handleOutputBufferAsync() to complete.", __func__);
-        mSource->stop();
-        mSourceStopped = true;
     }
     return mHandleOutputBufferAsyncDone ? OK : TIMED_OUT;
 }
