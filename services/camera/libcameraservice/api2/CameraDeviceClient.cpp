@@ -102,7 +102,7 @@ CameraDeviceClient::CameraDeviceClient(
       mOriginalCameraId(originalCameraId),
       mIsVendorClient(isVendorClient) {
     ATRACE_CALL();
-    ALOGI("CameraDeviceClient %s: Opened", cameraId.c_str());
+    ALOGV("CameraDeviceClient %s: Opened", cameraId.c_str());
     //KEYSTONE(I34931815600fcaaeca6399e603d5b6d5d68f995b,b/376704172)
     // char value[PROPERTY_VALUE_MAX];
     // property_get("persist.vendor.camera.privapp.list", value, "");

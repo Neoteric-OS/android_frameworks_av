@@ -22,6 +22,7 @@
 #include <audiomanager/IAudioManager.h>
 #include <binder/IMemory.h>
 #include <media/AppOpsSession.h>
+#include <media/AudioBufferProvider.h>
 #include <mediautils/SingleThreadExecutor.h>
 #include <datapath/VolumePortInterface.h>
 #include <fastpath/FastMixerDumpState.h>
@@ -358,6 +359,8 @@ public:
     virtual sp<IAfPatchTrack> asIAfPatchTrack() { return {}; }
     virtual sp<IAfPatchRecord> asIAfPatchRecord() { return {}; }
     virtual sp<IAfRecordTrack> asIAfRecordTrack() { return {}; }
+
+    virtual AudioBufferProvider* asAudioBufferProvider() = 0;
 };
 
 // Functionality shared between MMAP and audioflinger datapath playback tracks. Note that MMAP

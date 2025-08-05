@@ -1330,6 +1330,12 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
              if (!curProfile->devicesSupportEncodedFormats(devices.types())) {
                  continue;
              }
+             if (com_android_media_audioserver_mmap_pcm_offload_support() &&
+                 hwModule->isAnyMutuallyExclusiveProfileOpened(curProfile)) {
+                 ALOGD("%s ignore %s as there is a mutually exclusive profile active",
+                       __func__, curProfile->getName().c_str());
+                 continue;
+             }
              if (!directOnly) {
                 return curProfile;
              }
@@ -1792,26 +1798,6 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
         return NAME_NOT_FOUND;
     }
 
-    // When the device declares exclusive mmap offload, it indicates compressed offload and
-    // mmap offload are mutually exclusive. If one of them is opened, reject the request of the
-    // other one.
-    if (com_android_media_audioserver_mmap_pcm_offload_support() &&
-        property_get_bool("ro.audio.mmap_offload_exclusive", false /*default_value*/) &&
-        (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
-        static constexpr uint32_t kMMapOffloadFlags =
-                (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_MMAP_NOIRQ);
-        bool offloadOutputMustBeMMap = (flags & kMMapOffloadFlags) == kMMapOffloadFlags;
-        for (size_t i = 0; i < mOutputs.size(); i++) {
-            auto desc = mOutputs.valueAt(i);
-            if (desc->isOffload() && desc->isMmap() != offloadOutputMustBeMMap) {
-                ALOGD("%s, reject %soffload as %soffload is opened",
-                      __func__, (offloadOutputMustBeMMap ? "mmap " : ""),
-                      (offloadOutputMustBeMMap ? "" : "mmap "));
-                return INVALID_OPERATION;
-            }
-        }
-    }
-
     // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
     // This prevents creating an offloaded track and tearing it down immediately after start
     // when audioflinger detects there is an active non offloadable effect.
@@ -2081,7 +2067,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
 
     // A request for HW A/V sync cannot fallback to a mixed output because time
     // stamps are embedded in audio data
-    if ((*flags & (AUDIO_OUTPUT_FLAG_HW_AV_SYNC | AUDIO_OUTPUT_FLAG_MMAP_NOIRQ)) != 0) {
+    if ((*flags & (AUDIO_OUTPUT_FLAG_HW_AV_SYNC | AUDIO_OUTPUT_FLAG_MMAP_NOIRQ
+            | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) != 0) {
         return AUDIO_IO_HANDLE_NONE;
     }
     // A request for Tuner cannot fallback to a mixed output
@@ -7264,6 +7251,25 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
             }
         }
         mHwModules.push_back(hwModule);
+
+        if (com_android_media_audioserver_mmap_pcm_offload_support()) {
+            if (property_get_bool("ro.audio.mmap_offload_exclusive", false /*default_value*/)) {
+                // When `ro.audio.mmap_offload_exclusive` is set to true,
+                // mmap offload and classical offload is mutually exclusive.
+                hwModule->updateMutuallyExclusiveOutputProfiles(
+                        AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD,
+                        AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+            }
+            if (property_get_bool("ro.audio.mmap_low_latency_offload_exclusive",
+                                  false /*default_value*/)) {
+                // When `ro.audio.mmap_low_latency_offload_exclusive` is set to true,
+                // mmap offload and mmap low latency is mutually exclusive.
+                hwModule->updateMutuallyExclusiveOutputProfiles(
+                        AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD,
+                        AUDIO_OUTPUT_FLAG_MMAP_NOIRQ);
+            }
+        }
+
         // open all output streams needed to access attached devices.
         // direct outputs are closed immediately after checking the availability of attached devices
         // This also validates mAvailableOutputDevices list

@@ -935,6 +935,8 @@ class Camera3Device :
     void               setErrorStateV(const char *fmt, va_list args);
     void               setErrorStateLockedV(const char *fmt, va_list args);
 
+    bool               isInErrorState();
+
     /////////////////////////////////////////////////////////////////////
     // Implements InflightRequestUpdateInterface
 
@@ -1514,6 +1516,9 @@ class Camera3Device :
     // Synchronizes access to status tracker between inflight updates and disconnect.
     // b/79972865
     Mutex mTrackerLock;
+
+    // Drop buffers for all streams
+    void dropAllStreamBuffers();
 
     // Whether HAL request buffers through requestStreamBuffers API
     bool mUseHalBufManager = false;

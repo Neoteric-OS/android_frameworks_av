@@ -167,6 +167,7 @@ protected:
     int32_t mRTPSockDscp;
     int32_t mRTPSockOptEcn;
     int64_t mRTPSockNetwork;
+    int32_t mRTPVidEncCoeffPercent;
     uint32_t mLastSeqNo;
 
     int64_t mDurationRecordedUs;
@@ -274,6 +275,7 @@ protected:
     status_t setParamPayloadType(int32_t payloadType);
     status_t setRTPCVOExtMap(int32_t extmap);
     status_t setRTPCVODegrees(int32_t cvoDegrees);
+    status_t setRTPVidEncCoeffPercent(int32_t percent);
     status_t setParamRtpDscp(int32_t dscp);
     status_t setParamRtpEcn(int32_t ecn);
     status_t setSocketNetwork(int64_t networkHandle);

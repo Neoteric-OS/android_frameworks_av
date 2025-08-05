@@ -380,7 +380,7 @@ class C2SoftApvEnc::IntfImpl : public SimpleInterface<void>::BaseParams {
                 {LEVEL_APV_7_1_BAND_3, 33'973'862'400, 159'552'000},
         };
 
-        uint64_t samplesPerSec = width * height * fps;
+        uint64_t samplesPerSec = (uint64_t) width * height * fps;
         if (band == 0) {
             for (const LevelLimits& limit : kLimitsBand0) {
                 if (samplesPerSec <= limit.samplesPerSec && bitrate <= limit.kbpsOfBand * 1000) {

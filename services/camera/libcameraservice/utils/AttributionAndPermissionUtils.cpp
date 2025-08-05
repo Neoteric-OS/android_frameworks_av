@@ -162,15 +162,15 @@ PermissionChecker::PermissionResult AttributionAndPermissionUtils::checkPermissi
     }
 
     if (result == PermissionChecker::PERMISSION_HARD_DENIED) {
-        ALOGI("%s (forDataDelivery %d startDataDelivery %d): Permission hard denied "
+        ALOGV("%s (forDataDelivery %d startDataDelivery %d): %s permission hard denied "
               "for client attribution %s",
-              __FUNCTION__, forDataDelivery, startDataDelivery,
+              __FUNCTION__, forDataDelivery, startDataDelivery, permission.c_str(),
               getAttributionString(attributionSource).c_str());
     } else if (result == PermissionChecker::PERMISSION_SOFT_DENIED) {
-        ALOGI("%s checkPermission (forDataDelivery %d startDataDelivery %d): Permission soft "
+        ALOGV("%s checkPermission (forDataDelivery %d startDataDelivery %d): %s permission soft "
               "denied "
               "for client attribution %s",
-              __FUNCTION__, forDataDelivery, startDataDelivery,
+              __FUNCTION__, forDataDelivery, startDataDelivery, permission.c_str(),
               getAttributionString(attributionSource).c_str());
     }
     return result;

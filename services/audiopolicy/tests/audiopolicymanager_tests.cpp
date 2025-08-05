@@ -1492,7 +1492,7 @@ TEST_F(AudioPolicyManagerTestWithConfigurationFile, SelectMMapOffloadOnlyWhenReq
 }
 
 TEST_F_WITH_FLAGS(AudioPolicyManagerTestWithConfigurationFile,
-                  MMapOffloadCompressOffloadMutuallyExclusive,
+                  MMapOffloadMutuallyExclusive,
                   REQUIRES_FLAGS_ENABLED(
                           ACONFIG_FLAG(com::android::media::audioserver,
                                        mmap_pcm_offload_support))) {
@@ -1515,70 +1515,86 @@ TEST_F_WITH_FLAGS(AudioPolicyManagerTestWithConfigurationFile,
             .usage = AUDIO_USAGE_MEDIA,
     };
 
-    std::vector<std::pair<uint32_t, uint32_t>> mutuallyExclusiveFlagsPair = {
-            {(AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT |
-                    AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
-             (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)},
-            {(AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD),
-             (AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT |
-                    AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)},
+    const uint32_t mmapLowlatencyFlag = (AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
+    const uint32_t mmapOffloadFlag = (mmapLowlatencyFlag | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+    const uint32_t compressOffloadFlag =
+            (AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+
+    std::map<std::string, std::vector<std::pair<uint32_t, uint32_t>>>
+            systemProperty2ExclusiveFlags = {
+            {"ro.audio.mmap_offload_exclusive", {
+                    {mmapOffloadFlag, compressOffloadFlag},
+                    {compressOffloadFlag, mmapOffloadFlag}
+            }},
+            {"ro.audio.mmap_low_latency_offload_exclusive", {
+                    {mmapOffloadFlag, mmapLowlatencyFlag},
+                    {mmapLowlatencyFlag, mmapOffloadFlag}
+            }}
     };
-    for (auto flagsPair : mutuallyExclusiveFlagsPair) {
-        audio_io_handle_t output1 = AUDIO_IO_HANDLE_NONE;
-        // Use preferred device to ensure usb is selected so that mmap mix port can be used
-        DeviceIdVector selectedDeviceIds = {usbPortId};
-        audio_port_handle_t portId1;
-        ASSERT_NO_FATAL_FAILURE(getOutputForAttr(
-                        &selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
-                        k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
-                        &output1, &portId1));
-        EXPECT_NE(AUDIO_IO_HANDLE_NONE, output1);
-        if (output1 == AUDIO_IO_HANDLE_NONE) {
-            break;
+    for (const auto& [systemProperty, mutuallyExclusiveFlagsPair] : systemProperty2ExclusiveFlags) {
+        for (auto flagsPair: mutuallyExclusiveFlagsPair) {
+            audio_io_handle_t output1 = AUDIO_IO_HANDLE_NONE;
+            // Use preferred device to ensure usb is selected so that mmap mix port can be used
+            DeviceIdVector selectedDeviceIds = {usbPortId};
+            audio_port_handle_t portId1;
+            ASSERT_NO_FATAL_FAILURE(getOutputForAttr(
+                    &selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
+                    k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
+                    &output1, &portId1));
+            EXPECT_NE(AUDIO_IO_HANDLE_NONE, output1);
+            if (output1 == AUDIO_IO_HANDLE_NONE) {
+                break;
+            }
+            sp<SwAudioOutputDescriptor> outDesc = mManager->getOutputs().valueFor(output1);
+            ASSERT_NE(nullptr, outDesc.get());
+            EXPECT_EQ(flagsPair.first, outDesc->getFlags().output);
+
+            // Request with same output flags will get the same output.
+            audio_io_handle_t output2 = AUDIO_IO_HANDLE_NONE;
+            audio_port_handle_t portId2;
+            ASSERT_NO_FATAL_FAILURE(getOutputForAttr(
+                    &selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
+                    k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
+                    &output2, &portId2));
+            EXPECT_EQ(output1, output2);
+            mManager->releaseOutput(portId2);
+
+            // Request with mutually exclusive flags will fail.
+            audio_output_flags_t mutuallyExclusiveFlags =
+                    static_cast<audio_output_flags_t>(flagsPair.second);
+            audio_io_handle_t output3 = AUDIO_IO_HANDLE_NONE;
+            audio_port_handle_t portId3 = AUDIO_PORT_HANDLE_NONE;
+            audio_stream_type_t stream = AUDIO_STREAM_DEFAULT;
+            audio_config_t config = AUDIO_CONFIG_INITIALIZER;
+            config.sample_rate = k48000SamplingRate;
+            config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+            config.format = AUDIO_FORMAT_PCM_16_BIT;
+            audio_port_handle_t localPortId;
+            AudioPolicyInterface::output_type_t outputType;
+            bool isSpatialized;
+            bool isBitPerfect;
+            AttributionSourceState attributionSource = createAttributionSourceState(0);
+            auto result = mManager->getOutputForAttr(
+                    &mediaAttr, &output3, AUDIO_SESSION_NONE, &stream, attributionSource, &config,
+                    &mutuallyExclusiveFlags, &selectedDeviceIds, &portId3, {}, &outputType,
+                    &isSpatialized, &isBitPerfect);
+            if (property_get_bool(systemProperty.c_str(), false /*default_value*/)) {
+                EXPECT_EQ(INVALID_OPERATION, result) << systemProperty
+                        << " is true, should not be able to open output with flag "
+                        << flagsPair.second;
+                EXPECT_EQ(AUDIO_IO_HANDLE_NONE, output3) << systemProperty
+                        << "is true, open failed, io handle should be none";
+            } else {
+                EXPECT_EQ(NO_ERROR, result) << systemProperty
+                        << " is false, should be able to open output with flag "
+                        << flagsPair.second;
+                EXPECT_NE(AUDIO_IO_HANDLE_NONE, output3) << systemProperty
+                        << " is false, open succeeded, io handle should not be none";
+            }
+
+            mManager->releaseOutput(portId1);
+            mManager->releaseOutput(portId3);
         }
-        sp<SwAudioOutputDescriptor> outDesc = mManager->getOutputs().valueFor(output1);
-        ASSERT_NE(nullptr, outDesc.get());
-        EXPECT_EQ(flagsPair.first, outDesc->getFlags().output);
-
-        // Request with same output flags will get the same output.
-        audio_io_handle_t output2 = AUDIO_IO_HANDLE_NONE;
-        audio_port_handle_t portId2;
-        ASSERT_NO_FATAL_FAILURE(getOutputForAttr(
-                        &selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT, AUDIO_CHANNEL_OUT_STEREO,
-                        k48000SamplingRate, static_cast<audio_output_flags_t>(flagsPair.first),
-                        &output2, &portId2));
-        EXPECT_EQ(output1, output2);
-        mManager->releaseOutput(portId2);
-
-        // Request with mutually exclusive flags will fail.
-        audio_output_flags_t mutuallyExclusiveFlags =
-                static_cast<audio_output_flags_t>(flagsPair.second);
-        audio_io_handle_t output3 = AUDIO_IO_HANDLE_NONE;
-        audio_port_handle_t portId3 = AUDIO_PORT_HANDLE_NONE;
-        audio_stream_type_t stream = AUDIO_STREAM_DEFAULT;
-        audio_config_t config = AUDIO_CONFIG_INITIALIZER;
-        config.sample_rate = k48000SamplingRate;
-        config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
-        config.format = AUDIO_FORMAT_PCM_16_BIT;
-        audio_port_handle_t localPortId;
-        AudioPolicyInterface::output_type_t outputType;
-        bool isSpatialized;
-        bool isBitPerfect;
-        AttributionSourceState attributionSource = createAttributionSourceState(0);
-        auto result = mManager->getOutputForAttr(
-                &mediaAttr, &output3, AUDIO_SESSION_NONE, &stream, attributionSource, &config,
-                &mutuallyExclusiveFlags, &selectedDeviceIds, &portId3, {}, &outputType,
-                &isSpatialized, &isBitPerfect);
-        if (property_get_bool("ro.audio.mmap_offload_exclusive", false /*default_value*/)) {
-            EXPECT_EQ(INVALID_OPERATION, result);
-            EXPECT_EQ(AUDIO_IO_HANDLE_NONE, output3);
-        } else {
-            EXPECT_EQ(NO_ERROR, result);
-            EXPECT_NE(AUDIO_IO_HANDLE_NONE, output3);
-        }
-
-        mManager->releaseOutput(portId1);
-        mManager->releaseOutput(portId3);
     }
 
     ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
