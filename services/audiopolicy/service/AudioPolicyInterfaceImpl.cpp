@@ -592,19 +592,6 @@ Status AudioPolicyService::startOutput(
         return binderStatusFromStatusT(NO_INIT);
     }
     ALOGV("startOutput()");
-    return binderStatusFromStatusT(mOutputCommandThread->startOutputCommand(portId));
-// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-}
-
-// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-status_t AudioPolicyService::doStartOutput(audio_port_handle_t portId, media::StartOutputResponse* _aidl_return)
-// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-{
-    if (mAudioPolicyManager == NULL) {
-        return NO_INIT;
-    }
-    ALOGV("doStartOutput()");
-// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
     sp<AudioPlaybackClient> client;
     sp<AudioPolicyEffects> audioPolicyEffects;
 
@@ -633,7 +620,7 @@ status_t AudioPolicyService::doStartOutput(audio_port_handle_t portId, media::St
         _aidl_return->volume = volume;
         _aidl_return->muted = muted;
     }
-    return status;
+    return binderStatusFromStatusT(status);
 }
 
 Status AudioPolicyService::stopOutput(int32_t portIdAidl)

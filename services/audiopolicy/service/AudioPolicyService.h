@@ -259,7 +259,6 @@ public:
     binder::Status isHapticPlaybackSupported(bool* _aidl_return) override;
     binder::Status isUltrasoundSupported(bool* _aidl_return) override;
     binder::Status isHotwordStreamSupported(bool lookbackAudio, bool* _aidl_return) override;
-    status_t doStartOutput(audio_port_handle_t portId, media::StartOutputResponse* _aidl_return);
     binder::Status getStreamTypeForAttributes(const AudioAttributes& attributesAidl,
             AudioStreamType* _aidl_return);
     binder::Status getAttributesForStreamType(AudioStreamType stream,
@@ -622,9 +621,6 @@ private:
             SET_PORTS_VOLUME,
             SET_PARAMETERS,
             SET_VOICE_VOLUME,
-// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-            START_OUTPUT,
-// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
             STOP_OUTPUT,
             RELEASE_OUTPUT,
             CREATE_AUDIO_PATCH,
@@ -660,7 +656,6 @@ private:
                     status_t    parametersCommand(audio_io_handle_t ioHandle,
                                             const char *keyValuePairs, int delayMs = 0);
                     status_t    voiceVolumeCommand(float volume, int delayMs = 0);
-                    status_t    startOutputCommand(audio_port_handle_t portId);
                     void        stopOutputCommand(audio_port_handle_t portId);
                     void        releaseOutputCommand(audio_port_handle_t portId);
                     status_t    sendCommand(sp<AudioCommand>& command, int delayMs = 0);
@@ -760,15 +755,6 @@ private:
             float mVolume;
         };
 
-// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-        class StartOutputData : public AudioCommandData {
-        public:
-// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-            audio_port_handle_t mPortId;
-// QTI_BEGIN: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
-        };
-
-// QTI_END: 2018-03-22: Audio: audiopolicy: Handle startOutput on output command thread
         class StopOutputData : public AudioCommandData {
         public:
             audio_port_handle_t mPortId;
