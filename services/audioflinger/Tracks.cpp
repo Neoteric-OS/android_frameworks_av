@@ -2145,7 +2145,8 @@ status_t Track::getPlaybackRateParameters(
         if (thread != nullptr) {
             auto* const t = thread->asIAfPlaybackThread().get();
             audio_utils::lock_guard lock(t->mutex());
-            if (auto* const output = t->getOutput_l()) {
+            auto* const output = t->getOutput_l();
+            if (output && t->isStreamInitialized_l()) {
                 status = output->stream->getPlaybackRateParameters(playbackRate);
             }
             ALOGD_IF((status == NO_ERROR) &&

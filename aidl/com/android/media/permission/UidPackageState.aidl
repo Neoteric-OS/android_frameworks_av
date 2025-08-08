@@ -17,11 +17,24 @@
 package com.android.media.permission;
 
 /**
- * Entity representing the package names associated with a particular uid/app-id
+ * Entity representing the packages associated with a particular app-id. Multiple packages can be
+ * assigned a specific app-id.
  * {@hide}
  */
 @JavaDerive(equals = true, toString = true)
 parcelable UidPackageState {
+    /**
+     * State we retain for an individual package
+     * {@hide}
+     */
+    @JavaDerive(equals = true, toString = true)
+    parcelable PackageState {
+        @utf8InCpp String packageName;
+        int targetSdk;
+        boolean isPlaybackCaptureAllowed;
+    }
+    // Technically, an app-id for real packages, since the package is associated with an appId,
+    // which is associated with a uid per user.
     int uid;
-    @utf8InCpp List<String> packageNames;
+    List<PackageState> packageStates;
 }
