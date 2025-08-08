@@ -50,9 +50,9 @@ getYamnetToCustomCategoryMap() {
             {SoundClassification::THINGS, iota_vector({{294, 320}, {322, 493}, {516, 519}})},
             // AMBIGUOUS: [494, 499], [509, 515]
             {SoundClassification::AMBIGUOUS, iota_vector({{494, 499}, {509, 515}})},
-            // ENVIRONMENT: [500, 508], 279, 321, 520
+            // ENVIRONMENT: 279, 321, [500, 508], 520
             {SoundClassification::ENVIRONMENT,
-             iota_vector({{500, 508}, {279, 279}, {321, 321}, {520, 520}})},
+             iota_vector({{279, 279}, {321, 321}, {500, 508}, {520, 520}})},
     };
 
     return kYamnetToCustomMap;
