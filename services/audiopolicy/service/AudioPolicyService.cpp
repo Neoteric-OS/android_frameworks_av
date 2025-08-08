@@ -1303,8 +1303,6 @@ NO_THREAD_SAFETY_ANALYSIS  // update for trylock.
             write(fd, apmPtr.c_str(), apmPtr.size());
         }
 
-        mPackageManager.dump(fd);
-
         if (mPermissionController != nullptr) {
             std::string perm_dump = "\nPermission Controller Dump:\n"
                     + mPermissionController->dumpString();
