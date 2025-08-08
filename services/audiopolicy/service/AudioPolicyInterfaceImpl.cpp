@@ -859,9 +859,16 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
 
         audioPolicyEffects = mAudioPolicyEffects;
 
+        // For app compat, apps which targetSdk below 34 can continue unsilenced recording when they
+        // move to a bkgd UID state.
+        const bool shouldExemptFgSilencing =
+                getPermissionProvider()
+                        .getHighestTargetSdkForUid(attributionSource.uid)
+                        .value_or(1000) < __ANDROID_API_U__;
         sp<AudioRecordClient> client = new AudioRecordClient(
                 attr, res->input, session, res->portId, {res->selectedDeviceId}, attributionSource,
-                res->virtualDeviceId, canBypassConcurrentPolicy, mOutputCommandThread);
+                res->virtualDeviceId, canBypassConcurrentPolicy, shouldExemptFgSilencing,
+                mOutputCommandThread);
         mAudioRecordClients.add(res->portId, client);
     }
 
