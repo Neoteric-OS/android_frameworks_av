@@ -84,6 +84,10 @@ EraserContext::~EraserContext() {
 void EraserContext::init() {
     mChannelCount = static_cast<int>(::aidl::android::hardware::audio::common::getChannelCount(
             mCommon.input.base.channelMask));
+    if (mCommon.input.base.sampleRate != kClassifierSampleRate) {
+        LOG(FATAL) << "Mismatched sample rate! Expected " << kClassifierSampleRate << " but got "
+                   << mCommon.input.base.sampleRate;
+    }
 }
 
 RetCode EraserContext::enable() {
