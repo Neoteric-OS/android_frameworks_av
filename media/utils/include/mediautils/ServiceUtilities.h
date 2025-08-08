@@ -118,31 +118,6 @@ AttributionSourceState getCallingAttributionSource();
 
 status_t checkIMemory(const sp<IMemory>& iMemory);
 
-class MediaPackageManager {
-public:
-    /** Query the PackageManager to check if all apps of an UID allow playback capture. */
-    bool allowPlaybackCapture(uid_t uid) {
-        auto result = doIsAllowed(uid);
-        if (!result) {
-            mPackageManagerErrors++;
-        }
-        return result.value_or(false);
-    }
-    void dump(int fd, int spaces = 0) const;
-private:
-    static constexpr const char* nativePackageManagerName = "package_native";
-    std::optional<bool> doIsAllowed(uid_t uid);
-    sp<content::pm::IPackageManagerNative> retrievePackageManager();
-    sp<content::pm::IPackageManagerNative> mPackageManager; // To check apps manifest
-    unsigned int mPackageManagerErrors = 0;
-    struct Package {
-        std::string name;
-        bool playbackCaptureAllowed = false;
-    };
-    using Packages = std::vector<Package>;
-    std::map<uid_t, Packages> mDebugLog;
-};
-
 namespace mediautils {
 
 /**

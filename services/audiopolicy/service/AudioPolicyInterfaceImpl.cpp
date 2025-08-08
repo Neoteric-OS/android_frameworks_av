@@ -392,10 +392,14 @@ Status AudioPolicyService::getOutputForAttr(const media::audio::common::AudioAtt
     RETURN_IF_BINDER_ERROR(validateUsage(attr, attributionSource));
 
     ALOGV("%s()", __func__);
+    const auto captureRes =
+            getPermissionProvider().doesUidPermitPlaybackCapture(attributionSource.uid);
+    if (!captureRes.ok()) {
+        ALOGE("%s Failed to get playback capture flag for %d due to %s", __func__,
+              attributionSource.uid, captureRes.error().toString8().c_str());
+    }
     audio_utils::lock_guard _l(mMutex);
-
-    if (!mPackageManager.allowPlaybackCapture(VALUE_OR_RETURN_BINDER_STATUS(
-        aidl2legacy_int32_t_uid_t(attributionSource.uid)))) {
+    if (!captureRes.value_or(false)) {
         attr.flags = static_cast<audio_flags_mask_t>(attr.flags | AUDIO_FLAG_NO_MEDIA_PROJECTION);
     }
     const bool bypassInterruptionAllowed = (
@@ -846,9 +850,16 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
 
         audioPolicyEffects = mAudioPolicyEffects;
 
+        // For app compat, apps which targetSdk below 34 can continue unsilenced recording when they
+        // move to a bkgd UID state.
+        const bool shouldExemptFgSilencing =
+                getPermissionProvider()
+                        .getHighestTargetSdkForUid(attributionSource.uid)
+                        .value_or(1000) < __ANDROID_API_U__;
         sp<AudioRecordClient> client = new AudioRecordClient(
                 attr, res->input, session, res->portId, {res->selectedDeviceId}, attributionSource,
-                res->virtualDeviceId, canBypassConcurrentPolicy, mOutputCommandThread);
+                res->virtualDeviceId, canBypassConcurrentPolicy, shouldExemptFgSilencing,
+                mOutputCommandThread);
         mAudioRecordClients.add(res->portId, client);
     }
 

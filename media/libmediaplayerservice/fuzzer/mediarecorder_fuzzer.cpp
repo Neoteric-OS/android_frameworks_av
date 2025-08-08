@@ -16,6 +16,11 @@
  */
 
 #include <AudioFlinger.h>
+#include <android/binder_manager.h>
+#include <android-base/logging.h>
+#include <core-mock/ConfigMock.h>
+#include <core-mock/ModuleMock.h>
+#include <effect-mock/FactoryMock.h>
 #include <MediaPlayerService.h>
 #include <ResourceManagerService.h>
 #include <StagefrightRecorder.h>
@@ -394,6 +399,22 @@ extern "C" int LLVMFuzzerInitialize(int /* *argc */, char /* ***argv */) {
      */
     sp<IServiceManager> fakeServiceManager = new FakeServiceManager();
     setDefaultServiceManager(fakeServiceManager);
+    auto configService = ndk::SharedRefBase::make<ConfigMock>();
+    CHECK_EQ(NO_ERROR, AServiceManager_addService(configService.get()->asBinder().get(),
+                                                  "android.hardware.audio.core.IConfig/default"));
+
+    auto factoryService = ndk::SharedRefBase::make<FactoryMock>();
+    CHECK_EQ(NO_ERROR,
+             AServiceManager_addService(factoryService.get()->asBinder().get(),
+                                        "android.hardware.audio.effect.IFactory/default"));
+
+    auto moduleService = ndk::SharedRefBase::make<ModuleMock>();
+    CHECK_EQ(NO_ERROR, AServiceManager_addService(moduleService.get()->asBinder().get(),
+                                                  "android.hardware.audio.core.IModule/default"));
+
+    // TODO: (b/330882064) remove disable thread pool
+    // Disable creating thread pool for fuzzer instance of audio flinger
+    AudioSystem::disableThreadPool();
     MediaPlayerService::instantiate();
     AudioFlinger::instantiate();
     ResourceManagerService::instantiate();

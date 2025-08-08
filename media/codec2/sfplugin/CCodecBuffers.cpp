@@ -896,7 +896,11 @@ void BuffersArrayImpl::realloc(std::function<sp<Codec2Buffer>()> alloc) {
 
 void BuffersArrayImpl::grow(
         size_t newSize, std::function<sp<Codec2Buffer>()> alloc) {
-    CHECK_LT(mBuffers.size(), newSize);
+    if (mBuffers.size() > newSize) {
+        ALOGD("[%s] grow() called with newSize=%zu, but current size is %zu; nothing to do here",
+              mName, newSize, mBuffers.size());
+        return;
+    }
     while (mBuffers.size() < newSize) {
         mBuffers.push_back({ alloc(), std::weak_ptr<C2Buffer>(), false });
     }

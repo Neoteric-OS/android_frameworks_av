@@ -1136,8 +1136,6 @@ private:
     DefaultKeyedVector<audio_port_handle_t, sp<AudioPlaybackClient>> mAudioPlaybackClients
             GUARDED_BY(mMutex);
 
-    MediaPackageManager mPackageManager; // To check allowPlaybackCapture
-
     CaptureStateNotifier mCaptureStateNotifier;
 
     // created in onFirstRef() and never cleared: does not need to be guarded by mMutex

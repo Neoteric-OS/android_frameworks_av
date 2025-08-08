@@ -98,7 +98,7 @@ bool LiteRTInstance::initialize(int numThreads) {
         return true;
     }
 
-    mModel = tflite::FlatBufferModel::BuildFromFile(std::string(mModelPath).c_str());
+    mModel = tflite::FlatBufferModel::VerifyAndBuildFromFile(std::string(mModelPath).c_str());
     if (!mModel) {
         LOG(ERROR) << "Failed to load model file " << mModelPath;
         return false;
