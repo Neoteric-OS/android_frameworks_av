@@ -5110,9 +5110,9 @@ void AudioPolicyManager::dump(String8 *dst) const
     }
 
     dst->appendFormat(" Preferred mixer audio configuration:\n");
-    for (const auto it : mPreferredMixerAttrInfos) {
+    for (const auto& it : mPreferredMixerAttrInfos) {
         dst->appendFormat("   - device port id: %d\n", it.first);
-        for (const auto preferredMixerInfoIt : it.second) {
+        for (const auto& preferredMixerInfoIt : it.second) {
             dst->appendFormat("     - strategy: %d; ", preferredMixerInfoIt.first);
             preferredMixerInfoIt.second->dump(dst);
         }
@@ -5122,7 +5122,7 @@ void AudioPolicyManager::dump(String8 *dst) const
     mEngine->dump(dst);
 
     dst->appendFormat("\nAbsolute volume devices with driving streams:\n");
-    for (const auto it : mAbsoluteVolumeDrivingStreams) {
+    for (const auto& it : mAbsoluteVolumeDrivingStreams) {
         dst->appendFormat("   - device type: %s, driving stream %d\n",
                           dumpDeviceTypes({it.first}).c_str(),
                           mEngine->getVolumeGroupForAttributes(it.second));
@@ -7858,7 +7858,7 @@ void AudioPolicyManager::closeOutput(audio_io_handle_t output)
     }
     closingOutput->close();
     if (closingOutput->isBitPerfect()) {
-        for (const auto device : closingOutput->devices()) {
+        for (const auto& device : closingOutput->devices()) {
             device->setPreferredConfig(nullptr);
         }
     }
