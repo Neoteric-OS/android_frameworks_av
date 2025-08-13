@@ -602,12 +602,14 @@ void AudioPolicyService::maybeCheckSpatializer_l() {
 
 void AudioPolicyService::doOnCheckSpatializer()
 {
+    if (mSpatializer == nullptr) {
+        ALOGV("%s mSpatializer == null", __func__);
+        return;
+    }
+
     ALOGV("%s mSpatializer %p level %d",
         __func__, mSpatializer.get(), (int)mSpatializer->getLevel());
 
-    if (mSpatializer == nullptr) {
-        return;
-    }
     // Note: mSpatializer != nullptr =>  mAudioPolicyManager != nullptr
     if (mSpatializer->getLevel() != Spatialization::Level::NONE) {
         audio_io_handle_t currentOutput = mSpatializer->getOutput();

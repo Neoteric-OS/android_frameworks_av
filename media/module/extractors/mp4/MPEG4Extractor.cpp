@@ -3422,27 +3422,58 @@ status_t MPEG4Extractor::parseAC4SpecificBox(off64_t offset) {
                 ap.mMasteringIndication = MASTERED_FOR_HEADPHONE;
             } else if (!presentation.mChannelCoded) {
                 ap.mMasteringIndication = MASTERED_FOR_3D;
-                // The ETSI TS 103 190-2 V1.2.1 (2018-02) specification defines the parameter
-                // n_umx_objects_minus1 in Annex E (E.11.11) to specify the number of fullband
-                // objects. While the elementary stream specification (section 6.3.2.8.1 and
-                // 6.3.2.10.4) provides information about the presence of an LFE channel within
-                // the set of dynamic objects, this detail is not explicitly stated in the ISO
-                // Base Media File Format (Annex E). However, current implementation practices
-                // consistently include the LFE channel when creating an object-based substream.
-                // As a result, it has been decided that when interpreting the ISO Base Media File
-                // Format, the LFE channel should always be counted as part of the total channel
-                // count.
-                int lfeChannelCount = 1;
-                channelCount = presentation.mNumOfUmxObjects + lfeChannelCount;
-                // TODO: There is a bug in ETSI TS 103 190-2 V1.2.1 (2018-02), E.11.11
-                // For AC-4 level 4 stream, the intention is to set 19 to n_umx_objects_minus1 but
-                // it is equal to 15 based on current specification. Dolby has filed a bug report
-                // to ETSI. The following sentence should be deleted after ETSI specification error
-                // is fixed.
-                if (presentation.mLevel == 4) {
-                    channelCount = channelCount == 17 ? 21 : channelCount;
+                if (presentation.mNumOfUmxObjects > 0) {
+                    // The ETSI TS 103 190-2 V1.2.1 (2018-02) specification defines the parameter
+                    // n_umx_objects_minus1 in Annex E (E.11.11) to specify the number of fullband
+                    // objects. While the elementary stream specification (section 6.3.2.8.1 and
+                    // 6.3.2.10.4) provides information about the presence of an LFE channel within
+                    // the set of dynamic objects, this detail is not explicitly stated in the ISO
+                    // Base Media File Format (Annex E). However, current implementation practices
+                    // consistently include the LFE channel when creating an object-based substream.
+                    // As a result, it has been decided that when interpreting the ISO Base Media
+                    // File Format, the LFE channel should always be counted as part of the total
+                    // channel count.
+                    int lfeChannelCount = 1;
+                    channelCount = presentation.mNumOfUmxObjects + lfeChannelCount;
+                    // TODO: There is a bug in ETSI TS 103 190-2 V1.2.1 (2018-02), E.11.11
+                    // For AC-4 level 4 stream, the intention is to set 19 to n_umx_objects_minus1
+                    // but it is equal to 15 based on current specification. Dolby has filed a bug
+                    // report to ETSI. The following sentence should be deleted after ETSI
+                    // specification error is fixed.
+                    if (presentation.mLevel == 4) {
+                        channelCount = channelCount == 17 ? 21 : channelCount;
+                    }
+                } else {
+                    // This presentation includes a substream with discrete objects. Due to
+                    // limitations in the current AC-4 specification (ETSI TS 103 190-2 V1.2.1
+                    // (2018-02)), discrete object number information is not explicitly stated in
+                    // the ISO Base Media File Format (Annex E). To prevent exceptions, "Maximum
+                    // number of tracks if audio presentation includes object audio" in table 77 of
+                    // ETSI TS 103 190-2 V1.2.1 (2018-02) is used as the channel count.
+                    switch (presentation.mLevel) {
+                        case 0:
+                            // This should not happen because level 0 is always channel coded.
+                            channelCount = 2;
+                            break;
+                        case 1:
+                            channelCount = 6;
+                            break;
+                        case 2:
+                            channelCount = 8;
+                            break;
+                        case 3:
+                            channelCount = 10;
+                            break;
+                        case 4:
+                            channelCount = 12;
+                            break;
+                        default:
+                            ALOGW("AC-4 level %d has not been defined.", presentation.mLevel);
+                            channelCount = 2;
+                            break;
+                    }
                 }
-                ALOGD("AJOC channelCount = %d", channelCount);
+                ALOGD("OBI channelCount = %d", channelCount);
                 AMediaFormat_setInt32(mLastTrack->meta,
                     AMEDIAFORMAT_KEY_CHANNEL_COUNT, channelCount);
             } else {

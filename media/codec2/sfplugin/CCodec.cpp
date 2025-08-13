@@ -249,7 +249,7 @@ public:
                 params.push_back(gap.get());
                 mConfig.mMinAdjustedFps = config.mMinAdjustedFps;
             } else {
-                bool fixedFpsMode = true;
+                fixedFpsMode = true;
                 float fixedGap = c2_max(0. - INT32_MAX, -1e6 / config.mFixedAdjustedFps - 0.5);
                 uint64_t gapUs = int32_t(fixedGap);
                 gap = std::make_shared<C2PortTimestampGapTuning::output>(
