@@ -40,12 +40,10 @@
 #include <algorithm>
 #include <vector>
 
-/* QTI_BEGIN */
 #include <sys/system_properties.h>
 #include <sys/types.h>
 #include <unistd.h>
 #define UI_PERFMODE "debug.ui.perfmode.enable"
-/* QTI_END */
 
 HeifDecoder* createHeifDecoder() {
     return new android::HeifDecoderImpl();
@@ -599,7 +597,6 @@ bool HeifDecoderImpl::decode(HeifFrameInfo* frameInfo) {
     // scanline processing in parallel with decode. If this fails
     // we fallback to decoding the full frame.
     if (mHasImage) {
-        /* QTI_BEGIN */
         bool useUIperf = false;
         if (mSliceHeight >= 512 &&
                  mImageInfo.mWidth >= 1280 &&
@@ -619,7 +616,6 @@ bool HeifDecoderImpl::decode(HeifFrameInfo* frameInfo) {
                 }
             }
         }
-        /* QTI_END */
         if ((mSliceHeight >= 512 &&
                 mImageInfo.mWidth >= 3000 &&
                 mImageInfo.mHeight >= 2000) ||
