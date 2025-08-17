@@ -111,12 +111,8 @@ binder::Status createConfiguredSurface(
         sp<Surface>& out_surface, const sp<SurfaceType>& surface,
         const std::string &logicalCameraId, const CameraMetadata &physicalCameraMetadata,
         const std::vector<int32_t> &sensorPixelModesUsed,  int64_t dynamicRangeProfile,
-        int64_t streamUseCase,
-        int timestampBase,
-        int mirrorMode,
-        int32_t colorSpace,
-        bool respectSurfaceSize,
-        bool isPriviledgedClient=false);
+        int64_t streamUseCase, int timestampBase, int mirrorMode,
+        int32_t colorSpace, bool respectSurfaceSize, bool isPriviledgedClient=false);
 
 //check if format is 10-bit output compatible
 bool is10bitCompatibleFormat(int32_t format, android_dataspace_t dataSpace);
@@ -162,7 +158,7 @@ convertToHALStreamCombination(
     aidl::android::hardware::camera::device::StreamConfiguration &streamConfiguration,
     bool overrideForPerfClass, metadata_vendor_id_t vendorTagId,
     bool checkSessionParams, const std::vector<int32_t>& additionalKeys,
-    bool *earlyExit);
+    bool *earlyExit, bool isPriviledgedClient = false);
 
 StreamConfigurationPair getStreamConfigurationPair(const CameraMetadata &metadata);
 

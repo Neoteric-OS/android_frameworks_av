@@ -161,9 +161,7 @@ int64_t euclidDistSquare(int32_t x0, int32_t y0, int32_t x1, int32_t y1) {
 bool roundBufferDimensionNearest(int32_t width, int32_t height,
         int32_t format, android_dataspace dataSpace,
         const CameraMetadata& info, bool maxResolution, /*out*/int32_t* outWidth,
-// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
         /*out*/int32_t* outHeight, bool isPriviledgedClient) {
-// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
     const int32_t depthSizesTag =
             getAppropriateModeTag(ANDROID_DEPTH_AVAILABLE_DEPTH_STREAM_CONFIGURATIONS,
                     maxResolution);
@@ -214,10 +212,9 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
         }
     }
 
-// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
     if (isPriviledgedClient == true && bestWidth == -1 &&
-        (format == HAL_PIXEL_FORMAT_RAW10 || format == HAL_PIXEL_FORMAT_RAW12 ||
-         format == HAL_PIXEL_FORMAT_RAW16 || format == HAL_PIXEL_FORMAT_RAW_OPAQUE)) {
+            (format == HAL_PIXEL_FORMAT_RAW10 || format == HAL_PIXEL_FORMAT_RAW12 ||
+            format == HAL_PIXEL_FORMAT_RAW16 || format == HAL_PIXEL_FORMAT_RAW_OPAQUE)) {
         bool isLogicalCamera = false;
         auto entry = info.find(ANDROID_REQUEST_AVAILABLE_CAPABILITIES);
         for (size_t i = 0; i < entry.count; ++i) {
@@ -235,22 +232,19 @@ bool roundBufferDimensionNearest(int32_t width, int32_t height,
         }
     }
 
-// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
-// QTI_BEGIN: 2021-11-15: Camera: Avoid roundBufferDimensionsNearest for AIDE2 YUV streams
     // Avoid roundBufferDimensionsNearest for privileged client YUV streams to meet the AIDE2
     // requirement. AIDE2 is vendor enhanced feature which requires special resolutions and
     // those are not populated in static capabilities.
     if (isPriviledgedClient == true &&
-        (format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB || format == HAL_PIXEL_FORMAT_Y8)) {
+            (format == HAL_PIXEL_FORMAT_YCbCr_420_888 || format == HAL_PIXEL_FORMAT_BLOB ||
+             format == HAL_PIXEL_FORMAT_Y8)) {
         ALOGI("Bypass roundBufferDimensionNearest for privilegedClient YUV streams "
-              "width %d height %d for format %d",
-              width, height, format);
+                "width %d height %d for format %d", width, height, format);
 
         bestWidth  = width;
         bestHeight = height;
     }
 
-// QTI_END: 2021-11-15: Camera: Avoid roundBufferDimensionsNearest for AIDE2 YUV streams
     if (bestWidth == -1) {
         // Return false if no configurations for this format were listed
         ALOGE("%s: No configurations for format %d width %d, height %d, maxResolution ? %s",
@@ -282,9 +276,6 @@ bool is10bitCompatibleFormat(int32_t format, android_dataspace_t dataSpace) {
                 return true;
             } else if (dataSpace == static_cast<android_dataspace_t>(
                         ::aidl::android::hardware::graphics::common::Dataspace::HEIF_ULTRAHDR)) {
-                return true;
-            } else if (dataSpace == static_cast<android_dataspace_t>(
-                        ::aidl::android::hardware::graphics::common::Dataspace::HEIF)) {
                 return true;
             }
 
@@ -491,12 +482,8 @@ binder::Status createConfiguredSurface(
         sp<Surface>& out_surface, const sp<SurfaceType>& surface,
         const std::string &logicalCameraId, const CameraMetadata &physicalCameraMetadata,
         const std::vector<int32_t> &sensorPixelModesUsed, int64_t dynamicRangeProfile,
-        int64_t streamUseCase,
-        int timestampBase,
-        int mirrorMode,
-        int32_t colorSpace,
-        bool respectSurfaceSize,
-        bool isPriviledgedClient) {
+        int64_t streamUseCase, int timestampBase, int mirrorMode,
+        int32_t colorSpace, bool respectSurfaceSize, bool isPriviledgedClient) {
     // bufferProducer must be non-null
     if ( flagtools::isSurfaceTypeValid(surface) == false ) {
         std::string msg = fmt::sprintf("Camera %s: Surface is NULL", logicalCameraId.c_str());
@@ -526,9 +513,7 @@ binder::Status createConfiguredSurface(
     uint64_t allowedFlags = GraphicBuffer::USAGE_SW_READ_MASK |
                            GraphicBuffer::USAGE_HW_TEXTURE |
                            GraphicBuffer::USAGE_HW_COMPOSER;
-// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
     bool flexibleConsumer = !isPriviledgedClient && (consumerUsage & disallowedFlags) == 0 &&
-// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
             (consumerUsage & allowedFlags) != 0;
 
     out_surface = new Surface(flagtools::surfaceTypeToIGBP(surface), useAsync);
@@ -591,23 +576,18 @@ binder::Status createConfiguredSurface(
         return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.c_str());
     }
     bool foundInMaxRes = false;
-    // If only max resolution sensor pixel mode was inferred to be used.
-    if ((overriddenSensorPixelModes.size() == 1) &&
-            overriddenSensorPixelModes.find(ANDROID_SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION) !=
+    if (overriddenSensorPixelModes.find(ANDROID_SENSOR_PIXEL_MODE_MAXIMUM_RESOLUTION) !=
             overriddenSensorPixelModes.end()) {
-        // we use the max resolution stream configuration map
+        // we can use the default stream configuration map
         foundInMaxRes = true;
     }
-
     // Round dimensions to the nearest dimensions available for this format.
     // Only do the rounding if the client doesn't ask to respect the surface
     // size.
     if (flexibleConsumer && isPublicFormat(format) && !respectSurfaceSize &&
             !SessionConfigurationUtils::roundBufferDimensionNearest(width, height,
             format, dataSpace, physicalCameraMetadata, foundInMaxRes, /*out*/&width,
-// QTI_BEGIN: 2021-06-24: Camera: Master callback mode support for MCX raw
             /*out*/&height, isPriviledgedClient)) {
-// QTI_END: 2021-06-24: Camera: Master callback mode support for MCX raw
         std::string msg = fmt::sprintf("Camera %s: No supported stream configurations with "
                 "format %#x defined, failed to create output stream",
                 logicalCameraId.c_str(), format);
@@ -819,7 +799,7 @@ binder::Status convertToHALStreamCombination(
         metadataGetter getMetadata, const std::vector<std::string>& physicalCameraIds,
         aidl::android::hardware::camera::device::StreamConfiguration& streamConfiguration,
         bool overrideForPerfClass, metadata_vendor_id_t vendorTagId, bool checkSessionParams,
-        const std::vector<int32_t>& additionalKeys, bool* earlyExit) {
+        const std::vector<int32_t>& additionalKeys, bool* earlyExit, bool isPriviledgedClient) {
     using SensorPixelMode = aidl::android::hardware::camera::metadata::SensorPixelMode;
     auto operatingMode = sessionConfiguration.getOperatingMode();
     binder::Status res = checkOperatingMode(operatingMode, deviceInfo,
@@ -982,7 +962,7 @@ binder::Status convertToHALStreamCombination(
                                     flagtools::convertParcelableSurfaceTypeToSurface(surface_type),
                                     logicalCameraId,  metadataChosen, sensorPixelModesUsed,
                                     dynamicRangeProfile, streamUseCase, timestampBase, mirrorMode,
-                                    colorSpace, /*respectSurfaceSize*/ true);
+                                    colorSpace, /*respectSurfaceSize*/ true, isPriviledgedClient);
 
             if (!res.isOk()) return res;
 
