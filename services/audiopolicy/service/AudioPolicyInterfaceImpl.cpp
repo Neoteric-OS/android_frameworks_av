@@ -544,6 +544,23 @@ void AudioPolicyService::getPlaybackClientAndEffects(audio_port_handle_t portId,
     effects = mAudioPolicyEffects;
 }
 
+void AudioPolicyService::getPlaybackClientsAndEffects(
+        audio_io_handle_t io,
+        std::vector<sp<AudioPlaybackClient>>& clients,
+        sp<AudioPolicyEffects>& effects,
+        const char *context)
+{
+    audio_utils::lock_guard _l(mMutex);
+    for (size_t i = 0; i < mAudioPlaybackClients.size(); i++) {
+        auto client = mAudioPlaybackClients.valueAt(i);
+        if (client->io == io) {
+            clients.push_back(client);
+        }
+    }
+    ALOGI_IF(clients.empty(), "%s no AudioTrack clients found for the IO handle %d", context, io);
+    effects = mAudioPolicyEffects;
+}
+
 Status AudioPolicyService::startOutput(
         int32_t portIdAidl, media::StartOutputResponse* _aidl_return)
 {
@@ -604,7 +621,7 @@ status_t  AudioPolicyService::doStopOutput(audio_port_handle_t portId)
 
     getPlaybackClientAndEffects(portId, client, audioPolicyEffects, __func__);
 
-    if (audioPolicyEffects != 0) {
+    if (client != nullptr && audioPolicyEffects != nullptr) {
         // release audio processors from the stream
         status_t status = audioPolicyEffects->releaseOutputSessionEffects(
             client->io, client->stream, client->session);
@@ -616,9 +633,9 @@ status_t  AudioPolicyService::doStopOutput(audio_port_handle_t portId)
     AutoCallerClear acc;
     status_t status = mAudioPolicyManager->stopOutput(portId);
     if (status == NO_ERROR) {
-        client->active = false;
+        if (client != nullptr) client->active = false;
         onUpdateActiveSpatializerTracks_l();
-        mUsecaseValidator->stopClient(client->io, client->portId);
+        if (client != nullptr) mUsecaseValidator->stopClient(client->io, client->portId);
     }
     return status;
 }
@@ -643,7 +660,7 @@ void AudioPolicyService::doReleaseOutput(audio_port_handle_t portId)
 
     getPlaybackClientAndEffects(portId, client, audioPolicyEffects, __func__);
 
-    if (audioPolicyEffects != 0 && client->active) {
+    if (audioPolicyEffects != nullptr && client != nullptr && client->active) {
         // clean up effects if output was not stopped before being released
         audioPolicyEffects->releaseOutputSessionEffects(
             client->io, client->stream, client->session);
@@ -655,6 +672,49 @@ void AudioPolicyService::doReleaseOutput(audio_port_handle_t portId)
     mAudioPlaybackClients.removeItem(portId);
     // called from internal thread: no need to clear caller identity
     mAudioPolicyManager->releaseOutput(portId);
+}
+
+Status AudioPolicyService::forceReleaseDirectOutput(int32_t outputIdAidl)
+{
+    audio_port_handle_t outputId =
+            VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_int32_t_audio_io_handle_t(outputIdAidl));
+    if (mAudioPolicyManager == NULL) {
+        return binderStatusFromStatusT(NO_INIT);
+    }
+    ALOGV("forceReleaseDirectOutput()");
+    return binderStatusFromStatusT(mOutputCommandThread->forceReleaseDirectOutputCommand(outputId));
+}
+
+status_t AudioPolicyService::doForceReleaseDirectOutput(audio_io_handle_t outputId)
+{
+    ALOGV("doForceReleaseDirectOutput from tid %d", gettid());
+    std::vector<sp<AudioPlaybackClient>> clients;
+    sp<AudioPolicyEffects> audioPolicyEffects;
+
+    getPlaybackClientsAndEffects(outputId, clients, audioPolicyEffects, __func__);
+
+    bool hasOneActiveClient = false;
+    std::vector<audio_port_handle_t> portIds;
+    portIds.reserve(clients.size());
+    for (const auto& client : clients) {
+        if (client->active) hasOneActiveClient = true;
+        portIds.push_back(client->portId);
+        if (audioPolicyEffects != nullptr && client->active) {
+            // clean up effects if output was not stopped before being released
+            audioPolicyEffects->releaseOutputSessionEffects(
+                    client->io, client->stream, client->session);
+        }
+    }
+    audio_utils::lock_guard _l(mMutex);
+    if (hasOneActiveClient) {
+        onUpdateActiveSpatializerTracks_l();
+    }
+    for (const auto portId : portIds) {
+        mAudioPlaybackClients.removeItem(portId);
+    }
+
+    // called from internal thread: no need to clear caller identity
+    return mAudioPolicyManager->forceReleaseDirectOutput(outputId);
 }
 
 // These are sources for which CAPTURE_AUDIO_OUTPUT granted access
@@ -815,8 +875,6 @@ Status AudioPolicyService::getInputForAttr(const media::audio::common::AudioAttr
     if (inputSource == AudioSource::DEFAULT) {
         inputSource = AudioSource::MIC;
     }
-
-    const bool isCallRedir = (attr.flags & AUDIO_FLAG_CALL_REDIRECTION) != 0;
 
     //TODO(b/374751406): remove forcing canBypassConcurrentPolicy to canCaptureOutput
     // once all system apps using CAPTURE_AUDIO_OUTPUT to capture during calls

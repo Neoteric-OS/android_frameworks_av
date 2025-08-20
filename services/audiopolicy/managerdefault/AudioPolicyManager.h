@@ -134,6 +134,7 @@ public:
                 audio_port_handle_t portId, float* volume, bool* muted);
         virtual status_t stopOutput(audio_port_handle_t portId);
         virtual bool releaseOutput(audio_port_handle_t portId);
+        virtual status_t forceReleaseDirectOutput(audio_io_handle_t output);
 
         void addRoutableDeviceToProfiles(const sp<DeviceDescriptor> &device);
 

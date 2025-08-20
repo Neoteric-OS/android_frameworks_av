@@ -595,7 +595,6 @@ void SwAudioOutputDescriptor::setSwMute(
         for (const auto& devicePort: devices()) {
             if (isSingleDeviceType(deviceTypes, devicePort->type()) &&
                 devicePort->hasGainController(true /*canUseForVolume*/)) {
-                float volumeAmpl = Volume::DbToAmpl(0);
                 ALOGV("%s: output: %d, vs: %d, muted: %d, active vs count: %zu", __func__,
                       mIoHandle, vs, mutedByGroup, getActiveVolumeSources().size());
                 mClientInterface->setPortsVolume(

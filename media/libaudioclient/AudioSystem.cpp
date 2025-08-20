@@ -1399,6 +1399,14 @@ void AudioSystem::releaseOutput(audio_port_handle_t portId) {
     (void) status;
 }
 
+status_t AudioSystem::forceReleaseDirectOutput(audio_io_handle_t output) {
+    const sp<IAudioPolicyService> aps = get_audio_policy_service();
+    if (aps == nullptr) return AudioPolicyServiceTraits::getError();
+    int32_t outputIdAidl =
+            VALUE_OR_RETURN_STATUS(legacy2aidl_audio_io_handle_t_int32_t(output));
+    return statusTFromBinderStatus(aps->forceReleaseDirectOutput(outputIdAidl));
+}
+
 status_t AudioSystem::getInputForAttr(const audio_attributes_t* attr,
                                       audio_io_handle_t* input,
                                       audio_unique_id_t riid,

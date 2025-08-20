@@ -119,7 +119,7 @@ public:
                                                 const std::vector<audio_latency_mode_t>& modes)
             EXCLUDES_AudioFlinger_ClientMutex = 0;
 
-    virtual void onHardError(std::set<audio_port_handle_t>& trackPortIds) = 0;
+    virtual void onHardError(audio_io_handle_t output) = 0;
 
     virtual const ::com::android::media::permission::IPermissionProvider&
             getPermissionProvider() = 0;

@@ -240,8 +240,10 @@ void AudioPolicyManager::addRoutableDeviceToProfiles(const sp<DeviceDescriptor> 
 
             bool isSupported = profile->supportsDevice(device);
 
-            // When flag is disabled, routable should be equivalent to supported.
+            // When flag is disabled or there is not dynamic profiles,
+            // routable should be equivalent to supported.
             bool isRoutable =
+                !profile->hasDynamicAudioProfile() ||
                 !com::android::media::audioserver::enable_strict_port_routing_checks() ||
                 !com::android::media::audio::check_route_in_get_audio_mix_port() ||
                 mpClientInterface->getAudioMixPort(&devicePort, &mixPort,
@@ -1147,7 +1149,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
             if (desc->mPreferredAttrInfo != nullptr) {
-                DeviceVector newDevices = getNewOutputDevices(desc, true /*fromCache*/);
+                DeviceVector newDevices = getNewOutputDevices(desc, false /*fromCache*/);
                 // If the output is using preferred mixer attributes and the audio mode is not
                 // normal, the output need to reopen with default configuration.
                 outputsToReopen.emplace(mOutputs.keyAt(i), newDevices);
@@ -1177,7 +1179,7 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
     // reevaluate routing on all outputs in case tracks have been started during the call
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-        DeviceVector newDevices = getNewOutputDevices(desc, true /*fromCache*/);
+        DeviceVector newDevices = getNewOutputDevices(desc, false /*fromCache*/);
         if (state != AUDIO_MODE_IN_CALL || (desc != mPrimaryOutput && !isTelephonyRxOrTx(desc))) {
             bool forceRouting = !newDevices.isEmpty();
             setOutputDevices(__func__, desc, newDevices, forceRouting, 0 /*delayMs*/, nullptr,
@@ -3204,6 +3206,37 @@ bool AudioPolicyManager::releaseOutput(audio_port_handle_t portId)
     return false;
 }
 
+status_t AudioPolicyManager::forceReleaseDirectOutput(audio_io_handle_t output) {
+    ALOGV("%s output %d", __func__, output);
+    sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueFor(output);
+    if (outputDesc == 0) {
+        ALOGW("%s() no output for handle %d", __func__, output);
+        return BAD_VALUE;
+    }
+    if ((outputDesc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) {
+        ALOGW("%s() output for handle %d is not a direct output, flags: %8x",
+                __func__, output, outputDesc->mFlags);
+        return BAD_VALUE;
+    }
+
+    std::vector<audio_port_handle_t> portIds;
+    for (const auto& client : outputDesc->getClientIterable()) {
+        const audio_port_handle_t portId = client->portId();
+        if (outputDesc->isClientActive(client)) {
+            ALOGW("%s() inactivates portId %d in good faith", __func__, portId);
+            stopOutput(portId);
+        }
+        portIds.push_back(portId);
+    }
+    for (const auto portId : portIds) {
+        outputDesc->removeClient(portId);
+    }
+
+    outputDesc->mDirectOpenCount = 0;
+    closeOutput(outputDesc->mIoHandle);
+    mpClientInterface->onAudioPortListUpdate();
+    return OK;
+}
 
 static AudioPolicyClientInterface::MixType getMixType(audio_devices_t deviceType,
                                                       bool externallyRouted,
@@ -3259,7 +3292,6 @@ AudioPolicyManager::getInputForAttr(audio_attributes_t attributes_,
     sp<RecordClientDescriptor> clientDesc;
     uid_t uid = static_cast<uid_t>(attributionSource.uid);
     bool isSoundTrigger;
-    int vdi = 0 /* default device id */;
     audio_io_handle_t input = AUDIO_IO_HANDLE_NONE;
 
     if (attributes_.source == AUDIO_SOURCE_DEFAULT) {
@@ -8382,22 +8414,6 @@ DeviceVector AudioPolicyManager::getNewOutputDevices(const sp<SwAudioOutputDescr
 
             if (devices.empty()) {
                 ALOGW("%s: no device were retrieved for specified attributes", __func__);
-            }
-
-            if (!outputDesc->isDuplicated()
-                    && com::android::media::audioserver::enable_strict_port_routing_checks()
-                    && com::android::media::audio::check_route_in_get_audio_mix_port()) {
-                // Filter out devices that are indicated by the HAL as non-routable.
-                auto routableDevices = devices.filter([&](auto device) {
-                      return outputDesc->mProfile->routesToDevice(device); });
-
-                if (routableDevices.empty()) {
-                    ALOGW("%s: no device in %s are routable for profile %s", __func__,
-                          routableDevices.toString().c_str(),
-                          outputDesc->mProfile->getTagName().c_str());
-                }
-
-                devices = routableDevices;
             }
 
             break;

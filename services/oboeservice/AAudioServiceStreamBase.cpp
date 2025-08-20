@@ -494,8 +494,8 @@ void AAudioServiceStreamBase::run() {
     // Hold onto the ref counted stream until the end.
     android::sp<AAudioServiceStreamBase> holdStream(this);
     TimestampScheduler timestampScheduler;
-    int64_t nextTimestampReportTime;
-    int64_t nextDataReportTime;
+    int64_t nextTimestampReportTime = std::numeric_limits<int64_t>::max();
+    int64_t nextDataReportTime = std::numeric_limits<int64_t>::max();
     // When to try to enter standby.
     int64_t standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
     // Balance the incStrong from when the thread was launched.
@@ -517,9 +517,13 @@ void AAudioServiceStreamBase::run() {
             }
             // Otherwise, keep `timeoutNanos` as -1 to wait forever until next command.
         } else if (isRunning()) {
-            timeoutNanos = std::min(nextTimestampReportTime, nextDataReportTime)
-                    - AudioClock::getNanoseconds();
-            timeoutNanos = std::max<int64_t>(0, timeoutNanos);
+            if (nextTimestampReportTime != std::numeric_limits<int64_t>::max() ||
+                nextDataReportTime != std::numeric_limits<int64_t>::max()) {
+                timeoutNanos = std::min(nextTimestampReportTime, nextDataReportTime)
+                               - AudioClock::getNanoseconds();
+                timeoutNanos = std::max<int64_t>(0, timeoutNanos);
+            }
+            // Otherwise, keep `timeoutNanos` as -1 to wait forever until next command.
         }
         auto command = mCommandQueue.waitForCommand(timeoutNanos);
         if (!mThreadEnabled) {
