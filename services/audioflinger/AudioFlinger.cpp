@@ -2154,17 +2154,14 @@ void AudioFlinger::onSupportedLatencyModesChanged(
                         modes, legacy2aidl_audio_latency_mode_t_AudioLatencyMode));
 
     audio_utils::lock_guard _l(clientMutex());
-    size_t size = mNotificationClients.size();
     for (const auto& [_, client] : mNotificationClients) {
         client->audioFlingerClient()->onSupportedLatencyModesChanged(outputAidl, modesAidl);
     }
 }
 
-void AudioFlinger::onHardError(std::set<audio_port_handle_t>& trackPortIds) {
-    ALOGI("releasing tracks due to a hard error occurred on an I/O thread");
-    for (const auto portId : trackPortIds) {
-        AudioSystem::releaseOutput(portId);
-    }
+void AudioFlinger::onHardError(audio_io_handle_t output) {
+    ALOGI("releasing tracks and closing output %d due to a hard error", output);
+    AudioSystem::forceReleaseDirectOutput(output);
 }
 
 const IPermissionProvider& AudioFlinger::getPermissionProvider() {
@@ -3647,7 +3644,6 @@ std::vector< sp<IAfEffectModule> > AudioFlinger::purgeOrphanEffectChains_l()
 // dumpToThreadLog_l() must be called with AudioFlinger::mutex() held
 void AudioFlinger::dumpToThreadLog_l(const sp<IAfThreadBase> &thread)
 {
-    constexpr int THREAD_DUMP_TIMEOUT_MS = 2;
     constexpr auto PREFIX = "- ";
     using ::android::audio_utils::FdToString;
 

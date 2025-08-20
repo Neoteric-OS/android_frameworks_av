@@ -648,7 +648,7 @@ AImageReader::setUsage(uint64_t usage) {
     if (mUsage == usage) {
         return AMEDIA_OK;
     }
-    uint64_t halUsage = AHardwareBuffer_convertToGrallocUsageBits(mUsage);
+    uint64_t halUsage = AHardwareBuffer_convertToGrallocUsageBits(usage);
     status_t ret = mBufferItemConsumer->setConsumerUsageBits(halUsage);
     if (ret != OK) {
         ALOGE("setConsumerUsageBits() failed %d", ret);
@@ -669,10 +669,30 @@ AImageReader::setMaxImages(int32_t maxImages) {
     if (mMaxImages == maxImages) {
         return AMEDIA_OK;
     }
-    status_t ret = mBufferItemConsumer->setMaxAcquiredBufferCount(mMaxImages);
+    int delta = maxImages - mMaxImages;
+    if (delta < 0) {
+        // If maxImages is less than the current, reducing the # of available
+        // buffers is necessary. Check if that is possible.
+        if (mBuffers.size() < -delta) {
+            ALOGE("setMaxImages() cannot reduce the image count.");
+            return AMEDIA_ERROR_INVALID_PARAMETER;
+        }
+    }
+    status_t ret = mBufferItemConsumer->setMaxAcquiredBufferCount(maxImages);
     if (ret != OK) {
         ALOGE("setMaxAcquiredBufferCount() failed %d", ret);
         return AMEDIA_ERROR_UNKNOWN;
+    }
+    if (delta < 0) {
+        for (int i = 0; i < -delta; ++i) {
+            auto it = mBuffers.begin();
+            delete *it;
+            mBuffers.erase(it);
+        }
+    } else if (delta > 0) {
+        for (int i = 0; i < delta; ++i) {
+            mBuffers.push_back(new BufferItem);
+        }
     }
     mMaxImages = maxImages;
     return AMEDIA_OK;

@@ -305,6 +305,7 @@ public:
         }
 
         mixPort->num_audio_profiles = 0;
+        const bool isInput = mixPort->role == AUDIO_PORT_ROLE_SINK;
         for (auto format : mSupportedFormats) {
             const int i = mixPort->num_audio_profiles;
             mixPort->audio_profiles[i].format = format;
@@ -312,7 +313,7 @@ public:
             mixPort->audio_profiles[i].sample_rates[0] = 48000;
             mixPort->audio_profiles[i].num_channel_masks = 0;
             for (const auto& cm : mSupportedChannelMasks) {
-                if (audio_channel_mask_is_valid(cm)) {
+                if (audio_channel_mask_is_valid(cm) && audio_is_input_channel(cm) == isInput) {
                     mixPort->audio_profiles[i].channel_masks[
                             mixPort->audio_profiles[i].num_channel_masks++] = cm;
                 }

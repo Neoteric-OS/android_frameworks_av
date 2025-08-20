@@ -1479,7 +1479,7 @@ public:
 private:
     class DeathNotifier : public IBinder::DeathRecipient {
     public:
-        explicit DeathNotifier(AudioTrack* audioTrack) : mAudioTrack(audioTrack) { }
+        explicit DeathNotifier(wp<AudioTrack>& audioTrack) : mAudioTrack(audioTrack) { }
     protected:
         virtual void        binderDied(const wp<IBinder>& who);
     private:

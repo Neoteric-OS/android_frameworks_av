@@ -3804,6 +3804,90 @@ TEST_F(AudioPolicyManagerPhoneTest, NoPatchChangesDuringAlarmPlayback) {
             "Unexpected change in patches detected";
 }
 
+TEST_F(AudioPolicyManagerPhoneTest, ForceReleaseDirectOutput) {
+    DeviceIdVector selectedDeviceIds;
+    audio_io_handle_t output;
+    audio_port_handle_t portId;
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_FLOAT,
+                                             AUDIO_CHANNEL_OUT_STEREO, k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_DIRECT, &output, &portId));
+    EXPECT_NE(nullptr, mManager->getOutputs().valueFor(output));
+    ASSERT_EQ(OK, mManager->forceReleaseDirectOutput(output));
+    EXPECT_EQ(nullptr, mManager->getOutputs().valueFor(output));
+}
+
+TEST_F(AudioPolicyManagerPhoneTest, ForceReleaseDirectOutputForNonDirect) {
+    DeviceIdVector selectedDeviceIds;
+    audio_io_handle_t output;
+    audio_port_handle_t portId;
+    // This should select the default (non-direct) output.
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT,
+                                             AUDIO_CHANNEL_OUT_STEREO, k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_NONE, &output, &portId));
+    EXPECT_NE(nullptr, mManager->getOutputs().valueFor(output));
+    EXPECT_EQ(BAD_VALUE, mManager->forceReleaseDirectOutput(output));
+    EXPECT_NE(nullptr, mManager->getOutputs().valueFor(output));
+}
+
+TEST_F(AudioPolicyManagerPhoneTest, HangupReevaluatesAndRestoresDevice) {
+
+    EXPECT_FALSE(mManager->sawFromCacheTriggered());
+    DeviceIdVector initialDeviceIds;
+    audio_io_handle_t outputHandle = AUDIO_IO_HANDLE_NONE;
+    audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&initialDeviceIds,
+                                             AUDIO_FORMAT_PCM_16_BIT,
+                                             AUDIO_CHANNEL_OUT_STEREO,
+                                             k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_NONE,
+                                             &outputHandle,
+                                             &portId,
+                                             AUDIO_ATTRIBUTES_INITIALIZER,
+                                             AUDIO_SESSION_NONE));
+
+    ASSERT_EQ(initialDeviceIds.size(), 1u);
+    auto initialDevice =
+            mManager->getAvailableOutputDevices().getDeviceFromId(initialDeviceIds[0]);
+    ASSERT_NE(nullptr, initialDevice);
+
+    mManager->setPhoneState(AUDIO_MODE_IN_CALL);
+    DeviceIdVector inCallDeviceIds;
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&inCallDeviceIds,
+                                             AUDIO_FORMAT_PCM_16_BIT,
+                                             AUDIO_CHANNEL_OUT_STEREO,
+                                             k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_NONE,
+                                             &outputHandle,
+                                             &portId,
+                                             AUDIO_ATTRIBUTES_INITIALIZER,
+                                             AUDIO_SESSION_NONE));
+
+    ASSERT_EQ(inCallDeviceIds.size(), 1u);
+    auto inCallDevice = mManager->getAvailableOutputDevices().getDeviceFromId(inCallDeviceIds[0]);
+    ASSERT_NE(nullptr, inCallDevice);
+    EXPECT_NE(inCallDevice, initialDevice);
+
+    mManager->resetCacheObservation();
+    mManager->setPhoneState(AUDIO_MODE_NORMAL);
+    EXPECT_FALSE(mManager->sawFromCacheTriggered());
+
+    DeviceIdVector normalDeviceIds;
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&normalDeviceIds,
+                                             AUDIO_FORMAT_PCM_16_BIT,
+                                             AUDIO_CHANNEL_OUT_STEREO,
+                                             k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_NONE,
+                                             &outputHandle,
+                                             &portId,
+                                             AUDIO_ATTRIBUTES_INITIALIZER,
+                                             AUDIO_SESSION_NONE));
+
+    ASSERT_EQ(normalDeviceIds.size(), 1u);
+    auto normalDevice = mManager->getAvailableOutputDevices().getDeviceFromId(normalDeviceIds[0]);
+    ASSERT_NE(nullptr, normalDevice);
+    EXPECT_EQ(normalDevice, initialDevice);
+}
+
 enum {
     MIX_PORT_ATTR_EXPECTED_NAME_PARAMETER,
     MIX_PORT_ATTR_EXPECTED_NAME_WITH_DBFM_PARAMETER,
@@ -5278,6 +5362,10 @@ TEST_F_WITH_FLAGS(
     const audio_devices_t kUsbInHsType = AUDIO_DEVICE_IN_USB_HEADSET;
     const audio_devices_t kUsbOutHsType = AUDIO_DEVICE_OUT_USB_HEADSET;
     const std::string usbAddrs[NUM_DEVICES] = {"card=1;device=0", "card=2;device=0"};
+
+    mClient->addSupportedFormat(AUDIO_FORMAT_PCM_16_BIT);
+    mClient->addSupportedChannelMask(AUDIO_CHANNEL_OUT_STEREO);
+    mClient->addSupportedChannelMask(AUDIO_CHANNEL_IN_STEREO);
 
     // This test is based on XML config parsing and does not have HAL IDs.
     // We assign some unique numbers to test this AIDL feature.

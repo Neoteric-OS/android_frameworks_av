@@ -1855,12 +1855,15 @@ typedef void (*AAudioStream_presentationEndCallback)(AAudioStream* _Nonnull stre
  * queued in the audio system (e.g. the combination of the Android audio framework and the device's
  * audio hardware) have been played.
  *
- * The presentation end callback must be used together with the data callback.
  * The presentation end callback won't be called if the stream is closed before all the data
  * is played.
  *
- * The callback function will be called from the same thread as the data callback thread,
- * which is a real-time thread owned by audio framework.
+ * If data callback is set, the callback function will be called from the same thread as the data
+ * callback thread, which is a real-time thread owned by audio framework.
+ *
+ * If data callback is not set, the presentation end callback will be fired from a thread owned
+ * by audio framework, this may not be a real-time thread.
+ *
  * The callback function will not be called after AAudioStream_close() is called.
  *
  * Available since API level 36.

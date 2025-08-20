@@ -5503,10 +5503,10 @@ void PlaybackThread::onAddNewTrack_l()
 
 void PlaybackThread::onAsyncError(bool isHardError)
 {
-    auto allTrackPortIds = getTrackPortIds();
-    invalidateTracks();
-    if (isHardError) {
-        mAfThreadCallback->onHardError(allTrackPortIds);
+    if (!isHardError || !isOffloadOrDirect()) {
+        invalidateTracks();
+    } else {
+        mAfThreadCallback->onHardError(id());
     }
 }
 
@@ -5602,7 +5602,6 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
 
     mixer_state mixerStatus = MIXER_IDLE;
     // find out which tracks need to be processed
-    size_t count = mActiveTracks.size();
     size_t mixedTracks = 0;
     size_t tracksWithEffect = 0;
     // counts only _active_ fast tracks

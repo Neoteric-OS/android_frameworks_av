@@ -162,6 +162,7 @@ public:
     virtual status_t stopOutput(audio_port_handle_t portId) = 0;
     // releases the output, return true if the output descriptor is reopened.
     virtual bool releaseOutput(audio_port_handle_t portId) = 0;
+    virtual status_t forceReleaseDirectOutput(audio_io_handle_t output) = 0;
 
     // Request an input appropriate for record from the supplied device with supplied parameters.
     // attr -- attributes for the requested record
