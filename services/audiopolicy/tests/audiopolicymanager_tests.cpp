@@ -31,6 +31,7 @@
 #include <android_media_audiopolicy.h>
 #include <com_android_media_audio.h>
 #include <com_android_media_audioserver.h>
+#include <cutils/multiuser.h>
 #include <cutils/properties.h>
 #include <flag_macros.h>
 #include <hardware/audio_effect.h>
@@ -39,8 +40,8 @@
 #include <media/RecordingActivityTracker.h>
 #include <media/TypeConverter.h>
 #include <utils/Log.h>
+#include <utils/Unicode.h>
 #include <utils/Vector.h>
-#include <cutils/multiuser.h>
 
 #include "AudioPolicyInterface.h"
 #include "AudioPolicyManagerTestClient.h"
@@ -2906,6 +2907,72 @@ TEST_P(AudioPolicyManagerTestDeviceConnection, PassingExtraAudioDescriptors) {
     EXPECT_EQ(AUDIO_ENCAPSULATION_TYPE_IEC61937,
             devicePort->extra_audio_descriptors[0].encapsulation_type);
     EXPECT_NE(0, devicePort->extra_audio_descriptors[0].descriptor[0]);
+}
+
+bool isDevicePortNameValidUtf8String(const char* devicePortName) {
+    return utf8_to_utf16_length(reinterpret_cast<const uint8_t*>(devicePortName),
+                                strlen(devicePortName)) != -1;
+}
+
+std::vector<std::string> generateTestStrings() {
+    std::vector<std::string> testStrings;
+    const std::vector<std::string> multiByteChars = {
+            "\xC4\x80",         // 2 bytes
+            "\xEa\xB0\x80",     // 3 bytes
+            "\xF0\x90\x80\x80"  // 4 bytes
+    };
+
+    // Generate a 126-byte(AUDIO_PORT_MAX_NAME_LEN - 2) string with single byte characters and
+    // append multi-byte character at the end.
+    std::string singleByteCharString;
+    const int singleByteCharSize = AUDIO_PORT_MAX_NAME_LEN - 2;
+    for (int i = 0; i < singleByteCharSize; ++i) {
+        singleByteCharString += ('a' + (i % 26));
+    }
+    for (const auto& multiByteChar : multiByteChars) {
+        testStrings.push_back(singleByteCharString + multiByteChar);
+    }
+
+    // Generate strings of size >= AUDIO_PORT_MAX_NAME_LEN by repeatedly appending a multi-byte
+    // character.
+    for (const auto& multiByteChar : multiByteChars) {
+        std::string multiByteCharString;
+        while (multiByteCharString.length() < AUDIO_PORT_MAX_NAME_LEN) {
+            multiByteCharString += multiByteChar;
+        }
+        testStrings.push_back(multiByteCharString);
+    }
+
+    // Generate string of length AUDIO_PORT_MAX_NAME_LEN + 1 bytes using only single byte characters
+    while (singleByteCharString.length() <= AUDIO_PORT_MAX_NAME_LEN) {
+        singleByteCharString += ('a' + (singleByteCharString.length() % 26));
+    }
+    testStrings.push_back(singleByteCharString);
+    return testStrings;
+}
+
+TEST_P(AudioPolicyManagerTestDeviceConnection, InvalidDevicePortNamesTest) {
+    const audio_devices_t type = std::get<0>(GetParam());
+    const std::string address = std::get<2>(GetParam());
+    const std::vector<std::string> testDevicePortNames = generateTestStrings();
+    for (std::string devicePortName : testDevicePortNames) {
+        EXPECT_GE(devicePortName.length(), AUDIO_PORT_MAX_NAME_LEN)
+                << "Test doesn't detect invalid truncation. Device port name length is valid, less "
+                   "than the max supported length.";
+        android::media::AudioPortFw audioPort;
+        EXPECT_EQ(NO_ERROR, mManager->deviceToAudioPort(type, address.c_str(),
+                                                        devicePortName.c_str(), &audioPort));
+        android::media::audio::common::AudioPort& port = audioPort.hal;
+        EXPECT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+                                                               port, AUDIO_FORMAT_DEFAULT, false));
+        const audio_port_v7* devicePort = mClient->getLastConnectedDevicePort();
+        EXPECT_TRUE(isDevicePortNameValidUtf8String((devicePort->name)))
+                << "Device port name is not properly truncated.";
+        // Disconnect the device
+        EXPECT_EQ(NO_ERROR, mManager->setDeviceConnectionState(
+                                    type, AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE, "" /*address*/,
+                                    "" /*name*/, AUDIO_FORMAT_DEFAULT));
+    }
 }
 
 INSTANTIATE_TEST_CASE_P(

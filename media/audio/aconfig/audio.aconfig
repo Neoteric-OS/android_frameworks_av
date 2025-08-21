@@ -28,27 +28,10 @@ flag {
 }
 
 flag {
-    name: "audioserver_permissions"
-    namespace: "media_audio"
-    description: "Refactoring permission management in audioserver"
-    bug: "338089555"
-}
-
-flag {
     name: "audio_eraser_effect"
     namespace: "media_audio"
     description: "Enable audio eraser effect"
     bug: "367667349"
-}
-
-# unused
-flag {
-    name: "bluetooth_mac_address_anonymization"
-    namespace: "media_audio"
-    description:
-        "Enable Bluetooth MAC address anonymization when reporting "
-        "audio device descriptors to non privileged apps."
-    bug: "285588444"
 }
 
 flag {
@@ -93,14 +76,6 @@ flag {
         "Introduce the same index range for voice calls over SCO and "
         "hearing aids"
     bug: "416418971"
-}
-
-flag {
-    name: "hardening_impl"
-    is_exported: true
-    namespace: "media_audio"
-    description: "Flag for overall implementation of hardening"
-    bug: "376480814"
 }
 
 flag {

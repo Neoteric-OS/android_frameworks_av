@@ -315,6 +315,10 @@ class StreamCommonMock : public ::aidl::android::hardware::audio::core::BnStream
             const std::shared_ptr<::aidl::android::hardware::audio::effect::IEffect>&) override {
         return ndk::ScopedAStatus::ok();
     }
+    ndk::ScopedAStatus createMmapBuffer(
+            ::aidl::android::hardware::audio::core::MmapBufferDescriptor*) override {
+        return ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
+    }
 
     bool mIsClosed = false;
 
