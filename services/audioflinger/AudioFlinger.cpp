@@ -3508,7 +3508,7 @@ void AudioFlinger::releaseAudioSessionId(audio_session_t audioSession, pid_t pid
         if (pid != (pid_t)-1 && isAudioServerOrMediaServerUid(callerUid)) {
             caller = pid;  // check must match acquireAudioSessionId()
         }
-        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end();) {
+        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end(); ++it) {
             AudioSessionRef* const ref = *it;
             if (ref->mSessionid == audioSession && ref->mPid == caller) {
                 ref->mCnt--;

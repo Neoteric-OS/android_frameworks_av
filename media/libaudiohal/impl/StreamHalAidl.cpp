@@ -766,6 +766,10 @@ status_t StreamHalAidl::createMmapBuffer(int32_t minSizeFrames __unused,
                         internal::ToString(parameters).c_str());
             return INVALID_OPERATION;
         }
+    } else if (mSupportsCreateMmapBuffer && (mAidlInterfaceVersion > kAidlVersion3)) {
+        MmapBufferDescriptor result;
+        RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mStream->createMmapBuffer(&result)));
+        mContext.updateMmapBufferDescriptor(std::move(result));
     }
     const MmapBufferDescriptor& bufferDescriptor = mContext.getMmapBufferDescriptor();
     info->shared_memory_fd = bufferDescriptor.sharedMemory.fd.get();

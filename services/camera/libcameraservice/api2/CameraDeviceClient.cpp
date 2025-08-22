@@ -46,8 +46,6 @@
 #include "utils/Utils.h"
 
 // Convenience methods for constructing binder::Status objects for error returns
-constexpr int32_t METADATA_QUEUE_SIZE = 1 << 20;
-
 #define STATUS_ERROR(errorCode, errorString) \
     binder::Status::fromServiceSpecificError(errorCode, \
             fmt::sprintf("%s:%d: %s", __FUNCTION__, __LINE__, errorString).c_str())

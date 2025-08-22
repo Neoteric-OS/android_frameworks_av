@@ -2235,7 +2235,6 @@ Status CameraService::connect(
     }
 
     const int clientPid = resolvedClientAttribution.pid;
-    const int clientUid = resolvedClientAttribution.uid;
     const std::string& clientPackageName = *resolvedClientAttribution.packageName;
 
     logConnectionAttempt(clientPid, clientPackageName, cameraIdStr, API_1);
@@ -2399,7 +2398,6 @@ Status CameraService::connectDeviceImpl(
     }
 
     const int clientPid = resolvedClientAttribution.pid;
-    const int clientUid = resolvedClientAttribution.uid;
     const std::string& clientPackageName = *resolvedClientAttribution.packageName;
     userid_t clientUserId = multiuser_get_user_id(resolvedClientAttribution.uid);
 

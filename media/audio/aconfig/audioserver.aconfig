@@ -16,15 +16,6 @@ flag {
 }
 
 flag {
-    name: "direct_track_reprioritization"
-    namespace: "media_audio"
-    description:
-        "Modify opening a direct output on a mixport to disrupt existing clients instead "
-        "of failing to open when resource limit is reached"
-    bug: "294525897"
-}
-
-flag {
     name: "effect_chain_callback_improve"
     namespace: "media_audio"
     description: "Improve effect chain callback mutex logic."
@@ -43,14 +34,6 @@ flag {
     namespace: "media_audio"
     description: "Enables strict routing checks on associating ports"
     bug: "367117623"
-}
-
-# shipped 24Q3
-flag {
-    name: "fdtostring_timeout_fix"
-    namespace: "media_audio"
-    description: "Improve fdtostring implementation to properly handle timing out."
-    bug: "306283018"
 }
 
 flag {

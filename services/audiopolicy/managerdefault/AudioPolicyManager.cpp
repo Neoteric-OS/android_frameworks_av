@@ -74,18 +74,19 @@ namespace android {
 
 namespace audio_flags = android::media::audiopolicy;
 
+using android::media::audio::common::AudioConfigBase;
 using android::media::audio::common::AudioDevice;
 using android::media::audio::common::AudioDeviceAddress;
 using android::media::audio::common::AudioDeviceDescription;
+using android::media::audio::common::AudioIoFlags;
 using android::media::audio::common::AudioMMapPolicy;
 using android::media::audio::common::AudioMMapPolicyInfo;
 using android::media::audio::common::AudioMMapPolicyType;
 using android::media::audio::common::AudioPortDeviceExt;
 using android::media::audio::common::AudioPortExt;
-using android::media::audio::common::AudioConfigBase;
 using binder::Status;
-using com::android::media::audioserver::use_bt_sco_for_media;
 using com::android::media::audioserver::remove_stream_suspend;
+using com::android::media::audioserver::use_bt_sco_for_media;
 using content::AttributionSourceState;
 
 //FIXME: workaround for truncated touch sounds
@@ -185,21 +186,32 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(
     if (port.ext.getTag() != AudioPortExt::device) {
         return BAD_VALUE;
     }
-    audio_devices_t device_type;
-    std::string device_address;
-    if (status_t status = aidl2legacy_AudioDevice_audio_device(
-                port.ext.get<AudioPortExt::device>().device, &device_type, &device_address);
-        status != OK) {
-        return status;
-    };
-    const char* device_name = port.name.c_str();
+    const bool isInput = port.flags.getTag() == AudioIoFlags::input;
+    auto legacyPort = aidl2legacy_AudioPort_audio_port_v7(port, isInput);
+    if (!legacyPort.ok() && port.name.length() >= AUDIO_PORT_MAX_NAME_LEN) {
+        auto portNameCut = port;
+        size_t cutPos = AUDIO_PORT_MAX_NAME_LEN - 1;
+
+        // Define masks to identify continuation bytes in a UTF-8 character.
+        const char continuationByteMask = 0x80;
+        const char prefixMask = 0xC0;
+        // Move backwards until we find a byte that's NOT a continuation byte
+        while (cutPos > 0 && (portNameCut.name[cutPos] & prefixMask) == continuationByteMask) {
+            cutPos--;
+        }
+        portNameCut.name.resize(cutPos);
+        legacyPort =
+                VALUE_OR_RETURN_STATUS(aidl2legacy_AudioPort_audio_port_v7(portNameCut, isInput));
+    }
+
     // connect/disconnect only 1 device at a time
-    if (!audio_is_output_device(device_type) && !audio_is_input_device(device_type))
+    if (!audio_is_output_device(legacyPort->ext.device.type) &&
+        !audio_is_input_device(legacyPort->ext.device.type))
         return BAD_VALUE;
 
     sp<DeviceDescriptor> device = mHwModules.getDeviceDescriptor(
-            device_type, device_address.c_str(), device_name, encodedFormat,
-            state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE);
+            legacyPort->ext.device.type, legacyPort->ext.device.address, legacyPort->name,
+            encodedFormat, state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE);
     if (device == nullptr) {
         return INVALID_OPERATION;
     }
