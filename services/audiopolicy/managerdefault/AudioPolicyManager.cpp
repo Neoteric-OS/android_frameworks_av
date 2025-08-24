@@ -5695,7 +5695,7 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
             generation == nullptr) {
         return BAD_VALUE;
     }
-    ALOGV("listAudioPorts() role %d type %d num_ports %d ports %p", role, type, *num_ports, ports);
+    ALOGVV("listAudioPorts() role %d type %d num_ports %d ports %p", role, type, *num_ports, ports);
     if (ports == nullptr) {
         *num_ports = 0;
     }
@@ -5751,7 +5751,7 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
     }
 
     *generation = curAudioPortGeneration();
-    ALOGV("listAudioPorts() got %zu ports needed %d", portsWritten, *num_ports);
+    ALOGVV("listAudioPorts() got %zu ports needed %d", portsWritten, *num_ports);
     return NO_ERROR;
 }
 
