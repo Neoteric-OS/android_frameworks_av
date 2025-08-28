@@ -368,7 +368,7 @@ public:
         // Disallows dumping over binder interface
         virtual status_t dump(int fd, const Vector<String16>& args);
         // Internal dump method to be called by CameraService
-        virtual status_t dumpClient(int fd, const Vector<String16>& args) = 0;
+        virtual status_t dumpClient(int fd, const Vector<String16>& args, bool ignoreResult) = 0;
 
         virtual status_t startWatchingTags(const std::string &tags, int outFd);
         virtual status_t stopWatchingTags(int outFd);
@@ -1037,7 +1037,7 @@ private:
 
     // Adds client logs during open session to the file pointed by fd.
     void dumpOpenSessionClientLogs(int fd, const Vector<String16>& args,
-            const std::string& cameraId);
+            const std::string& cameraId, bool ignoreResult);
 
     // Adds client logs during closed session to the file pointed by fd.
     void dumpClosedSessionClientLogs(int fd, const std::string& cameraId);

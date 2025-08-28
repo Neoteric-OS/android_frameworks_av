@@ -62,7 +62,8 @@ public:
 
     virtual status_t      initialize(sp<CameraProviderManager> manager,
             const std::string& monitorTags) override;
-    virtual status_t      dumpClient(int fd, const Vector<String16>& args) override;
+    virtual status_t      dumpClient(int fd, const Vector<String16>& args,
+                                     bool ignoreResult) override;
     virtual status_t      startWatchingTags(const std::string &tags, int out) override;
     virtual status_t      stopWatchingTags(int out) override;
     virtual status_t      dumpWatchedEventsToVector(std::vector<std::string> &out) override;

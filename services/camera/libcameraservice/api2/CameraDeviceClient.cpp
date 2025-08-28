@@ -2291,7 +2291,7 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     return BasicClient::dump(fd, args);
 }
 
-status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
+status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args, bool ignoreResult) {
     dprintf(fd, "  CameraDeviceClient[%s] (%p) dump:\n",
             mCameraIdStr.c_str(),
             (getRemoteCallback() != NULL ?
@@ -2321,7 +2321,9 @@ status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
         dprintf(fd, "      No output streams configured.\n");
     }
     // TODO: print dynamic/request section from most recent requests
-    mFrameProcessor->dump(fd, args);
+    if (!ignoreResult) {
+        mFrameProcessor->dump(fd, args);
+    }
 
     return dumpDevice(fd, args);
 }

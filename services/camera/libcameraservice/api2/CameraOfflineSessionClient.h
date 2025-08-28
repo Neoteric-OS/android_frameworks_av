@@ -77,7 +77,8 @@ public:
 
     status_t dump(int /*fd*/, const Vector<String16>& /*args*/) override;
 
-    status_t dumpClient(int /*fd*/, const Vector<String16>& /*args*/) override;
+    status_t dumpClient(int /*fd*/, const Vector<String16>& /*args*/,
+                        bool /*ignoreResult*/) override;
 
     status_t startWatchingTags(const std::string &tags, int outFd) override;
     status_t stopWatchingTags(int outFd) override;
