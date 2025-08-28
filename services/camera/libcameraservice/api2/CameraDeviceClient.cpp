@@ -1192,8 +1192,19 @@ binder::Status CameraDeviceClient::createStream(
     int streamId = camera3::CAMERA3_STREAM_ID_INVALID;
     std::vector<int> surfaceIds;
     if (flags::camera_multi_client() && mSharedMode) {
-        err = mDevice->getSharedStreamId(streamInfo, &streamId);
+        std::vector<int> streamIds;
+        err = mDevice->getSharedStreamIds(streamInfo, streamIds);
         if (err == OK) {
+            for (auto id: streamIds) {
+              if (!mStreamInfoMap.contains(id)) {
+                streamId = id;
+                break;
+              }
+            }
+            if (streamId == camera3::CAMERA3_STREAM_ID_INVALID) {
+                return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT,
+                    "OutputConfiguration isn't valid!");
+            }
             err = mDevice->addSharedSurfaces(streamId, streamInfos, surfaceHolders, &surfaceIds);
         }
     } else {

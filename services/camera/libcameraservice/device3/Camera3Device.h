@@ -220,8 +220,8 @@ class Camera3Device :
 
     virtual status_t beginConfigure() override {return OK;};
 
-    virtual status_t getSharedStreamId(const OutputStreamInfo& /*config*/,
-            int* /*streamId*/) override {return INVALID_OPERATION;};
+    virtual status_t getSharedStreamIds(const OutputStreamInfo& /*config*/,
+           std::vector< int>& /*streamIds*/) override {return INVALID_OPERATION;};
 
     virtual status_t addSharedSurfaces(int /*streamId*/,
             const std::vector<android::camera3::OutputStreamInfo>& /*outputInfo*/,

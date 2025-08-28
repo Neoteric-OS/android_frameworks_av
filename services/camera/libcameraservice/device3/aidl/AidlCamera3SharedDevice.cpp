@@ -298,21 +298,23 @@ status_t AidlCamera3SharedDevice::beginConfigure() {
     return OK;
 }
 
-status_t AidlCamera3SharedDevice::getSharedStreamId(const OutputStreamInfo &config,
-        int *streamId) {
+status_t AidlCamera3SharedDevice::getSharedStreamIds(const OutputStreamInfo &config,
+        std::vector<int>& streamIds) {
     Mutex::Autolock l(mSharedDeviceLock);
-    if (streamId ==  nullptr) {
-        return BAD_VALUE;
-    }
+    streamIds.clear();
 
     for (const auto& streamInfo : mStreamInfoMap) {
         OutputStreamInfo info = streamInfo.second;
         if (info == config) {
-            *streamId = streamInfo.first;
-            return OK;
+            streamIds.push_back(streamInfo.first);
         }
     }
-    return INVALID_OPERATION;
+
+    if (streamIds.empty()) {
+        return NAME_NOT_FOUND;
+    } else  {
+        return OK;
+    }
 }
 
 status_t AidlCamera3SharedDevice::addSharedSurfaces(int streamId,
