@@ -19,7 +19,7 @@ package android.media;
 import android.media.InterpolatorType;
 
 /**
- * {@hide}
+ * @hide
  */
 parcelable InterpolatorConfig {
     InterpolatorType type = InterpolatorType.CUBIC;

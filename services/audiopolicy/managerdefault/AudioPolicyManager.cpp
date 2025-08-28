@@ -9272,7 +9272,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     if (!com_android_media_audio_ring_my_car()) {
         muted = (index == 0) && (volumeDb != 0.0f);
     } else {
-        muted = curves.isMuted();
+        muted = curves.isMuted() && !outputDesc->isFixedVolume(deviceTypes);
     }
     outputDesc->setVolume(volumeDb, muted, volumeSource, curves.getStreamTypes(),
             deviceTypes, delayMs, force, isVoiceVolSrc);

@@ -18,7 +18,7 @@ package android.media;
 /**
  * Polynomial spline interpolators.
  *
- * {@hide}
+ * @hide
  */
 @Backing(type="int")
 enum InterpolatorType {

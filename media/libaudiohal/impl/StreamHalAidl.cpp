@@ -79,9 +79,11 @@ using HalCommand = StreamDescriptor::Command;
 
 namespace {
 
-static constexpr int32_t kAidlVersion1 = 1;
-static constexpr int32_t kAidlVersion2 = 2;
-static constexpr int32_t kAidlVersion3 = 3;
+enum AidlVersion : int32_t {
+    kAidlVersion1 = 1,
+    kAidlVersion2 = 2,
+    kAidlVersion3 = 3,
+};
 
 static constexpr const char* kCreateMmapBuffer = "aosp.createMmapBuffer";
 
