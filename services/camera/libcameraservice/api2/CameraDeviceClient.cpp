@@ -1192,8 +1192,19 @@ binder::Status CameraDeviceClient::createStream(
     int streamId = camera3::CAMERA3_STREAM_ID_INVALID;
     std::vector<int> surfaceIds;
     if (flags::camera_multi_client() && mSharedMode) {
-        err = mDevice->getSharedStreamId(streamInfo, &streamId);
+        std::vector<int> streamIds;
+        err = mDevice->getSharedStreamIds(streamInfo, streamIds);
         if (err == OK) {
+            for (auto id: streamIds) {
+              if (!mStreamInfoMap.contains(id)) {
+                streamId = id;
+                break;
+              }
+            }
+            if (streamId == camera3::CAMERA3_STREAM_ID_INVALID) {
+                return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT,
+                    "OutputConfiguration isn't valid!");
+            }
             err = mDevice->addSharedSurfaces(streamId, streamInfos, surfaceHolders, &surfaceIds);
         }
     } else {
@@ -2280,7 +2291,7 @@ status_t CameraDeviceClient::dump(int fd, const Vector<String16>& args) {
     return BasicClient::dump(fd, args);
 }
 
-status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
+status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args, bool ignoreResult) {
     dprintf(fd, "  CameraDeviceClient[%s] (%p) dump:\n",
             mCameraIdStr.c_str(),
             (getRemoteCallback() != NULL ?
@@ -2310,7 +2321,9 @@ status_t CameraDeviceClient::dumpClient(int fd, const Vector<String16>& args) {
         dprintf(fd, "      No output streams configured.\n");
     }
     // TODO: print dynamic/request section from most recent requests
-    mFrameProcessor->dump(fd, args);
+    if (!ignoreResult) {
+        mFrameProcessor->dump(fd, args);
+    }
 
     return dumpDevice(fd, args);
 }

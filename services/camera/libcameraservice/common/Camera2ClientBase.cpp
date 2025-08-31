@@ -189,7 +189,8 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
 
 template <typename TClientBase>
 status_t Camera2ClientBase<TClientBase>::dumpClient(int fd,
-                                              const Vector<String16>& args) {
+                                              const Vector<String16>& args,
+                                              bool /*ignoreResult*/) {
     std::string result;
     result += fmt::sprintf("Camera2ClientBase[%s] (%p) PID: %d, dump:\n",
             TClientBase::mCameraIdStr.c_str(),

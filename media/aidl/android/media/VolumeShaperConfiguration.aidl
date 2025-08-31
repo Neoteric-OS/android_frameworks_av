@@ -21,7 +21,7 @@ import android.media.VolumeShaperConfigurationOptionFlag;
 import android.media.VolumeShaperConfigurationType;
 
 /**
- * {@hide}
+ * @hide
  */
 parcelable VolumeShaperConfiguration {
     VolumeShaperConfigurationType type = VolumeShaperConfigurationType.ID;

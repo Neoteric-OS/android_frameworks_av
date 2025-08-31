@@ -40,7 +40,8 @@ class AidlCamera3SharedDevice :
             const std::string& monitorTags) override;
     status_t disconnectClient(int clientPid) override;
     status_t beginConfigure() override;
-    status_t getSharedStreamId(const OutputStreamInfo &config, int *streamId) override;
+    status_t getSharedStreamIds(const OutputStreamInfo &config,
+            std::vector<int>& streamIds) override;
     status_t addSharedSurfaces(int streamId,
             const std::vector<android::camera3::OutputStreamInfo> &outputInfo,
             const std::vector<SurfaceHolder>& surfaces,

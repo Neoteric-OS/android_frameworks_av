@@ -5628,7 +5628,7 @@ void CameraService::cacheDump(const std::string& cameraId) {
         if (clientDescriptor != nullptr) {
             dprintf(mMemFd, "== Camera device %s dynamic info: ==\n", cameraId.c_str());
             // Log the current open session info before device is disconnected.
-            dumpOpenSessionClientLogs(mMemFd, args, cameraId);
+            dumpOpenSessionClientLogs(mMemFd, args, cameraId, /*ignoreResult*/true);
         }
     }
 }
@@ -5723,7 +5723,7 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
         auto clientDescriptor = mActiveClientManager.get(cameraId);
         if (clientDescriptor != nullptr) {
             // log the current open session info
-            dumpOpenSessionClientLogs(fd, args, cameraId);
+            dumpOpenSessionClientLogs(fd, args, cameraId, /*ignoreResult*/false);
         } else {
             dumpClosedSessionClientLogs(fd, cameraId);
         }
@@ -5810,7 +5810,8 @@ status_t CameraService::dump(int fd, const Vector<String16>& args) {
 }
 
 void CameraService::dumpOpenSessionClientLogs(int fd,
-        const Vector<String16>& args, const std::string& cameraId) {
+        const Vector<String16>& args, const std::string& cameraId,
+        bool ignoreResult) {
     auto clientDescriptor = mActiveClientManager.get(cameraId);
     dprintf(fd, "  %s : Device %s is open. Client instance dump:\n",
             getFormattedCurrentTime().c_str(),
@@ -5824,7 +5825,7 @@ void CameraService::dumpOpenSessionClientLogs(int fd,
     dprintf(fd, "    Client package: %s\n",
         client->getPackageName().c_str());
 
-    client->dumpClient(fd, args);
+    client->dumpClient(fd, args, ignoreResult);
 }
 
 void CameraService::dumpClosedSessionClientLogs(int fd, const std::string& cameraId) {

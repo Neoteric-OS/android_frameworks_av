@@ -219,7 +219,7 @@ status_t Camera2Client::dump(int fd, const Vector<String16>& args) {
     return BasicClient::dump(fd, args);
 }
 
-status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
+status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args, bool ignoreResult) {
     std::ostringstream result;
     result << fmt::sprintf("Client2[%d] (%p) PID: %d, dump:\n", mCameraId,
             (getRemoteCallback() != NULL ?
@@ -437,7 +437,9 @@ status_t Camera2Client::dumpClient(int fd, const Vector<String16>& args) {
 
     mCaptureSequencer->dump(fd, args);
 
-    mFrameProcessor->dump(fd, args);
+    if (!ignoreResult) {
+        mFrameProcessor->dump(fd, args);
+    }
 
     mZslProcessor->dump(fd, args);
 
