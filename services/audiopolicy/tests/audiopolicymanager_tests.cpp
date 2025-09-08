@@ -1662,6 +1662,67 @@ TEST_F(AudioPolicyManagerTestWithConfigurationFile, PreferConfigForInputDevice) 
                                                            "", "", AUDIO_FORMAT_DEFAULT));
 }
 
+TEST_F(AudioPolicyManagerTestWithConfigurationFile, SystemEnforcement) {
+    mClient->addSupportedFormat(AUDIO_FORMAT_PCM_16_BIT);
+    mClient->addSupportedChannelMask(AUDIO_CHANNEL_OUT_STEREO);
+    ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
+                                                           AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+                                                           "", "", AUDIO_FORMAT_DEFAULT));
+    auto devices = mManager->getAvailableOutputDevices();
+    audio_port_handle_t usbPortId = AUDIO_PORT_HANDLE_NONE;
+    audio_port_handle_t speakerPortId = AUDIO_PORT_HANDLE_NONE;
+    for (auto device : devices) {
+        if (device->type() == AUDIO_DEVICE_OUT_USB_DEVICE) {
+            usbPortId = device->getId();
+        }
+        if (device->type() == AUDIO_DEVICE_OUT_SPEAKER) {
+            speakerPortId = device->getId();
+        }
+    }
+    ASSERT_NE(AUDIO_PORT_HANDLE_NONE, usbPortId);
+    ASSERT_NE(AUDIO_PORT_HANDLE_NONE, speakerPortId);
+
+    mManager->setForceUse(AUDIO_POLICY_FORCE_FOR_SYSTEM, AUDIO_POLICY_FORCE_SYSTEM_ENFORCED);
+
+    mManager->setPhoneState(AUDIO_MODE_IN_CALL);
+
+    const uid_t uid = 1234;
+    const audio_attributes_t enforcedAttr = {
+            .content_type = AUDIO_CONTENT_TYPE_SONIFICATION,
+            .usage = AUDIO_USAGE_ASSISTANCE_SONIFICATION,
+            .source = AUDIO_SOURCE_DEFAULT,
+            .flags = AUDIO_FLAG_AUDIBILITY_ENFORCED,
+            .tags = ""
+    };
+
+    audio_io_handle_t output = AUDIO_IO_HANDLE_NONE;
+    DeviceIdVector selectedDeviceIds;
+    audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
+    ASSERT_NO_FATAL_FAILURE(getOutputForAttr(&selectedDeviceIds, AUDIO_FORMAT_PCM_16_BIT,
+                                             AUDIO_CHANNEL_OUT_STEREO, k48000SamplingRate,
+                                             AUDIO_OUTPUT_FLAG_NONE, &output, &portId,
+                                             enforcedAttr, AUDIO_SESSION_NONE, uid));
+
+    EXPECT_FALSE(selectedDeviceIds.empty());
+    EXPECT_NE(std::find(selectedDeviceIds.begin(), selectedDeviceIds.end(), usbPortId),
+              selectedDeviceIds.end());
+    EXPECT_NE(std::find(selectedDeviceIds.begin(), selectedDeviceIds.end(), speakerPortId),
+              selectedDeviceIds.end());
+
+    float volume;
+    bool muted;
+    EXPECT_EQ(NO_ERROR, mManager->startOutput(portId, &volume, &muted));
+    const auto outputDesc = mManager->getOutputs().valueFor(output);
+    EXPECT_NE(nullptr, outputDesc);
+    EXPECT_EQ(2, outputDesc->devices().size());
+    EXPECT_NE(nullptr, outputDesc->devices().getDeviceFromId(usbPortId));
+    EXPECT_NE(nullptr, outputDesc->devices().getDeviceFromId(speakerPortId));
+
+    ASSERT_EQ(NO_ERROR, mManager->setDeviceConnectionState(AUDIO_DEVICE_OUT_USB_DEVICE,
+                                                           AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+                                                           "", "", AUDIO_FORMAT_DEFAULT));
+}
+
 class AudioPolicyManagerTestDynamicPolicy : public AudioPolicyManagerTestWithConfigurationFile {
 protected:
     void TearDown() override;

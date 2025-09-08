@@ -349,7 +349,7 @@ void AudioFlinger::onFirstRef()
     mMelReporter = sp<MelReporter>::make(sp<IAfMelReporterCallback>::fromExisting(this),
                                          mPatchPanel);
 
-    ALOGD("%s: TimerQueue %s", __func__, mTimerQueue.ready() ? "ready" : "uninitialized");
+    ALOGD("%s: TimerQueue %s", __func__, mTimerQueue->ready() ? "ready" : "uninitialized");
 }
 
 status_t AudioFlinger::setAudioHalPids(const std::vector<pid_t>& pids) {
@@ -1002,6 +1002,9 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
     if (parsedArgs.shouldDumpStats) {
         dprintf(fd, "\n ## BEGIN stats dump \n");
         dumpStats(fd);
+
+        dprintf(fd, "\n ## BEGIN TimerQueue dump\n");
+        dprintf(fd, "%s\n", mTimerQueue->toString().c_str());
     }
 
     if (parsedArgs.shouldDumpMem) {
@@ -2916,7 +2919,7 @@ sp<IAfThreadBase> AudioFlinger::openOutput_l(audio_module_handle_t module,
     if (status == NO_ERROR) {
         if (*flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) {
             const sp<IAfMmapThread> thread = IAfMmapThread::create(
-                    this, *output, outHwDev, outputStream, mSystemReady);
+                    this, *output, outHwDev, outputStream, mSystemReady, mTimerQueue);
             mMmapThreads[*output] = thread;
             ALOGV("openOutput_l() created mmap playback thread: ID %d thread %p",
                   *output, thread.get());

@@ -91,13 +91,14 @@ Mutex AidlCamera3SharedDevice::sSharedClientsLock;
 sp<AidlCamera3SharedDevice> AidlCamera3SharedDevice::getInstance(
         std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
-        const std::string& id, bool overrideForPerfClass, int rotationOverride,
+        const std::string& id, bool overrideForPerfClass,
+        const CameraCompatibilityInfo& compatInfo,
         bool isVendorClient, bool legacyClient) {
     Mutex::Autolock l(sSharedClientsLock);
     if (sClientsPid[id].empty()) {
         AidlCamera3SharedDevice* sharedDevice = new AidlCamera3SharedDevice(
                 cameraServiceProxyWrapper, attributionAndPermissionUtils, id, overrideForPerfClass,
-                rotationOverride, isVendorClient, legacyClient);
+                compatInfo, isVendorClient, legacyClient);
         sSharedDevices[id] = sharedDevice;
     }
     if (attributionAndPermissionUtils != nullptr) {

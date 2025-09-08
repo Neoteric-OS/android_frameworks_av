@@ -18,6 +18,7 @@
 #define ANDROID_SERVERS_CAMERA_CAMERA2CLIENT_BASE_H
 
 #include "common/CameraDeviceBase.h"
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include "camera/CameraMetadata.h"
 #include "camera/CaptureResult.h"
 #include "utils/CameraServiceProxyWrapper.h"
@@ -56,8 +57,8 @@ public:
                       const AttributionSourceState& clientAttribution, int callingPid,
                       bool systemNativeClient, const std::string& cameraId, int api1CameraId,
                       int cameraFacing, int sensorOrientation, int servicePid,
-                      bool overrideForPerfClass, int rotationOverride,  bool sharedMode,
-                      bool isVendorClient, bool legacyClient = false);
+                      bool overrideForPerfClass, const CameraCompatibilityInfo& compatInfo,
+                      bool sharedMode, bool isVendorClient, bool legacyClient = false);
     virtual ~Camera2ClientBase();
 
     virtual status_t      initialize(sp<CameraProviderManager> manager,

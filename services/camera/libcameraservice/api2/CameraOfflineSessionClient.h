@@ -62,7 +62,7 @@ public:
                                      // (v)ndk doesn't have offline session support
                                      clientAttribution, callingPid, /*overridePackageName*/ false,
                                      cameraIdStr, cameraFacing, sensorOrientation, servicePid,
-                                     hardware::ICameraService::ROTATION_OVERRIDE_NONE, sharedMode),
+                                     CameraCompatibilityInfo(), sharedMode),
         mRemoteCallback(remoteCallback),
         mOfflineSession(session),
         mCompositeStreamMap(offlineCompositeStreamMap) {}

@@ -23,6 +23,7 @@
 #endif
 //#define LOG_NDEBUG 0
 
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include <camera/CameraUtils.h>
 #include <camera/StringUtils.h>
 #include <camera/camera2/CaptureRequest.h>
@@ -69,10 +70,11 @@ CameraDeviceClientBase::CameraDeviceClientBase(
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const AttributionSourceState& clientAttribution, int callingPid, bool systemNativeClient,
         const std::string& cameraId, [[maybe_unused]] int api1CameraId, int cameraFacing,
-        int sensorOrientation, int servicePid, int rotationOverride, bool sharedMode)
+        int sensorOrientation, int servicePid, const CameraCompatibilityInfo& compatInfo,
+        bool sharedMode)
     : BasicClient(cameraService, IInterface::asBinder(remoteCallback),
                   attributionAndPermissionUtils, clientAttribution, callingPid, systemNativeClient,
-                  cameraId, cameraFacing, sensorOrientation, servicePid, rotationOverride,
+                  cameraId, cameraFacing, sensorOrientation, servicePid, compatInfo,
                   sharedMode),
       mRemoteCallback(remoteCallback) {}
 
@@ -85,12 +87,12 @@ CameraDeviceClient::CameraDeviceClient(
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const AttributionSourceState& clientAttribution, int callingPid, bool systemNativeClient,
         const std::string& cameraId, int cameraFacing, int sensorOrientation, int servicePid,
-        bool overrideForPerfClass, int rotationOverride, const std::string& originalCameraId,
-        bool sharedMode, bool isVendorClient)
+        bool overrideForPerfClass, const CameraCompatibilityInfo& compatInfo,
+        const std::string& originalCameraId, bool sharedMode, bool isVendorClient)
     : Camera2ClientBase(cameraService, remoteCallback, cameraServiceProxyWrapper,
                         attributionAndPermissionUtils, clientAttribution, callingPid,
                         systemNativeClient, cameraId, /*API1 camera ID*/ -1, cameraFacing,
-                        sensorOrientation, servicePid, overrideForPerfClass, rotationOverride,
+                        sensorOrientation, servicePid, overrideForPerfClass, compatInfo,
                         sharedMode, isVendorClient),
       mInputStream(),
       mStreamingRequestId(REQUEST_ID_NONE),

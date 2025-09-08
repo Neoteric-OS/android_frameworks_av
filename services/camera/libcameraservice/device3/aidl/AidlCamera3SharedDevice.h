@@ -34,7 +34,8 @@ class AidlCamera3SharedDevice :
     static sp<AidlCamera3SharedDevice> getInstance(
             std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
-            const std::string& id, bool overrideForPerfClass, int rotationOverride,
+            const std::string& id, bool overrideForPerfClass,
+            const CameraCompatibilityInfo& compatInfo,
             bool isVendorClient, bool legacyClient = false);
     status_t initialize(sp<CameraProviderManager> manager,
             const std::string& monitorTags) override;
@@ -84,10 +85,11 @@ class AidlCamera3SharedDevice :
     AidlCamera3SharedDevice(
             std::shared_ptr<CameraServiceProxyWrapper>& cameraServiceProxyWrapper,
             std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
-            const std::string& id, bool overrideForPerfClass, int rotationOverride,
+            const std::string& id, bool overrideForPerfClass,
+            const CameraCompatibilityInfo& compatInfo,
             bool isVendorClient, bool legacyClient)
         : AidlCamera3Device(cameraServiceProxyWrapper, attributionAndPermissionUtils, id,
-                  overrideForPerfClass, rotationOverride, isVendorClient, legacyClient),
+                  overrideForPerfClass, compatInfo, isVendorClient, legacyClient),
         mStreamingRequestId(REQUEST_ID_NONE),
         mRequestIdCounter(0) {}
     std::vector<OutputConfiguration> getSharedOutputConfiguration();
