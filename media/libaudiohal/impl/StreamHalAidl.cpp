@@ -403,6 +403,24 @@ status_t StreamHalAidl::start() {
                 return INVALID_OPERATION;
             }
             return OK;
+        case StreamDescriptor::State::PAUSED:
+            if (mIsInput) {
+                RETURN_STATUS_IF_ERROR(
+                        sendCommand(makeHalCommand<HalCommand::Tag::burst>(0), &reply, true));
+                if (reply.state != StreamDescriptor::State::ACTIVE) {
+                    AUGMENT_LOG(E, "unexpected stream state: %s (expected ACTIVE)",
+                                toString(reply.state).c_str());
+                    return INVALID_OPERATION;
+                }
+                if (reply.xrunFrames != 0) {
+                    // The framework does not expect any input to be happening when the stream
+                    // is stopped. So if the HAL reports any lost frames--ignore them.
+                    std::lock_guard l(mLock);
+                    mLastReply.xrunFrames = 0;
+                }
+                return OK;
+            }
+            FALLTHROUGH_INTENDED;
         default:
             AUGMENT_LOG(E, "not supported from %s stream state %s", mIsInput ? "input" : "output",
                         toString(reply.state).c_str());
@@ -421,10 +439,11 @@ status_t StreamHalAidl::stop() {
     RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply));
     const auto state = reply.state;
     if (mIsInput) {
-        // For input, does not make sense to drain since the framework does not need that data.
+        // For input, just pause. This avoids entering the standby state at the HAL side
+        // which can cause releasing of the shared buffer. The MMAP stream interface only
+        // expects buffer invalidation when the client calls 'standby' explicitly.
         if (state == StreamDescriptor::State::ACTIVE) {
-            RETURN_STATUS_IF_ERROR(pause());
-            return flush();
+            return pause();
         } else if (state == StreamDescriptor::State::DRAINING) {
             // Drain until the stream enters standby due to empty buffer.
             do {

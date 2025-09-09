@@ -705,18 +705,11 @@ protected:
 
         void setVoiceVolume(int index, IVolumeCurves &curves, bool isVoiceVolSrc, int delayMs);
 
-        // returns true if the supplied set of volume source and devices are consistent with
-        // call volume rules:
-        // if Bluetooth SCO and voice call use different volume curves:
-        // - do not apply voice call volume if Bluetooth SCO is used for call
-        // - do not apply Bluetooth SCO volume if SCO or Hearing Aid is not used for call.
-        // Also updates the booleans isVoiceVolSrc and isBtScoVolSrc according to the
+        // Updates the booleans isVoiceVolSrc and isBtScoVolSrc according to the
         // volume source supplied.
-        bool isVolumeConsistentForCalls(VolumeSource volumeSource,
-                                       const DeviceTypeSet& deviceTypes,
-                                       bool& isVoiceVolSrc,
-                                       bool& isBtScoVolSrc,
-                                       const char* caller);
+        void updateVoiceBtScoVolumeSrcForCalls(VolumeSource volumeSource,
+                                              bool& isVoiceVolSrc,
+                                              bool& isBtScoVolSrc);
         // apply all stream volumes to the specified output and device
         void applyStreamVolumes(const sp<AudioOutputDescriptor>& outputDesc,
                                 const DeviceTypeSet& deviceTypes,

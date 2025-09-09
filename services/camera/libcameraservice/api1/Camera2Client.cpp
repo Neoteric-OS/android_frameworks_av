@@ -24,6 +24,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include <android/hardware/camera2/ICameraDeviceCallbacks.h>
 #include <camera/CameraUtils.h>
 #include <camera/StringUtils.h>
@@ -64,13 +65,13 @@ Camera2Client::Camera2Client(
         std::shared_ptr<AttributionAndPermissionUtils> attributionAndPermissionUtils,
         const AttributionSourceState& clientAttribution, int callingPid,
         const std::string& cameraDeviceId, int api1CameraId, int cameraFacing,
-        int sensorOrientation, int servicePid, bool overrideForPerfClass, int rotationOverride,
-        bool forceSlowJpegMode, bool sharedMode)
+        int sensorOrientation, int servicePid, bool overrideForPerfClass,
+        const CameraCompatibilityInfo& compatInfo, bool forceSlowJpegMode, bool sharedMode)
     : Camera2ClientBase(cameraService, cameraClient, cameraServiceProxyWrapper,
                         attributionAndPermissionUtils, clientAttribution, callingPid,
                         false /*systemNativeClient - since no ndk for api1*/, cameraDeviceId,
                         api1CameraId, cameraFacing, sensorOrientation, servicePid,
-                        overrideForPerfClass, rotationOverride, sharedMode,
+                        overrideForPerfClass, compatInfo, sharedMode,
                         /*isVendorClient*/ false, /*legacyClient*/ true),
       mParameters(api1CameraId, cameraFacing),
       mInitialized(false),
@@ -137,15 +138,11 @@ status_t Camera2Client::initializeImpl(TProviderPtr providerPtr, const std::stri
     // The 'mRotateAndCropMode' value only accounts for the necessary adjustment
     // when the display rotates. The sensor orientation still needs to be calculated
     // and applied similar to the Camera2 path.
-    using hardware::BnCameraService::ROTATION_OVERRIDE_ROTATION_ONLY;
-    using hardware::BnCameraService::ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
     bool enableTransformInverseDisplay = true;
-    bool rotationOnlyOverride = mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY;
-    bool reverseRotationOnlyOverride =
-            wm_flags::enable_camera_compat_check_device_rotation_bugfix() &&
-                    mRotationOverride == ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
     if (wm_flags::enable_camera_compat_for_desktop_windowing()) {
-        enableTransformInverseDisplay = !rotationOnlyOverride && !reverseRotationOnlyOverride;
+        bool justRotateAndCrop = mCompatInfo.shouldRotateAndCrop()
+                                 && !mCompatInfo.shouldOverrideSensorOrientation();
+        enableTransformInverseDisplay = !justRotateAndCrop;
     }
     CameraUtils::getRotationTransform(staticInfo, OutputConfiguration::MIRROR_MODE_AUTO,
             enableTransformInverseDisplay, &mRotateAndCropPreviewTransform);

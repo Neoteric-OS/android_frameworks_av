@@ -11468,16 +11468,20 @@ std::string MmapThread::getLocalLogHeader() const {
 /* static */
 sp<IAfMmapThread> IAfMmapThread::create(
         const sp<IAfThreadCallback>& afThreadCallback, audio_io_handle_t id,
-        AudioHwDevice* hwDev,  AudioStreamOut* output, bool systemReady) {
-    return sp<MmapPlaybackThread>::make(afThreadCallback, id, hwDev, output, systemReady);
+        AudioHwDevice* hwDev,  AudioStreamOut* output, bool systemReady,
+        const std::shared_ptr<audio_utils::TimerQueue>& timerQueue) {
+    return sp<MmapPlaybackThread>::make(
+            afThreadCallback, id, hwDev, output, systemReady, timerQueue);
 }
 
 MmapPlaybackThread::MmapPlaybackThread(
         const sp<IAfThreadCallback>& afThreadCallback, audio_io_handle_t id,
-        AudioHwDevice *hwDev,  AudioStreamOut *output, bool systemReady)
+        AudioHwDevice *hwDev,  AudioStreamOut *output, bool systemReady,
+        const std::shared_ptr<audio_utils::TimerQueue>& timerQueue)
     : MmapThread(afThreadCallback, id, hwDev, output->stream, systemReady, true /* isOut */,
             nullptr /* input */, output),
-      mStreamType(AUDIO_STREAM_MUSIC)
+      mStreamType(AUDIO_STREAM_MUSIC),
+      mTimerQueue(timerQueue)
 {
     snprintf(mThreadName, kThreadNameLength, "AudioMmapOut_%X", id);
     mFlagsAsString = toString(output->flags);
@@ -11705,16 +11709,13 @@ status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/
                                    audio_utils::TimerQueue::handle_t* handle) {
     {
         audio_utils::lock_guard _l(mutex());
-        if (mTq == nullptr) {
-            mTq = std::make_unique<audio_utils::TimerQueue>(true /*alarm*/);
-        }
-        if (!mTq->ready()) {
+        if (!mTimerQueue->ready()) {
             ALOGW("%s timer queue is not ready", __func__);
             *handle = audio_utils::TimerQueue::INVALID_HANDLE;
             return NO_ERROR;
         }
         auto weakPtr = wp<MmapPlaybackThread>::fromExisting(this);
-        *handle = mTq->add([weakPtr]() {
+        *handle = mTimerQueue->add([weakPtr]() {
             auto strongPtr = weakPtr.promote();
             strongPtr->onWakeUp();
         }, wakeUpNanos);
@@ -11727,11 +11728,9 @@ status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/
 status_t MmapPlaybackThread::activate(audio_utils::TimerQueue::handle_t handle) {
     {
         audio_utils::lock_guard _l(mutex());
-        if (mTq != nullptr) {
-            if (!mTq->remove(handle)) {
-                ALOGW("%s(%jd), the handle does not exist", __func__, handle);
-                return BAD_VALUE;
-            }
+        if (!mTimerQueue->remove(handle)) {
+            ALOGW("%s(%jd), the handle does not exist", __func__, handle);
+            return BAD_VALUE;
         }
         if (mWakeUpHandle != handle) {
             // This should not happen.

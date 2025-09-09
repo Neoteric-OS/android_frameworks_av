@@ -320,23 +320,25 @@ StrategyVector EngineBase::getOrderedProductStrategies() const
         });
     };
 
-    auto strategies = mOrderedStrategyMap;
+    const auto& strategies = mOrderedStrategyMap;
 
     auto enforcedAudibleStrategyIter = findByFlag(strategies, AUDIO_FLAG_AUDIBILITY_ENFORCED);
-
-    if (getForceUse(AUDIO_POLICY_FORCE_FOR_SYSTEM) == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED &&
-            enforcedAudibleStrategyIter != strategies.end()) {
-        auto enforcedAudibleStrategy = *enforcedAudibleStrategyIter;
-        strategies.erase(enforcedAudibleStrategyIter);
-        strategies.insert(begin(strategies), enforcedAudibleStrategy);
-    }
+    const bool isSystemEnforced =
+            (getForceUse(AUDIO_POLICY_FORCE_FOR_SYSTEM) == AUDIO_POLICY_FORCE_SYSTEM_ENFORCED &&
+             enforcedAudibleStrategyIter != strategies.end());
 
     StrategyVector orderedStrategies;
-    for (const auto &iter : strategies) {
-        if (iter.second->isPatchStrategy()) {
+    if (isSystemEnforced) {
+        orderedStrategies.push_back(enforcedAudibleStrategyIter->second->getId());
+    }
+    for (auto iter = strategies.begin(); iter != strategies.end(); ++iter) {
+        if (iter->second->isPatchStrategy() ||
+            (isSystemEnforced && iter == enforcedAudibleStrategyIter)) {
+            // Skip patch strategies.
+            // Skip the enforced strategy if it is already added at the beginning of the list.
             continue;
         }
-        orderedStrategies.push_back(iter.second->getId());
+        orderedStrategies.push_back(iter->second->getId());
     }
 
     return orderedStrategies;

@@ -46,6 +46,7 @@
 #include <camera_metadata_hidden.h>
 #include <android-base/parseint.h>
 #include <android-base/logging.h>
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include <cutils/properties.h>
 #include <hwbinder/IPCThreadState.h>
 #include <utils/Trace.h>
@@ -60,6 +61,7 @@ namespace android {
 
 using namespace ::android::hardware::camera;
 using namespace ::android::camera3;
+using android::content::res::CameraCompatibilityInfo;
 using android::hardware::camera::common::V1_0::Status;
 using namespace camera3::SessionConfigurationUtils;
 using std::literals::chrono_literals::operator""s;
@@ -434,14 +436,14 @@ status_t CameraProviderManager::getResourceCost(const std::string &id,
 }
 
 status_t CameraProviderManager::getCameraInfo(const std::string &id,
-         int rotationOverride, int *portraitRotation,
+         const CameraCompatibilityInfo& compatInfo, int *portraitRotation,
          hardware::CameraInfo* info) const {
     std::lock_guard<std::mutex> lock(mInterfaceMutex);
 
     auto deviceInfo = findDeviceInfoLocked(id);
     if (deviceInfo == nullptr) return NAME_NOT_FOUND;
 
-    return deviceInfo->getCameraInfo(rotationOverride, portraitRotation, info);
+    return deviceInfo->getCameraInfo(compatInfo, portraitRotation, info);
 }
 
 status_t CameraProviderManager::isSessionConfigurationSupported(const std::string& id,
@@ -458,7 +460,7 @@ status_t CameraProviderManager::isSessionConfigurationSupported(const std::strin
         CameraMetadata metadata;
         this->getCameraCharacteristicsLocked(id, overrideForPerfClass,
                                              &metadata,
-                                             hardware::ICameraService::ROTATION_OVERRIDE_NONE);
+                                             CameraCompatibilityInfo());
         return metadata;
     };
     return deviceInfo->isSessionConfigurationSupported(configuration,
@@ -497,18 +499,19 @@ status_t  CameraProviderManager::createDefaultRequest(const std::string& cameraI
 
 status_t CameraProviderManager::getSessionCharacteristics(
         const std::string& id, const SessionConfiguration& configuration, bool overrideForPerfClass,
-        int rotationOverride, CameraMetadata* sessionCharacteristics /*out*/) const {
+        const CameraCompatibilityInfo& compatInfo,
+        CameraMetadata* sessionCharacteristics /*out*/) const {
     std::lock_guard<std::mutex> lock(mInterfaceMutex);
     auto deviceInfo = findDeviceInfoLocked(id);
     if (deviceInfo == nullptr) {
         return NAME_NOT_FOUND;
     }
 
-    metadataGetter getMetadata = [this, rotationOverride](const std::string& id,
+    metadataGetter getMetadata = [this, compatInfo](const std::string& id,
                                                             bool overrideForPerfClass) {
         CameraMetadata metadata;
         status_t ret = this->getCameraCharacteristicsLocked(id, overrideForPerfClass, &metadata,
-                                                            rotationOverride);
+                                                            compatInfo);
         if (ret != OK) {
             ALOGE("%s: Could not get CameraCharacteristics for device %s", __FUNCTION__,
                   id.c_str());
@@ -537,10 +540,9 @@ status_t CameraProviderManager::getCameraIdIPCTransport(const std::string &id,
 
 status_t CameraProviderManager::getCameraCharacteristics(const std::string &id,
         bool overrideForPerfClass, CameraMetadata* characteristics,
-        int rotationOverride) const {
+        const CameraCompatibilityInfo& compatInfo) const {
     std::lock_guard<std::mutex> lock(mInterfaceMutex);
-    return getCameraCharacteristicsLocked(id, overrideForPerfClass, characteristics,
-            rotationOverride);
+    return getCameraCharacteristicsLocked(id, overrideForPerfClass, characteristics, compatInfo);
 }
 
 status_t CameraProviderManager::getHighestSupportedVersion(const std::string &id,
@@ -2819,9 +2821,7 @@ status_t CameraProviderManager::ProviderInfo::dump(int fd, const Vector<String16
                 device->hasFlashUnit() ? "true" : "false");
         hardware::CameraInfo info;
         int portraitRotation;
-        status_t res = device->getCameraInfo(
-                /*rotationOverride*/hardware::ICameraService::ROTATION_OVERRIDE_NONE,
-                &portraitRotation, &info);
+        status_t res = device->getCameraInfo(CameraCompatibilityInfo(), &portraitRotation, &info);
         if (res != OK) {
             dprintf(fd, "   <Error reading camera info: %s (%d)>\n",
                     strerror(-res), res);
@@ -2832,7 +2832,7 @@ status_t CameraProviderManager::ProviderInfo::dump(int fd, const Vector<String16
         }
         CameraMetadata info2;
         res = device->getCameraCharacteristics(true /*overrideForPerfClass*/, &info2,
-                hardware::ICameraService::ROTATION_OVERRIDE_NONE);
+                CameraCompatibilityInfo());
         if (res == INVALID_OPERATION) {
             dprintf(fd, "  API2 not directly supported\n");
         } else if (res != OK) {
@@ -3110,15 +3110,10 @@ void CameraProviderManager::ProviderInfo::DeviceInfo3::notifyDeviceStateChange(i
 }
 
 status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraInfo(
-        int rotationOverride, int *portraitRotation,
+        const CameraCompatibilityInfo& compatInfo, int *portraitRotation,
         hardware::CameraInfo *info) const {
     if (info == nullptr) return BAD_VALUE;
 
-    bool freeform_compat_enabled = wm_flags::enable_camera_compat_for_desktop_windowing();
-    if (!freeform_compat_enabled &&
-            rotationOverride > hardware::ICameraService::ROTATION_OVERRIDE_OVERRIDE_TO_PORTRAIT) {
-        ALOGW("Camera compat freeform flag disabled but rotation override is %d", rotationOverride);
-    }
     camera_metadata_ro_entry facing =
             mCameraCharacteristics.find(ANDROID_LENS_FACING);
     if (facing.count == 1) {
@@ -3146,30 +3141,24 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraInfo(
         return NAME_NOT_FOUND;
     }
 
-    bool rotationAndSensorOverride = rotationOverride ==
-            hardware::ICameraService::ROTATION_OVERRIDE_OVERRIDE_TO_PORTRAIT;
-    bool rotationOnlyOverride = rotationOverride ==
-            hardware::ICameraService::ROTATION_OVERRIDE_ROTATION_ONLY;
-    bool reverseRotationOnlyOverride =
-            wm_flags::enable_camera_compat_check_device_rotation_bugfix() && rotationOverride ==
-                    hardware::ICameraService::ROTATION_OVERRIDE_ROTATION_ONLY_REVERSE;
-    if (rotationAndSensorOverride && (info->orientation == 0 || info->orientation == 180)) {
+    if (compatInfo.shouldRotateAndCrop() && compatInfo.shouldOverrideSensorOrientation()
+            && (info->orientation == 0 || info->orientation == 180)) {
         *portraitRotation = 90;
         if (info->facing == hardware::CAMERA_FACING_FRONT) {
             info->orientation = (360 + info->orientation - 90) % 360;
         } else {
             info->orientation = (360 + info->orientation + 90) % 360;
         }
-    } else if (freeform_compat_enabled &&
-            (rotationOnlyOverride || reverseRotationOnlyOverride) &&
-                    (info->orientation == 90 || info->orientation == 270)) {
+    }
+
+    if (compatInfo.shouldRotateAndCrop() && !compatInfo.shouldOverrideSensorOrientation()
+            && (info->orientation == 90 || info->orientation == 270)) {
         // Check device rotation: display rotation will be sandboxed, therefore rotate-and-crop
         // needs to take display rotation into account.
-        if (rotationOnlyOverride) {
-            *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK ? 90 : 270;
-        } else {
-            *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK ? 270 : 90;
-        }
+        int rotateAndCropDegrees = ui::toRotationInt(
+                compatInfo.getRotateAndCropRotation().value()) * 90;
+        *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK ? rotateAndCropDegrees
+                : 360 - rotateAndCropDegrees;
     } else {
         *portraitRotation = 0;
     }
@@ -3200,7 +3189,7 @@ bool CameraProviderManager::ProviderInfo::DeviceInfo3::isAPI1Compatible() const 
 
 status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraCharacteristics(
         bool overrideForPerfClass, CameraMetadata *characteristics,
-        int rotationOverride) {
+        const CameraCompatibilityInfo& compatInfo) {
     if (characteristics == nullptr) return BAD_VALUE;
 
     if (!overrideForPerfClass && mCameraCharNoPCOverride != nullptr) {
@@ -3209,7 +3198,7 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraCharacterist
         *characteristics = mCameraCharacteristics;
     }
 
-    if (rotationOverride == hardware::ICameraService::ROTATION_OVERRIDE_OVERRIDE_TO_PORTRAIT) {
+    if (compatInfo.shouldRotateAndCrop() && compatInfo.shouldOverrideSensorOrientation()) {
         const auto &lensFacingEntry = characteristics->find(ANDROID_LENS_FACING);
         const auto &sensorOrientationEntry = characteristics->find(ANDROID_SENSOR_ORIENTATION);
         uint8_t lensFacing = lensFacingEntry.data.u8[0];
@@ -3570,11 +3559,11 @@ status_t CameraProviderManager::isConcurrentSessionConfigurationSupported(
 
 status_t CameraProviderManager::getCameraCharacteristicsLocked(const std::string &id,
         bool overrideForPerfClass, CameraMetadata* characteristics,
-        int rotationOverride) const {
+        const CameraCompatibilityInfo& compatInfo) const {
     auto deviceInfo = findDeviceInfoLocked(id);
     if (deviceInfo != nullptr) {
         return deviceInfo->getCameraCharacteristics(overrideForPerfClass, characteristics,
-                rotationOverride);
+                 compatInfo);
     }
 
     // Find hidden physical camera characteristics
@@ -3610,9 +3599,8 @@ void CameraProviderManager::filterLogicalCameraIdsLocked(
 
         hardware::CameraInfo info;
         int portraitRotation;
-        status_t res = deviceInfo->getCameraInfo(
-                /*rotationOverride*/hardware::ICameraService::ROTATION_OVERRIDE_NONE,
-                &portraitRotation, &info);
+        status_t res = deviceInfo->getCameraInfo(CameraCompatibilityInfo(), &portraitRotation,
+                                                 &info);
         if (res != OK) {
             ALOGE("%s: Error reading camera info: %s (%d)", __FUNCTION__, strerror(-res), res);
             continue;

@@ -109,7 +109,8 @@ public:
                   const AttributionSourceState& clientAttribution, int callingPid,
                   const std::string& cameraDeviceId, int api1CameraId, int cameraFacing,
                   int sensorOrientation, int servicePid, bool overrideForPerfClass,
-                  int rotationOverride, bool forceSlowJpegMode, bool sharedMode);
+                  const CameraCompatibilityInfo& compatInfo, bool forceSlowJpegMode,
+                  bool sharedMode);
 
     virtual ~Camera2Client();
 

@@ -25,6 +25,7 @@
 #include <mutex>
 
 #include <camera/camera2/ConcurrentCamera.h>
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include <camera/CameraParameters2.h>
 #include <camera/CameraMetadata.h>
 #include <camera/CameraBase.h>
@@ -304,7 +305,7 @@ public:
      * Return the old camera API camera info
      */
     status_t getCameraInfo(const std::string &id,
-            int rotationOverride, int *portraitRotation,
+            const CameraCompatibilityInfo& compatInfo, int *portraitRotation,
             hardware::CameraInfo* info) const;
 
     /**
@@ -313,7 +314,7 @@ public:
      */
     status_t getCameraCharacteristics(const std::string &id,
             bool overrideForPerfClass, CameraMetadata* characteristics,
-            int rotationOverride) const;
+            const CameraCompatibilityInfo& compatInfo) const;
 
     status_t isConcurrentSessionConfigurationSupported(
             const std::vector<hardware::camera2::utils::CameraIdAndSessionConfiguration>
@@ -344,7 +345,7 @@ public:
      status_t getSessionCharacteristics(const std::string& id,
             const SessionConfiguration &configuration,
             bool overrideForPerfClass,
-            int rotationOverride,
+            const CameraCompatibilityInfo& compatInfo,
             CameraMetadata* sessionCharacteristics /*out*/) const;
 
     /**
@@ -650,7 +651,7 @@ private:
             virtual status_t turnOnTorchWithStrengthLevel(int32_t torchStrength) = 0;
             virtual status_t getTorchStrengthLevel(int32_t *torchStrength) = 0;
             virtual status_t getCameraInfo(
-                    int rotationOverride,
+                    const CameraCompatibilityInfo& compatInfo,
                     int *portraitRotation,
                     hardware::CameraInfo *info) const = 0;
             virtual bool isAPI1Compatible() const = 0;
@@ -658,7 +659,7 @@ private:
             virtual status_t getCameraCharacteristics(
                     [[maybe_unused]] bool overrideForPerfClass,
                     [[maybe_unused]] CameraMetadata *characteristics,
-                    [[maybe_unused]] int rotationOverride) {
+                    [[maybe_unused]] const CameraCompatibilityInfo& compatInfo) {
                 return INVALID_OPERATION;
             }
             virtual status_t getPhysicalCameraCharacteristics(
@@ -733,7 +734,7 @@ private:
             virtual status_t turnOnTorchWithStrengthLevel(int32_t torchStrength) = 0;
             virtual status_t getTorchStrengthLevel(int32_t *torchStrength) = 0;
             virtual status_t getCameraInfo(
-                    int rotationOverride,
+                    const CameraCompatibilityInfo& compatInfo,
                     int *portraitRotation,
                     hardware::CameraInfo *info) const override;
             virtual bool isAPI1Compatible() const override;
@@ -741,7 +742,7 @@ private:
             virtual status_t getCameraCharacteristics(
                     bool overrideForPerfClass,
                     CameraMetadata *characteristics,
-                    int rotationOverride) override;
+                    const CameraCompatibilityInfo& compatInfo) override;
             virtual status_t getPhysicalCameraCharacteristics(const std::string& physicalCameraId,
                     CameraMetadata *characteristics) const override;
             virtual status_t filterSmallJpegSizes() override;
@@ -966,7 +967,7 @@ private:
         const hardware::camera::common::V1_0::TorchModeStatus&);
 
     status_t getCameraCharacteristicsLocked(const std::string &id, bool overrideForPerfClass,
-            CameraMetadata* characteristics, int rotationOverride) const;
+            CameraMetadata* characteristics, const CameraCompatibilityInfo& compatInfo) const;
     void filterLogicalCameraIdsLocked(std::vector<std::string>& deviceIds) const;
 
     status_t getSystemCameraKindLocked(const std::string& id, SystemCameraKind *kind) const;
