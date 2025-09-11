@@ -2796,12 +2796,14 @@ std::set<pid_t> CameraProviderManager::getProviderPids() {
     return pids;
 }
 
-status_t CameraProviderManager::ProviderInfo::dump(int fd, const Vector<String16>&) const {
+status_t CameraProviderManager::ProviderInfo::dump(int fd, const Vector<String16>& args) {
     dprintf(fd, "== Camera Provider HAL %s (v2.%d, %s) static info: %zu devices: ==\n",
             mProviderInstance.c_str(),
             mMinorVersion,
             mIsRemote ? "remote" : "passthrough",
             mDevices.size());
+
+    dumpInterface(fd, args);
 
     for (auto& device : mDevices) {
         dprintf(fd, "== Camera HAL device %s (v%d.%d) static information: ==\n", device->mName.c_str(),

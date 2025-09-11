@@ -21,10 +21,24 @@ flag {
 }
 
 flag {
+    name: "abs_volume_stream_always_max"
+    namespace: "media_audio"
+    description: "The stream that drives the absolute volume should always have the highest index"
+    bug: "439668753"
+}
+
+flag {
     name: "as_device_connection_failure"
     namespace: "media_audio"
     description: "AudioService handles device connection failures."
     bug: "326597760"
+}
+
+flag {
+    name: "audio_stream_bt_sco_cleanup"
+    namespace: "media_audio"
+    description: "Remove any usages of AUDIO_STREAM_BLUETOOTH_SCO from the audioserver."
+    bug: "441152611"
 }
 
 flag {

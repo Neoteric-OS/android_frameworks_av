@@ -563,13 +563,15 @@ private:
 
         const std::string& getType() const;
 
-        status_t dump(int fd, const Vector<String16>& args) const;
+        status_t dump(int fd, const Vector<String16>& args);
 
         void initializeProviderInfoCommon(const std::vector<std::string> &devices);
         /**
          * Setup vendor tags for this provider
          */
         virtual status_t setUpVendorTags() = 0;
+
+        virtual status_t dumpInterface(int fd, const Vector<String16>& args) = 0;
 
         /**
          * Notify provider about top-level device physical state changes

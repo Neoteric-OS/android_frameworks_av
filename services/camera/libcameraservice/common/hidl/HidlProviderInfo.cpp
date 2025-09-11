@@ -303,6 +303,11 @@ status_t HidlProviderInfo::setUpVendorTags() {
     return OK;
 }
 
+status_t HidlProviderInfo::dumpInterface(int, const Vector<String16>&) {
+    // Unsupported in HIDL interfaces
+    return OK;
+}
+
 status_t HidlProviderInfo::notifyDeviceStateChange(int64_t newDeviceState) {
     mDeviceState = mapToHidlDeviceState(newDeviceState);
     if (mMinorVersion >= 5) {

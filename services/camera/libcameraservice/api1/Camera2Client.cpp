@@ -140,9 +140,7 @@ status_t Camera2Client::initializeImpl(TProviderPtr providerPtr, const std::stri
     // and applied similar to the Camera2 path.
     bool enableTransformInverseDisplay = true;
     if (wm_flags::enable_camera_compat_for_desktop_windowing()) {
-        bool justRotateAndCrop = mCompatInfo.shouldRotateAndCrop()
-                                 && !mCompatInfo.shouldOverrideSensorOrientation();
-        enableTransformInverseDisplay = !justRotateAndCrop;
+        enableTransformInverseDisplay &= mCompatInfo.shouldAllowTransformInverseDisplay();
     }
     CameraUtils::getRotationTransform(staticInfo, OutputConfiguration::MIRROR_MODE_AUTO,
             enableTransformInverseDisplay, &mRotateAndCropPreviewTransform);

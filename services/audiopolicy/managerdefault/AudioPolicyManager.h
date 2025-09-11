@@ -998,7 +998,8 @@ protected:
                              const sp<TrackClientDescriptor>& client,
                              uint32_t *delayMs);
         virtual status_t stopSource(const sp<SwAudioOutputDescriptor>& outputDesc,
-                            const sp<TrackClientDescriptor>& client);
+                            const sp<TrackClientDescriptor>& client,
+                            uint32_t delayMs);
 
         void clearAudioPatches(uid_t uid);
         void clearSessionRoutes(uid_t uid);

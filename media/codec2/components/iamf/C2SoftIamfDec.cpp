@@ -143,6 +143,7 @@ class C2SoftIamfDec::IntfImpl : public SimpleInterface<void>::BaseParams {
                              .build());
 
         // Only output audio in 16-bit ints are supported by this decoder.
+        // N.B.: Calculation of output buffer size below in this file assumes int16_t samples.
         addParameter(
                 DefineParam(mPcmEncodingInfo, C2_PARAMKEY_PCM_ENCODING)
                         .withDefault(new C2StreamPcmEncodingInfo::output(0u, C2Config::PCM_16))
@@ -193,9 +194,9 @@ std::optional<iamf_tools::api::OutputLayout> C2SoftIamfDec::getTargetOutputLayou
     const bool channelMaskChanged = mCachedOutputChannelMask != currentChannelMask;
 
     if (currentChannelMask != UNSET_OUTPUT_CHANNEL_MASK && channelMaskChanged) {
-        ALOGI("Channel mask set, trying to use value %d", mCachedOutputChannelMask);
+        ALOGI("Channel mask set, trying to use value %d", currentChannelMask);
         // If the channel mask has been set, we'll use that.
-        return c2_soft_iamf_internal::GetIamfLayout(mCachedOutputChannelMask);
+        return c2_soft_iamf_internal::GetIamfLayout(currentChannelMask);
     }
     // Fall back to using the max output channels.
     ALOGI("Channel mask not set or unchanged, checking max channel count: %d", currentChannelCount);
@@ -338,16 +339,17 @@ void C2SoftIamfDec::onRelease() {
 
 c2_status_t C2SoftIamfDec::onFlush_sm() {
     ALOGV("onFlush_sm.");
-    IamfStatus status = mIamfDecoder->Reset();  // Throw away any pending work.
-    // The decoder may fail to reset if it was not created with DescriptorOBUs.
-    if (status.ok()) {
-        // We may be jumping back in time.
-        mSignalledEos = false;
-        return C2_OK;
+    if (mIamfDecoder != nullptr) {
+        IamfStatus status = mIamfDecoder->Reset();  // Throw away any pending work.
+        // The decoder may fail to reset if it was not created with DescriptorOBUs.
+        if (!status.ok()) {
+            ALOGE("Failed to reset. Error: %s", status.error_message.c_str());
+            // We failed to Reset.  We'll just get rid of the decoder.
+            mIamfDecoder = nullptr;
+        }
     }
-    ALOGE("Failed to reset. Error: %s", status.error_message.c_str());
-    // We failed to Reset.  We'll just get rid of the decoder.
-    mIamfDecoder = nullptr;
+    // We may be jumping back in time, so we should clear the EOS flag.
+    mSignalledEos = false;
     return C2_OK;
 }
 
@@ -476,6 +478,7 @@ c2_status_t C2SoftIamfDec::fetchValuesAndUpdateParameters(const std::unique_ptr<
     }
     ALOGV("successfully got frame size: %d", frameSize);
 
+    // N.B.: Calculation of this number assumes int16_t samples.
     mOutputBufferSizeBytes = (size_t)frameSize * sizeof(int16_t) * (size_t)numOutputChannels;
     ALOGV("calculated frame size bytes: %zu", mOutputBufferSizeBytes);
 
@@ -546,7 +549,7 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
             // Since resetting to a different layout is disruptive, only do it if we're sure it
             // results in a different output IAMF Layout.  At this point we know we both can and
             // need to reset the decoder.
-            ALOGI("Output layout has actually changed, we will reset decoder.  Channel Mask: %d,"
+            ALOGV("Output layout has actually changed, we will reset decoder.  Channel Mask: %d,"
                   "channel count: %d, layout: %d",
                   mCachedOutputChannelMask, mCachedMaxOutputChannelCount, *newLayout);
             ::iamf_tools::api::SelectedMix unusedSelectedMix;  // We fetch all config below.
@@ -560,7 +563,7 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
                 work->result = C2_CORRUPTED;
                 return;
             }
-            ALOGI("Reset IAMF decoder.  New output parameters: ");
+            ALOGV("Reset IAMF decoder.  New output parameters: ");
             c2_status_t updateStatus = fetchValuesAndUpdateParameters(work);
             if (updateStatus != C2_OK) {
                 // Specific error logged in `fetchValuesAndUpdateParameters`.
@@ -573,7 +576,7 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
         // There is work to do.
         const bool isCodecConfig = work->input.flags & C2FrameData::FLAG_CODEC_CONFIG;
         if (isCodecConfig) {
-            ALOGI("Got codec config.");
+            ALOGV("Got Codec2 FLAG_CODEC_CONFIG, meaning IAMF Descriptor OBUs are in the buffer.");
             // If the CodecConfig flag is set, then we're assuming the buffer contains
             // exactly and only the DescriptorObus.  We can re-create the IamfDecoder with the
             // DescriptorObus (Codec Config) for more efficient decoding of all subsequent Temporal
@@ -610,7 +613,7 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
         work->worklets.front()->output.ordinal = work->input.ordinal;
         work->workletsProcessed = 1u;
         // No more data to send to decode if inSize is 0 and EOS signalled.
-        if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM) {
+        if (work->input.flags & C2FrameData::FLAG_END_OF_STREAM && mIamfDecoder != nullptr) {
             IamfStatus status = mIamfDecoder->SignalEndOfDecoding();
             if (!status.ok()) {
                 ALOGE("Failed to signal EOS. Error message: %s", status.error_message.c_str());
@@ -630,9 +633,10 @@ void C2SoftIamfDec::process(const std::unique_ptr<C2Work>& work,
           (int)work->input.ordinal.timestamp.peeku(), (int)work->input.ordinal.frameIndex.peeku());
 
     // The first time that IsDescriptorProcessingComplete returns true, we update config.
-    if (!mFetchedAndUpdatedParameters && mIamfDecoder->IsDescriptorProcessingComplete()) {
+    if (!mFetchedAndUpdatedParameters && mIamfDecoder != nullptr &&
+        mIamfDecoder->IsDescriptorProcessingComplete()) {
         // First time we are seeing descriptor processing as complete.
-        ALOGI("Decoder signaled descriptor processing complete.");
+        ALOGV("Decoder signaled descriptor processing complete.");
         c2_status_t configStatus = fetchValuesAndUpdateParameters(work);
         if (configStatus != C2_OK) {
             // Specific error logged in `fetchValuesAndUpdateParameters`.

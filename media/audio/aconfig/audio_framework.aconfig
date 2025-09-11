@@ -23,6 +23,13 @@ flag {
 }
 
 flag {
+    name: "audio_focus_isolation"
+    namespace: "media_audio"
+    description: "Enables operation to isolate a uid's audio focus management."
+    bug: "428808570"
+}
+
+flag {
     name: "auto_public_volume_api_hardening"
     namespace: "media_audio"
     description: "On AAOS, make volume and ringer SDK APIs in AudioManager no-ops."
