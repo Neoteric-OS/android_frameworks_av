@@ -2669,7 +2669,7 @@ status_t AudioPolicyManager::startOutput(
         if (info != nullptr && info->getUid() == client->uid()) {
             if (info->getActiveClientCount() == 0 && !outputDesc->isConfigurationMatched(
                     info->getConfigBase(), info->getFlags())) {
-                stopSource(outputDesc, client);
+                stopSource(outputDesc, client, outputDesc->latency() * 2);
                 outputDesc->stop();
                 audio_config_t config = AUDIO_CONFIG_INITIALIZER;
                 config.channel_mask = info->getConfigBase().channel_mask;
@@ -3028,7 +3028,13 @@ status_t AudioPolicyManager::stopOutput(audio_port_handle_t portId)
     ALOGV("stopOutput() output %d, stream %d, session %d",
           outputDesc->mIoHandle, client->stream(), client->session());
 
-    status_t status = stopSource(outputDesc, client);
+    // delay the device switch by twice the latency because stopOutput() is executed when
+    // the track stop() command is received and at that time the audio track buffer can
+    // still contain data that needs to be drained. The latency only covers the audio HAL
+    // and kernel buffers. Also the latency does not always include additional delay in the
+    // audio path (audio DSP, CODEC ...)
+
+    status_t status = stopSource(outputDesc, client, outputDesc->latency() * 2);
 
     if (status == NO_ERROR ) {
         outputDesc->stop();
@@ -3057,8 +3063,7 @@ status_t AudioPolicyManager::stopOutput(audio_port_handle_t portId)
 }
 
 status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outputDesc,
-                                        const sp<TrackClientDescriptor>& client)
-{
+                                        const sp<TrackClientDescriptor>& client, uint32_t delayMs) {
     // always handle stream stop, check which stream type is stopping
     audio_stream_type_t stream = client->stream();
     auto clientVolSrc = client->volumeSource();
@@ -3106,13 +3111,8 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             bool requiresVolumeCheck = outputDesc->getActivityCount(clientVolSrc) == 0 &&
                     outputDesc->useHwGain() && outputDesc->isAnyActive(VOLUME_SOURCE_NONE);
 
-            // delay the device switch by twice the latency because stopOutput() is executed when
-            // the track stop() command is received and at that time the audio track buffer can
-            // still contain data that needs to be drained. The latency only covers the audio HAL
-            // and kernel buffers. Also the latency does not always include additional delay in the
-            // audio path (audio DSP, CODEC ...)
-            setOutputDevices(__func__, outputDesc, newDevices, false, outputDesc->latency()*2,
-                             nullptr, true /*requiresMuteCheck*/, requiresVolumeCheck);
+            setOutputDevices(__func__, outputDesc, newDevices, false, delayMs, nullptr,
+                             true /*requiresMuteCheck*/, requiresVolumeCheck);
 
             // force restoring the device selection on other active outputs if it differs from the
             // one being selected for this output
@@ -6921,7 +6921,7 @@ status_t AudioPolicyManager::disconnectAudioSource(const sp<SourceClientDescript
     }
     sp<SwAudioOutputDescriptor> swOutput = sourceDesc->swOutput().promote();
     if (swOutput != 0) {
-        status_t status = stopSource(swOutput, sourceDesc);
+        status_t status = stopSource(swOutput, sourceDesc, 0);
         if (status == NO_ERROR) {
             swOutput->stop();
         }
