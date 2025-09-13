@@ -589,25 +589,6 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
     return devices;
 }
 
-DeviceVector Engine::getPreferredAvailableDevicesForInputSource(
-            const DeviceVector& availableInputDevices, audio_source_t inputSource) const {
-    DeviceVector preferredAvailableDevVec = {};
-    AudioDeviceTypeAddrVector preferredDevices;
-    const status_t status = getDevicesForRoleAndCapturePreset(
-            inputSource, DEVICE_ROLE_PREFERRED, preferredDevices);
-    if (status == NO_ERROR) {
-        // Only use preferred devices when they are all available.
-        preferredAvailableDevVec =
-                availableInputDevices.getDevicesFromDeviceTypeAddrVec(preferredDevices);
-        if (preferredAvailableDevVec.size() == preferredDevices.size()) {
-            ALOGVV("%s using pref device %s for source %u",
-                   __func__, preferredAvailableDevVec.toString().c_str(), inputSource);
-            return preferredAvailableDevVec;
-        }
-    }
-    return preferredAvailableDevVec;
-}
-
 DeviceVector Engine::getDisabledDevicesForInputSource(
             const DeviceVector& availableInputDevices, audio_source_t inputSource) const {
     DeviceVector disabledDevices = {};

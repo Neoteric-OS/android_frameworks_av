@@ -1679,6 +1679,12 @@ status_t EffectModule::sendMetadata_ll(const std::vector<playback_track_metadata
     if (mStatus != NO_ERROR) {
         return mStatus;
     }
+
+    // If the metadata is empty, there is no need to send it to effects.
+    if (metadata.size() == 0) {
+        return NO_ERROR;
+    }
+
     // TODO b/307368176: send all metadata to effects if requested by the implementation.
     // For now only send channel mask to Spatializer.
     if (!isSpatializer()) {
