@@ -1558,6 +1558,10 @@ Status CameraService::makeClient(
                         cameraId.c_str(), deviceVersion);
         }
     }
+    ui::Rotation rotation = ui::ROTATION_0;
+    if (compatInfo.getRotateAndCropRotation().has_value()) {
+        rotation = compatInfo.getRotateAndCropRotation().value();
+    }
     if (effectiveApiLevel == API_1) { // Camera1 API route
         sp<ICameraClient> tmp = static_cast<ICameraClient*>(cameraCb.get());
         *client = new Camera2Client(cameraService, tmp, cameraService->mCameraServiceProxyWrapper,
@@ -1567,7 +1571,7 @@ Status CameraService::makeClient(
                                     compatInfo, forceSlowJpegMode, /*sharedMode*/false);
         ALOGV("%s: Camera1 API (legacy), rotateAndCrop %d, sensorOverride: %d,"
               "forceSlowJpegMode %d",
-              __FUNCTION__, compatInfo.getRotateAndCropRotation().value(),
+              __FUNCTION__, rotation,
               compatInfo.shouldOverrideSensorOrientation(), forceSlowJpegMode);
     } else { // Camera2 API route
         sp<hardware::camera2::ICameraDeviceCallbacks> tmp =
@@ -1579,7 +1583,7 @@ Status CameraService::makeClient(
                 overrideForPerfClass, compatInfo, originalCameraId, sharedMode,
                 isVendorClient);
         ALOGV("%s: Camera2 API, rotateAndCrop %d, sensorOverride: %d", __FUNCTION__,
-              compatInfo.getRotateAndCropRotation().value(),
+              rotation,
               compatInfo.shouldOverrideSensorOrientation());
     }
     return Status::ok();

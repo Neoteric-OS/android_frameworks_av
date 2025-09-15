@@ -5,6 +5,16 @@
 package: "com.android.media.audioserver"
 container: "system"
 
+flag {
+    name: "cap_engine_preferred_device_improvement"
+    namespace: "media_audio"
+    description:
+        "Enables improvements in the CAP engine for preferred audio input and output "
+        "device selection, including sound settings control and Bluetooth A2DP/SCO "
+        "switching behavior."
+    bug: "436398891"
+}
+
 # shipped 24Q3
 flag {
     name: "conditionally_ignore_preferred_input_device"

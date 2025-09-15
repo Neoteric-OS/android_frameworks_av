@@ -3151,9 +3151,7 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraInfo(
         } else {
             info->orientation = (360 + info->orientation + 90) % 360;
         }
-    }
-
-    if (compatInfo.shouldRotateAndCrop() && !compatInfo.shouldOverrideSensorOrientation()
+    } else if (compatInfo.shouldRotateAndCrop() && !compatInfo.shouldOverrideSensorOrientation()
             && (info->orientation == 90 || info->orientation == 270)) {
         // Check device rotation: display rotation will be sandboxed, therefore rotate-and-crop
         // needs to take display rotation into account.

@@ -37,6 +37,13 @@ flag {
 }
 
 flag {
+    name: "ble_hearing_aid_device"
+    namespace: "media_audio"
+    description: "Add BLE hearing aid device category"
+    bug: "443740527"
+}
+
+flag {
     name: "cache_get_stream_min_max_volume"
     namespace: "media_audio"
     description:
@@ -171,6 +178,15 @@ flag {
  AudioManager.getFocusFadeOutDurationForTest()\
  AudioManager.getFocusUnmuteDelayAfterFadeOutForTest()"
     bug: "301713440"
+}
+
+flag {
+    name: "guard_stream_volume_apis"
+    namespace: "media_audio"
+    description:
+        "Guards getStreamVolume and getStreamMaxVolume APIs with permission."
+    bug: "417787833"
+    is_exported: true
 }
 
 flag {
