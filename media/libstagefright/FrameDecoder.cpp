@@ -276,13 +276,8 @@ bool isFeatureSupported(const char *mimeType, const char *featureName) {
     return false;
 }
 
-uint32_t getHeifMode(const sp<MetaData> &trackMeta) {
-    int32_t tileWidth, tileHeight, gridRows, gridCols;
-    if (!findGridInfo(trackMeta, &tileWidth, &tileHeight, &gridRows, &gridCols)) {
-        ALOGV("No grid info");
-        return HeifMode::TILE;
-    } else if (gridCols == 1) {
-        ALOGV("Image has only one tile in column");
+uint32_t selectHeifMode(uint32_t gridNumInCols = 0) {
+    if (gridNumInCols <= 1) {
         return HeifMode::TILE;
     }
     constexpr const char *FEATURE_ROW_BY_ROW = "feature-heic-row-by-row-decode";
@@ -423,12 +418,12 @@ sp<IMemory> FrameDecoder::getMetadataOnly(
         CHECK(trackMeta->findInt32(kKeyWidth, &width));
         CHECK(trackMeta->findInt32(kKeyHeight, &height));
 
-        int32_t gridRows, gridCols;
+        int32_t gridRows = 0, gridCols = 0;
         if (!findGridInfo(trackMeta, &tileWidth, &tileHeight, &gridRows, &gridCols)) {
             tileWidth = tileHeight = 0;
         }
 
-        if (!isAvif(trackMeta) && (getHeifMode(trackMeta) == HeifMode::ROW)) {
+        if ((selectHeifMode(gridCols) == HeifMode::ROW) && !isAvif(trackMeta)) {
             // In HEIF row-by-row mode, the basic output is a row.
             // All tiles on a row are stitched into one output, so the display
             // info notified to Skia needs to be updated to the row size.
@@ -1329,7 +1324,7 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
     }
 
     if (!isAvif(trackMeta())) {
-        auto mode = getHeifMode(trackMeta());
+        auto mode = selectHeifMode(mGridCols);
         ALOGD("Setting HEIF mode %u", mode);
         if (mode == HeifMode::ROW) {
             mTileWidth *= mGridCols;
