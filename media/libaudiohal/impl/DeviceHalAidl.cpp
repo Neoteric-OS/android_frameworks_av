@@ -704,6 +704,13 @@ status_t DeviceHalAidl::openInputStream(
     return OK;
 }
 
+void DeviceHalAidl::streamClosed(const sp<StreamHalInterface>& stream) {
+    AUGMENT_LOG(D);
+    TIME_CHECK();
+    std::lock_guard l(mLock);
+    mMapper.onStreamClosed(stream);
+}
+
 status_t DeviceHalAidl::supportsAudioPatches(bool* supportsPatches) {
     AUGMENT_LOG(V);
     RETURN_IF_MODULE_NOT_INIT(NO_INIT);

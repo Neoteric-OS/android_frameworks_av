@@ -122,11 +122,13 @@ std::shared_ptr<IStreamCommon> StreamHalAidl::getStreamCommon(const std::shared_
 StreamHalAidl::StreamHalAidl(std::string_view className, bool isInput, const audio_config& config,
                              int32_t nominalLatency, StreamContextAidl&& context,
                              const std::shared_ptr<IStreamCommon>& stream,
-                             const std::shared_ptr<IHalAdapterVendorExtension>& vext)
+                             const std::shared_ptr<IHalAdapterVendorExtension>& vext,
+                             const sp<StreamCloseHandler>& streamCloseHandler)
     : ConversionHelperAidl(className, std::string(isInput ? "in" : "out") + "|ioHandle:" +
             std::to_string(context.getIoHandle())),
           mIsInput(isInput),
           mConfig(configToBase(config)),
+          mStreamCloseHandler(streamCloseHandler),
           mContext(std::move(context)),
           mStream(stream),
           mVendorExt(vext),
@@ -179,6 +181,11 @@ status_t StreamHalAidl::close() {
     AUGMENT_LOG(D);
     if (!mStream) return NO_INIT;
     ndk::ScopedAStatus status = serializeCall(mStream, &Stream::close);
+    if (status.isOk()) {
+        if (auto handler = mStreamCloseHandler.promote(); handler != nullptr) {
+            handler->streamClosed(sp<StreamHalInterface>::fromExisting(this));
+        }
+    }
     AUGMENT_LOG_IF(E, !status.isOk(), "status %s", status.getDescription().c_str());
     return statusTFromBinderStatus(status);
 }
@@ -991,7 +998,7 @@ StreamOutHalAidl::StreamOutHalAidl(
         const std::shared_ptr<IHalAdapterVendorExtension>& vext,
         const sp<CallbackBroker>& callbackBroker)
         : StreamHalAidl("StreamOutHalAidl", false /*isInput*/, config, nominalLatency,
-                std::move(context), getStreamCommon(stream), vext),
+                std::move(context), getStreamCommon(stream), vext, callbackBroker),
           mStream(stream), mCallbackBroker(callbackBroker) {
     // Initialize the offload metadata
     mOffloadMetadata.sampleRate = static_cast<int32_t>(config.sample_rate);
@@ -1391,7 +1398,7 @@ StreamInHalAidl::StreamInHalAidl(
         const std::shared_ptr<IHalAdapterVendorExtension>& vext,
         const sp<MicrophoneInfoProvider>& micInfoProvider)
         : StreamHalAidl("StreamInHalAidl", true /*isInput*/, config, nominalLatency,
-                std::move(context), getStreamCommon(stream), vext),
+                std::move(context), getStreamCommon(stream), vext, micInfoProvider),
           mStream(stream), mMicInfoProvider(micInfoProvider) {}
 
 status_t StreamInHalAidl::setGain(float gain) {

@@ -33,13 +33,6 @@ flag {
 }
 
 flag {
-    name: "enable_gmap_mode"
-    namespace: "media_audio"
-    description: "enable track metadata tag generation for GMAP."
-    bug: "366456949"
-}
-
-flag {
     name: "enable_strict_port_routing_checks"
     namespace: "media_audio"
     description: "Enables strict routing checks on associating ports"

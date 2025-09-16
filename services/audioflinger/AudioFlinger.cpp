@@ -617,8 +617,7 @@ status_t AudioFlinger::openMmapStreamImpl(bool isOutput,
         }
     }
     if (ret != NO_ERROR) {
-        if (audioserver_flags::enable_gmap_mode()
-                && !isOutput) {
+        if (!isOutput) {
             audio_utils::lock_guard _l(mutex());
             setHasAlreadyCaptured_l(adjAttributionSource.uid);
         }
@@ -2372,9 +2371,7 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
             audio_utils::lock_guard _l2(thread->mutex());
             thread->addEffectChain_l(chain);
         }
-        if (audioserver_flags::enable_gmap_mode()) {
-            setHasAlreadyCaptured_l(adjAttributionSource.uid);
-        }
+        setHasAlreadyCaptured_l(adjAttributionSource.uid);
         break;
     }
     // End of retry loop.
