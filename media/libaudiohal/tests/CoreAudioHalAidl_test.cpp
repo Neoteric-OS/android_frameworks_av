@@ -1071,7 +1071,7 @@ class StreamHalAidlTest : public android::StreamHalAidl {
             const std::shared_ptr<::aidl::android::hardware::audio::core::IStreamCommon>& stream,
             const std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension>& vext)
         : StreamHalAidl(className, isInput, config, nominalLatency, std::move(context), stream,
-                        vext) {}
+                        vext, nullptr /*closeHandler*/) {}
     android::status_t dump(int /*fd*/,
                            const android::Vector<android::String16>& /*args*/) override {
         return android::OK;
@@ -1254,6 +1254,46 @@ TEST_F(DeviceHalAidlTest, StreamReleaseOnMapperCleanup) {
         stopReleaser = true;
         releaser.join();
     }
+}
+
+// Opening a stream creates an "implicit" patch which is not handled
+// by the APM. If it were handled, the APM would release it at the
+// moment when the stream is closed. Need to ensure that this behavior
+// is replicated for "implicit" patches as well.
+TEST_F(DeviceHalAidlTest, ImplicitPatchReleaseOnOutputStreamClose) {
+    ASSERT_EQ(OK, mDevice->initCheck());
+    sp<StreamOutHalInterface> stream;
+    struct audio_config config = AUDIO_CONFIG_INITIALIZER;
+    config.sample_rate = 48000;
+    config.channel_mask = AUDIO_CHANNEL_OUT_STEREO;
+    config.format = AUDIO_FORMAT_PCM_16_BIT;
+    const auto patchesBeforeStreamOpen = mModule->getPatches();
+    ASSERT_EQ(OK,
+              mDevice->openOutputStream(42 /*handle*/, AUDIO_DEVICE_OUT_SPEAKER,
+                                        AUDIO_OUTPUT_FLAG_NONE, &config, "" /*address*/, &stream));
+    const auto patchesAfterStreamOpen = mModule->getPatches();
+    EXPECT_EQ(patchesBeforeStreamOpen.size() + 1, patchesAfterStreamOpen.size());
+    ASSERT_EQ(OK, stream->close());
+    const auto patchesAfterStreamClose = mModule->getPatches();
+    EXPECT_EQ(patchesBeforeStreamOpen.size(), patchesAfterStreamClose.size());
+}
+
+TEST_F(DeviceHalAidlTest, ImplicitPatchReleaseOnInputStreamClose) {
+    ASSERT_EQ(OK, mDevice->initCheck());
+    sp<StreamInHalInterface> stream;
+    struct audio_config config = AUDIO_CONFIG_INITIALIZER;
+    config.sample_rate = 48000;
+    config.channel_mask = AUDIO_CHANNEL_IN_STEREO;
+    config.format = AUDIO_FORMAT_PCM_16_BIT;
+    const auto patchesBeforeStreamOpen = mModule->getPatches();
+    ASSERT_EQ(OK, mDevice->openInputStream(42 /*handle*/, AUDIO_DEVICE_IN_BUILTIN_MIC, &config,
+                                           AUDIO_INPUT_FLAG_NONE, "bottom", AUDIO_SOURCE_MIC,
+                                           AUDIO_DEVICE_NONE, "" /*outputDeviceAddress*/, &stream));
+    const auto patchesAfterStreamOpen = mModule->getPatches();
+    EXPECT_EQ(patchesBeforeStreamOpen.size() + 1, patchesAfterStreamOpen.size());
+    ASSERT_EQ(OK, stream->close());
+    const auto patchesAfterStreamClose = mModule->getPatches();
+    EXPECT_EQ(patchesBeforeStreamOpen.size(), patchesAfterStreamClose.size());
 }
 
 TEST_F(DeviceHalAidlTest, MultipleOutputMixePortWithSameCapabilities) {

@@ -129,6 +129,8 @@ class StreamContextAidl {
     bool mHasClipTransitionSupport;
 };
 
+class StreamCloseHandler;
+
 class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelperAidl {
   public:
     // Closes the HAL stream and releases underlying hardware resources.
@@ -205,7 +207,8 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
             int32_t nominalLatency,
             StreamContextAidl&& context,
             const std::shared_ptr<::aidl::android::hardware::audio::core::IStreamCommon>& stream,
-            const std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension>& vext);
+            const std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension>& vext,
+            const sp<StreamCloseHandler>& streamCloseHandler);
 
     ~StreamHalAidl() override;
 
@@ -297,6 +300,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
 
     const bool mIsInput;
     const audio_config_base_t mConfig;
+    const wp<StreamCloseHandler> mStreamCloseHandler;
     StreamContextAidl mContext;
     // This lock is used to make sending of a command and receiving a reply an atomic
     // operation. Otherwise, when two threads are trying to send a command, they may both advance to

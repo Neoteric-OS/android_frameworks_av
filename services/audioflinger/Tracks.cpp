@@ -1822,7 +1822,7 @@ void Track::copyMetadataTo(MetadataInserter& backInserter) const
 
     std::string tagStr(mAttr.tags);
     const sp<IAfThreadBase> thread = mThread.promote();
-    if (audioserver_flags::enable_gmap_mode() && mAttr.usage == AUDIO_USAGE_GAME
+    if (mAttr.usage == AUDIO_USAGE_GAME
             && thread != nullptr && thread->afThreadCallback()->hasAlreadyCaptured(uid())
             && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
                 + (tagStr.size() ? 1 : 0))

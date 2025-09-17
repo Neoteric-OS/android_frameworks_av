@@ -11643,7 +11643,7 @@ ThreadBase::MetadataUpdate MmapPlaybackThread::updateMetadata_l()
         };
         trackMetadata.channel_mask = track->channelMask();
         std::string tagStr(track->attributes().tags);
-        if (audioserver_flags::enable_gmap_mode() && track->attributes().usage == AUDIO_USAGE_GAME
+        if (track->attributes().usage == AUDIO_USAGE_GAME
                 && afThreadCallback()->hasAlreadyCaptured(track->uid())
                 && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
                     + (tagStr.size() ? 1 : 0))
