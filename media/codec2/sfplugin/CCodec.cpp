@@ -2789,7 +2789,19 @@ void CCodec::flush() {
     c2_status_t err = comp->flush(C2Component::FLUSH_COMPONENT, &flushedWork);
     {
         Mutexed<std::list<std::unique_ptr<C2Work>>>::Locked queue(mWorkDoneQueue);
-        flushedWork.splice(flushedWork.end(), *queue);
+        for (auto it = queue->begin(); it != queue->end(); ) {
+            const auto &worklets = (*it)->worklets;
+            bool isConfigUpdateOnly = !worklets.empty() &&
+                                    worklets.front() != nullptr &&
+                                    worklets.front()->output.buffers.empty() &&
+                                    !worklets.front()->output.configUpdate.empty();
+            if (isConfigUpdateOnly) {
+                ALOGV("Specific work for configUpdate should not be flushed");
+                ++it;
+            } else {
+                flushedWork.splice(flushedWork.end(), *queue, it++);
+            }
+        }
     }
     if (err != C2_OK) {
         // TODO: convert err into status_t
