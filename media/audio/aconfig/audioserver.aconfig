@@ -16,14 +16,6 @@ flag {
 }
 
 # shipped 24Q3
-flag {
-    name: "conditionally_ignore_preferred_input_device"
-    namespace: "media_audio"
-    description:
-        "Allows to ignore preferred device requests in getInputDeviceForAttributes() depending "
-        "on the calling context."
-    bug: "303079083"
-}
 
 flag {
     name: "effect_chain_callback_improve"
@@ -61,12 +53,4 @@ flag {
     namespace: "media_audio"
     description: "Remove the output stream suspend state and control mechanism"
     bug: "409706525"
-}
-
-flag {
-    name: "use_bt_sco_for_media"
-    namespace: "media_audio"
-    description:
-        "Play media strategy over Bluetooth SCO when active"
-    bug: "292037886"
 }
