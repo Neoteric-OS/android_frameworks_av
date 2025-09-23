@@ -61,7 +61,7 @@ CameraSource* AVFactory::CreateCameraSourceFromCamera(
             pid_t clientPid,
             Size videoSize,
             int32_t frameRate,
-            const sp<IGraphicBufferProducer>& surface,
+            const sp<MediaSurfaceType>& surface,
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
             // parameter from CreateFromCamera API.
@@ -82,7 +82,7 @@ CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
         pid_t clientPid,
         Size videoSize,
         int32_t videoFrameRate,
-        const sp<IGraphicBufferProducer>& surface,
+        const sp<MediaSurfaceType>& surface,
         int64_t timeBetweenFrameCaptureUs,
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
