@@ -48,7 +48,7 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         const sp<Surface>& surface,
 #else
-        const sp<IGraphicBufferProducer>& surface,
+        const sp<MediaSurfaceType>& surface,
 #endif
         int64_t timeBetweenFrameCaptureUs) {
 
@@ -79,7 +79,7 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         const sp<Surface>& surface,
 #else
-        const sp<IGraphicBufferProducer>& surface,
+        const sp<MediaSurfaceType>& surface,
 #endif
         int64_t timeBetweenFrameCaptureUs)
       : CameraSource(camera, proxy, cameraId, clientName, clientUid, clientPid,
