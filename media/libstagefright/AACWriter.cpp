@@ -154,7 +154,9 @@ status_t AACWriter::reset() {
     mDone = true;
 
     void *dummy;
+// QTI_BEGIN: 2019-01-31: Audio: stagefright: stop audio encoding before releasing writer thread
     status_t status = mSource->stop();
+// QTI_END: 2019-01-31: Audio: stagefright: stop audio encoding before releasing writer thread
     pthread_join(mThread, &dummy);
 
     status_t err = static_cast<status_t>(reinterpret_cast<uintptr_t>(dummy));

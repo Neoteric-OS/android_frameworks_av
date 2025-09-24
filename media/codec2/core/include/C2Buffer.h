@@ -101,8 +101,10 @@ public:
 
     /**
      * Returns a file descriptor that can be used to wait for this fence in a select system call.
+// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * \note If there are multiple file descriptors in fence then a file descriptor for merged fence
      *  would be returned
+// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * \note The returned file descriptor, if valid, must be closed by the caller.
      *
      * This can be used in e.g. poll() system calls. This file becomes readable (POLLIN) when the
@@ -141,7 +143,9 @@ private:
     std::shared_ptr<Impl> mImpl;
     C2Fence(std::shared_ptr<Impl> impl);
     friend struct _C2FenceFactory;
+// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     friend std::vector<int> ExtractFdsFromCodec2SyncFence(const C2Fence& fence);
+// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 };
 
 /**

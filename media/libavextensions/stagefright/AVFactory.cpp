@@ -61,8 +61,10 @@ CameraSource* AVFactory::CreateCameraSourceFromCamera(
             pid_t clientPid,
             Size videoSize,
             int32_t frameRate,
-            const sp<MediaSurfaceType>& surface,
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
+            const sp<MediaSurfaceType>& surface,
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
             // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
             // parameter from CreateFromCamera API.
             bool /*storeMetaDataInVideoBuffers*/) {
@@ -82,7 +84,11 @@ CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
         pid_t clientPid,
         Size videoSize,
         int32_t videoFrameRate,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         const sp<MediaSurfaceType>& surface,
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         int64_t timeBetweenFrameCaptureUs,
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers

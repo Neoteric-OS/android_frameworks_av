@@ -1372,7 +1372,9 @@ status_t ACodec::allocateOutputMetadataBuffers() {
     OMX_U32 bufferCount, bufferSize, minUndequeuedBuffers;
     status_t err = configureOutputBuffersFromNativeWindow(
             &bufferCount, &bufferSize, &minUndequeuedBuffers,
+// QTI_BEGIN: 2020-01-21: Video: Disconnect from native window for secure case
             mFlags & kFlagPreregisterMetadataBuffers /* preregister */);
+// QTI_END: 2020-01-21: Video: Disconnect from native window for secure case
     if (err != OK)
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
@@ -2014,6 +2016,7 @@ status_t ACodec::configureCodec(
             setPortMode(kPortIndexInput, IOMX::kPortModePresetByteBuffer);
             err = OK; // ignore error for now
         }
+// QTI_BEGIN: 2020-01-21: Video: Disconnect from native window for secure case
 
         OMX_INDEXTYPE index;
         if (mOMXNode->getExtensionIndex(
@@ -2027,6 +2030,7 @@ status_t ACodec::configureCodec(
                 }
             }
         }
+// QTI_END: 2020-01-21: Video: Disconnect from native window for secure case
     }
     if (haveNativeWindow) {
         sp<ANativeWindow> nativeWindow =
@@ -2854,7 +2858,9 @@ status_t ACodec::configureTemporalLayers(
         layerParams.nPLayerCountActual = numLayers - numBLayers;
         layerParams.nBLayerCountActual = numBLayers;
         layerParams.bBitrateRatiosSpecified = OMX_FALSE;
+// QTI_BEGIN: 2019-04-26: Video: ACodec: Update max temporal layer count
         layerParams.nLayerCountMax = numLayers;
+// QTI_END: 2019-04-26: Video: ACodec: Update max temporal layer count
 // QTI_BEGIN: 2018-06-25: Video: ACodec: Update max temporal layer count
         layerParams.nBLayerCountMax = numBLayers;
 // QTI_END: 2018-06-25: Video: ACodec: Update max temporal layer count

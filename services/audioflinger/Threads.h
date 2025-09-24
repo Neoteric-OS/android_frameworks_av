@@ -2079,7 +2079,9 @@ public:
     }
 
             RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
                     ThreadBase::type_t type,
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
                     AudioStreamIn *input,
                     audio_io_handle_t id,
                     bool systemReady
@@ -2296,9 +2298,12 @@ private:
             std::string                         mSharedAudioPackageName = {};
             int32_t                             mSharedAudioStartFrames = -1;
             audio_session_t                     mSharedAudioSessionId = AUDIO_SESSION_NONE;
+// QTI_BEGIN: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
             std::atomic_bool                    mIsHwSilenced = false;
+// QTI_END: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
 };
 
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
 class DirectRecordThread final : public RecordThread {
   public:
     DirectRecordThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStreamIn* input,
@@ -2306,6 +2311,7 @@ class DirectRecordThread final : public RecordThread {
     ~DirectRecordThread() override;
 };
 
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
 class MmapThread : public ThreadBase, public virtual IAfMmapThread
 {
  public:

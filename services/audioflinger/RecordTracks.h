@@ -73,7 +73,9 @@ public:
     bool isDirect() const final
                                 { return (mFlags & AUDIO_INPUT_FLAG_DIRECT) != 0; }
 
+// QTI_BEGIN: 2024-10-25: Audio: audioflinger: RecordTrack: add debug log
     void setSilenced(bool silenced) final;
+// QTI_END: 2024-10-25: Audio: audioflinger: RecordTrack: add debug log
     bool isSilenced() const final { return mSilenced; }
 
     status_t getActiveMicrophones(

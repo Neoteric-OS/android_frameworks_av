@@ -361,6 +361,7 @@ public:
     wp<AudioPolicyMix> mPolicyMix;  // non NULL when used by a dynamic policy
 
     virtual uint32_t getRecommendedMuteDurationMs() const { return 0; }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     virtual std::string info() const {
         std::string result;
         result.append("[portId:" );
@@ -368,6 +369,7 @@ public:
         result.append("]");
         return result;
     }
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
 protected:
     const sp<PolicyAudioPort> mPolicyAudioPort;
@@ -567,8 +569,10 @@ public:
      */
     bool isUsageActiveOnDevice(audio_usage_t usage, sp<DeviceDescriptor> device) const;
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     virtual std::string info() const override;
 
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     /**
      * Finds all ports matching the given volume source.
      * @param vs to be considered

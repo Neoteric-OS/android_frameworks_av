@@ -79,7 +79,9 @@ device_out_group_t LastRemovableMediaDevices::getDeviceOutGroup(audio_devices_t 
     case AUDIO_DEVICE_OUT_USB_ACCESSORY:
     case AUDIO_DEVICE_OUT_USB_DEVICE:
     case AUDIO_DEVICE_OUT_DGTL_DOCK_HEADSET:
+// QTI_BEGIN: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
     case AUDIO_DEVICE_OUT_AUX_DIGITAL:
+// QTI_END: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
         return GROUP_WIRED;
     case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP:
     case AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES:

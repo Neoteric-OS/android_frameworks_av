@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #ifndef MEDIA_LIBAUDIOUSECASEVALIDATION_TESTS_USECASEVALIDATOR_TEST_H_
 #define MEDIA_LIBAUDIOUSECASEVALIDATION_TESTS_USECASEVALIDATOR_TEST_H_
 
@@ -69,7 +70,9 @@ class UsecaseValidatorTest : public ::testing::Test {
     audio_port_handle_t testCreatePortId(audio_io_handle_t streamId);
     error::Result<audio_attributes_t> testStartClient(audio_io_handle_t streamId,
                                                       audio_port_handle_t portId,
+// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
                                                       audio_attributes_t attributes);
+// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     error::Result<audio_attributes_t> testVerifyAudioAttributes(audio_io_handle_t streamId,
                                                                 audio_usage_t usage);
 
@@ -80,3 +83,4 @@ class UsecaseValidatorTest : public ::testing::Test {
 }  // namespace android
 
 #endif  // MEDIA_LIBAUDIOUSECASEVALIDATION_TESTS_USECASEVALIDATOR_TEST_H_
+// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

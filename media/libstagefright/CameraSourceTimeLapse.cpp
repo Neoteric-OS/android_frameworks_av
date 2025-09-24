@@ -48,7 +48,9 @@ CameraSourceTimeLapse *CameraSourceTimeLapse::CreateFromCamera(
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         const sp<Surface>& surface,
 #else
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         const sp<MediaSurfaceType>& surface,
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 #endif
         int64_t timeBetweenFrameCaptureUs) {
 
@@ -79,7 +81,9 @@ CameraSourceTimeLapse::CameraSourceTimeLapse(
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         const sp<Surface>& surface,
 #else
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         const sp<MediaSurfaceType>& surface,
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 #endif
         int64_t timeBetweenFrameCaptureUs)
       : CameraSource(camera, proxy, cameraId, clientName, clientUid, clientPid,

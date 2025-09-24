@@ -822,9 +822,11 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
             sp<MediaCodecBuffer> inbuf;
             status_t err = mEncoder->getInputBuffer(bufferIndex, &inbuf);
+// QTI_BEGIN: 2017-01-09: Audio: libstagefright: Add NULL check during memcpy for MediaCodecSource
 
             if (err != OK || inbuf == NULL || inbuf->data() == NULL
                     || mbuf->data() == NULL || mbuf->size() == 0) {
+// QTI_END: 2017-01-09: Audio: libstagefright: Add NULL check during memcpy for MediaCodecSource
                 mbuf->release();
 // QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 signalEOS(err);

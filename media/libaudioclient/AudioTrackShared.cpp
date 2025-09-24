@@ -329,7 +329,9 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             errno = 0;
             (void) syscall(__NR_futex, &cblk->mFutex,
                     mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
+// QTI_BEGIN: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             status_t error = errno; // clock_gettime can affect errno
+// QTI_END: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             // update total elapsed time spent waiting
             if (measure) {
                 struct timespec after;
@@ -348,7 +350,9 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
                 before = after;
                 beforeIsValid = true;
             }
+// QTI_BEGIN: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             switch (error) {
+// QTI_END: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             case 0:            // normal wakeup by server, or by binderDied()
             case EWOULDBLOCK:  // benign race condition with server
             case EINTR:        // wait was interrupted by signal or other spurious wakeup
@@ -356,7 +360,9 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
                 // FIXME these error/non-0 status are being dropped
                 break;
             default:
+// QTI_BEGIN: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
                 status = error;
+// QTI_END: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
                 ALOGE("%s unexpected error %s", __func__, strerror(status));
                 goto end;
             }
@@ -971,8 +977,10 @@ size_t AudioTrackServerProxy::framesReady()
     }
     audio_track_cblk_t* cblk = mCblk;
 
+// QTI_BEGIN: 2021-03-19: Audio: return accurate frame count when track is flushed
     flushBufferIfNeeded();
 
+// QTI_END: 2021-03-19: Audio: return accurate frame count when track is flushed
     const int32_t rear = getRear();
     ssize_t filled = audio_utils::safe_sub_overflow(rear, cblk->u.mStreaming.mFront);
     // pipe should not already be overfull

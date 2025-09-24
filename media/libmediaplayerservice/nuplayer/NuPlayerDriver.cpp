@@ -996,9 +996,11 @@ void NuPlayerDriver::notifySeekComplete_l() {
 
 status_t NuPlayerDriver::dump(
         int fd, const Vector<String16> & /* args */) const {
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     Vector<sp<AMessage> > trackStats;
     mPlayer->getStats(&trackStats);
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     AString logString(" NuPlayer\n");
     char buf[256] = {0};
@@ -1024,27 +1026,36 @@ status_t NuPlayerDriver::dump(
         logString.append(buf);
     }
 
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
     for (size_t i = 0; i < trackStats.size(); ++i) {
         const sp<AMessage> &stats = trackStats.itemAt(i);
 
         AString mime;
         if (stats->findString("mime", &mime)) {
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "  mime(%s)\n", mime.c_str());
             logString.append(buf);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
 
         AString name;
         if (stats->findString("component-name", &name)) {
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "    decoder(%s)\n", name.c_str());
             logString.append(buf);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         if (mime.startsWith("video/")) {
             int32_t width, height;
             if (stats->findInt32("width", &width)
                     && stats->findInt32("height", &height)) {
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
                 snprintf(buf, sizeof(buf), "    resolution(%d x %d)\n", width, height);
                 logString.append(buf);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             }
 
             int64_t numFramesTotal = 0;
@@ -1052,15 +1063,20 @@ status_t NuPlayerDriver::dump(
 
             stats->findInt64("frames-total", &numFramesTotal);
             stats->findInt64("frames-dropped-output", &numFramesDropped);
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "    numFramesTotal(%lld), numFramesDropped(%lld), "
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
                      "percentageDropped(%.2f%%)\n",
                      (long long)numFramesTotal,
                      (long long)numFramesDropped,
                      numFramesTotal == 0
                             ? 0.0 : (double)(numFramesDropped * 100) / numFramesTotal);
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             logString.append(buf);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
     }
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     ALOGI("%s", logString.c_str());
 

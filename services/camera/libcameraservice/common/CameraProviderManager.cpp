@@ -2231,8 +2231,10 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fillHeicStreamCombina
         if (sizeAvail) continue;
 
         int64_t stall = 0;
+// QTI_BEGIN: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
         bool useHeic = false;
         bool useGrid = false;
+// QTI_END: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
         if (camera3::HeicCompositeStream::isSizeSupportedByHeifEncoder(
                 halStreamConfigs.data.i32[i+1], halStreamConfigs.data.i32[i+2],
                 &useHeic, &useGrid, &stall, nullptr /*hevcName*/, kFrameworkHeicAllowSWCodecs)) {
