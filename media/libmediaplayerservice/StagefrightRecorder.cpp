@@ -2392,12 +2392,16 @@ status_t StagefrightRecorder::setupMPEG4orWEBMRecording() {
         mAudioSourceNode = setCompressAudioRecording();
         if (mAudioSourceNode == nullptr) {
             ALOGE("%s: unable to create compress audio recording", __func__);
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         } else {
             writer->addSource(mAudioSourceNode);
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
             ALOGI("%s:  created compress audio recording", __func__);
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         }
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (!disableAudio && mAudioSource != AUDIO_SOURCE_CNT &&
         !mEnabledCompressAudioRecording) {
 // QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
@@ -2501,12 +2505,16 @@ status_t StagefrightRecorder::pause() {
     if (mAudioEncoderSource != NULL) {
         mAudioEncoderSource->pause();
     }
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
 
     /* compress recording pause*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         mAudioSourceNode->pause();
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (mVideoEncoderSource != NULL) {
         mVideoEncoderSource->pause(meta.get());
     }
@@ -2529,9 +2537,12 @@ status_t StagefrightRecorder::resume() {
 
     int64_t bufferStartTimeUs = 0;
     bool allSourcesStarted = true;
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
 
     /* compress recording resume*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         int64_t timeUs = mAudioSourceNode->getFirstSampleSystemTimeUs();
         if (timeUs < 0) {
             allSourcesStarted = false;
@@ -2541,6 +2552,7 @@ status_t StagefrightRecorder::resume() {
         }
     }
 
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     for (const auto &source : { mAudioEncoderSource, mVideoEncoderSource }) {
         if (source == nullptr) {
             continue;
@@ -2578,10 +2590,14 @@ status_t StagefrightRecorder::resume() {
         source->start(meta.get());
     }
 
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
      /* compress audio recording resume*/
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
     if (mAudioSourceNode != NULL && mEnabledCompressAudioRecording) {
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
         mAudioSourceNode->start(meta.get());
     }
+// QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
 
     // sum info on pause duration
     // (ignore the 30msec of overlap adjustment factored into mTotalPausedDurationUs)
@@ -2620,6 +2636,7 @@ status_t StagefrightRecorder::stop() {
         }
     }
 
+// QTI_BEGIN: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     if (mVideoEncoderSource != NULL) {
         mVideoEncoderSource->notifyPerformanceMode();
     }
@@ -2628,6 +2645,7 @@ status_t StagefrightRecorder::stop() {
         mCameraSource->notifyPerformanceMode();
     }
 
+// QTI_END: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     if (mWriter != NULL) {
         err = mWriter->stop();
         mLastSeqNo = mWriter->getSequenceNum();
@@ -2746,8 +2764,10 @@ status_t StagefrightRecorder::reset() {
 
     mOutputFd = -1;
 
+// QTI_BEGIN: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     mCameraSource = NULL;
 
+// QTI_END: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     return OK;
 }
 
