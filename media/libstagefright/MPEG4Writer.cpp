@@ -99,7 +99,9 @@ static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
 #endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
+// QTI_BEGIN: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 static const char kMetaKey_TemporalLayerCount[] = "com.android.video.temporal_layers_count";
+// QTI_END: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 
 static const int kTimestampDebugCount = 10;
 static const int kItemIdBase = 10000;
@@ -2087,6 +2089,7 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
     return OK;
 }
 
+// QTI_BEGIN: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
     if (layerCount > 9) {
         return BAD_VALUE;
@@ -2100,6 +2103,7 @@ status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
     return OK;
 }
 
+// QTI_END: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 void MPEG4Writer::notifyApproachingLimit() {
     Mutex::Autolock autolock(mLock);
     // Only notify once.
@@ -3911,6 +3915,7 @@ status_t MPEG4Writer::Track::threadEntry() {
     status_t err = OK;
     MediaBufferBase *buffer;
     const char *trackName = getTrackType();
+// QTI_BEGIN: 2022-04-08: Audio: av: add support for compress audio recording
     while (!mDone && (err = mSource->read(&buffer)) == OK && buffer != NULL) {
 // QTI_END: 2022-04-08: Audio: av: add support for compress audio recording
         ALOGV("read:buffer->range_length:%lld", (long long)buffer->range_length());
@@ -5248,6 +5253,7 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
 
     mOwner->endBox();  // esds
 }
+// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 void MPEG4Writer::Track::writeMhaCBox() {
     mOwner->beginBox("mhaC");
     mOwner->writeInt8(0x01);          // version=1

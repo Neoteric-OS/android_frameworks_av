@@ -160,6 +160,7 @@ static inline bool device_distinguishes_on_address(audio_devices_t device)
            apm_audio_out_device_distinguishes_on_address(device);
 }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 /**
  * Check whether audio device has encoding capability.
  *
@@ -169,9 +170,12 @@ static inline bool device_distinguishes_on_address(audio_devices_t device)
  */
 static inline bool device_has_encoding_capability(audio_devices_t device)
 {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     return audio_is_a2dp_out_device(device) || audio_is_ble_out_device(device);
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 }
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 /**
  * Returns the priority of a given audio source for capture. The priority is used when more than one
  * capture session is active on a given input stream to determine which session drives routing and

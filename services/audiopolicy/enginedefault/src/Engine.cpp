@@ -318,8 +318,10 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
                             // excluding HEARING_AID and BLE_HEADSET because Dialer uses
                             // setCommunicationDevice to select them explicitly
                             AUDIO_DEVICE_OUT_HEARING_AID,
+// QTI_BEGIN: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
                             AUDIO_DEVICE_OUT_BLE_HEADSET,
                             AUDIO_DEVICE_OUT_AUX_DIGITAL
+// QTI_END: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
                             }));
         if (!devices.isEmpty()) break;
         devices = availableOutputDevices.getFirstDevicesFromTypes({
@@ -471,11 +473,13 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
         }
 
         if (devices2.isEmpty() && (getLastRemovableMediaDevices().size() > 0)) {
+// QTI_BEGIN: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
             std::vector<audio_devices_t> excludedDevices;
             // no sonification on aux digital (e.g. HDMI)
             if (strategy == STRATEGY_SONIFICATION) {
                 excludedDevices.push_back(AUDIO_DEVICE_OUT_AUX_DIGITAL);
             }
+// QTI_END: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
             if ((getForceUse(AUDIO_POLICY_FORCE_FOR_MEDIA) != AUDIO_POLICY_FORCE_NO_BT_A2DP)) {
                 if (isBtScoActive(availableOutputDevices)) {
                     devices2 = availableOutputDevices.getFirstDevicesFromTypes(
@@ -492,7 +496,9 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
             } else {
                 // Get the last connected device of wired except bluetooth a2dp
                 devices2 = availableOutputDevices.getFirstDevicesFromTypes(
+// QTI_BEGIN: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
                         getLastRemovableMediaDevices(GROUP_WIRED, excludedDevices));
+// QTI_END: 2023-10-17: Audio: audiopolicy: treat HDMI as part of last connected media device
             }
         }
 

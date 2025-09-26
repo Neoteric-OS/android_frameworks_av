@@ -134,8 +134,10 @@ void AudioOutputDescriptor::setClientActive(const sp<TrackClientDescriptor>& cli
 bool AudioOutputDescriptor::isClientActive(const sp<TrackClientDescriptor>& client)
 {
 // QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
+// QTI_BEGIN: 2020-12-01: Audio: audiopolicy: stop output if it's still active before being released.
     return client != nullptr &&
             std::find(begin(mActiveClients), end(mActiveClients), client) != end(mActiveClients);
+// QTI_END: 2020-12-01: Audio: audiopolicy: stop output if it's still active before being released.
 // QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
 }
 
@@ -1164,6 +1166,7 @@ bool SwAudioOutputCollection::isUsageActiveOnDevice(audio_usage_t usage,
     return false;
 }
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 std::string SwAudioOutputDescriptor::info() const {
     std::string result;
     result.append("[" );
@@ -1171,11 +1174,14 @@ std::string SwAudioOutputDescriptor::info() const {
     result.append("[io:" );
     result.append(android::internal::ToString(mIoHandle));
     result.append(", " );
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     result.append(isDuplicated() ? "duplicating" : mProfile->getTagName());
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     result.append("]]");
     return result;
 }
 
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 void SwAudioOutputCollection::dump(String8 *dst) const
 {
     dst->appendFormat("\n Outputs (%zu):\n", size());

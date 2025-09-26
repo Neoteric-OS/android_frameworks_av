@@ -107,8 +107,10 @@ public:
                                                                   const char *device_address);
         virtual status_t handleDeviceConfigChange(audio_devices_t device,
                                                   const char *device_address,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                   const char *device_name,
                                                   audio_format_t encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         virtual void setPhoneState(audio_mode_t state);
         virtual void setForceUse(audio_policy_force_use_t usage,
                                  audio_policy_forced_cfg_t config);
@@ -625,7 +627,9 @@ protected:
 
         /**
          * @brief setOutputDevices change the route of the specified output.
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
          * @param caller of the method
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
          * @param outputDesc to be considered
          * @param device to be considered to route the output
          * @param force if true, force the routing even if no change.
@@ -639,8 +643,10 @@ protected:
          * @return the number of ms we have slept to allow new routing to take effect in certain
          *        cases.
          */
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         uint32_t setOutputDevices(const char *caller,
                                   const sp<SwAudioOutputDescriptor>& outputDesc,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                                   const DeviceVector &device,
                                   bool force = false,
                                   int delayMs = 0,
@@ -1335,7 +1341,9 @@ protected:
 // QTI_END: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
                                              audio_policy_dev_state_t state,
                                              const char *device_address,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              const char *device_name,
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              audio_format_t encodedFormat, bool deviceSwitch = false);
         status_t setDeviceConnectionStateInt(const sp<DeviceDescriptor> &device,
                                              audio_policy_dev_state_t state, bool deviceSwitch);

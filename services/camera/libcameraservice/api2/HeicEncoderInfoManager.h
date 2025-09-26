@@ -38,7 +38,9 @@ public:
     bool isSizeSupported(int32_t width, int32_t height,
             bool* useHeic, bool* useGrid, int64_t* stall, AString* hevcName) const;
 
+// QTI_BEGIN: 2021-06-29: Camera: Update max HEIC buffer calculation
     // kGridWidth and kGridHeight should be 2^n
+// QTI_END: 2021-06-29: Camera: Update max HEIC buffer calculation
     static const auto kGridWidth = 512;
     static const auto kGridHeight = 512;
 private:

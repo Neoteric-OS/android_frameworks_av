@@ -16,7 +16,9 @@
 
 #define LOG_TAG "Camera3-HeicCompositeStream"
 #define ATRACE_TAG ATRACE_TAG_CAMERA
+// QTI_BEGIN: 2021-06-29: Camera: Update max HEIC buffer calculation
 #define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
+// QTI_END: 2021-06-29: Camera: Update max HEIC buffer calculation
 //#define LOG_NDEBUG 0
 
 #include <linux/memfd.h>
@@ -120,7 +122,9 @@ HeicCompositeStream::~HeicCompositeStream() {
     mMainImageSurfaceId = -1;
     mMainImageConsumer.clear();
     mMainImageSurface.clear();
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     mDynamicProfileHLG10 = false;
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
 }
 
 bool HeicCompositeStream::isHeicCompositeStreamInfo(const OutputStreamInfo& streamInfo,
@@ -168,7 +172,9 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
 // QTI_BEGIN: 2023-05-09: Camera: Propagate colorspace to heic composite stream
         int /*streamSetId*/, bool /*isShared*/, int32_t colorSpace,
 // QTI_END: 2023-05-09: Camera: Propagate colorspace to heic composite stream
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
         int64_t dynamicProfile, int64_t /*streamUseCase*/, bool useReadoutTimestamp) {
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
 
     sp<CameraDeviceBase> device = mDevice.promote();
     if (!device.get()) {
@@ -191,10 +197,12 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         mAppSegmentSupported = false;
     }
 
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     if (dynamicProfile == ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10) {
         mDynamicProfileHLG10 = true;
     }
 
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     res = initializeCodec(width, height, device);
     if (res != OK) {
         ALOGE("%s: Failed to initialize HEIC/HEVC codec: %s (%d)",
@@ -267,25 +275,37 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
     }
 
     //Use YUV_420 format if framework tiling is needed.
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     int srcStreamFmt = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
 
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
+// QTI_BEGIN: 2025-05-07: Camera: Enable IMPL_DEF with HLG10 for HEIC format
     if (TRUE == mHDRGainmapEnabled)
+// QTI_END: 2025-05-07: Camera: Enable IMPL_DEF with HLG10 for HEIC format
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     {
         srcStreamFmt = static_cast<android_pixel_format_t>(HAL_PIXEL_FORMAT_YCBCR_P010);
     }
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
+// QTI_BEGIN: 2025-05-07: Camera: Enable IMPL_DEF with HLG10 for HEIC format
     else if (TRUE == mDynamicProfileHLG10)
     {
         srcStreamFmt = HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED;
     }
+// QTI_END: 2025-05-07: Camera: Enable IMPL_DEF with HLG10 for HEIC format
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     else if (TRUE == mUseGrid)
     {
         srcStreamFmt = HAL_PIXEL_FORMAT_YCbCr_420_888;
     }
 
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     res = device->createStream(mMainImageSurface, width, height, srcStreamFmt, mInternalDataSpace,
             rotation, id, physicalCameraId, sensorPixelModesUsed, surfaceIds,
             camera3::CAMERA3_STREAM_SET_ID_INVALID, /*isShared*/false, /*isMultiResolution*/false,
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
             /*consumerUsage*/0, (mHDRGainmapEnabled || mDynamicProfileHLG10) ?
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10 :
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
             ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT,
@@ -823,7 +843,9 @@ void HeicCompositeStream::compilePendingInputLocked() {
         auto it = mInputAppSegmentBuffers.begin();
         auto res = mAppSegmentConsumer->lockNextBuffer(&imgBuffer);
         if (res == NOT_ENOUGH_DATA) {
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             // Can not lock any more buffers.
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             break;
         } else if ((res != OK) || (*it != imgBuffer.timestamp)) {
             if (res != OK) {
@@ -833,7 +855,9 @@ void HeicCompositeStream::compilePendingInputLocked() {
                 ALOGE("%s: Expecting JPEG_APP_SEGMENTS buffer with time stamp: %" PRId64
                         " received buffer with time stamp: %" PRId64, __FUNCTION__,
                         *it, imgBuffer.timestamp);
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
                 mAppSegmentConsumer->unlockBuffer(imgBuffer);
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             }
             mPendingInputFrames[*it].error = true;
             mInputAppSegmentBuffers.erase(it);
@@ -867,7 +891,9 @@ void HeicCompositeStream::compilePendingInputLocked() {
         auto it = mInputYuvBuffers.begin();
         auto res = mMainImageConsumer->lockNextBuffer(&imgBuffer);
         if (res == NOT_ENOUGH_DATA) {
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             // Can not lock any more buffers.
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             break;
         } else if (res != OK) {
             ALOGE("%s: Error locking YUV_888 image buffer: %s (%d)", __FUNCTION__,
@@ -913,7 +939,9 @@ void HeicCompositeStream::compilePendingInputLocked() {
         int64_t bufferFrameNumber = -1;
         if (mCodecOutputBufferFrameNumbers.empty()) {
             ALOGV("%s: Failed to find buffer frameNumber for codec output buffer!", __FUNCTION__);
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Wait for output TS before dequeuing output buffers
             break;
+// QTI_END: 2019-10-16: Camera: Heic: Wait for output TS before dequeuing output buffers
         } else {
             // Direct mapping between camera frame number and codec timestamp (in us).
             bufferFrameNumber = mCodecOutputBufferFrameNumbers.front();
@@ -1232,13 +1260,17 @@ status_t HeicCompositeStream::processInputFrame(int64_t frameNumber,
     }
 
     if ((inputFrame.pendingOutputTiles == 0) && (inputFrame.gainmapPendingOutputTiles == 0)) {
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
         if (inputFrame.appSegmentWritten) {
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             res = processCompletedInputFrame(frameNumber, inputFrame);
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             if (res != OK) {
                 ALOGE("%s: Failed to process completed input frame: %s (%d)", __FUNCTION__,
                         strerror(-res), res);
                 return res;
             }
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
         }
     }
 
@@ -1380,9 +1412,11 @@ status_t HeicCompositeStream::processAppSegment(int64_t frameNumber, InputFrame 
     ALOGV("%s: [%" PRId64 "]: appSegmentSize is %zu, width %d, height %d, app1Size %zu",
           __FUNCTION__, frameNumber, appSegmentSize, inputFrame.appSegmentBuffer.width,
           inputFrame.appSegmentBuffer.height, app1Size);
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
 
     inputFrame.appSegmentWritten = true;
     // Release the buffer now so any pending input app segments can be processed
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     if (!inputFrame.exifError) {
         mAppSegmentConsumer->unlockBuffer(inputFrame.appSegmentBuffer);
         inputFrame.appSegmentBuffer.data = nullptr;
@@ -1794,12 +1828,16 @@ void HeicCompositeStream::releaseInputFrameLocked(int64_t frameNumber,
     }
 }
 
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
 void HeicCompositeStream::releaseInputFramesLocked() {
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     auto it = mPendingInputFrames.begin();
     bool inputFrameDone = false;
     while (it != mPendingInputFrames.end()) {
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
         auto& inputFrame = it->second;
         if (inputFrame.error ||
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
                 (inputFrame.appSegmentWritten && inputFrame.pendingOutputTiles == 0 &&
                  inputFrame.gainmapPendingOutputTiles == 0)) {
             releaseInputFrameLocked(it->first, &inputFrame);
@@ -2040,11 +2078,13 @@ status_t HeicCompositeStream::initializeCodec(uint32_t width, uint32_t height,
     outputFormat->setInt32(KEY_I_FRAME_INTERVAL, 0);
     outputFormat->setInt32(KEY_COLOR_FORMAT,
             useGrid || mHDRGainmapEnabled ? COLOR_FormatYUV420Flexible : COLOR_FormatSurface);
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     if (mDynamicProfileHLG10) {
         outputFormat->setInt32(KEY_PROFILE, HEVCProfileMain10Still);
         outputFormat->setInt32(KEY_COLOR_FORMAT, COLOR_FormatYUVP010);
         ALOGV("%s KEY_PROFILE: HEVCProfileMain10Still, KEY_COLOR_FORMAT: COLOR_FormatYUVP010", __FUNCTION__);
     }
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     outputFormat->setInt32(KEY_FRAME_RATE, useGrid ? gridRows * gridCols : kNoGridOpRate);
     // This only serves as a hint to encoder when encoding is not real-time.
     outputFormat->setInt32(KEY_OPERATING_RATE, useGrid ? kGridOpRate : kNoGridOpRate);
@@ -2082,9 +2122,11 @@ status_t HeicCompositeStream::initializeCodec(uint32_t width, uint32_t height,
     mOutputWidth = width;
     mOutputHeight = height;
     mAppSegmentMaxSize = calcAppSegmentMaxSize(cameraDevice->info());
+// QTI_BEGIN: 2021-06-29: Camera: Update max HEIC buffer calculation
     mMaxHeicBufferSize =
         ALIGN(mOutputWidth, HeicEncoderInfoManager::kGridWidth) *
         ALIGN(mOutputHeight, HeicEncoderInfoManager::kGridHeight) * 3 / 2 + mAppSegmentMaxSize;
+// QTI_END: 2021-06-29: Camera: Update max HEIC buffer calculation
 
     return initializeGainmapCodec();
 }
@@ -2379,7 +2421,9 @@ bool HeicCompositeStream::threadLoop() {
             // In case we landed in error state, return any pending buffers and
             // halt all further processing.
             compilePendingInputLocked();
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             releaseInputFramesLocked();
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
             return false;
         }
 
@@ -2430,7 +2474,9 @@ bool HeicCompositeStream::threadLoop() {
         mPendingInputFrames[frameNumber].error = true;
     }
 
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     releaseInputFramesLocked();
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
 
     return true;
 }

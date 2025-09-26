@@ -144,8 +144,10 @@ struct DevicePortTraits : public AndroidCollectionTraits<DeviceDescriptor, Devic
         static constexpr const char *roleSource = "source"; /**< <attribute role source value>. */
         /** optional: device address, char string less than 64. */
         static constexpr const char *address = "address";
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         /** optional: the list of encoded audio formats that are known to be supported. */
         static constexpr const char *encodedFormats = "encodedFormats";
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     };
 
     // Children: GainTraits (optional)
@@ -561,12 +563,14 @@ std::variant<status_t, DevicePortTraits::Element> PolicySerializer::deserialize<
         ALOGW("%s: bad type %08x", __func__, type);
         return BAD_VALUE;
     }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     std::string encodedFormatsLiteral = getXmlAttribute(cur, Attributes::encodedFormats);
     ALOGV("%s: %s %s=%s", __func__, tag, Attributes::encodedFormats, encodedFormatsLiteral.c_str());
     FormatVector encodedFormats;
     if (!encodedFormatsLiteral.empty()) {
         encodedFormats = formatsFromString(encodedFormatsLiteral, " ");
     }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     std::string address = getXmlAttribute(cur, Attributes::address);
     DevicePortTraits::Element deviceDesc =
             new DeviceDescriptor(type, name, address, encodedFormats);

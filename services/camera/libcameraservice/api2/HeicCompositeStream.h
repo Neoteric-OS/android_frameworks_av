@@ -235,7 +235,9 @@ private:
     status_t processCompletedInputFrame(int64_t frameNumber, InputFrame &inputFrame);
 
     void releaseInputFrameLocked(int64_t frameNumber, InputFrame *inputFrame /*out*/);
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     void releaseInputFramesLocked();
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
 
     size_t findAppSegmentsSize(const uint8_t* appSegmentBuffer, size_t maxSize,
             size_t* app1SegmentSize);
@@ -254,8 +256,10 @@ private:
     static constexpr android_dataspace kHeifDataSpace =
             static_cast<android_dataspace>(HAL_DATASPACE_HEIF);
     android_dataspace mInternalDataSpace = kHeifDataSpace;
+// QTI_BEGIN: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     // Use the limit of pipeline depth in the API sepc as maximum number of acquired
     // app segment buffers.
+// QTI_END: 2019-10-16: Camera: Heic: Handle out-of-order buffer outputs
     static constexpr uint32_t kMaxAcquiredAppSegment = 8;
 
     int               mAppSegmentStreamId, mAppSegmentSurfaceId;
@@ -330,9 +334,11 @@ private:
 
     bool mHDRGainmapEnabled = false;
 
+// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     // Used to check if dynamic profile is HLG10
     bool mDynamicProfileHLG10    = false;
 
+// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     // UltraHDR tonemap color and format aspects
     static constexpr uhdr_img_fmt_t kUltraHdrInputFmt = UHDR_IMG_FMT_24bppYCbCrP010;
     static constexpr uhdr_color_gamut kUltraHdrInputGamut = UHDR_CG_BT_2100;

@@ -86,8 +86,10 @@ NuPlayer::Decoder::Decoder(
       mNumFramesTotal(0LL),
       mNumInputFramesDropped(0LL),
       mNumOutputFramesDropped(0LL),
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
       mVideoWidth(0),
       mVideoHeight(0),
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
       mIsAudio(true),
       mIsVideoAVC(false),
       mIsSecure(false),
@@ -123,9 +125,11 @@ NuPlayer::Decoder::~Decoder() {
 sp<AMessage> NuPlayer::Decoder::getStats() {
 
     Mutex::Autolock autolock(mStatsLock);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
     mStats->setInt64("frames-total", mNumFramesTotal);
     mStats->setInt64("frames-dropped-input", mNumInputFramesDropped);
     mStats->setInt64("frames-dropped-output", mNumOutputFramesDropped);
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
     mStats->setFloat("frame-rate-total", mFrameRateTotal);
 
     // make our own copy, so we aren't victim to any later changes.
@@ -443,17 +447,21 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
         mStats->setString("mime", mime.c_str());
         mStats->setString("component-name", mComponentName.c_str());
     }
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     if (!mIsAudio) {
         int32_t width, height;
         if (mOutputFormat->findInt32("width", &width)
                 && mOutputFormat->findInt32("height", &height)) {
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             Mutex::Autolock autolock(mStatsLock);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             mStats->setInt32("width", width);
             mStats->setInt32("height", height);
         }
     }
 
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
     sp<AMessage> reply = new AMessage(kWhatCodecNotify, this);
     mCodec->setCallback(reply);
 
@@ -916,13 +924,17 @@ bool NuPlayer::Decoder::handleAnOutputBuffer(
 
 void NuPlayer::Decoder::handleOutputFormatChange(const sp<AMessage> &format) {
     if (!mIsAudio) {
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         int32_t width, height;
         if (format->findInt32("width", &width)
                 && format->findInt32("height", &height)) {
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             Mutex::Autolock autolock(mStatsLock);
+// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             mStats->setInt32("width", width);
             mStats->setInt32("height", height);
         }
+// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         sp<AMessage> notify = mNotify->dup();
         notify->setInt32("what", kWhatVideoSizeChanged);
         notify->setMessage("format", format);

@@ -200,9 +200,9 @@ c2_status_t C2IgbaBlockPool::fetchGraphicBlock(
         // SyncFence waiting timeout.
         // Usually HAL treats C2_TIMED_OUT as an irrecoverable error.
         // We want HAL to re-try.
-// QTI_BEGIN: 2024-04-09: Video: "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b"
+// QTI_BEGIN: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
         return C2_BLOCKING;
-// QTI_END: 2024-04-09: Video: "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b"
+// QTI_END: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
     }
     return res;
 }

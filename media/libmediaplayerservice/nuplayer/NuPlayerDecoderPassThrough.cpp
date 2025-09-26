@@ -72,14 +72,18 @@ void NuPlayer::DecoderPassThrough::onConfigure(const sp<AMessage> &format) {
 
     onRequestInputBuffers();
 
+// QTI_BEGIN: 2015-04-02: Audio: nuplayer: Has video hint for offload
     int32_t hasVideo = 0;
     format->findInt32("has-video", &hasVideo);
 
+// QTI_END: 2015-04-02: Audio: nuplayer: Has video hint for offload
     // The audio sink is already opened before the PassThrough decoder is created.
     // Opening again might be relevant if decoder is instantiated after shutdown and
     // format is different.
     status_t err = mRenderer->openAudioSink(
+// QTI_BEGIN: 2015-04-02: Audio: nuplayer: Has video hint for offload
             format, true /* offloadOnly */, hasVideo,
+// QTI_END: 2015-04-02: Audio: nuplayer: Has video hint for offload
             AUDIO_OUTPUT_FLAG_NONE /* flags */, NULL /* isOffloaded */, mSource->isStreaming());
     if (err != OK) {
         handleError(err);
