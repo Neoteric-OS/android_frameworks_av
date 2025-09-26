@@ -410,7 +410,9 @@ private:
                                            // volume
     sp<AudioTrackServerProxy>  mAudioTrackServerProxy;
     bool                mResumeToStopping; // track was paused in stopping state.
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     bool                mFlushHwPending; // track requests for thread flush
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     bool                mPauseHwPending = false; // direct/offload track request for thread pause
     audio_output_flags_t mFlags;
     TeePatches mTeePatches;

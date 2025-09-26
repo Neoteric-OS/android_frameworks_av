@@ -2181,8 +2181,10 @@ status_t NuPlayer::instantiateDecoder(
         if (mOffloadAudio) {
             mSource->setOffloadAudio(true /* offload */);
 
+// QTI_BEGIN: 2015-04-02: Audio: nuplayer: Has video hint for offload
             const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
             format->setInt32("has-video", hasVideo);
+// QTI_END: 2015-04-02: Audio: nuplayer: Has video hint for offload
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             *decoder = AVNuFactory::get()->createPassThruDecoder(notify, mSource, mRenderer);
             ALOGV("instantiateDecoder audio DecoderPassThrough hasVideo: %d", hasVideo);

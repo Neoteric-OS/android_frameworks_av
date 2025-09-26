@@ -228,11 +228,15 @@ AudioResampler* AudioResampler::create(audio_format_t format, int inChannelCount
         resampler = new AudioResamplerCubic(inChannelCount, sampleRate);
         break;
     case HIGH_QUALITY:
+// QTI_BEGIN: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         ALOGV("Create HIGH_QUALITY sinc Resampler");
+// QTI_END: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
         resampler = new AudioResamplerSinc(inChannelCount, sampleRate);
         break;
+// QTI_BEGIN: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
     case VERY_HIGH_QUALITY:
+// QTI_END: 2012-09-26: Audio: audioflinger: use resample coefficients from audio-resampler library.
         ALOGV("Create VERY_HIGH_QUALITY sinc Resampler = %d", quality);
         LOG_ALWAYS_FATAL_IF(format != AUDIO_FORMAT_PCM_16_BIT);
         resampler = new AudioResamplerSinc(inChannelCount, sampleRate, quality);

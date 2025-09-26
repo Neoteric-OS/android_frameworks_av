@@ -29,6 +29,7 @@ using aidl::android::media::audio::IHalAdapterVendorExtension;
 
 namespace android {
 
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t reparseVendorParameters(const std::string& vendorParameters, String8* values) {
     // Re-parse the vendor-provided string to ensure that it is correct.
     AudioParameter reparse(String8(vendorParameters.c_str()));
@@ -45,40 +46,55 @@ status_t fillVendorParameterIds(std::shared_ptr<IHalAdapterVendorExtension> vend
                                 IHalAdapterVendorExtension::ParameterScope scope,
                                 const AudioParameter& parameterKeys,
                                 std::vector<std::string>& vendorParametersIds) {
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     if (parameterKeys.size() == 0) return OK;
     const String8 rawKeys = parameterKeys.keysToString();
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     assert(vendorParametersIds.size() == 0);
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(vendorExt->parseVendorParameterIds(
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
             scope, std::string(rawKeys.c_str()), &vendorParametersIds)));
     return OK;
 }
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t fillKeyValuePairsFromVendorParameters(
         std::shared_ptr<IHalAdapterVendorExtension> vendorExt,
         IHalAdapterVendorExtension::ParameterScope scope,
         const std::vector<VendorParameter>& vendorParameters, String8* values) {
     if (vendorParameters.empty()) {
         return OK;
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     }
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     std::string keyValuePairs;
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
             vendorExt->processVendorParameters(scope, vendorParameters, &keyValuePairs)));
     RETURN_STATUS_IF_ERROR(reparseVendorParameters(keyValuePairs, values));
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     return OK;
 }
 
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t fillVendorParameters(std::shared_ptr<IHalAdapterVendorExtension> vendorExt,
                               IHalAdapterVendorExtension::ParameterScope scope,
                               const AudioParameter& parameters,
                               std::vector<VendorParameter>& syncParameters,
                               std::vector<VendorParameter>& asyncParameters) {
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     if (parameters.size() == 0) return OK;
 
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     assert(syncParameters.empty() && asyncParameters.empty());
 
     const String8 rawKeysAndValues = parameters.toString();
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(vendorExt->parseVendorParameters(
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
             scope, std::string(rawKeysAndValues.c_str()), &syncParameters, &asyncParameters)));
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     return OK;
 }
 

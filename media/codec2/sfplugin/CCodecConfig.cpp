@@ -2220,9 +2220,11 @@ status_t CCodecConfig::querySupportedParameters(std::vector<std::string> *names)
     names->clear();
     // TODO: expand to standard params
     for (const auto &[key, desc] : mVendorParams) {
+// QTI_BEGIN: 2022-03-24: Video: CodecConfig: Hide vendor params that are marked hidden
         if (desc->isVisible()) {
             names->push_back(key);
         }
+// QTI_END: 2022-03-24: Video: CodecConfig: Hide vendor params that are marked hidden
     }
     return OK;
 }

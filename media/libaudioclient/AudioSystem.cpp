@@ -877,9 +877,11 @@ AudioSystem::AudioFlingerClient::getIoDescriptor_l(audio_io_handle_t ioHandle) {
 
 sp<AudioIoDescriptor> AudioSystem::AudioFlingerClient::getIoDescriptor(audio_io_handle_t ioHandle) {
     std::lock_guard _l(mMutex);
+// QTI_BEGIN: 2015-10-01: Audio: AudioSystem: Fix race condition in accessing ioDescriptors
     return getIoDescriptor_l(ioHandle);
 }
 
+// QTI_END: 2015-10-01: Audio: AudioSystem: Fix race condition in accessing ioDescriptors
 status_t AudioSystem::AudioFlingerClient::addAudioDeviceCallback(
         const wp<AudioDeviceCallback>& callback, audio_io_handle_t audioIo,
         audio_port_handle_t portId) {
@@ -2574,7 +2576,9 @@ status_t AudioSystem::getVolumeGroupFromAudioAttributes(const audio_attributes_t
             aps->getVolumeGroupFromAudioAttributes(aaAidl, fallbackOnDefault, &volumeGroupAidl)));
     volumeGroup = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_volume_group_t(volumeGroupAidl));
     return OK;
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 
 status_t AudioSystem::setRttEnabled(bool enabled) {
     const sp<IAudioPolicyService> aps = get_audio_policy_service();

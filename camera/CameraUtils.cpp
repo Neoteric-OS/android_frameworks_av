@@ -19,7 +19,9 @@
 
 #include <camera/CameraUtils.h>
 #include <camera/camera2/OutputConfiguration.h>
+// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <media/hardware/HardwareAPI.h>
+// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 
 #include <android-base/properties.h>
 #include <system/window.h>

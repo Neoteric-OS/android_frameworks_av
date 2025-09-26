@@ -55,11 +55,13 @@ namespace android {
 static const int64_t CAMERA_SOURCE_TIMEOUT_NS = 3000000000LL;
 
 static int32_t getColorFormat(const char* colorFormat) {
+// QTI_BEGIN: 2016-10-26: Video: Stagefright: add a NULL check before accessing camera params
     if (!colorFormat) {
         ALOGE("Invalid color format");
         return -1;
     }
 
+// QTI_END: 2016-10-26: Video: Stagefright: add a NULL check before accessing camera params
     if (!strcmp(colorFormat, CameraParameters::PIXEL_FORMAT_YUV420P)) {
        return OMX_COLOR_FormatYUV420Planar;
     }
@@ -516,10 +518,12 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
     mVideoBufferProducer = surface->getIGraphicBufferProducer();
 #endif  // WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
 
+// QTI_BEGIN: 2025-05-05: Camera: Stagefright: add NULL check before accessing param am: 04f7151910
     if (mVideoBufferConsumer == nullptr) {
         return -1;
     }
 
+// QTI_END: 2025-05-05: Camera: Stagefright: add NULL check before accessing param am: 04f7151910
     status_t res = mVideoBufferConsumer->setDefaultBufferSize(width, height);
     if (res != OK) {
         ALOGE("%s: Could not set buffer dimensions %dx%d: %s (%d)", __FUNCTION__, width, height,
@@ -604,8 +608,10 @@ status_t CameraSource::initWithCameraAccess(
     // Set the preview display. Skip this if mSurface is null because
     // applications may already set a surface to the camera.
     if (mSurface != NULL) {
+// QTI_BEGIN: 2022-05-02: Camera: CameraSource: Remove CHECK if set preview target fails with CameraSource
         // Surface may be set incorrectly or could already be used even if we just
         // passed the lock/unlock check earlier by calling mCamera->setParameters().
+// QTI_END: 2022-05-02: Camera: CameraSource: Remove CHECK if set preview target fails with CameraSource
 // QTI_BEGIN: 2020-10-22: Video: av: Remove assert if set preview target fails with CameraSource
         if ((err = mCamera->setPreviewTarget(mSurface)) != OK) {
             return err;

@@ -1433,11 +1433,13 @@ status_t EffectModule::setVolumeInternal_ll(
 
 void EffectChain::setVolumeForOutput_l(uint32_t left, uint32_t right)
 {
+// QTI_BEGIN: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
     // for offload or direct thread, if the effect chain has non-offloadable
     // effect and any effect module within the chain has volume control, then
     // volume control is delegated to effect, otherwise, set volume to hal.
     if (mEffectCallback->isOffloadOrDirect() &&
         !(isNonOffloadableEnabled_l() && hasVolumeControlEnabled_l())) {
+// QTI_END: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
         float vol_l = (float)left / (1 << 24);
         float vol_r = (float)right / (1 << 24);
         mEffectCallback->setVolumeForOutput(vol_l, vol_r);
@@ -2691,12 +2693,16 @@ void EffectChain::setAudioSource_l(audio_source_t source)
 }
 
 bool EffectChain::hasVolumeControlEnabled_l() const {
+// QTI_BEGIN: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
     for (const auto &effect : mEffects) {
+// QTI_END: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
         if (effect->isVolumeControlEnabled_l()) return true;
+// QTI_BEGIN: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
     }
     return false;
 }
 
+// QTI_END: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
 // setVolume() must be called without EffectChain::mutex()
 bool EffectChain::setVolume(uint32_t* left, uint32_t* right, bool force) {
     audio_utils::lock_guard _l(mutex());

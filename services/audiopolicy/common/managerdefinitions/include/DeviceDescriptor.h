@@ -52,16 +52,20 @@ public:
 
     virtual const std::string getTagName() const { return mTagName; }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     audio_format_t getEncodedFormat() { return mCurrentEncodedFormat; }
 
     void setEncodedFormat(audio_format_t format) {
         mCurrentEncodedFormat = format;
     }
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     bool equals(const sp<DeviceDescriptor>& other) const;
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     bool hasCurrentEncodedFormat() const;
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     void setDynamic() { mIsDynamic = true; }
     bool isDynamic() const { return mIsDynamic; }
 
@@ -107,7 +111,9 @@ private:
     }
 
     std::string mTagName; // Unique human readable identifier for a device port found in conf file.
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     audio_format_t      mCurrentEncodedFormat;
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     bool                mIsDynamic = false;
     std::string         mDeclaredAddress; // Original device address
     std::optional<audio_config_base_t> mPreferredConfig;
@@ -131,10 +137,12 @@ public:
 
     DeviceTypeSet types() const { return mDeviceTypes; }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     // If 'address' is empty and 'codec' is AUDIO_FORMAT_DEFAULT, a device with a non-empty
     // address may be returned if there is no device with the specified 'type' and empty address.
     sp<DeviceDescriptor> getDevice(audio_devices_t type, const String8 &address,
                                    audio_format_t codec) const;
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     DeviceVector getDevicesFromTypes(const DeviceTypeSet& types) const;
     DeviceVector getDevicesFromType(audio_devices_t type) const {
         return getDevicesFromTypes({type});
@@ -313,8 +321,10 @@ public:
 
     void dump(String8 *dst, const String8 &tag, int spaces = 0, bool verbose = true) const;
 
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Add support for multiple display ports.
 protected:
     int     do_compare(const void* lhs, const void* rhs) const;
+// QTI_END: 2021-02-04: Audio: audiopolicy: Add support for multiple display ports.
 private:
     void refreshTypes();
     void refreshAudioProfiles();

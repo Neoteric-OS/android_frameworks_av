@@ -100,6 +100,7 @@ private:
     status_t mInitCheck;
     bool mIsRealTimeRecording;
     bool mIsBackgroundMode;
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 protected:
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     bool mUse4ByteNalLength;

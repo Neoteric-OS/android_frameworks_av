@@ -541,7 +541,9 @@ enum C2Config::profile_t : uint32_t {
     PROFILE_HEVC_MAIN = _C2_PL_HEVC_BASE,       ///< HEVC (H.265) Main
     PROFILE_HEVC_MAIN_10,                       ///< HEVC (H.265) Main 10
     PROFILE_HEVC_MAIN_STILL,                    ///< HEVC (H.265) Main Still Picture
+// QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
     PROFILE_HEVC_MAIN_10_STILL,                 ///< HEVC (H.265) Main  10 Still Picture
+// QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
     PROFILE_HEVC_MONO = _C2_PL_HEVC_BASE + 0x100,  ///< HEVC (H.265) Monochrome
     PROFILE_HEVC_MONO_12,                       ///< HEVC (H.265) Monochrome 12
     PROFILE_HEVC_MONO_16,                       ///< HEVC (H.265) Monochrome 16
@@ -2331,9 +2333,11 @@ constexpr char C2_PARAMKEY_MAX_CODED_CHANNEL_COUNT[] = "coded.max-channel-count"
 C2ENUM(C2Config::pcm_encoding_t, uint32_t,
     PCM_16,
     PCM_8,
+// QTI_BEGIN: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
     PCM_FLOAT,
     PCM_24,
     PCM_32
+// QTI_END: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
 )
 
 typedef C2StreamParam<C2Info, C2SimpleValueStruct<C2Config::pcm_encoding_t>, kParamIndexPcmEncoding>
