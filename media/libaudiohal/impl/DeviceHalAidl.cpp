@@ -575,14 +575,17 @@ status_t DeviceHalAidl::openOutputStream(
     args.portConfigId = mixPortConfig.id;
     const bool isOffload = isBitPositionFlagSet(
             aidlOutputFlags, AudioOutputFlags::COMPRESS_OFFLOAD);
+    const bool isAsynchronous = isBitPositionFlagSet(
+            aidlOutputFlags, AudioOutputFlags::NON_BLOCKING);
     const bool isHwAvSync = isBitPositionFlagSet(
             aidlOutputFlags, AudioOutputFlags::HW_AV_SYNC);
     std::shared_ptr<OutputStreamCallbackAidl> streamCb;
-    if (isOffload) {
+    if (isAsynchronous) {
         streamCb = ndk::SharedRefBase::make<OutputStreamCallbackAidl>(this);
         ndk::SpAIBinder binder = streamCb->asBinder();
         AIBinder_setMinSchedulerPolicy(binder.get(), SCHED_NORMAL, ANDROID_PRIORITY_AUDIO);
         AIBinder_setInheritRt(binder.get(), true);
+        args.callback = streamCb;
     }
     auto eventCb = ndk::SharedRefBase::make<OutputStreamEventCallbackAidl>(this);
     ndk::SpAIBinder binder = eventCb->asBinder();
@@ -592,9 +595,6 @@ status_t DeviceHalAidl::openOutputStream(
     if (isOffload || isHwAvSync) {
         args.offloadInfo = aidlConfig.offloadInfo;
     }
-    if (isOffload) {
-        args.callback = streamCb;
-    }
     args.bufferSizeFrames = aidlConfig.frameCount;
     args.eventCallback = eventCb;
     args.sourceMetadata = aidlMetadata;
@@ -603,7 +603,7 @@ status_t DeviceHalAidl::openOutputStream(
         std::lock_guard l(mLock);
         RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(mModule->openOutputStream(args, &ret)));
     }
-    StreamContextAidl context(ret.desc, isOffload, aidlHandle, mHasClipTransitionSupport);
+    StreamContextAidl context(ret.desc, isAsynchronous, aidlHandle, mHasClipTransitionSupport);
     if (!context.isValid()) {
         AUGMENT_LOG(E, "Failed to created a valid stream context from the descriptor: %s",
                     ret.desc.toString().c_str());
