@@ -46,8 +46,6 @@
 #include "utils/Utils.h"
 
 // Convenience methods for constructing binder::Status objects for error returns
-constexpr int32_t METADATA_QUEUE_SIZE = 1 << 20;
-
 #define STATUS_ERROR(errorCode, errorString) \
     binder::Status::fromServiceSpecificError(errorCode, \
             fmt::sprintf("%s:%d: %s", __FUNCTION__, __LINE__, errorString).c_str())
@@ -102,7 +100,7 @@ CameraDeviceClient::CameraDeviceClient(
       mOriginalCameraId(originalCameraId),
       mIsVendorClient(isVendorClient) {
     ATRACE_CALL();
-    ALOGI("CameraDeviceClient %s: Opened", cameraId.c_str());
+    ALOGV("CameraDeviceClient %s: Opened", cameraId.c_str());
     //KEYSTONE(I34931815600fcaaeca6399e603d5b6d5d68f995b,b/376704172)
     // char value[PROPERTY_VALUE_MAX];
     // property_get("persist.vendor.camera.privapp.list", value, "");

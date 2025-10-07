@@ -329,7 +329,7 @@ status_t Camera3Device::disconnectImpl() {
     ATRACE_CALL();
     Mutex::Autolock il(mInterfaceLock);
 
-    ALOGI("%s: E", __FUNCTION__);
+    ALOGV("%s: E", __FUNCTION__);
 
     status_t res = OK;
     std::vector<wp<Camera3StreamInterface>> streams;
@@ -390,9 +390,7 @@ status_t Camera3Device::disconnectImpl() {
         mStatusTracker->join();
     }
 
-    if (mInjectionMethods->isInjecting()) {
-        mInjectionMethods->stopInjection();
-    }
+    mInjectionMethods->stopInjection();
 
     HalInterface* interface;
     {
@@ -426,7 +424,7 @@ status_t Camera3Device::disconnectImpl() {
                     __FUNCTION__, stream->getId(), stream->getStrongCount() - 1);
         }
     }
-    ALOGI("%s: X", __FUNCTION__);
+    ALOGV("%s: X", __FUNCTION__);
 
     if (mCameraServiceWatchdog != NULL) {
         mCameraServiceWatchdog->requestExit();
@@ -2108,6 +2106,8 @@ void Camera3Device::notifyStatus(bool idle) {
     if (res != OK) {
         SET_ERR("Camera access permission lost mid-operation: %s (%d)",
                 strerror(-res), res);
+        // Drop frames for all streams so that they don't leak to the clients.
+        dropAllStreamBuffers();
     }
 }
 
@@ -2237,6 +2237,18 @@ status_t Camera3Device::dropStreamBuffers(bool dropping, int streamId) {
         mSessionStatsBuilder.startCounter(streamId);
     }
     return stream->dropBuffers(dropping);
+}
+
+void Camera3Device::dropAllStreamBuffers() {
+    Mutex::Autolock l(mLock);
+
+    for (auto streamId : mOutputStreams.getStreamIds()) {
+        auto stream = mOutputStreams.get(streamId);
+        if (stream != nullptr) {
+            mSessionStatsBuilder.stopCounter(streamId);
+            stream->dropBuffers(true /*dropping*/);
+        }
+    }
 }
 
 /**
@@ -2770,7 +2782,7 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
             ALOGW("Can't set realtime priority for request processing thread: %s (%d)",
                     strerror(-res), res);
         } else {
-            ALOGD("Set real time priority for request queue thread (tid %d)", requestThreadTid);
+            ALOGV("Set real time priority for request queue thread (tid %d)", requestThreadTid);
         }
     }
 
@@ -2906,6 +2918,11 @@ void Camera3Device::setErrorStateV(const char *fmt, va_list args) {
     ATRACE_CALL();
     Mutex::Autolock l(mLock);
     setErrorStateLockedV(fmt, args);
+}
+
+bool Camera3Device::isInErrorState() {
+    Mutex::Autolock l(mLock);
+    return mStatus == STATUS_ERROR;
 }
 
 void Camera3Device::setErrorStateLocked(const char *fmt, ...) {
@@ -3700,9 +3717,12 @@ void Camera3Device::RequestThread::updateNextRequest(NextRequest& nextRequest) {
     cleanupPhysicalSettings(nextRequest.captureRequest, &halRequest);
 }
 
-bool Camera3Device::RequestThread::updateSessionParameters(const CameraMetadata& settings) {
+bool Camera3Device::RequestThread::updateSessionParameters(const CameraMetadata& settings,
+        bool *updatesDetected/*out*/) {
     ATRACE_CALL();
-    bool updatesDetected = false;
+    if (updatesDetected == nullptr) {
+        return false;
+    }
 
     CameraMetadata updatedParams(mLatestSessionParams);
     for (auto tag : mSessionParamKeys) {
@@ -3732,9 +3752,10 @@ bool Camera3Device::RequestThread::updateSessionParameters(const CameraMetadata&
             }
 
             if (isDifferent) {
+                mForceNewRequest = true;
                 ALOGV("%s: Session parameter tag id %d changed", __FUNCTION__, tag);
                 if (!skipHFRTargetFPSUpdate(tag, entry, lastEntry)) {
-                    updatesDetected = true;
+                    *updatesDetected = true;
                 }
                 updatedParams.update(entry);
             }
@@ -3742,12 +3763,12 @@ bool Camera3Device::RequestThread::updateSessionParameters(const CameraMetadata&
             // Value has been removed
             ALOGV("%s: Session parameter tag id %d removed", __FUNCTION__, tag);
             updatedParams.erase(tag);
-            updatesDetected = true;
+            *updatesDetected = true;
         }
     }
 
     bool reconfigureRequired;
-    if (updatesDetected) {
+    if (*updatesDetected) {
         reconfigureRequired = mInterface->isReconfigurationRequired(mLatestSessionParams,
                 updatedParams);
         mLatestSessionParams = updatedParams;
@@ -3799,16 +3820,16 @@ bool Camera3Device::RequestThread::threadLoop() {
                 (mComposerOutput && (mRotationOverride == ROTATION_OVERRIDE_NONE)) ?
                         false : overrideAutoRotateAndCrop(captureRequest);
         captureRequest->mAutoframingChanged = overrideAutoframing(captureRequest);
-        if (flags::inject_session_params()) {
-            injectSessionParams(captureRequest, mInjectedSessionParams);
-        }
+        injectSessionParams(captureRequest, mInjectedSessionParams);
     }
 
     // 'mNextRequests' will at this point contain either a set of HFR batched requests
     //  or a single request from streaming or burst. In either case the first element
     //  should contain the latest camera settings that we need to check for any session
     //  parameter updates.
-    if (updateSessionParameters(mNextRequests[0].captureRequest->mSettingsList.begin()->metadata)) {
+    mForceNewRequest = false;
+    if (updateSessionParameters(mNextRequests[0].captureRequest->mSettingsList.begin()->metadata,
+                &mForceNewRequest)) {
         res = OK;
 
         //Input stream buffers are already acquired at this point so an input stream
@@ -3825,14 +3846,17 @@ bool Camera3Device::RequestThread::threadLoop() {
         if (res == OK) {
             sp<Camera3Device> parent = mParent.promote();
             if (parent != nullptr) {
-                if (parent->reconfigureCamera(mLatestSessionParams, mStatusId)) {
-                    mForceNewRequestAfterReconfigure = true;
-                    mReconfigured = true;
+                auto reconfigured = parent->reconfigureCamera(mLatestSessionParams, mStatusId);
+                if (parent->isInErrorState()) {
+                    ALOGE("%s: Failed to reconfigure camera due to device error!", __FUNCTION__);
+                    cleanUpFailedRequests(/*sendRequestError*/ false);
+                    return false;
                 }
+                mReconfigured = reconfigured;
             }
 
             if (mNextRequests[0].captureRequest->mInputStream != nullptr) {
-                mNextRequests[0].captureRequest->mInputStream->restoreConfiguredState();
+                res = mNextRequests[0].captureRequest->mInputStream->restoreConfiguredState();
                 if (res != OK) {
                     ALOGE("%s: Failed to restore configured input stream: %d", __FUNCTION__, res);
                     cleanUpFailedRequests(/*sendRequestError*/ false);
@@ -3951,12 +3975,15 @@ status_t Camera3Device::RequestThread::prepareHalRequests() {
 
         // If the request is the same as last, or we had triggers now or last time or
         // changing overrides this time
+        //
+        // Force request when we inject requests that contain different values from
+        // previous ones or if the requests trigger reconfiguration
         bool newRequest =
                 (mPrevRequest != captureRequest || triggersMixedIn ||
                          captureRequest->mRotateAndCropChanged ||
                          captureRequest->mAutoframingChanged ||
                          captureRequest->mTestPatternChanged || settingsOverrideChanged ||
-                         (flags::inject_session_params() && mForceNewRequestAfterReconfigure)) &&
+                         mForceNewRequest) &&
                 // Request settings are all the same within one batch, so only treat the first
                 // request in a batch as new
                 !(batchedRequest && i > 0);
@@ -3964,9 +3991,9 @@ status_t Camera3Device::RequestThread::prepareHalRequests() {
         if (newRequest) {
             std::set<std::string> cameraIdsWithZoom;
 
-            if (flags::inject_session_params() && mForceNewRequestAfterReconfigure) {
+            if (mForceNewRequest) {
                 // This only needs to happen once.
-                mForceNewRequestAfterReconfigure = false;
+                mForceNewRequest = false;
             }
 
             /**

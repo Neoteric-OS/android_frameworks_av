@@ -89,28 +89,33 @@ const engineConfig::ProductStrategies gOrderedStrategies = {
              }
          },
     },
-    {"STRATEGY_MEDIA", static_cast<int>(AudioProductStrategyType::MEDIA),
+    {"STRATEGY_ASSISTANT", 11, //TODO b/429390420: define in AudioProductStrategyType.aidl,
         AudioProductStrategy::DEFAULT_ZONE_ID,
         {
             {AUDIO_STREAM_ASSISTANT, "AUDIO_STREAM_ASSISTANT",
-                {{AUDIO_CONTENT_TYPE_SPEECH, AUDIO_USAGE_ASSISTANT,
-                    AUDIO_SOURCE_DEFAULT, AUDIO_FLAG_NONE, ""}}
+                {
+                    {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_ASSISTANT,
+                        AUDIO_SOURCE_DEFAULT, AUDIO_FLAG_NONE, ""}
+                }
+            }
+        }
+    },
+    {"STRATEGY_MEDIA", static_cast<int>(AudioProductStrategyType::MEDIA),
+        AudioProductStrategy::DEFAULT_ZONE_ID,
+        {
+            {AUDIO_STREAM_MUSIC, "AUDIO_STREAM_MUSIC",
+                {
+                    {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_MEDIA, AUDIO_SOURCE_DEFAULT,
+                        AUDIO_FLAG_NONE, ""},
+                    {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_GAME, AUDIO_SOURCE_DEFAULT,
+                        AUDIO_FLAG_NONE, ""},
+                    {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
+                        AUDIO_SOURCE_DEFAULT, AUDIO_FLAG_NONE, ""},
+                    {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_UNKNOWN, AUDIO_SOURCE_DEFAULT,
+                        AUDIO_FLAG_NONE, ""}
                 },
-                {AUDIO_STREAM_MUSIC, "AUDIO_STREAM_MUSIC",
-                    {
-                        {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_MEDIA, AUDIO_SOURCE_DEFAULT,
-                            AUDIO_FLAG_NONE, ""},
-                        {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_GAME, AUDIO_SOURCE_DEFAULT,
-                            AUDIO_FLAG_NONE, ""},
-                        {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_ASSISTANT, AUDIO_SOURCE_DEFAULT,
-                            AUDIO_FLAG_NONE, ""},
-                        {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_ASSISTANCE_NAVIGATION_GUIDANCE,
-                            AUDIO_SOURCE_DEFAULT, AUDIO_FLAG_NONE, ""},
-                        {AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_UNKNOWN, AUDIO_SOURCE_DEFAULT,
-                            AUDIO_FLAG_NONE, ""}
-                    },
-                },
-                {AUDIO_STREAM_SYSTEM, "AUDIO_STREAM_SYSTEM",
+            },
+            {AUDIO_STREAM_SYSTEM, "AUDIO_STREAM_SYSTEM",
                         {{AUDIO_CONTENT_TYPE_UNKNOWN, AUDIO_USAGE_ASSISTANCE_SONIFICATION,
                                  AUDIO_SOURCE_DEFAULT, AUDIO_FLAG_NONE, ""}}
             }

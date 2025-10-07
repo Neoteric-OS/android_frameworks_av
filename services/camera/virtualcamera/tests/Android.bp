@@ -17,6 +17,7 @@ cc_test {
         "libvirtualcamera_utils",
     ],
     srcs: [
+        "AidlUtilTest.cc",
         "EglUtilTest.cc",
         "JpegUtilTest.cc",
         "VirtualCameraDeviceTest.cc",

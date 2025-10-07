@@ -162,6 +162,7 @@ public:
     virtual status_t stopOutput(audio_port_handle_t portId) = 0;
     // releases the output, return true if the output descriptor is reopened.
     virtual bool releaseOutput(audio_port_handle_t portId) = 0;
+    virtual status_t forceReleaseDirectOutput(audio_io_handle_t output) = 0;
 
     // Request an input appropriate for record from the supplied device with supplied parameters.
     // attr -- attributes for the requested record
@@ -293,13 +294,6 @@ public:
      */
     virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index) = 0;
 
-    /**
-     * Get volume group id for stream
-     * @param stream type to query
-     * @return volume group for stream type
-     */
-    virtual volume_group_t getVolumeGroupIdForStreamType(audio_stream_type_t stream) = 0;
-
     // return the strategy corresponding to a given stream type
     virtual product_strategy_t getStrategyForStream(audio_stream_type_t stream) = 0;
 
@@ -357,8 +351,8 @@ public:
 
     virtual status_t releaseSoundTriggerSession(audio_session_t session) = 0;
 
-    virtual status_t registerPolicyMixes(const Vector<AudioMix>& mixes) = 0;
-    virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes) = 0;
+    virtual status_t registerPolicyMixes(const std::vector<AudioMix>& mixes) = 0;
+    virtual status_t unregisterPolicyMixes(const std::vector<AudioMix>& mixes) = 0;
     virtual status_t getRegisteredPolicyMixes(std::vector<AudioMix>& mixes) = 0;
 
     virtual status_t updatePolicyMix(

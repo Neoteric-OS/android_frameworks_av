@@ -124,6 +124,7 @@ public:
     binder::Status startOutput(int32_t portId, media::StartOutputResponse* _aidl_return) override;
     binder::Status stopOutput(int32_t portId) override;
     binder::Status releaseOutput(int32_t portId) override;
+    binder::Status forceReleaseDirectOutput(int32_t outputId) override;
     binder::Status getInputForAttr(const AudioAttributes& attr, int32_t input,
                                    int32_t riid, int32_t session,
                                    const AttributionSourceState &attributionSource,
@@ -162,8 +163,6 @@ public:
     binder::Status setMaxVolumeIndexForGroup(int32_t groupId, int32_t index) override;
     binder::Status getMinVolumeIndexForGroup(int32_t groupId, int32_t* _aidl_return) override;
     binder::Status setMinVolumeIndexForGroup(int32_t groupId, int32_t index) override;
-    binder::Status getVolumeGroupIdForStreamType(AudioStreamType stream,
-                                        int32_t *_aidl_return) override;
     binder::Status getStrategyForStream(AudioStreamType stream,
                                         int32_t* _aidl_return) override;
     binder::Status getDevicesForAttributes(const AudioAttributes& attr,
@@ -399,6 +398,7 @@ public:
     void doOnNewAudioModulesAvailable();
     status_t doStopOutput(audio_port_handle_t portId);
     void doReleaseOutput(audio_port_handle_t portId);
+    status_t doForceReleaseDirectOutput(audio_io_handle_t outputId);
 
     status_t clientCreateAudioPatch(const struct audio_patch *patch,
                               audio_patch_handle_t *handle,
@@ -450,6 +450,7 @@ public:
      */
     void onCheckSpatializer() override;
     void onCheckSpatializer_l() REQUIRES(mMutex);
+    void maybeCheckSpatializer_l() REQUIRES(mMutex);
     void doOnCheckSpatializer();
 
     void onUpdateActiveSpatializerTracks_l() REQUIRES(mMutex);
@@ -605,7 +606,10 @@ private:
 
         private:
             wp<AudioPolicyService> mService;
-            std::atomic_bool mSensorPrivacyEnabled = false;
+            audio_utils::mutex mMutex;
+            bool mSensorPrivacyEnabled GUARDED_BY(mMutex) = false;
+            bool mSwMicPrivacyEnabled GUARDED_BY(mMutex) = false;
+            bool mHwMicPrivacyEnabled GUARDED_BY(mMutex) = false;
     };
 
     // Thread used to send audio config commands to audio flinger
@@ -623,6 +627,7 @@ private:
             SET_VOICE_VOLUME,
             STOP_OUTPUT,
             RELEASE_OUTPUT,
+            FORCE_RELEASE_DIRECT_OUTPUT,
             CREATE_AUDIO_PATCH,
             RELEASE_AUDIO_PATCH,
             UPDATE_AUDIOPORT_LIST,
@@ -658,6 +663,7 @@ private:
                     status_t    voiceVolumeCommand(float volume, int delayMs = 0);
                     void        stopOutputCommand(audio_port_handle_t portId);
                     void        releaseOutputCommand(audio_port_handle_t portId);
+                    status_t    forceReleaseDirectOutputCommand(audio_io_handle_t outputId);
                     status_t    sendCommand(sp<AudioCommand>& command, int delayMs = 0);
                     void        insertCommand_l(sp<AudioCommand>& command, int delayMs = 0);
                     status_t    createAudioPatchCommand(const struct audio_patch *patch,
@@ -763,6 +769,11 @@ private:
         class ReleaseOutputData : public AudioCommandData {
         public:
             audio_port_handle_t mPortId;
+        };
+
+        class ForceReleaseDirectOutputData : public AudioCommandData {
+        public:
+            audio_io_handle_t mOutputId;
         };
 
         class CreateAudioPatchData : public AudioCommandData {
@@ -1073,6 +1084,10 @@ private:
                                      sp<AudioPlaybackClient>& client,
                                      sp<AudioPolicyEffects>& effects,
                                      const char *context);
+    void getPlaybackClientsAndEffects(audio_io_handle_t io,
+                                      std::vector<sp<AudioPlaybackClient>>& clients,
+                                      sp<AudioPolicyEffects>& effects,
+                                      const char *context);
 
 
     // A class automatically clearing and restoring binder caller identity inside
@@ -1136,8 +1151,6 @@ private:
             GUARDED_BY(mMutex);
     DefaultKeyedVector<audio_port_handle_t, sp<AudioPlaybackClient>> mAudioPlaybackClients
             GUARDED_BY(mMutex);
-
-    MediaPackageManager mPackageManager; // To check allowPlaybackCapture
 
     CaptureStateNotifier mCaptureStateNotifier;
 

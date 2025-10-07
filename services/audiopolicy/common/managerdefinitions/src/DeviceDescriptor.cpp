@@ -27,6 +27,7 @@
 #include "DeviceDescriptor.h"
 #include "TypeConverter.h"
 #include "HwModule.h"
+#include <unordered_set>
 
 namespace android {
 
@@ -197,12 +198,24 @@ void DeviceDescriptor::setEncapsulationInfoFromHal(
     }
 }
 
-void DeviceDescriptor::setPreferredConfig(const audio_config_base_t* preferredConfig) {
+bool DeviceDescriptor::setPreferredConfig(const audio_config_base_t* preferredConfig) {
     if (preferredConfig == nullptr) {
-        mPreferredConfig.reset();
-    } else {
+        if (--mPreferredConfigUsedCount <= 0) {
+            mPreferredConfig.reset();
+        }
+    } else if (mPreferredConfig.has_value()) {
+        ALOGI("%s, ignore, there is existing preferred configuration", __func__);
+        mPreferredConfigUsedCount++;
+    } else if (checkIdenticalProfile(getAudioProfiles(),
+                                     preferredConfig->sample_rate,
+                                     preferredConfig->channel_mask,
+                                     preferredConfig->format) == NO_ERROR) {
         mPreferredConfig = *preferredConfig;
+    } else {
+        ALOGW("%s, failed, the device does not support requested value", __func__);
+        return false;
     }
+    return true;
 }
 
 void DeviceDescriptor::dump(String8 *dst, int spaces, bool verbose) const
@@ -387,11 +400,13 @@ DeviceVector DeviceVector::getDevicesFromTypes(const DeviceTypeSet& types) const
     if (types.empty()) {
         return devices;
     }
+    std::unordered_set<audio_devices_t> foundType;
     for (size_t i = 0; i < size(); i++) {
-        if (types.count(itemAt(i)->type()) != 0) {
+        if (types.count(itemAt(i)->type()) != 0 && (foundType.count(itemAt(i)->type()) == 0)) {
             devices.add(itemAt(i));
-            ALOGV("DeviceVector::%s() for type %08x found %p",
-                    __func__, itemAt(i)->type(), itemAt(i).get());
+            foundType.insert(itemAt(i)->type());
+            ALOGV("DeviceVector::%s() for type %08x address %s",
+                    __func__, itemAt(i)->type(), itemAt(i)->address().c_str());
         }
     }
     return devices;

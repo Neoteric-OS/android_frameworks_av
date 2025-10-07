@@ -346,6 +346,7 @@ public:
             audio_port_handle_t portId, float* volume, bool* muted);
     static status_t stopOutput(audio_port_handle_t portId);
     static void releaseOutput(audio_port_handle_t portId);
+    static status_t forceReleaseDirectOutput(audio_io_handle_t output);
 
     /**
      * Get input stream for given parameters.
@@ -465,14 +466,6 @@ public:
      * @return NO_ERROR if the call is successful, otherwise an error code
      */
     static status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index);
-
-    /**
-     * Get th volume group id for stream type
-     * @param stream type to query
-     * @param groupId output stream type
-     * @return NO_ERROR if the call is successful, otherwise an error code
-     */
-    static status_t getVolumeGroupIdForStreamType(audio_stream_type_t stream, int &groupId);
 
     static product_strategy_t getStrategyForStream(audio_stream_type_t stream);
     static status_t getDevicesForAttributes(const audio_attributes_t &aa,

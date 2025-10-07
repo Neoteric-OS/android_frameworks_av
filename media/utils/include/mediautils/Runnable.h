@@ -17,8 +17,12 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <future>
 #include <memory>
+#include <new>
+#include <type_traits>
+#include <utility>
 
 namespace android::mediautils {
 

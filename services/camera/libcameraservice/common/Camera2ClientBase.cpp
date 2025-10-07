@@ -68,7 +68,7 @@ Camera2ClientBase<TClientBase>::Camera2ClientBase(
       mCameraServiceProxyWrapper(cameraServiceProxyWrapper),
       mDeviceActive(false),
       mApi1CameraId(api1CameraId) {
-    ALOGI("Camera %s: Opened. Client: %s (PID %d, UID %d)", cameraId.c_str(),
+    ALOGV("Camera %s: Opened. Client: %s (PID %d, UID %d)", cameraId.c_str(),
           TClientBase::getPackageName().c_str(), TClientBase::mCallingPid,
           TClientBase::getClientUid());
 
@@ -182,7 +182,7 @@ Camera2ClientBase<TClientBase>::~Camera2ClientBase() {
         disconnect();
     }
 
-    ALOGI("%s: Client object's dtor for Camera Id %s completed. Client was: %s (PID %d, UID %u)",
+    ALOGV("%s: Client object's dtor for Camera Id %s completed. Client was: %s (PID %d, UID %u)",
           __FUNCTION__, TClientBase::mCameraIdStr.c_str(), TClientBase::getPackageName().c_str(),
           mInitialClientPid, TClientBase::getClientUid());
 }
@@ -276,10 +276,10 @@ binder::Status Camera2ClientBase<TClientBase>::disconnect() {
 template <typename TClientBase>
 binder::Status Camera2ClientBase<TClientBase>::disconnectImpl() {
     ATRACE_CALL();
-    ALOGD("Camera %s: start to disconnect", TClientBase::mCameraIdStr.c_str());
+    ALOGV("Camera %s: start to disconnect", TClientBase::mCameraIdStr.c_str());
     Mutex::Autolock icl(mBinderSerializationLock);
 
-    ALOGD("Camera %s: serializationLock acquired", TClientBase::mCameraIdStr.c_str());
+    ALOGV("Camera %s: serializationLock acquired", TClientBase::mCameraIdStr.c_str());
     binder::Status res = binder::Status::ok();
     // Allow both client and the media server to disconnect at all times
     int callingPid = TClientBase::getCallingPid();

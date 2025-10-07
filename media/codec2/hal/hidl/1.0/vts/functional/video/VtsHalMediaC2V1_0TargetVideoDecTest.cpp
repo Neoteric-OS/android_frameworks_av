@@ -971,7 +971,6 @@ TEST_P(Codec2VideoDecHidlTest, DecodeTestEmptyBuffersInserted) {
     uint32_t flags = 0;
     uint32_t vtsFlags = 0;
     uint32_t timestamp = 0;
-    bool codecConfig = false;
     // This test introduces empty CSD after every 20th frame
     // and empty input frames at an interval of 5 frames.
     while (1) {
@@ -984,7 +983,6 @@ TEST_P(Codec2VideoDecHidlTest, DecodeTestEmptyBuffersInserted) {
             vtsFlags = mapInfoFlagstoVtsFlags(flags);
             ASSERT_NE(vtsFlags, 0xFF) << "unrecognized flag entry in info file: " << mInfoFile;
             eleInfo >> timestamp;
-            codecConfig = (vtsFlags & (1 << VTS_BIT_FLAG_CSD_FRAME)) != 0;
         }
         Info.push_back({bytesCount, vtsFlags, timestamp, {}});
         frameId++;
@@ -1038,7 +1036,6 @@ TEST_P(Codec2VideoDecCsdInputTests, CSDFlushTest) {
     std::ifstream eleStream;
     eleStream.open(mInputFile, std::ifstream::binary);
     ASSERT_EQ(eleStream.is_open(), true);
-    bool flushedDecoder = false;
     bool signalEOS = false;
     bool keyFrame = false;
     bool flushCsd = std::get<2>(GetParam());
@@ -1057,7 +1054,6 @@ TEST_P(Codec2VideoDecCsdInputTests, CSDFlushTest) {
 
         err = mComponent->flush(C2Component::FLUSH_COMPONENT, &flushedWork);
         ASSERT_EQ(err, C2_OK);
-        flushedDecoder = true;
         waitOnInputConsumption(mQueueLock, mQueueCondition, mWorkQueue,
                                MAX_INPUT_BUFFERS - flushedWork.size());
         ASSERT_NO_FATAL_FAILURE(

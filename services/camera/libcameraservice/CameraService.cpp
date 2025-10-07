@@ -1564,7 +1564,7 @@ Status CameraService::makeClient(
                                     clientAttribution, callingPid, cameraId, api1CameraId, facing,
                                     sensorOrientation, servicePid, overrideForPerfClass,
                                     rotationOverride, forceSlowJpegMode, /*sharedMode*/false);
-        ALOGI("%s: Camera1 API (legacy), rotationOverride %d, forceSlowJpegMode %d",
+        ALOGV("%s: Camera1 API (legacy), rotationOverride %d, forceSlowJpegMode %d",
                 __FUNCTION__, rotationOverride, forceSlowJpegMode);
     } else { // Camera2 API route
         sp<hardware::camera2::ICameraDeviceCallbacks> tmp =
@@ -1575,7 +1575,7 @@ Status CameraService::makeClient(
                 systemNativeClient, cameraId, facing, sensorOrientation, servicePid,
                 overrideForPerfClass, rotationOverride, originalCameraId, sharedMode,
                 isVendorClient);
-        ALOGI("%s: Camera2 API, rotationOverride %d", __FUNCTION__, rotationOverride);
+        ALOGV("%s: Camera2 API, rotationOverride %d", __FUNCTION__, rotationOverride);
     }
     return Status::ok();
 }
@@ -2235,7 +2235,6 @@ Status CameraService::connect(
     }
 
     const int clientPid = resolvedClientAttribution.pid;
-    const int clientUid = resolvedClientAttribution.uid;
     const std::string& clientPackageName = *resolvedClientAttribution.packageName;
 
     logConnectionAttempt(clientPid, clientPackageName, cameraIdStr, API_1);
@@ -2399,7 +2398,6 @@ Status CameraService::connectDeviceImpl(
     }
 
     const int clientPid = resolvedClientAttribution.pid;
-    const int clientUid = resolvedClientAttribution.uid;
     const std::string& clientPackageName = *resolvedClientAttribution.packageName;
     userid_t clientUserId = multiuser_get_user_id(resolvedClientAttribution.uid);
 
@@ -3839,6 +3837,8 @@ bool CameraService::evictClientIdByRemote(const wp<IBinder>& remote) {
                 mActiveClientManager.remove(i);
                 evicted.push_back(clientSp);
 
+                logClientDied(clientSp->getClientCallingPid(), clientSp->getPackageName(),
+                        "Binder died unexpectedly");
                 // Notify the client of disconnection
                 clientSp->notifyError(
                         hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DISCONNECTED,
@@ -4068,9 +4068,11 @@ void CameraService::logDeviceAdded(const std::string &cameraId, const std::strin
     logEvent(fmt::sprintf("ADD device %s, reason: (%s)", cameraId.c_str(), reason.c_str()));
 }
 
-void CameraService::logClientDied(int clientPid, const std::string &reason) {
+void CameraService::logClientDied(int clientPid, const std::string &packageName,
+        const std::string &reason) {
     // Log the device removal
-    logEvent(fmt::sprintf("DIED client(s) with PID %d, reason: (%s)", clientPid, reason.c_str()));
+    logEvent(fmt::sprintf("DIED client %s (PID %d), reason: (%s)", packageName.c_str(),
+            clientPid, reason.c_str()));
 }
 
 void CameraService::logServiceError(const std::string &msg, int errorCode) {
@@ -4475,11 +4477,11 @@ status_t CameraService::BasicClient::startCameraStreamingOps() {
         return OK;
     }
 
-    ALOGV("%s: Start camera streaming ops, package name = %s, client UID = %d", __FUNCTION__,
-          getPackageName().c_str(), getClientUid());
+    ALOGI("Start camera streaming for %s (PID %d, UID %d)",
+        getPackageName().c_str(), getClientCallingPid(), getClientUid());
 
     if (mAppOpsManager != nullptr) {
-        ALOGD("%s: Start data delivery for uid %d", __FUNCTION__, getClientUid());
+        ALOGV("%s: Start data delivery for uid %d", __FUNCTION__, getClientUid());
 
         const PermissionChecker::PermissionResult result =
                 checkPermissionsForCameraForStartDataDelivery(mCameraIdStr, mClientAttribution);
@@ -4527,9 +4529,11 @@ status_t CameraService::BasicClient::finishCameraStreamingOps() {
         ALOGV("%s: Streaming not active!", __FUNCTION__);
         return OK;
     }
+    ALOGI("Stop camera streaming for %s (PID %d, UID %d)",
+        getPackageName().c_str(), getClientCallingPid(), getClientUid());
 
     if (mAppOpsManager != nullptr) {
-        ALOGD("%s: finishDataDelivery for uid %d", __FUNCTION__, getClientUid());
+        ALOGV("%s: finishDataDelivery for uid %d", __FUNCTION__, getClientUid());
         finishDataDelivery(mClientAttribution);
 
         // Stop watching app op changes after stop streaming
@@ -5899,8 +5903,9 @@ void CameraService::handleTorchClientBinderDied(const wp<IBinder> &who) {
       * While tempting to promote the wp<IBinder> into a sp, it's actually not supported by the
       * binder driver
       */
-    // PID here is approximate and can be wrong.
-    logClientDied(getCallingPid(), "Binder died unexpectedly");
+
+    ALOGI("%s: A camera client has died, removing it from the list of active clients",
+        __FUNCTION__);
 
     // check torch client
     handleTorchClientBinderDied(who);
@@ -5911,8 +5916,6 @@ void CameraService::handleTorchClientBinderDied(const wp<IBinder> &who) {
         return;
     }
 
-    ALOGE("%s: Java client's binder died, removing it from the list of active clients",
-            __FUNCTION__);
 }
 
 void CameraService::updateStatus(StatusInternal status, const std::string& cameraId) {

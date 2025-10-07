@@ -18,9 +18,11 @@
 
 #include <android/media/IAudioTrackCallback.h>
 #include <android/media/IEffectClient.h>
+#include <android/media/audio/common/AudioPlaybackRate.h>
 #include <audiomanager/IAudioManager.h>
 #include <audio_utils/DeferredExecutor.h>
 #include <audio_utils/MelProcessor.h>
+#include <audio_utils/TimerQueue.h>
 #include <audio_utils/mutex.h>
 #include <binder/MemoryDealer.h>
 #include <datapath/AudioStreamIn.h>
@@ -117,7 +119,7 @@ public:
                                                 const std::vector<audio_latency_mode_t>& modes)
             EXCLUDES_AudioFlinger_ClientMutex = 0;
 
-    virtual void onHardError(std::set<audio_port_handle_t>& trackPortIds) = 0;
+    virtual void onHardError(audio_io_handle_t output) = 0;
 
     virtual const ::com::android::media::permission::IPermissionProvider&
             getPermissionProvider() = 0;
@@ -564,7 +566,10 @@ public:
 
     virtual void setStandby() EXCLUDES_ThreadBase_Mutex = 0;
     virtual void setStandby_l() REQUIRES(mutex()) = 0;
-    virtual bool waitForHalStart() EXCLUDES_ThreadBase_Mutex = 0;
+
+    static constexpr uint32_t kWaitHalTimeoutMs = 2'000;
+    virtual bool waitForHalStart(uint32_t timeoutMs = kWaitHalTimeoutMs)
+            EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const = 0;
     virtual const std::atomic<int64_t>& framesWritten() const = 0;
@@ -661,7 +666,7 @@ public:
     // may be passed back to the client.
     //
     // Only one AIDL MmapStreamInterface interface adapter should be created per MmapThread.
-    static sp<MmapStreamInterface> createMmapStreamInterfaceAdapter(
+  static sp<media::IMmapStream> createMmapStreamInterfaceAdapter(
             const sp<IAfMmapThread>& mmapThread);
 
     // Creates a Mmap playback thread from an AudioStreamOut ptr.
@@ -678,7 +683,7 @@ public:
             const audio_attributes_t* attr,
             audio_stream_type_t streamType,
             audio_session_t sessionId,
-            const sp<MmapStreamCallback>& callback,
+            const sp<media::IMmapStreamCallback>& callback,
             const DeviceIdVector& deviceIds,
             audio_port_handle_t portId,
             const audio_offload_info_t* offloadInfo) EXCLUDES_ThreadBase_Mutex = 0;
@@ -695,10 +700,18 @@ public:
             audio_port_handle_t* handle) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t stop(audio_port_handle_t handle) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t standby() EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
+    virtual status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t reportData(const void* buffer, size_t frameCount)
             EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                           audio_utils::TimerQueue::handle_t* handle) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t activate(audio_utils::TimerQueue::handle_t handle)
+            EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t setPlaybackParameters(
+            const media::audio::common::AudioPlaybackRate& rate) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t getPlaybackParameters(
+            media::audio::common::AudioPlaybackRate* rate) EXCLUDES_ThreadBase_Mutex = 0;
 
     // Sets the UID records silence - TODO(b/291317898)  move to IAfMmapCaptureThread
     virtual void setRecordSilenced(audio_port_handle_t portId, bool silenced)

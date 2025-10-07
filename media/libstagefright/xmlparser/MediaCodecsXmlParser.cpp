@@ -43,10 +43,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <memory>
+#include <mutex>
 #include <string>
 // QTI_BEGIN: 2018-06-05: Video: media: Add changes to pick target specific media xml's
 #include <cutils/properties.h>
 // QTI_END: 2018-06-05: Video: media: Add changes to pick target specific media xml's
+#include <vector>
 
 namespace android {
 
@@ -537,7 +540,7 @@ status_t MediaCodecsXmlParser::Impl::parseXmlFilesInSearchDirs(
         const std::vector<std::string> &fileNames,
         const std::vector<std::string> &searchDirs) {
     status_t res = NO_INIT;
-    for (const std::string fileName : fileNames) {
+    for (const std::string& fileName : fileNames) {
         status_t err = NO_INIT;
         std::string path;
         if (findFileInDirs(searchDirs, fileName, &path)) {

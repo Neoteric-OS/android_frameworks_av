@@ -33,12 +33,12 @@
 #include <audio_utils/mutex.h>
 #include <audio_utils/FdToString.h>
 #include <audio_utils/SimpleLog.h>
+#include <audio_utils/TimerQueue.h>
 #include <com/android/media/permission/PermissionEnum.h>
 #include <media/IAudioFlinger.h>
 #include <media/IAudioPolicyServiceLocal.h>
 #include <media/MediaMetricsItem.h>
 #include <media/audiohal/DevicesFactoryHalInterface.h>
-#include <mediautils/ServiceUtilities.h>
 #include <mediautils/Synchronization.h>
 #include <psh_utils/AudioPowerManager.h>
 
@@ -123,6 +123,9 @@ private:
 
     status_t openOutput(const media::OpenOutputRequest& request,
             media::OpenOutputResponse* response) final EXCLUDES_AudioFlinger_Mutex;
+
+    status_t openMmapStream(const media::OpenMmapRequest& request,
+            media::OpenMmapResponse* response) final EXCLUDES_AudioFlinger_Mutex;
 
     audio_io_handle_t openDuplicateOutput(audio_io_handle_t output1,
             audio_io_handle_t output2) final EXCLUDES_AudioFlinger_Mutex;
@@ -410,8 +413,7 @@ private:
     void onSupportedLatencyModesChanged(
             audio_io_handle_t output, const std::vector<audio_latency_mode_t>& modes) final
             EXCLUDES_AudioFlinger_ClientMutex;
-    void onHardError(std::set<audio_port_handle_t>& trackPortIds) final
-            EXCLUDES_AudioFlinger_ClientMutex;
+    void onHardError(audio_io_handle_t output) final EXCLUDES_AudioFlinger_ClientMutex;
 
     const ::com::android::media::permission::IPermissionProvider& getPermissionProvider() final;
 
@@ -436,21 +438,18 @@ private:
         return mStartupFinishedTime.load(std::memory_order_acquire);
     }
 
-public:
-    // TODO(b/292281786): Remove this when Oboeservice can get access to
-    // openMmapStream through an IAudioFlinger handle directly.
-    static inline std::atomic<AudioFlinger*> gAudioFlinger = nullptr;
+    status_t openMmapStreamImpl(bool isOutput,
+                                const audio_attributes_t& attr,
+                                audio_config_base_t* config,
+                                const AudioClient& client,
+                                DeviceIdVector* deviceIds,
+                                audio_session_t* sessionId,
+                                const sp<media::IMmapStreamCallback>& callback,
+                                const audio_offload_info_t* offloadInfo,
+                                sp<media::IMmapStream>& interface,
+                                audio_port_handle_t* handle) EXCLUDES_AudioFlinger_Mutex;
 
-    status_t openMmapStream(MmapStreamInterface::stream_direction_t direction,
-                            const audio_attributes_t *attr,
-                            audio_config_base_t *config,
-                            const AudioClient& client,
-                            DeviceIdVector *deviceIds,
-                            audio_session_t *sessionId,
-                            const sp<MmapStreamCallback>& callback,
-                            const audio_offload_info_t* offloadInfo,
-                            sp<MmapStreamInterface>& interface,
-                            audio_port_handle_t *handle) EXCLUDES_AudioFlinger_Mutex;
+public:
 
     void initAudioPolicyLocal(sp<media::IAudioPolicyServiceLocal> audioPolicyLocal) {
         if (mAudioPolicyServiceLocal.load() == nullptr) {
@@ -487,6 +486,9 @@ private:
     SimpleLog mThreadLog{16}; // 16 Thread history limit
 
     void dumpToThreadLog_l(const sp<IAfThreadBase>& thread) REQUIRES(mutex());
+
+    // Internally locked timer queue for suspend / wakeup activity.
+    audio_utils::TimerQueue mTimerQueue{true /* alarm */};
 
     // --- Notification Client ---
     class NotificationClient : public IBinder::DeathRecipient {

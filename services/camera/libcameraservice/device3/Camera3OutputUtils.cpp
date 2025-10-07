@@ -616,6 +616,27 @@ const std::set<std::string>& getCameraIdsWithZoomLocked(
     return r.cameraIdsWithZoom;
 }
 
+size_t getExpectedPhysicalMetadataCount(
+        const std::set<std::set<std::string>>& requestedPhysicalIds,
+        const std::string& activePhysicalCameraId) {
+    std::set<std::string> expectedPhysicalIdsWithMetadata;
+    for (const auto& requestedId : requestedPhysicalIds) {
+        if (requestedId.size() == 1) {
+            // RequestedId is a single physical camera Id
+            expectedPhysicalIdsWithMetadata.insert(*requestedId.begin());
+        } else {
+           // For multi-resolution ImageReader where RequestedId contains a set
+           // of physical camera Ids, the expected physical camera
+           // Id is the active physical camera Id.
+           if (requestedId.contains(activePhysicalCameraId)) {
+               expectedPhysicalIdsWithMetadata.insert(activePhysicalCameraId);
+           }
+        }
+    }
+
+    return expectedPhysicalIdsWithMetadata.size();
+}
+
 void processCaptureResult(CaptureOutputStates& states, const camera_capture_result *result) {
     ATRACE_CALL();
 
@@ -756,9 +777,12 @@ void processCaptureResult(CaptureOutputStates& states, const camera_capture_resu
 
         // Did we get the (final) result metadata for this capture?
         if (result->result != NULL && !isPartialResult) {
-            if (request.physicalCameraIds.size() != result->num_physcam_metadata) {
+            size_t expectedPhysicalCameraMetadataCount =
+                    getExpectedPhysicalMetadataCount(request.physicalCameraIds,
+                                                     states.activePhysicalId);
+            if (expectedPhysicalCameraMetadataCount != result->num_physcam_metadata) {
                 SET_ERR("Expected physical Camera metadata count %d not equal to actual count %d",
-                        request.physicalCameraIds.size(), result->num_physcam_metadata);
+                        expectedPhysicalCameraMetadataCount, result->num_physcam_metadata);
                 return;
             }
             if (request.haveResultMetadata) {
@@ -946,9 +970,15 @@ void collectReturnableOutputBuffers(
 void finishReturningOutputBuffers(const std::vector<BufferToReturn> &returnableBuffers,
         sp<NotificationListener> listener, SessionStatsBuilder& sessionStatsBuilder) {
     for (auto& b : returnableBuffers) {
-        const int streamId = b.stream->getId();
+        sp<Camera3StreamInterface> stream(b.stream);
+        if (stream == nullptr) {
+            ALOGW("Cannot return buffer to null stream.");
+            continue;
+        }
 
-        status_t res = b.stream->returnBuffer(b.buffer, b.timestamp,
+        const int streamId = stream->getId();
+
+        status_t res = stream->returnBuffer(b.buffer, b.timestamp,
                 b.readoutTimestamp, b.timestampIncreasing,
                 b.surfaceIds, b.resultExtras.frameNumber, b.transform);
 
@@ -979,7 +1009,7 @@ void finishReturningOutputBuffers(const std::vector<BufferToReturn> &returnableB
             // cancel the buffer
             camera_stream_buffer_t sb = b.buffer;
             sb.status = CAMERA_BUFFER_STATUS_ERROR;
-            b.stream->returnBuffer(sb, /*timestamp*/0, /*readoutTimestamp*/0,
+            stream->returnBuffer(sb, /*timestamp*/0, /*readoutTimestamp*/0,
                     b.timestampIncreasing, std::vector<size_t> (),
                     b.resultExtras.frameNumber, b.transform);
 

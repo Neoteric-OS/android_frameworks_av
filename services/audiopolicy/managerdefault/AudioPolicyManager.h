@@ -19,6 +19,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <set>
 #include <unordered_set>
 
 #include <stdint.h>
@@ -28,7 +29,6 @@
 #include <utils/Timers.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
-#include <utils/SortedVector.h>
 #include <media/AudioParameter.h>
 #include <media/AudioPolicy.h>
 #include <media/AudioProfile.h>
@@ -134,6 +134,7 @@ public:
                 audio_port_handle_t portId, float* volume, bool* muted);
         virtual status_t stopOutput(audio_port_handle_t portId);
         virtual bool releaseOutput(audio_port_handle_t portId);
+        virtual status_t forceReleaseDirectOutput(audio_io_handle_t output);
 
         void addRoutableDeviceToProfiles(const sp<DeviceDescriptor> &device);
 
@@ -247,10 +248,6 @@ public:
          * @return NO_ERROR if the call is successful, otherwise an error code
          */
         virtual status_t setMinVolumeIndexForGroup(volume_group_t groupId, int index);
-
-        virtual volume_group_t getVolumeGroupIdForStreamType(audio_stream_type_t stream) {
-            return mEngine->getVolumeGroupForStreamType(stream, /* fallbackOnDefault= */ false);
-        }
 
         status_t setVolumeCurveIndex(int index,
                                      bool muted,
@@ -368,8 +365,8 @@ public:
             return mSoundTriggerSessions.releaseSession(session);
         }
 
-        virtual status_t registerPolicyMixes(const Vector<AudioMix>& mixes);
-        virtual status_t unregisterPolicyMixes(Vector<AudioMix> mixes);
+        status_t registerPolicyMixes(const std::vector<AudioMix>& mixes) override;
+        status_t unregisterPolicyMixes(const std::vector<AudioMix>& mixes) override;
         virtual status_t getRegisteredPolicyMixes(std::vector<AudioMix>& mixes) override;
         virtual status_t updatePolicyMix(
                 const AudioMix& mix,
@@ -775,7 +772,7 @@ protected:
         // transfers the audio tracks and effects from one output thread to another accordingly.
         status_t checkOutputsForDevice(const sp<DeviceDescriptor>& device,
                                        audio_policy_dev_state_t state,
-                                       SortedVector<audio_io_handle_t>& outputs);
+                                       std::set<audio_io_handle_t>& outputs);
 
         status_t checkInputsForDevice(const sp<DeviceDescriptor>& device,
                                       audio_policy_dev_state_t state);
@@ -891,7 +888,7 @@ protected:
             return mEffects.getMaxEffectsMemory();
         }
 
-        SortedVector<audio_io_handle_t> getOutputsForDevices(
+        std::set<audio_io_handle_t> getOutputsForDevices(
                 const DeviceVector &devices, const SwAudioOutputCollection& openOutputs);
 
         /**
@@ -908,7 +905,7 @@ protected:
                                                    const DeviceVector &prevDevices,
                                                    uint32_t delayMs);
 
-        audio_io_handle_t selectOutput(const SortedVector<audio_io_handle_t>& outputs,
+        audio_io_handle_t selectOutput(const std::set<audio_io_handle_t>& outputs,
                                        audio_output_flags_t flags = AUDIO_OUTPUT_FLAG_NONE,
                                        audio_format_t format = AUDIO_FORMAT_INVALID,
                                        audio_channel_mask_t channelMask = AUDIO_CHANNEL_NONE,
@@ -1069,6 +1066,10 @@ protected:
                                           bool internal,
                                           bool isCallRx,
                                           uint32_t delayMs);
+
+        void checkSpatializedClientsReroute(const sp<SwAudioOutputDescriptor>& outputDesc,
+                                            const DeviceVector &devices);
+
         const uid_t mUidCached;                         // AID_AUDIOSERVER
         sp<const AudioPolicyConfig> mConfig;
         EngineInstance mEngine;                         // Audio Policy Engine instance

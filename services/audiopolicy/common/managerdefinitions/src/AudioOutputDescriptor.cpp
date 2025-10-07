@@ -595,7 +595,6 @@ void SwAudioOutputDescriptor::setSwMute(
         for (const auto& devicePort: devices()) {
             if (isSingleDeviceType(deviceTypes, devicePort->type()) &&
                 devicePort->hasGainController(true /*canUseForVolume*/)) {
-                float volumeAmpl = Volume::DbToAmpl(0);
                 ALOGV("%s: output: %d, vs: %d, muted: %d, active vs count: %zu", __func__,
                       mIoHandle, vs, mutedByGroup, getActiveVolumeSources().size());
                 mClientInterface->setPortsVolume(
@@ -905,7 +904,10 @@ void SwAudioOutputDescriptor::setDevices(const android::DeviceVector &devices) {
         }
         auto config = getConfig();
         for (auto device : devices) {
-            device->setPreferredConfig(&config);
+            if (!device->setPreferredConfig(&config)) {
+                ALOGE("%s, failed to set preferred config for device %s",
+                      __func__, device->toString().c_str());
+            }
         }
     }
     mDevices = devices;

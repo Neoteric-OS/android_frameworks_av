@@ -2132,7 +2132,8 @@ status_t AudioTrack::createTrack_l()
         setAudioDescriptionMixLevel_l(mAudioDescriptionMixLeveldB);
     }
 
-    mDeathNotifier = new DeathNotifier(this);
+    wp<AudioTrack> wpThis(this);
+    mDeathNotifier = sp<DeathNotifier>::make(wpThis);
     IInterface::asBinder(mAudioTrack)->linkToDeath(mDeathNotifier, this);
 
     // This is the first log sent from the AudioTrack client.

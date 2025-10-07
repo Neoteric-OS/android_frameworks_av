@@ -1342,10 +1342,9 @@ public:
                         mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL];
                 }
 
-    bool waitForHalStart() final EXCLUDES_ThreadBase_Mutex {
+    bool waitForHalStart(uint32_t timeoutMs) final EXCLUDES_ThreadBase_Mutex {
                     audio_utils::unique_lock _l(mutex());
-                    static const nsecs_t kWaitHalTimeoutNs = seconds(2);
-                    nsecs_t endWaitTimetNs = systemTime() + kWaitHalTimeoutNs;
+                    nsecs_t endWaitTimetNs = systemTime() + milliseconds(timeoutMs);
                     while (!mHalStarted) {
                         nsecs_t timeNs = systemTime();
                         if (timeNs >= endWaitTimetNs) {
@@ -2313,7 +2312,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void configure(const audio_attributes_t* attr,
                    audio_stream_type_t streamType,
                    audio_session_t sessionId,
-                   const sp<MmapStreamCallback>& callback,
+                   const sp<media::IMmapStreamCallback>& callback,
                    const DeviceIdVector& deviceIds,
                    audio_port_handle_t portId,
                    [[maybe_unused]]const audio_offload_info_t* offloadInfo)
@@ -2325,7 +2324,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     void configure_l(const audio_attributes_t* attr,
             audio_stream_type_t streamType,
             audio_session_t sessionId,
-            const sp<MmapStreamCallback>& callback,
+            const sp<media::IMmapStreamCallback>& callback,
             const DeviceIdVector& deviceIds,
             audio_port_handle_t portId) REQUIRES(mutex());
 
@@ -2341,9 +2340,16 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
             audio_port_handle_t* handle) final EXCLUDES_ThreadBase_Mutex;
     status_t stop(audio_port_handle_t handle) final EXCLUDES_ThreadBase_Mutex;
     status_t standby() final EXCLUDES_ThreadBase_Mutex;
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
     status_t reportData(const void* buffer, size_t frameCount) override EXCLUDES_ThreadBase_Mutex;
+    status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                   audio_utils::TimerQueue::handle_t* handle) override EXCLUDES_ThreadBase_Mutex;
+    status_t activate(audio_utils::TimerQueue::handle_t handle) override EXCLUDES_ThreadBase_Mutex;
+    status_t setPlaybackParameters(const media::audio::common::AudioPlaybackRate& rate)
+            override EXCLUDES_ThreadBase_Mutex;
+    status_t getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate)
+            override EXCLUDES_ThreadBase_Mutex;
 
     // RefBase
     void onFirstRef() final;
@@ -2437,7 +2443,7 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
     audio_session_t mSessionId GUARDED_BY(mutex());
     audio_port_handle_t mPortId GUARDED_BY(mutex());
 
-    wp<MmapStreamCallback> mCallback GUARDED_BY(mutex());
+    wp<media::IMmapStreamCallback> mCallback GUARDED_BY(mutex());
     sp<StreamHalInterface> mHalStream; // NO_THREAD_SAFETY_ANALYSIS
     sp<DeviceHalInterface> mHalDevice GUARDED_BY(mutex());
     AudioHwDevice* const mAudioHwDev GUARDED_BY(mutex());
@@ -2459,7 +2465,7 @@ public:
     void configure(const audio_attributes_t* attr,
                    audio_stream_type_t streamType,
                    audio_session_t sessionId,
-                   const sp<MmapStreamCallback>& callback,
+                   const sp<media::IMmapStreamCallback>& callback,
                    const DeviceIdVector& deviceIds,
                    audio_port_handle_t portId,
                    const audio_offload_info_t* offloadInfo) final EXCLUDES_ThreadBase_Mutex;
@@ -2482,9 +2488,18 @@ public:
 
     void toAudioPortConfig(struct audio_port_config* config) final;
 
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const final;
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const final;
 
     status_t reportData(const void* buffer, size_t frameCount) final;
+
+    status_t drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                   audio_utils::TimerQueue::handle_t* handle) final;
+    status_t activate(audio_utils::TimerQueue::handle_t handle) final;
+
+    status_t setPlaybackParameters(const media::audio::common::AudioPlaybackRate& rate)
+            final EXCLUDES_ThreadBase_Mutex;
+    status_t getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate)
+            final EXCLUDES_ThreadBase_Mutex;
 
     void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) final
             REQUIRES(audio_utils::AudioFlinger_Mutex);
@@ -2495,6 +2510,8 @@ public:
        return static_cast<VolumeInterface*>(this);
     }
 
+    void onWakeUp();
+
 protected:
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
 
@@ -2502,6 +2519,10 @@ protected:
     float mMasterVolume GUARDED_BY(mutex());
     bool mMasterMute GUARDED_BY(mutex());
     mediautils::atomic_sp<audio_utils::MelProcessor> mMelProcessor;  // locked internally
+
+    std::unique_ptr<audio_utils::TimerQueue> mTq GUARDED_BY(mutex());
+    audio_utils::TimerQueue::handle_t mWakeUpHandle GUARDED_BY(mutex())
+            {audio_utils::TimerQueue::INVALID_HANDLE};
 };
 
 class MmapCaptureThread : public MmapThread
@@ -2517,7 +2538,7 @@ public:
 
     void toAudioPortConfig(struct audio_port_config* config) final;
 
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) const final;
+    status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const final;
 };
 
 class BitPerfectThread : public MixerThread {

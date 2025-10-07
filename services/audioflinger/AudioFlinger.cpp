@@ -28,7 +28,6 @@
 
 #include <afutils/FallibleLockGuard.h>
 #include <afutils/NBAIO_Tee.h>
-#include <afutils/Permission.h>
 #include <afutils/PropertyUtils.h>
 #include <afutils/TypedLogger.h>
 #include <android-base/errors.h>
@@ -97,7 +96,6 @@ using media::audio::common::AudioMMapPolicyType;
 using media::audio::common::AudioMode;
 using android::content::AttributionSourceState;
 using android::detail::AudioHalVersionInfo;
-using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::INativePermissionController;
 using com::android::media::permission::IPermissionProvider;
 using com::android::media::permission::NativePermissionController;
@@ -337,7 +335,6 @@ void AudioFlinger::onFirstRef()
 
     mMode = AUDIO_MODE_NORMAL;
 
-    gAudioFlinger = this;  // we are already refcounted, store into atomic pointer.
     mDeviceEffectManager = sp<DeviceEffectManager>::make(
             sp<IAfDeviceEffectManagerCallback>::fromExisting(this)),
     mDevicesFactoryHalCallback = new DevicesFactoryHalCallbackImpl;
@@ -351,6 +348,8 @@ void AudioFlinger::onFirstRef()
     mPatchPanel = IAfPatchPanel::create(sp<IAfPatchPanelCallback>::fromExisting(this));
     mMelReporter = sp<MelReporter>::make(sp<IAfMelReporterCallback>::fromExisting(this),
                                          mPatchPanel);
+
+    ALOGD("%s: TimerQueue %s", __func__, mTimerQueue.ready() ? "ready" : "uninitialized");
 }
 
 status_t AudioFlinger::setAudioHalPids(const std::vector<pid_t>& pids) {
@@ -500,41 +499,55 @@ AudioFlinger::~AudioFlinger()
     mPatchCommandThread->exit();
 }
 
-//static
-__attribute__ ((visibility ("default")))
-status_t MmapStreamInterface::openMmapStream(MmapStreamInterface::stream_direction_t direction,
-                                             const audio_attributes_t *attr,
-                                             audio_config_base_t *config,
-                                             const AudioClient& client,
-                                             DeviceIdVector *deviceIds,
-                                             audio_session_t *sessionId,
-                                             const sp<MmapStreamCallback>& callback,
-                                             const audio_offload_info_t* offloadInfo,
-                                             sp<MmapStreamInterface>& interface,
-                                             audio_port_handle_t *handle)
+status_t AudioFlinger::openMmapStream(const media::OpenMmapRequest& request,
+                                media::OpenMmapResponse* response)
 {
-    // TODO(b/292281786): Use ServiceManager to get IAudioFlinger instead of by atomic pointer.
-    // This allows moving oboeservice (AAudio) to a separate process in the future.
-    sp<AudioFlinger> af = AudioFlinger::gAudioFlinger.load();  // either nullptr or singleton AF.
-    status_t ret = NO_INIT;
-    if (af != 0) {
-        ret = af->openMmapStream(
-                direction, attr, config, client, deviceIds,
-                sessionId, callback, offloadInfo, interface, handle);
+    bool isOutput;
+    audio_attributes_t attr;
+    audio_config_base_t config;
+    AudioClient client;
+    DeviceIdVector deviceIds;
+    audio_session_t sessionId;
+    sp<media::IMmapStreamCallback> callback;
+    audio_offload_info_t offloadInfo = AUDIO_INFO_INITIALIZER;
+
+    status_t status = MmapStreamInterface::parseRequest(
+            request, &isOutput, &attr, &config, &client, &deviceIds,
+            &sessionId, &callback, &offloadInfo);
+    if (status != OK) {
+        return status;
     }
-    return ret;
+
+    sp<media::IMmapStream> interface;
+    audio_port_handle_t portId;
+    status = openMmapStreamImpl(isOutput, attr, &config, client, &deviceIds,
+                                &sessionId, callback,
+                                offloadInfo.format == AUDIO_FORMAT_DEFAULT ?
+                                        nullptr : &offloadInfo,
+                                interface, &portId);
+
+    // we always build the response to fill config to permit retry on error.
+    const status_t statusResponse = MmapStreamInterface::buildResponse(
+        isOutput, config, deviceIds, sessionId, interface, portId, response);
+
+    if (status != OK) {
+        return status;
+    }
+
+    ALOGW_IF(statusResponse != NO_ERROR, "%s: buildResponse status: %d", __func__, status);
+    return statusResponse;
 }
 
-status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t direction,
-                                      const audio_attributes_t *attr,
-                                      audio_config_base_t *config,
-                                      const AudioClient& client,
-                                      DeviceIdVector *deviceIds,
-                                      audio_session_t *sessionId,
-                                      const sp<MmapStreamCallback>& callback,
-                                      const audio_offload_info_t* offloadInfo,
-                                      sp<MmapStreamInterface>& interface,
-                                      audio_port_handle_t *handle)
+status_t AudioFlinger::openMmapStreamImpl(bool isOutput,
+                                          const audio_attributes_t& attr,
+                                          audio_config_base_t* config,
+                                          const AudioClient& client,
+                                          DeviceIdVector* deviceIds,
+                                          audio_session_t* sessionId,
+                                          const sp<media::IMmapStreamCallback>& callback,
+                                          const audio_offload_info_t* offloadInfo,
+                                          sp<media::IMmapStream>& interface,
+                                          audio_port_handle_t* handle)
 {
     status_t ret = initCheck();
     if (ret != NO_ERROR) {
@@ -547,47 +560,18 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     audio_stream_type_t streamType = AUDIO_STREAM_DEFAULT;
     audio_io_handle_t io = AUDIO_IO_HANDLE_NONE;
     audio_port_handle_t portId = AUDIO_PORT_HANDLE_NONE;
-    audio_attributes_t localAttr = *attr;
+    audio_attributes_t localAttr = attr;
 
     // TODO b/182392553: refactor or make clearer
     AttributionSourceState adjAttributionSource;
-    if (!audioserver_permissions()) {
-        pid_t clientPid =
-            VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(client.attributionSource.pid));
-        bool updatePid = (clientPid == (pid_t)-1);
-        const uid_t callingUid = IPCThreadState::self()->getCallingUid();
+    auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
+            validateAttributionFromContextOrTrustedCaller(client.attributionSource,
+            getPermissionProvider()
+            ));
+    // TODO pass wrapped object around
+    adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
 
-        adjAttributionSource = client.attributionSource;
-        if (!isAudioServerOrMediaServerOrSystemServerOrRootUid(callingUid)) {
-            uid_t clientUid =
-                VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_uid_t(client.attributionSource.uid));
-            ALOGW_IF(clientUid != callingUid,
-                    "%s uid %d tried to pass itself off as %d",
-                    __FUNCTION__, callingUid, clientUid);
-            adjAttributionSource.uid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_uid_t_int32_t(callingUid));
-            updatePid = true;
-        }
-        if (updatePid) {
-            const pid_t callingPid = IPCThreadState::self()->getCallingPid();
-            ALOGW_IF(clientPid != (pid_t)-1 && clientPid != callingPid,
-                     "%s uid %d pid %d tried to pass itself off as pid %d",
-                     __func__, callingUid, callingPid, clientPid);
-            adjAttributionSource.pid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_pid_t_int32_t(callingPid));
-        }
-        adjAttributionSource = afutils::checkAttributionSourcePackage(
-            adjAttributionSource);
-    } else {
-        auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
-                validateAttributionFromContextOrTrustedCaller(client.attributionSource,
-                getPermissionProvider()
-                ));
-        // TODO pass wrapped object around
-        adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
-    }
-
-    if (direction == MmapStreamInterface::DIRECTION_OUTPUT) {
+    if (isOutput) {
         audio_config_t fullConfig = AUDIO_CONFIG_INITIALIZER;
         fullConfig.sample_rate = config->sample_rate;
         fullConfig.channel_mask = config->channel_mask;
@@ -634,7 +618,7 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     }
     if (ret != NO_ERROR) {
         if (audioserver_flags::enable_gmap_mode()
-                && direction == MmapStreamInterface::DIRECTION_INPUT) {
+                && !isOutput) {
             audio_utils::lock_guard _l(mutex());
             setHasAlreadyCaptured_l(adjAttributionSource.uid);
         }
@@ -650,7 +634,6 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
     if (const auto it = mMmapThreads.find(io);
             it != mMmapThreads.end()) {
         const sp<IAfMmapThread>& thread = it->second;
-        interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
         thread->configure(&localAttr, streamType, actualSessionId, callback, *deviceIds, portId,
                           offloadInfo);
         *handle = portId;
@@ -658,9 +641,10 @@ status_t AudioFlinger::openMmapStream(MmapStreamInterface::stream_direction_t di
         config->sample_rate = thread->sampleRate();
         config->channel_mask = thread->channelMask();
         config->format = thread->format();
+        interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
     } else {
         l.unlock();
-        if (direction == MmapStreamInterface::DIRECTION_OUTPUT) {
+        if (isOutput) {
             AudioSystem::releaseOutput(portId);
         } else {
             AudioSystem::releaseInput(portId);
@@ -988,13 +972,12 @@ status_t AudioFlinger::dump(int fd, const Vector<String16>& args)
         mDeviceEffectManager->dump(fd);
         writeStr(fd, mMelReporter->dump());
 
-        if (media::psh_utils::AudioPowerManager::enabled()) {
-            char value[PROPERTY_VALUE_MAX];
-            property_get("ro.build.display.id", value, "Unknown build");
-            std::string build(value);
-            writeStr(fd, build + "\n");
-            writeStr(fd, media::psh_utils::AudioPowerManager::getAudioPowerManager().toString());
-        }
+        dprintf(fd, "\n ## BEGIN power dump\n");
+        char value[PROPERTY_VALUE_MAX];
+        property_get("ro.build.display.id", value, "Unknown build");
+        std::string build(value);
+        writeStr(fd, build + "\n");
+        writeStr(fd, media::psh_utils::AudioPowerManager::getAudioPowerManager().toString());
 
         if (parsedArgs.shouldDumpEffects) {
             dprintf(fd, "\n ## BEGIN effects dump \n");
@@ -1073,44 +1056,12 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
 
     AttributionSourceState adjAttributionSource;
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
-    if (!audioserver_permissions()) {
-        adjAttributionSource = input.clientInfo.attributionSource;
-        const uid_t callingUid = IPCThreadState::self()->getCallingUid();
-        uid_t clientUid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_uid_t(
-                        input.clientInfo.attributionSource.uid));
-        pid_t clientPid =
-            VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(
-                        input.clientInfo.attributionSource.pid));
-        bool updatePid = (clientPid == (pid_t)-1);
-
-        if (!isAudioServerOrMediaServerOrSystemServerOrRootUid(callingUid)) {
-            ALOGW_IF(clientUid != callingUid,
-                    "%s uid %d tried to pass itself off as %d",
-                    __FUNCTION__, callingUid, clientUid);
-            adjAttributionSource.uid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_uid_t_int32_t(callingUid));
-            clientUid = callingUid;
-            updatePid = true;
-        }
-        if (updatePid) {
-            ALOGW_IF(clientPid != (pid_t)-1 && clientPid != callingPid,
-                     "%s uid %d pid %d tried to pass itself off as pid %d",
-                     __func__, callingUid, callingPid, clientPid);
-            clientPid = callingPid;
-            adjAttributionSource.pid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_pid_t_int32_t(callingPid));
-        }
-        adjAttributionSource = afutils::checkAttributionSourcePackage(
-                adjAttributionSource);
-
-    } else {
-        auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
-                validateAttributionFromContextOrTrustedCaller(input.clientInfo.attributionSource,
-                getPermissionProvider()
-                ));
-        // TODO pass wrapped object around
-        adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
-    }
+    auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
+            validateAttributionFromContextOrTrustedCaller(input.clientInfo.attributionSource,
+            getPermissionProvider()
+            ));
+    // TODO pass wrapped object around
+    adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
 
     DeviceIdVector selectedDeviceIds;
     audio_session_t sessionId = input.sessionId;
@@ -1353,13 +1304,7 @@ status_t AudioFlinger::setMasterVolume(float value)
     }
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     audio_utils::lock_guard _l(mutex());
     mMasterVolume = value;
@@ -1399,13 +1344,7 @@ status_t AudioFlinger::setMasterBalance(float balance)
     }
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     // check range
     if (isnan(balance) || fabs(balance) > 1.f) {
@@ -1437,13 +1376,7 @@ status_t AudioFlinger::setMode(audio_mode_t mode)
     }
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
     if (uint32_t(mode) >= AUDIO_MODE_CNT) {
         ALOGW("Illegal value: setMode(%d)", mode);
         return BAD_VALUE;
@@ -1483,13 +1416,7 @@ status_t AudioFlinger::setMicMute(bool state)
     }
 
     // check calling permissions
-     if (audioserver_permissions()) {
-         VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     audio_utils::lock_guard lock(hardwareMutex());
     if (mPrimaryHardwareDev == nullptr) {
@@ -1558,13 +1485,7 @@ status_t AudioFlinger::setMasterMute(bool muted)
     }
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     audio_utils::lock_guard _l(mutex());
     mMasterMute = muted;
@@ -1860,13 +1781,7 @@ status_t AudioFlinger::setParameters(audio_io_handle_t ioHandle, const String8& 
             IPCThreadState::self()->getCallingPid(), IPCThreadState::self()->getCallingUid());
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     String8 filteredKeyValuePairs = keyValuePairs;
     filterReservedParameters(filteredKeyValuePairs, IPCThreadState::self()->getCallingUid());
@@ -2107,13 +2022,7 @@ status_t AudioFlinger::setVoiceVolume(float value)
     }
 
     // check calling permissions
-    if (audioserver_permissions()) {
-        VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
-    } else {
-        if (!settingsAllowed()) {
-            return PERMISSION_DENIED;
-        }
-    }
+    VALUE_OR_RETURN_CONVERTED(enforceCallingPermission(MODIFY_AUDIO_SETTINGS));
 
     audio_utils::lock_guard lock(hardwareMutex());
     if (mPrimaryHardwareDev == nullptr) {
@@ -2245,17 +2154,14 @@ void AudioFlinger::onSupportedLatencyModesChanged(
                         modes, legacy2aidl_audio_latency_mode_t_AudioLatencyMode));
 
     audio_utils::lock_guard _l(clientMutex());
-    size_t size = mNotificationClients.size();
     for (const auto& [_, client] : mNotificationClients) {
         client->audioFlingerClient()->onSupportedLatencyModesChanged(outputAidl, modesAidl);
     }
 }
 
-void AudioFlinger::onHardError(std::set<audio_port_handle_t>& trackPortIds) {
-    ALOGI("releasing tracks due to a hard error occurred on an I/O thread");
-    for (const auto portId : trackPortIds) {
-        AudioSystem::releaseOutput(portId);
-    }
+void AudioFlinger::onHardError(audio_io_handle_t output) {
+    ALOGI("releasing tracks and closing output %d due to a hard error", output);
+    AudioSystem::forceReleaseDirectOutput(output);
 }
 
 const IPermissionProvider& AudioFlinger::getPermissionProvider() {
@@ -2307,9 +2213,7 @@ AudioFlinger::NotificationClient::NotificationClient(const sp<AudioFlinger>& aud
                                                      pid_t pid,
                                                      uid_t uid)
     : mAudioFlinger(audioFlinger), mPid(pid), mUid(uid), mAudioFlingerClient(client)
-    , mClientToken(media::psh_utils::AudioPowerManager::enabled()
-            ? media::psh_utils::createAudioClientToken(pid, uid)
-            : nullptr)
+    , mClientToken(media::psh_utils::createAudioClientToken(pid, uid))
 {
 }
 
@@ -2341,40 +2245,13 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
 
     AttributionSourceState adjAttributionSource;
     pid_t callingPid = IPCThreadState::self()->getCallingPid();
-    if (!audioserver_permissions()) {
-        adjAttributionSource = input.clientInfo.attributionSource;
-        bool updatePid = (adjAttributionSource.pid == -1);
-        const uid_t callingUid = IPCThreadState::self()->getCallingUid();
-        const uid_t currentUid = VALUE_OR_RETURN_STATUS(legacy2aidl_uid_t_int32_t(
-               adjAttributionSource.uid));
-        if (!isAudioServerOrMediaServerOrSystemServerOrRootUid(callingUid)) {
-            ALOGW_IF(currentUid != callingUid,
-                    "%s uid %d tried to pass itself off as %d",
-                    __FUNCTION__, callingUid, currentUid);
-            adjAttributionSource.uid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_uid_t_int32_t(callingUid));
-            updatePid = true;
-        }
-        const pid_t currentPid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(
-                adjAttributionSource.pid));
-        if (updatePid) {
-            ALOGW_IF(currentPid != (pid_t)-1 && currentPid != callingPid,
-                     "%s uid %d pid %d tried to pass itself off as pid %d",
-                     __func__, callingUid, callingPid, currentPid);
-            adjAttributionSource.pid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_pid_t_int32_t(callingPid));
-        }
-        adjAttributionSource = afutils::checkAttributionSourcePackage(
-                adjAttributionSource);
-    } else {
-        auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
-                validateAttributionFromContextOrTrustedCaller(
-                    input.clientInfo.attributionSource,
-                    getPermissionProvider()
-                    ));
-        // TODO pass wrapped object around
-        adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
-    }
+    auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
+            validateAttributionFromContextOrTrustedCaller(
+                input.clientInfo.attributionSource,
+                getPermissionProvider()
+                ));
+    // TODO pass wrapped object around
+    adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
 
     // further format checks are performed by createRecordTrack_l()
     if (!audio_is_valid_format(input.config.format)) {
@@ -2593,17 +2470,11 @@ audio_module_handle_t AudioFlinger::loadHwModule(const char *name)
     if (name == NULL) {
         return AUDIO_MODULE_HANDLE_NONE;
     }
-    if (audioserver_permissions()) {
-        const auto res = enforceCallingPermission(MODIFY_AUDIO_SETTINGS);
-        if (!res.ok()) {
-            ALOGE("Function: %s perm check result (%s)", __FUNCTION__,
-                  errorToString(res.error()).c_str());
-            return AUDIO_MODULE_HANDLE_NONE;
-        }
-    } else {
-        if (!settingsAllowed()) {
-            return AUDIO_MODULE_HANDLE_NONE;
-        }
+    const auto res = enforceCallingPermission(MODIFY_AUDIO_SETTINGS);
+    if (!res.ok()) {
+        ALOGE("Function: %s perm check result (%s)", __FUNCTION__,
+              errorToString(res.error()).c_str());
+        return AUDIO_MODULE_HANDLE_NONE;
     }
 
     audio_utils::lock_guard _l(mutex());
@@ -3637,7 +3508,7 @@ void AudioFlinger::releaseAudioSessionId(audio_session_t audioSession, pid_t pid
         if (pid != (pid_t)-1 && isAudioServerOrMediaServerUid(callerUid)) {
             caller = pid;  // check must match acquireAudioSessionId()
         }
-        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end();) {
+        for (auto it = mAudioSessionRefs.begin(); it != mAudioSessionRefs.end(); ++it) {
             AudioSessionRef* const ref = *it;
             if (ref->mSessionid == audioSession && ref->mPid == caller) {
                 ref->mCnt--;
@@ -3773,7 +3644,6 @@ std::vector< sp<IAfEffectModule> > AudioFlinger::purgeOrphanEffectChains_l()
 // dumpToThreadLog_l() must be called with AudioFlinger::mutex() held
 void AudioFlinger::dumpToThreadLog_l(const sp<IAfThreadBase> &thread)
 {
-    constexpr int THREAD_DUMP_TIMEOUT_MS = 2;
     constexpr auto PREFIX = "- ";
     using ::android::audio_utils::FdToString;
 
@@ -4223,28 +4093,13 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
     status_t lStatus = NO_ERROR;
     uid_t callingUid = IPCThreadState::self()->getCallingUid();
     pid_t currentPid;
-    if (!audioserver_permissions()) {
-        adjAttributionSource.uid = VALUE_OR_RETURN_STATUS(legacy2aidl_uid_t_int32_t(callingUid));
-        currentPid = VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_pid_t(adjAttributionSource.pid));
-        if (currentPid == -1 || !isAudioServerOrMediaServerOrSystemServerOrRootUid(callingUid)) {
-            const pid_t callingPid = IPCThreadState::self()->getCallingPid();
-            ALOGW_IF(currentPid != -1 && currentPid != callingPid,
-                     "%s uid %d pid %d tried to pass itself off as pid %d",
-                     __func__, callingUid, callingPid, currentPid);
-            adjAttributionSource.pid = VALUE_OR_RETURN_STATUS(
-                    legacy2aidl_pid_t_int32_t(callingPid));
-            currentPid = callingPid;
-        }
-        adjAttributionSource = afutils::checkAttributionSourcePackage(adjAttributionSource);
-    } else {
-        auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
-                validateAttributionFromContextOrTrustedCaller(request.attributionSource,
-                getPermissionProvider()
-                ));
-        // TODO pass wrapped object around
-        adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
-        currentPid = adjAttributionSource.pid;
-    }
+    auto validatedAttrSource = VALUE_OR_RETURN_CONVERTED(
+            validateAttributionFromContextOrTrustedCaller(request.attributionSource,
+            getPermissionProvider()
+            ));
+    // TODO pass wrapped object around
+    adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
+    currentPid = adjAttributionSource.pid;
 
 
     ALOGV("createEffect pid %d, effectClient %p, priority %d, sessionId %d, io %d, factory %p",
@@ -4258,7 +4113,7 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
     }
 
     bool isSettingsAllowed;
-    if (audioserver_permissions()) {
+    {
         const auto res = getPermissionProvider().checkPermission(
                 MODIFY_AUDIO_SETTINGS,
                 IPCThreadState::self()->getCallingUid());
@@ -4267,8 +4122,6 @@ status_t AudioFlinger::createEffect(const media::CreateEffectRequest& request,
             goto Exit;
         }
         isSettingsAllowed = res.value();
-    } else {
-        isSettingsAllowed = settingsAllowed();
     }
 
     // check audio settings permission for global effects

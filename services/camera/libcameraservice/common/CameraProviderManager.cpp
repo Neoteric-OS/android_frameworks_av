@@ -1288,11 +1288,6 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::deriveHeicUltraHDRTag
     const int32_t scalerSizesTag =
               SessionConfigurationUtils::getAppropriateModeTag(
                       ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, maxResolution);
-    const int32_t scalerMinFrameDurationsTag = SessionConfigurationUtils::getAppropriateModeTag(
-            ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS, maxResolution);
-    const int32_t scalerStallDurationsTag =
-                 SessionConfigurationUtils::getAppropriateModeTag(
-                        ANDROID_SCALER_AVAILABLE_STALL_DURATIONS, maxResolution);
 
     const int32_t heicUltraHDRSizesTag =
             SessionConfigurationUtils::getAppropriateModeTag(
@@ -1322,7 +1317,6 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::deriveHeicUltraHDRTag
 
     getSupportedSizes(c, scalerSizesTag,
             static_cast<android_pixel_format_t>(HAL_PIXEL_FORMAT_YCBCR_P010), &supportedP010Sizes);
-    auto it = supportedP010Sizes.begin();
     if (supportedP010Sizes.empty()) {
         // Nothing to do in this case.
         return OK;
@@ -1448,11 +1442,6 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::deriveJpegRTags(bool 
     const int32_t scalerSizesTag =
               SessionConfigurationUtils::getAppropriateModeTag(
                       ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, maxResolution);
-    const int32_t scalerMinFrameDurationsTag = SessionConfigurationUtils::getAppropriateModeTag(
-            ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS, maxResolution);
-    const int32_t scalerStallDurationsTag =
-                 SessionConfigurationUtils::getAppropriateModeTag(
-                        ANDROID_SCALER_AVAILABLE_STALL_DURATIONS, maxResolution);
 
     const int32_t jpegRSizesTag =
             SessionConfigurationUtils::getAppropriateModeTag(

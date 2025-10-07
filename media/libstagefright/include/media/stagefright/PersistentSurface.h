@@ -31,40 +31,54 @@
 namespace android {
 
 struct PersistentSurface : public RefBase {
-    PersistentSurface() {}
+    enum SurfaceType : int {
+        TYPE_UNKNOWN = 0,
+        TYPE_HIDLSOURCE,    // android::hardware::media::omx::V1_0::IGraphicBufferSource
+        TYPE_AIDLSOURCE,    // aidl::android::media::IAidlGraphicBufferSource
+        TYPE_INPUTSURFACE,  // aidl::android::hardware::media::c2::IInputSurface
+    };
+
+    PersistentSurface() : mType(TYPE_UNKNOWN) {}
 
     // create a persistent surface in HIDL
     PersistentSurface(
             const sp<MediaSurfaceType>& surface,
             const sp<hidl::base::V1_0::IBase>& hidlTarget) :
+        mType(TYPE_HIDLSOURCE),
         mSurface(surface),
-        mHidlTarget(hidlTarget),
-        mAidlTarget(nullptr),
-        mAidl(false) { }
+        mHidlGraphicBufferSource(hidlTarget),
+        mAidlGraphicBufferSource(nullptr),
+        mHalInputSurface(nullptr) {}
 
-    // create a persistent surface in AIDL
+    // create a persistent surface in AIDL (or HAL InputSurface)
     PersistentSurface(
+            const SurfaceType type,
             const sp<MediaSurfaceType>& surface,
             const ::ndk::SpAIBinder& aidlTarget) :
+        mType(type),
         mSurface(surface),
-        mHidlTarget(nullptr),
-        mAidlTarget(aidlTarget),
-        mAidl(true) { }
+        mHidlGraphicBufferSource(nullptr),
+        mAidlGraphicBufferSource(type == TYPE_AIDLSOURCE ? aidlTarget : nullptr),
+        mHalInputSurface(type == TYPE_INPUTSURFACE ? aidlTarget : nullptr) {}
 
     sp<MediaSurfaceType> getSurface() const {
         return mSurface;
     }
 
-    bool isTargetAidl() const {
-        return mAidl;
+    SurfaceType getType() const {
+        return mType;
     }
 
     sp<hidl::base::V1_0::IBase> getHidlTarget() const {
-        return mAidl ? nullptr : mHidlTarget;
+        return mType == TYPE_HIDLSOURCE ? mHidlGraphicBufferSource : nullptr;
     }
 
     ::ndk::SpAIBinder getAidlTarget() const {
-        return mAidl ? mAidlTarget : nullptr;
+        return mType == TYPE_AIDLSOURCE ? mAidlGraphicBufferSource : nullptr;
+    }
+
+    ::ndk::SpAIBinder getHalInputSurface() const {
+        return mType == TYPE_INPUTSURFACE ? mHalInputSurface : nullptr;
     }
 
     status_t writeToParcel(Parcel *parcel) const {
@@ -73,32 +87,49 @@ struct PersistentSurface : public RefBase {
 #else
         parcel->writeStrongBinder(IInterface::asBinder(mSurface));
 #endif
-        // write hidl target if available
-        if (mHidlTarget != nullptr) {
-            HalToken token;
-            bool result = createHalToken(mHidlTarget, &token);
-            parcel->writeBool(result);
-            if (result) {
-                parcel->writeByteArray(token.size(), token.data());
-            }
-        } else {
-            parcel->writeBool(false);
-        }
-        // write aidl target if available
-        if (mAidl) {
-            AIBinder *binder = mAidlTarget.get();
-            if (binder != nullptr) {
-                ::android::sp<::android::IBinder> intf =
-                        AIBinder_toPlatformBinder(binder);
-                if (intf) {
-                    parcel->writeBool(true);
-                    parcel->writeStrongBinder(intf);
-                } else {
-                    parcel->writeBool(false);
+        switch(mType) {
+            case TYPE_HIDLSOURCE: {
+                parcel->writeInt32(TYPE_HIDLSOURCE);
+                HalToken token;
+                bool result = createHalToken(mHidlGraphicBufferSource, &token);
+                parcel->writeBool(result);
+                if (result) {
+                    parcel->writeByteArray(token.size(), token.data());
                 }
-            } else {
+            }
+            break;
+            case TYPE_AIDLSOURCE: {
+                parcel->writeInt32(TYPE_AIDLSOURCE);
+                AIBinder *binder = mAidlGraphicBufferSource.get();
+                if (binder != nullptr) {
+                    ::android::sp<::android::IBinder> intf = AIBinder_toPlatformBinder(binder);
+                    if (intf) {
+                        parcel->writeBool(true);
+                        parcel->writeStrongBinder(intf);
+                        break;
+                    }
+                }
                 parcel->writeBool(false);
             }
+            break;
+            case TYPE_INPUTSURFACE: {
+                parcel->writeInt32(TYPE_INPUTSURFACE);
+                AIBinder *binder = mHalInputSurface.get();
+                if (binder != nullptr) {
+                    ::android::sp<::android::IBinder> intf = AIBinder_toPlatformBinder(binder);
+                    if (intf) {
+                        parcel->writeBool(true);
+                        parcel->writeStrongBinder(intf);
+                        break;
+                    }
+                }
+                parcel->writeBool(false);
+            }
+            break;
+            default: {
+                parcel->writeInt32(TYPE_UNKNOWN);
+            }
+            break;
         }
         return NO_ERROR;
     }
@@ -112,45 +143,64 @@ struct PersistentSurface : public RefBase {
         mSurface = interface_cast<IGraphicBufferProducer>(
                 parcel->readStrongBinder());
 #endif
-        // read hidl target
-        bool haveHidlTarget = parcel->readBool();
-        mAidl = false;
-        if (haveHidlTarget) {
-            std::vector<uint8_t> tokenVector;
-            parcel->readByteVector(&tokenVector);
-            HalToken token = HalToken(tokenVector);
-            mHidlTarget = retrieveHalInterface(token);
-            deleteHalToken(token);
-            return NO_ERROR;
-        } else {
-            mHidlTarget.clear();
-        }
+        mHidlGraphicBufferSource.clear();
+        mAidlGraphicBufferSource.set(nullptr);
+        mHalInputSurface.set(nullptr);
 
-        // read aidl target
-        bool haveAidlTarget = false;
-        if (parcel->readBool(&haveAidlTarget) != NO_ERROR) {
-            return NO_ERROR;
-        }
-        mAidl = true;
-        if (haveAidlTarget) {
-            ::android::sp<::android::IBinder> intf = parcel->readStrongBinder();
-            AIBinder *ndkBinder = AIBinder_fromPlatformBinder(intf);
-            if (ndkBinder) {
-                mAidlTarget.set(ndkBinder);
-            } else {
-                mAidlTarget.set(nullptr);
+        SurfaceType type = static_cast<SurfaceType>(parcel->readInt32());
+        switch (type) {
+            case TYPE_HIDLSOURCE: {
+                mType = TYPE_HIDLSOURCE;
+                bool haveHidlSource = parcel->readBool();
+                if (haveHidlSource) {
+                    std::vector<uint8_t> tokenVector;
+                    parcel->readByteVector(&tokenVector);
+                    HalToken token = HalToken(tokenVector);
+                    mHidlGraphicBufferSource = retrieveHalInterface(token);
+                    deleteHalToken(token);
+                }
             }
-        } else {
-            mAidlTarget.set(nullptr);
+            break;
+            case TYPE_AIDLSOURCE: {
+                mType = TYPE_AIDLSOURCE;
+                bool haveAidlSource = parcel->readBool();
+                if (haveAidlSource) {
+                    ::android::sp<::android::IBinder> intf = parcel->readStrongBinder();
+                    AIBinder *ndkBinder = AIBinder_fromPlatformBinder(intf);
+                    if (ndkBinder) {
+                        mAidlGraphicBufferSource.set(ndkBinder);
+                    }
+                }
+            }
+            break;
+            case TYPE_INPUTSURFACE: {
+                mType = TYPE_INPUTSURFACE;
+                bool haveHalInputSurface = parcel->readBool();
+                if (haveHalInputSurface) {
+                    ::android::sp<::android::IBinder> intf = parcel->readStrongBinder();
+                    AIBinder *ndkBinder = AIBinder_fromPlatformBinder(intf);
+                    if (ndkBinder) {
+                        mHalInputSurface.set(ndkBinder);
+                    }
+                }
+            }
+            break;
+            default: {
+                mType = TYPE_UNKNOWN;
+            }
+            break;
         }
         return NO_ERROR;
     }
 
 private:
+    SurfaceType mType;
+
     sp<MediaSurfaceType> mSurface;
-    sp<hidl::base::V1_0::IBase> mHidlTarget;
-    ::ndk::SpAIBinder mAidlTarget;
-    bool mAidl;
+    // Either one of the below three is valid according to mType.
+    sp<hidl::base::V1_0::IBase> mHidlGraphicBufferSource;
+    ::ndk::SpAIBinder mAidlGraphicBufferSource;
+    ::ndk::SpAIBinder mHalInputSurface;
 
     DISALLOW_EVIL_CONSTRUCTORS(PersistentSurface);
 };

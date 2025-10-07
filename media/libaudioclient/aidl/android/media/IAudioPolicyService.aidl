@@ -104,6 +104,8 @@ interface IAudioPolicyService {
 
     void releaseOutput(int /* audio_port_handle_t */ portId);
 
+    void forceReleaseDirectOutput(int /* audio_io_handle_t */ output);
+
     GetInputForAttrResponse getInputForAttr(in AudioAttributes attr,
                                             int /* audio_io_handle_t */ input,
                                             int /* audio_unique_id_t */ riid,
@@ -158,8 +160,6 @@ interface IAudioPolicyService {
     void setMaxVolumeIndexForGroup(int groupId, int maxIndex);
 
     void setMinVolumeIndexForGroup(int groupId, int minIndex);
-
-    int getVolumeGroupIdForStreamType(AudioStreamType stream);
 
     int /* product_strategy_t */ getStrategyForStream(AudioStreamType stream);
 

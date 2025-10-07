@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-package com.android.media.permission;
+package android.media;
 
-/**
- * Entity representing the package names associated with a particular uid/app-id
- * {@hide}
- */
-@JavaDerive(equals = true, toString = true)
-parcelable UidPackageState {
-    int uid;
-    @utf8InCpp List<String> packageNames;
+import android.media.audio.common.AudioConfigBase;
+import android.media.IMmapStream;
+
+/** {@hide} */
+parcelable OpenMmapResponse {
+    AudioConfigBase config;
+    int[] deviceIds;
+    int sessionId;
+    IMmapStream stream;
+    int portId;
 }

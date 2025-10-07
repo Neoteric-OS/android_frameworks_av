@@ -260,6 +260,8 @@ public:
      */
     void endBatteryAttribution() final;
 
+    AudioBufferProvider* asAudioBufferProvider() final { return this; }
+
 protected:
     DISALLOW_COPY_AND_ASSIGN(TrackBase);
 

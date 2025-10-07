@@ -203,7 +203,7 @@ status_t AidlCamera3Device::initialize(sp<CameraProviderManager> manager,
         return res;
     }
     if (session == nullptr) {
-      SET_ERR("Session iface returned is null");
+      SET_ERR_L("Session iface returned is null");
       return INVALID_OPERATION;
     }
     res = manager->getCameraCharacteristics(mId, mOverrideForPerfClass, &mDeviceInfo,

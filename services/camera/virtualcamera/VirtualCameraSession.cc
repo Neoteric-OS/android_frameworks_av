@@ -39,9 +39,11 @@
 
 #include "CameraMetadata.h"
 #include "EGL/egl.h"
+#include "VirtualCameraCaptureResultConsumer.h"
 #include "VirtualCameraDevice.h"
 #include "VirtualCameraRenderThread.h"
 #include "VirtualCameraStream.h"
+#include "aidl/android/companion/virtualcamera/ICaptureResultConsumer.h"
 #include "aidl/android/companion/virtualcamera/SupportedStreamConfiguration.h"
 #include "aidl/android/companion/virtualcamera/VirtualCameraMetadata.h"
 #include "aidl/android/hardware/camera/common/Status.h"
@@ -64,6 +66,7 @@
 #include "fmq/AidlMessageQueue.h"
 #include "system/camera_metadata.h"
 #include "ui/GraphicBuffer.h"
+#include "util/AidlUtil.h"
 #include "util/EglDisplayContext.h"
 #include "util/EglFramebuffer.h"
 #include "util/EglProgram.h"
@@ -75,6 +78,7 @@ namespace android {
 namespace companion {
 namespace virtualcamera {
 
+using ::aidl::android::companion::virtualcamera::ICaptureResultConsumer;
 using ::aidl::android::companion::virtualcamera::IVirtualCameraCallback;
 using ::aidl::android::companion::virtualcamera::SupportedStreamConfiguration;
 using ::aidl::android::companion::virtualcamera::VirtualCameraMetadata;
@@ -315,6 +319,15 @@ VirtualCameraSession::VirtualCameraSession(
   if (!mResultMetadataQueue->isValid()) {
     ALOGE("%s: invalid result fmq", __func__);
   }
+
+ std::shared_ptr<VirtualCameraDevice> virtualCamera = mCameraDevice.lock();
+ if (flags::virtual_camera_metadata() && virtualCamera != nullptr &&
+    virtualCamera->isPerFrameCameraMetadataEnabled()) {
+   // create a capture result consumer shared reference and set it in the
+   // session context.
+   mSessionContext.setCaptureResultConsumer(
+       ndk::SharedRefBase::make<VirtualCameraCaptureResultConsumer>());
+  }
 }
 
 ndk::ScopedAStatus VirtualCameraSession::close() {
@@ -435,6 +448,21 @@ ndk::ScopedAStatus VirtualCameraSession::configureStreams(
     inputSurface = mRenderThread->getInputSurface();
     inputStreamId = mCurrentInputStreamId =
         virtualCamera->allocateInputStreamId();
+  }
+
+  // The onConfigureSession is oneway async, just informs the VD owner of
+  // the session params
+  if (flags::virtual_camera_metadata() &&
+      mVirtualCameraClientCallback != nullptr) {
+    VirtualCameraMetadata sessionParamsMetadata;
+    status_t ret = convertDeviceToVirtualCameraMetadata(
+        in_requestedConfiguration.sessionParams, sessionParamsMetadata);
+    if (ret != OK) {
+      ALOGE("Failed to convert device to virtual session parameters!");
+    }
+
+    mVirtualCameraClientCallback->onConfigureSession(sessionParamsMetadata,
+                                                     mSessionContext.getCaptureResultConsumer());
   }
 
   if (mVirtualCameraClientCallback != nullptr && inputSurface != nullptr) {
@@ -652,8 +680,14 @@ ndk::ScopedAStatus VirtualCameraSession::processCaptureRequest(
     std::optional<VirtualCameraMetadata> captureRequestSettings;
     if (flags::virtual_camera_metadata() &&
         virtualCamera->isPerFrameCameraMetadataEnabled()) {
-      // Send the settings of the CaptureRequest as (virtual) camera metadata
-      captureRequestSettings = aidlToVirtualCameraMetadata(request.settings);
+      VirtualCameraMetadata virtualCameraMetadata;
+      // Send the settings of the CaptureRequest as VirtualCameraMetadata
+      status_t ret = convertDeviceToVirtualCameraMetadata(
+          request.settings, virtualCameraMetadata);
+      if (ret != OK) {
+        ALOGE("Failed to convert device to virtual capture request settings!");
+      }
+      captureRequestSettings = virtualCameraMetadata;
     }
     ndk::ScopedAStatus status =
         mVirtualCameraClientCallback->onProcessCaptureRequest(

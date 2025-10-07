@@ -42,11 +42,6 @@
 #include <android/media/AudioMixerAttributesInternal.h>
 #include <android/media/audio/common/AudioVolumeGroupChangeEvent.h>
 
-#define VALUE_OR_RETURN_BINDER_STATUS(x) \
-    ({ auto _tmp = (x); \
-       if (!_tmp.ok()) return aidl_utils::binderStatusFromStatusT(_tmp.error()); \
-       std::move(_tmp.value()); })
-
 // ----------------------------------------------------------------------------
 
 namespace audio_flags = android::media::audiopolicy;
@@ -202,11 +197,12 @@ public:
         // mediautils::getService() installs a persistent new service notification.
         auto service = mediautils::getService<
             media::IAudioFlingerService>(waitMs);
-        ALOGD("%s: checking for service %s: %p", __func__, getServiceName(), service.get());
 
         ul.lock();
         // return the IAudioFlinger interface which is adapted
         // from the media::IAudioFlingerService.
+        ALOGD("%s: IAudioFlingerService retrieved: %p  IAudioFlinger cached: %p",
+                __func__, service.get(), mService.get());
         return mService;
     }
 
@@ -1071,12 +1067,13 @@ public:
 
         auto service = mediautils::getService<
                 media::IAudioPolicyService>(waitMs);
-        ALOGD("%s: checking for service %s: %p", __func__, getServiceName(), service.get());
 
         // mediautils::getService() will return early if setLocalService() is called
         // (whereupon mService contained the actual local service pointer to use).
         // we should always return mService.
         ul.lock();
+        ALOGD("%s: IAudioPolicyService retrieved: %p  cached: %p",
+                __func__, service.get(), mService.get());
         return mService;
     }
 
@@ -1221,7 +1218,13 @@ status_t AudioSystem::handleDeviceConfigChange(audio_devices_t device,
 }
 
 status_t AudioSystem::setPhoneState(audio_mode_t state, uid_t uid) {
-    if (uint32_t(state) >= AUDIO_MODE_CNT) return BAD_VALUE;
+    if (uint32_t(state) >= AUDIO_MODE_CNT) {
+        return BAD_VALUE;
+    }
+    if (state == AUDIO_MODE_ASSISTANT_CONVERSATION) {
+        ALOGE("%s: AUDIO_MODE_ASSISTANT_CONVERSATION not supported", __func__);
+        return BAD_VALUE;
+    }
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
 
@@ -1394,6 +1397,14 @@ void AudioSystem::releaseOutput(audio_port_handle_t portId) {
 
     // Ignore status.
     (void) status;
+}
+
+status_t AudioSystem::forceReleaseDirectOutput(audio_io_handle_t output) {
+    const sp<IAudioPolicyService> aps = get_audio_policy_service();
+    if (aps == nullptr) return AudioPolicyServiceTraits::getError();
+    int32_t outputIdAidl =
+            VALUE_OR_RETURN_STATUS(legacy2aidl_audio_io_handle_t_int32_t(output));
+    return statusTFromBinderStatus(aps->forceReleaseDirectOutput(outputIdAidl));
 }
 
 status_t AudioSystem::getInputForAttr(const audio_attributes_t* attr,
@@ -1682,19 +1693,6 @@ status_t AudioSystem::setMinVolumeIndexForGroup(volume_group_t groupId, int inde
     int32_t groupIdAidl = VALUE_OR_RETURN_STATUS(legacy2aidl_volume_group_t_int32_t(groupId));
     int32_t indexAidl = VALUE_OR_RETURN_STATUS(convertIntegral<int32_t>(index));
     return statusTFromBinderStatus(aps->setMinVolumeIndexForGroup(groupIdAidl, indexAidl));
-}
-
-status_t AudioSystem::getVolumeGroupIdForStreamType(audio_stream_type_t stream, int &groupId) {
-    const sp<IAudioPolicyService> aps = get_audio_policy_service();
-    if (aps == 0) return PERMISSION_DENIED;
-
-    AudioStreamType aidlStream = VALUE_OR_RETURN_STATUS(
-            legacy2aidl_audio_stream_type_t_AudioStreamType(stream));
-    int32_t groupIdAidl;
-    RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(aps->getVolumeGroupIdForStreamType(aidlStream,
-            &groupIdAidl)));
-    groupId = VALUE_OR_RETURN_STATUS(convertIntegral<int>(groupIdAidl));
-    return OK;
 }
 
 product_strategy_t AudioSystem::getStrategyForStream(audio_stream_type_t stream) {
@@ -2178,10 +2176,6 @@ status_t AudioSystem::registerPolicyMixes(const Vector<AudioMix>& mixes, bool re
 }
 
 status_t AudioSystem::getRegisteredPolicyMixes(std::vector<AudioMix>& mixes) {
-    if (!audio_flags::audio_mix_test_api()) {
-        return INVALID_OPERATION;
-    }
-
     const sp<IAudioPolicyService> aps = AudioSystem::get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
 

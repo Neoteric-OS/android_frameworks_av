@@ -45,6 +45,7 @@ namespace {
 
 using ::aidl::android::companion::virtualcamera::BnVirtualCameraCallback;
 using ::aidl::android::companion::virtualcamera::Format;
+using ::aidl::android::companion::virtualcamera::ICaptureResultConsumer;
 using ::aidl::android::companion::virtualcamera::LensFacing;
 using ::aidl::android::companion::virtualcamera::SensorOrientation;
 using ::aidl::android::companion::virtualcamera::VirtualCameraConfiguration;
@@ -81,6 +82,11 @@ const VirtualCameraConfiguration kEmptyVirtualCameraConfiguration;
 class MockVirtualCameraCallback : public BnVirtualCameraCallback {
  public:
   MOCK_METHOD(ndk::ScopedAStatus, onOpenCamera, (), (override));
+  MOCK_METHOD(
+      ndk::ScopedAStatus, onConfigureSession,
+      (const VirtualCameraMetadata& in_sessionParameters,
+       const std::shared_ptr<ICaptureResultConsumer>& in_captureResultConsumer),
+      (override));
   MOCK_METHOD(ndk::ScopedAStatus, onStreamConfigured,
               (int32_t, const ::aidl::android::view::Surface&, int, int,
                ::aidl::android::companion::virtualcamera::Format pixelFormat),

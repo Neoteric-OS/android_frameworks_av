@@ -65,24 +65,14 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-// TODO: Remove when this is put into AidlConversionUtil.h
-#define VALUE_OR_RETURN_BINDER_STATUS(x)    \
-    ({                                      \
-       auto _tmp = (x);                     \
-       if (!_tmp.ok()) return ::android::aidl_utils::binderStatusFromStatusT(_tmp.error()); \
-       std::move(_tmp.value());             \
-     })
-
 namespace audioserver_flags = com::android::media::audioserver;
 
 namespace android {
 
 using ::android::aidl_utils::binderStatusFromStatusT;
-using ::com::android::media::audio::hardening_impl;
 using ::com::android::media::audio::hardening_partial;
 using ::com::android::media::audio::hardening_strict;
 using binder::Status;
-using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using content::AttributionSourceState;
 using media::VolumeShaper;
@@ -348,9 +338,7 @@ void TrackBase::deferRestartIfDisabled()
 
 void TrackBase::beginBatteryAttribution() {
     mBatteryStatsHolder.emplace(uid());
-    if (media::psh_utils::AudioPowerManager::enabled()) {
-        mTrackToken = media::psh_utils::createAudioTrackToken(uid());
-    }
+    mTrackToken = media::psh_utils::createAudioTrackToken(uid());
 }
 
 void TrackBase::endBatteryAttribution() {
@@ -737,10 +725,14 @@ sp<OpPlayAudioMonitor> OpPlayAudioMonitor::createIfNeeded(
             const AttributionSourceState& attributionSource, const audio_attributes_t& attr, int id,
             audio_stream_type_t streamType)
 {
-    const uid_t uid = VALUE_OR_FATAL(aidl2legacy_int32_t_uid_t(attributionSource.uid));
+    const uid_t uid = attributionSource.uid;
+
     if (isServiceUid(uid)) {
-        ALOGW("OpPlayAudio: not muting track:%d usage:%d for service UID %d", id, attr.usage,
+        const auto res = thread->afThreadCallback()->getPermissionProvider().getPackagesForUid(uid);
+        if (res.ok() && res->empty()) {
+            ALOGW("OpPlayAudio: not muting track:%d usage:%d for service UID %d", id, attr.usage,
               uid);
+        }
         return nullptr;
     }
     // stream type has been filtered by audio policy to indicate whether it can be muted
@@ -2156,7 +2148,8 @@ status_t Track::getPlaybackRateParameters(
         if (thread != nullptr) {
             auto* const t = thread->asIAfPlaybackThread().get();
             audio_utils::lock_guard lock(t->mutex());
-            if (auto* const output = t->getOutput_l()) {
+            auto* const output = t->getOutput_l();
+            if (output && t->isStreamInitialized_l()) {
                 status = output->stream->getPlaybackRateParameters(playbackRate);
             }
             ALOGD_IF((status == NO_ERROR) &&
@@ -2366,7 +2359,8 @@ OutputTrack::OutputTrack(
               nullptr /* buffer */, (size_t)0 /* bufferSize */, nullptr /* sharedBuffer */,
               AUDIO_SESSION_NONE, getpid(), attributionSource, AUDIO_OUTPUT_FLAG_NONE,
               TYPE_OUTPUT, AUDIO_PORT_HANDLE_NONE,
-              /*frameCountToBeReady*/ playbackThread->frameCount()),
+              /*frameCountToBeReady*/ sourceFramesNeededWithTimestretch(sampleRate,
+                      playbackThread->frameCount(), playbackThread->sampleRate(), 1.0f /*speed*/)),
     mActive(false), mSourceThread(sourceThread)
 {
     if (mCblk != NULL) {
@@ -2383,6 +2377,8 @@ OutputTrack::OutputTrack(
         mClientProxy->setVolumeLR(GAIN_MINIFLOAT_PACKED_UNITY);
         mClientProxy->setSendLevel(0.0);
         mClientProxy->setSampleRate(sampleRate);
+        uint32_t waitTimeMs = (playbackThread->frameCount() * 1000) / playbackThread->sampleRate();
+        mClientProxy->setMinMeasureMs(waitTimeMs);
     } else {
         ALOGW("%s(%d): Error creating output track on thread %d",
                 __func__, mId, (int)mThreadIoHandle);
@@ -2463,7 +2459,7 @@ ssize_t OutputTrack::write(void* data, uint32_t frames)
     inBuffer.frameCount = frames;
     inBuffer.raw = data;
     uint32_t waitTimeLeftMs = mSourceThread->waitTimeMs();
-    while (waitTimeLeftMs) {
+    while (true) {
         // First write pending buffers, then new data
         if (mBufferQueue.size()) {
             pInBuffer = mBufferQueue.front();
@@ -2523,6 +2519,9 @@ ssize_t OutputTrack::write(void* data, uint32_t frames)
             } else {
                 break;
             }
+        }
+        if (waitTimeLeftMs == 0) {
+            break;
         }
     }
 
@@ -3301,22 +3300,14 @@ status_t RecordTrack::shareAudioHistory(
     attributionSource.pid = VALUE_OR_RETURN_STATUS(legacy2aidl_uid_t_int32_t(callingPid));
     attributionSource.token = sp<BBinder>::make();
     const sp<IAfThreadBase> thread = mThread.promote();
-    if (audioserver_permissions()) {
-        const auto res = thread->afThreadCallback()->getPermissionProvider().checkPermission(
-                    CAPTURE_AUDIO_HOTWORD,
-                    attributionSource.uid);
-            if (!res.ok()) {
-                return aidl_utils::statusTFromBinderStatus(res.error());
-            }
-            if (!res.value()) {
-                return PERMISSION_DENIED;
-            }
-    } else {
-        if (!captureHotwordAllowed(attributionSource)) {
-            return PERMISSION_DENIED;
-        }
+    const auto res = thread->afThreadCallback()->getPermissionProvider().checkPermission(
+            CAPTURE_AUDIO_HOTWORD, attributionSource.uid);
+    if (!res.ok()) {
+        return aidl_utils::statusTFromBinderStatus(res.error());
     }
-
+    if (!res.value()) {
+        return PERMISSION_DENIED;
+    }
     if (thread != 0) {
         auto* const recordThread = thread->asIAfRecordThread().get();
         status_t status = recordThread->shareAudioHistory(
@@ -3743,47 +3734,45 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
     using media::permission::skipOpsForUid;
     using media::permission::ValidatedAttributionSourceState;
 
-    if (hardening_impl()) {
-        // Don't bother for trusted uids
-        if (!skipOpsForUid(attributionSource.uid) && shouldPlaybackHarden) {
-            if (isOffloadOrMmap) {
-                mExecutor.emplace();
-            }
-            auto thread_wp = wp<IAfThreadBase>::fromExisting(&thread);
-            mOpControlPartialSession.emplace(
-                    ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
-                    Ops{.attributedOp = OP_CONTROL_AUDIO_PARTIAL},
-                    [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
-                        mHasOpControlPartial.store(isPermitted, std::memory_order_release);
-                        if (isOffloadOrMmap) {
-                            mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
-                                auto thread = thread_wp.promote();
-                                if (thread != nullptr) {
-                                    audio_utils::lock_guard l {thread->mutex()};
-                                    thread->broadcast_l();
-                                }
-                            }});
-                        }
-                    }
-            );
-            // Same as previous but for mHasOpControlFull, OP_CONTROL_AUDIO
-            mOpControlFullSession.emplace(
-                    ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
-                    Ops{.attributedOp = OP_CONTROL_AUDIO},
-                    [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
-                        mHasOpControlFull.store(isPermitted, std::memory_order_release);
-                        if (isOffloadOrMmap) {
-                            mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
-                                auto thread = thread_wp.promote();
-                                if (thread != nullptr) {
-                                    audio_utils::lock_guard l {thread->mutex()};
-                                    thread->broadcast_l();
-                                }
-                            }});
-                        }
-                    }
-            );
+    // Don't bother for trusted uids
+    if (!skipOpsForUid(attributionSource.uid) && shouldPlaybackHarden) {
+        if (isOffloadOrMmap) {
+            mExecutor.emplace();
         }
+        auto thread_wp = wp<IAfThreadBase>::fromExisting(&thread);
+        mOpControlPartialSession.emplace(
+                ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
+                Ops{.attributedOp = OP_CONTROL_AUDIO_PARTIAL},
+                [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
+                    mHasOpControlPartial.store(isPermitted, std::memory_order_release);
+                    if (isOffloadOrMmap) {
+                        mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            auto thread = thread_wp.promote();
+                            if (thread != nullptr) {
+                                audio_utils::lock_guard l {thread->mutex()};
+                                thread->broadcast_l();
+                            }
+                        }});
+                    }
+                }
+        );
+        // Same as previous but for mHasOpControlFull, OP_CONTROL_AUDIO
+        mOpControlFullSession.emplace(
+                ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
+                Ops{.attributedOp = OP_CONTROL_AUDIO},
+                [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
+                    mHasOpControlFull.store(isPermitted, std::memory_order_release);
+                    if (isOffloadOrMmap) {
+                        mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            auto thread = thread_wp.promote();
+                            if (thread != nullptr) {
+                                audio_utils::lock_guard l {thread->mutex()};
+                                thread->broadcast_l();
+                            }
+                        }});
+                    }
+                }
+        );
     }
 }
 

@@ -67,6 +67,13 @@ class VirtualCameraTestInstance
 
   ::ndk::ScopedAStatus onOpenCamera();
 
+  ::ndk::ScopedAStatus onConfigureSession(
+      const ::aidl::android::companion::virtualcamera::VirtualCameraMetadata&
+          sessionParameters,
+      const std::shared_ptr<
+          ::aidl::android::companion::virtualcamera::ICaptureResultConsumer>&
+          captureResultConsumer) override;
+
   ::ndk::ScopedAStatus onStreamConfigured(
       int32_t streamId, const ::aidl::android::view::Surface& surface,
       int32_t width, int32_t height,

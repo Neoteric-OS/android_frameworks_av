@@ -28,9 +28,9 @@
 #include "ResamplerBufferProvider.h"
 
 #include <afutils/FallibleLockGuard.h>
-#include <afutils/Permission.h>
 #include <afutils/TypedLogger.h>
 #include <afutils/Vibrator.h>
+#include <android/media/BnMmapStream.h>
 #include <audio_utils/MelProcessor.h>
 #include <audio_utils/Metadata.h>
 #include <audio_utils/Trace.h>
@@ -89,6 +89,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <algorithm>
 #include <fcntl.h>
 #include <linux/futex.h>
 #include <math.h>
@@ -114,16 +115,6 @@
 #define ALOGVV(a...) do { } while(0)
 #endif
 
-// TODO: Move these macro/inlines to a header file.
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-template <typename T>
-static inline T min(const T& a, const T& b)
-{
-    return a < b ? a : b;
-}
-
-using com::android::media::audio::audioserver_permissions;
 using com::android::media::permission::PermissionEnum::CAPTURE_AUDIO_HOTWORD;
 using com::android::media::permission::ValidatedAttributionSourceState;
 namespace audioserver_flags = com::android::media::audioserver;
@@ -1216,6 +1207,8 @@ String16 ThreadBase::getWakeLockTag()
         return String16("AudioSpatial");
     case BIT_PERFECT:
         return String16("AudioBitPerfect");
+    case DIRECT_RECORD:
+        return String16("AudioDirectIn");
     default:
         ALOG_ASSERT(false);
         return String16("AudioUnknown");
@@ -1236,10 +1229,8 @@ void ThreadBase::acquireWakeLock_l()
                     {} /* historyTag */);
         if (status.isOk()) {
             mWakeLockToken = binder;
-            if (media::psh_utils::AudioPowerManager::enabled()) {
-                mThreadToken = media::psh_utils::createAudioThreadToken(
-                        getTid(), String8(getWakeLockTag()).c_str());
-            }
+            mThreadToken = media::psh_utils::createAudioThreadToken(
+                    getTid(), String8(getWakeLockTag()).c_str());
         }
         ALOGV("acquireWakeLock_l() %s status %d", mThreadName, status.exceptionCode());
     }
@@ -2606,7 +2597,8 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
             if (ok != 0) {
                 ALOGE("%s pthread_once failed: %d", __func__, ok);
             }
-            frameCount = max(frameCount, mFrameCount * sFastTrackMultiplier); // incl framecount 0
+            // incl framecount 0
+            frameCount = std::max(frameCount, mFrameCount * sFastTrackMultiplier);
         }
 
         // check compatibility with audio effects.
@@ -4530,8 +4522,8 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
                                     const ssize_t
                                             availableToWrite = mPipeSink->availableToWrite();
                                     const size_t pipeFrames = monoPipe->maxFrames();
-                                    const size_t
-                                            remainingFrames = pipeFrames - max(availableToWrite, 0);
+                                    const size_t remainingFrames = pipeFrames -
+                                            std::max(availableToWrite, static_cast<ssize_t>(0));
                                     mMonopipePipeDepthStats.add(remainingFrames);
                                 }
                             }
@@ -4731,7 +4723,7 @@ void PlaybackThread::collectTimestamps_l()
                         timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL]
                         - int64_t(mDownstreamLatencyStatMs.getMean() * mSampleRate * 1e-3);
                 // prevent retrograde
-                timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = max(
+                timestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL] = std::max(
                         newPosition,
                         (mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL]
                                 - mSuspendedFrames));
@@ -5511,10 +5503,10 @@ void PlaybackThread::onAddNewTrack_l()
 
 void PlaybackThread::onAsyncError(bool isHardError)
 {
-    auto allTrackPortIds = getTrackPortIds();
-    invalidateTracks();
-    if (isHardError) {
-        mAfThreadCallback->onHardError(allTrackPortIds);
+    if (!isHardError || !isOffloadOrDirect()) {
+        invalidateTracks();
+    } else {
+        mAfThreadCallback->onHardError(id());
     }
 }
 
@@ -5548,10 +5540,11 @@ void MixerThread::threadLoop_sleepTime()
                 MonoPipe *monoPipe = static_cast<MonoPipe *>(mPipeSink.get());
                 const ssize_t availableToWrite = mPipeSink->availableToWrite();
                 const size_t pipeFrames = monoPipe->maxFrames();
-                const size_t framesLeft = pipeFrames - max(availableToWrite, 0);
+                const size_t framesLeft = pipeFrames -
+                        std::max(availableToWrite, static_cast<ssize_t>(0));
                 // HAL_framecount <= framesDelay ~ framesLeft / 2 <= Normal_Mixer_framecount
-                const size_t framesDelay = std::min(
-                        mNormalFrameCount, max(framesLeft / 2, mFrameCount));
+                const size_t framesDelay = std::clamp(static_cast<size_t>(framesLeft / 2),
+                        mFrameCount, mNormalFrameCount);
                 ALOGV("pipeFrames:%zu framesLeft:%zu framesDelay:%zu",
                         pipeFrames, framesLeft, framesDelay);
                 mSleepTimeUs = framesDelay * MICROS_PER_SECOND / mSampleRate;
@@ -5609,7 +5602,6 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
 
     mixer_state mixerStatus = MIXER_IDLE;
     // find out which tracks need to be processed
-    size_t count = mActiveTracks.size();
     size_t mixedTracks = 0;
     size_t tracksWithEffect = 0;
     // counts only _active_ fast tracks
@@ -5662,7 +5654,7 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
             if (*mMixerStatus == MIXER_TRACKS_READY && mUnderrunFrames.size() > 0) {
                 for (const auto &underrun : mUnderrunFrames) {
                     underrun.first->tallyUnderrunFrames(underrun.second);
-                    maxUnderrunFrames = max(underrun.second, maxUnderrunFrames);
+                    maxUnderrunFrames = std::max(underrun.second, maxUnderrunFrames);
                 }
             }
             // send the max underrun frames for this mixer period
@@ -7989,6 +7981,11 @@ void DuplicatingThread::threadLoop_sleepTime()
 ssize_t DuplicatingThread::threadLoop_write()
 {
     ATRACE_BEGIN("write");
+    {
+        audio_utils::lock_guard _l(mutex());
+        updateWaitTime_l();
+    }
+
     bool first = true;
     for (const auto& t : tlOutputTracks) {
         const ssize_t actualWritten = t->write(mSinkBuffer, writeFrames);
@@ -8148,7 +8145,14 @@ void DuplicatingThread::updateWaitTime_l()
     for (const auto& track : mOutputTracks) {
         const auto strong = track->thread().promote();
         if (strong != 0) {
-            uint32_t waitTimeMs = (strong->frameCount() * 1000) / strong->sampleRate();
+            size_t frames = strong->frameCount();
+            // Do not wait in OutputTrack::write() if one of the tracks does not have enough frames
+            // ready to be mixed
+            if (track->isActive() && track->framesReady() < sourceFramesNeededWithTimestretch(
+                track->sampleRate(), frames, strong->sampleRate(), 1.0f /*speed*/)) {
+                frames = 0;
+            }
+            uint32_t waitTimeMs = (frames * 1000) / strong->sampleRate();
             if (waitTimeMs < mWaitTimeMs) {
                 mWaitTimeMs = waitTimeMs;
             }
@@ -8166,8 +8170,7 @@ bool DuplicatingThread::outputsReady()
             return false;
         }
         IAfPlaybackThread* const playbackThread = thread->asIAfPlaybackThread().get();
-        // see note at standby() declaration
-        if (playbackThread->inStandby() && !playbackThread->isSuspended()) {
+        if (!playbackThread->waitForHalStart(0/* timeoutMs */)) {
             ALOGV("DuplicatingThread output track %p on thread %p Not Ready", track.get(),
                     thread.get());
             return false;
@@ -8791,7 +8794,7 @@ reacquire_wakelock:
                 didModify = true;
             }
             AudioBufferProvider* abp = (fastTrack != 0 && fastTrack->isPatchTrack()) ?
-                    reinterpret_cast<AudioBufferProvider*>(fastTrack.get()) : nullptr;
+                    fastTrack->asAudioBufferProvider() : nullptr;
             if (state->mFastPatchRecordBufferProvider != abp) {
                 state->mFastPatchRecordBufferProvider = abp;
                 state->mFastPatchRecordFormat = fastTrack == 0 ?
@@ -8828,7 +8831,7 @@ reacquire_wakelock:
 
         // If an NBAIO source is present, use it to read the normal capture's data
         if (mPipeSource != 0) {
-            size_t framesToRead = min(mRsmpInFramesOA - rear, mRsmpInFramesP2 / 2);
+            size_t framesToRead = std::min(mRsmpInFramesOA - rear, mRsmpInFramesP2 / 2);
 
             // The audio fifo read() returns OVERRUN on overflow, and advances the read pointer
             // to the full buffer point (clearing the overflow condition).  Upon OVERRUN error,
@@ -8848,7 +8851,7 @@ reacquire_wakelock:
                         "more frames to read than fifo size, %zd > %zu",
                         availableToRead, mPipeFramesP2);
                 const size_t pipeFramesFree = mPipeFramesP2 - availableToRead;
-                const size_t sleepFrames = min(pipeFramesFree, mRsmpInFramesP2) / 2;
+                const size_t sleepFrames = std::min(pipeFramesFree, mRsmpInFramesP2) / 2;
                 ALOGVV("mPipeFramesP2:%zu mRsmpInFramesP2:%zu sleepFrames:%zu availableToRead:%zd",
                         mPipeFramesP2, mRsmpInFramesP2, sleepFrames, availableToRead);
                 sleepUs = (sleepFrames * 1000000LL) / mSampleRate;
@@ -9009,7 +9012,7 @@ reacquire_wakelock:
                 // This isn't strictly necessary but helps limit buffer resizing in
                 // RecordBufferConverter.  TODO: remove when no longer needed.
                 if (audio_is_linear_pcm(activeTrack->format())) {
-                    framesOut = min(framesOut,
+                    framesOut = std::min(framesOut,
                             destinationFramesPossible(
                                     framesIn, mSampleRate, activeTrack->sampleRate()));
                 }
@@ -9234,22 +9237,15 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
     }
 
     if (maxSharedAudioHistoryMs != 0) {
-        if (audioserver_permissions()) {
-            const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
-                    CAPTURE_AUDIO_HOTWORD,
-                    attributionSource.uid);
-            if (!res.ok()) {
-                lStatus = aidl_utils::statusTFromBinderStatus(res.error());
-            }
-            if (!res.value()) {
-                lStatus = PERMISSION_DENIED;
-                goto Exit;
-            }
-        } else {
-            if (!captureHotwordAllowed(attributionSource)) {
-                lStatus = PERMISSION_DENIED;
-                goto Exit;
-            }
+        const auto res = mAfThreadCallback->getPermissionProvider().checkPermission(
+                CAPTURE_AUDIO_HOTWORD,
+                attributionSource.uid);
+        if (!res.ok()) {
+            lStatus = aidl_utils::statusTFromBinderStatus(res.error());
+        }
+        if (!res.value()) {
+            lStatus = PERMISSION_DENIED;
+            goto Exit;
         }
         if (maxSharedAudioHistoryMs < 0
                 || maxSharedAudioHistoryMs > kMaxSharedAudioHistoryMs) {
@@ -9355,8 +9351,8 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         const size_t minNotificationsByMs = (minFramesByMs + maxNotificationFrames - 1) /
                 maxNotificationFrames;
         const size_t minFrameCount = maxNotificationFrames *
-                max(kMinNotifications, minNotificationsByMs);
-        frameCount = max(frameCount, minFrameCount);
+                std::max(kMinNotifications, minNotificationsByMs);
+        frameCount = std::max(frameCount, minFrameCount);
         if (notificationFrameCount == 0 || notificationFrameCount > maxNotificationFrames) {
             notificationFrameCount = maxNotificationFrames;
         }
@@ -9370,11 +9366,9 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         if (!mSharedAudioPackageName.empty()
                 && mSharedAudioPackageName == attributionSource.packageName
                 && mSharedAudioSessionId == sessionId
-                && (audioserver_permissions() ?
-                      mAfThreadCallback->getPermissionProvider().checkPermission(
+                && mAfThreadCallback->getPermissionProvider().checkPermission(
                           CAPTURE_AUDIO_HOTWORD,
-                          attributionSource.uid).value_or(false)
-                    : captureHotwordAllowed(attributionSource))) {
+                          attributionSource.uid).value_or(false)) {
             startFrames = mSharedAudioStartFrames;
         }
 
@@ -10441,27 +10435,35 @@ std::string RecordThread::getLocalLogHeader() const {
 
 // Mmap stream control interface implementation. Each MmapThreadHandle controls one
 // MmapPlaybackThread or MmapCaptureThread instance.
-class MmapThreadHandle : public MmapStreamInterface {
+class MmapThreadHandle : public media::BnMmapStream {
 public:
     explicit MmapThreadHandle(const sp<IAfMmapThread>& thread);
     ~MmapThreadHandle() override;
 
-    // MmapStreamInterface virtuals
-    status_t createMmapBuffer(int32_t minSizeFrames,
-        struct audio_mmap_buffer_info* info) final;
-    status_t getMmapPosition(struct audio_mmap_position* position) final;
-    status_t getExternalPosition(uint64_t* position, int64_t* timeNanos) final;
-    status_t start(const AudioClient& client,
-           const audio_attributes_t* attr, audio_port_handle_t* handle) final;
-    status_t stop(audio_port_handle_t handle) final;
-    status_t standby() final;
-    status_t reportData(const void* buffer, size_t frameCount) final;
+    binder::Status createMmapBuffer(
+            int32_t minSizeFrames, media::MmapBufferInfo* _aidl_return) final;
+    binder::Status getMmapPosition(media::IMmapStream::MmapStreamPosition* _aidl_return) final;
+    binder::Status getObservablePosition(
+            media::IMmapStream::MmapObservablePosition* _aidl_return) final;
+    binder::Status start(const media::AudioClient& client,
+            const ::std::optional< ::android::media::audio::common::AudioAttributes>& attr,
+            int32_t portId, int32_t* _aidl_return) final;
+    binder::Status stop(int32_t portId) final;
+    binder::Status standby() final;
+    binder::Status reportData(const ::std::vector<uint8_t>& buffer) final;
+    binder::Status drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                         media::TimerQueueHandle* handle) final;
+    binder::Status activate(const media::TimerQueueHandle& handle) final;
+    binder::Status setPlaybackParameters(
+            const media::audio::common::AudioPlaybackRate& rate) final;
+    binder::Status getPlaybackParameters(
+            media::audio::common::AudioPlaybackRate* rate) final;
 private:
     const sp<IAfMmapThread> mThread;
 };
 
 /* static */
-sp<MmapStreamInterface> IAfMmapThread::createMmapStreamInterfaceAdapter(
+sp<media::IMmapStream> IAfMmapThread::createMmapStreamInterfaceAdapter(
         const sp<IAfMmapThread>& mmapThread) {
     return sp<MmapThreadHandle>::make(mmapThread);
 }
@@ -10479,43 +10481,123 @@ MmapThreadHandle::~MmapThreadHandle()
     mThread->disconnect();
 }
 
-status_t MmapThreadHandle::createMmapBuffer(int32_t minSizeFrames,
-                                  struct audio_mmap_buffer_info *info)
+binder::Status MmapThreadHandle::createMmapBuffer(
+        int32_t minSizeFrames, media::MmapBufferInfo* _aidl_return)
 {
-    return mThread->createMmapBuffer(minSizeFrames, info);
+    struct audio_mmap_buffer_info info;
+    const status_t status = mThread->createMmapBuffer(minSizeFrames, &info);
+    if (status == NO_ERROR) {
+        const int bufferFd = info.shared_memory_fd;
+        // we dup the bufferFd and then leave it to the Parcel and Binder
+        // to transfer and reclaim the resource.
+        _aidl_return->sharedFd.reset(binder::unique_fd(dup(bufferFd)));
+        _aidl_return->bufferSizeFrames = info.buffer_size_frames;
+        _aidl_return->burstSizeFrames = info.burst_size_frames;
+        _aidl_return->flags = static_cast<int32_t>(info.flags);
+    }
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
-status_t MmapThreadHandle::getMmapPosition(struct audio_mmap_position* position)
+binder::Status MmapThreadHandle::getMmapPosition(
+        media::IMmapStream::MmapStreamPosition* _aidl_return)
 {
-    return mThread->getMmapPosition(position);
+    struct audio_mmap_position position;
+    const status_t status = mThread->getMmapPosition(&position);
+    if (status == NO_ERROR) {
+        _aidl_return->timeNanos = position.time_nanoseconds;
+        _aidl_return->positionFrames = position.position_frames;
+    }
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
-status_t MmapThreadHandle::getExternalPosition(uint64_t* position,
-                                                             int64_t *timeNanos) {
-    return mThread->getExternalPosition(position, timeNanos);
-}
-
-status_t MmapThreadHandle::start(const AudioClient& client,
-        const audio_attributes_t *attr, audio_port_handle_t *handle)
+binder::Status MmapThreadHandle::getObservablePosition(
+        media::IMmapStream::MmapObservablePosition* _aidl_return)
 {
-    return mThread->start(client, attr, handle);
+    uint64_t position;
+    int64_t timeNanos;
+    const status_t status = mThread->getObservablePosition(&position, &timeNanos);
+    if (status == NO_ERROR) {
+        _aidl_return->timeNanos = timeNanos;
+        _aidl_return->positionFrames = position;
+    }
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
-status_t MmapThreadHandle::stop(audio_port_handle_t handle)
+binder::Status MmapThreadHandle::start(
+        const ::android::media::AudioClient& client,
+        const ::std::optional<::android::media::audio::common::AudioAttributes>& attr,
+        int32_t portId,
+        int32_t* _aidl_return)
 {
-    return mThread->stop(handle);
+    const AudioClient legacyClient =
+            VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_AudioClient_AudioClient(client));
+    const audio_attributes_t legacyAttr = attr.has_value() ?
+            VALUE_OR_RETURN_BINDER_STATUS(
+                    aidl2legacy_AudioAttributes_audio_attributes_t(attr.value()))
+            : AUDIO_ATTRIBUTES_INITIALIZER;
+    audio_port_handle_t handle =
+            VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_int32_t_audio_port_handle_t(portId));
+    const status_t status = mThread->start(
+            legacyClient, attr.has_value() ? &legacyAttr : nullptr, &handle);
+    if (status == NO_ERROR) {
+        *_aidl_return =
+                VALUE_OR_RETURN_BINDER_STATUS(legacy2aidl_audio_port_handle_t_int32_t(handle));
+    }
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
-status_t MmapThreadHandle::standby()
+binder::Status MmapThreadHandle::stop(int32_t portId)
 {
-    return mThread->standby();
+    const audio_port_handle_t handle =
+            VALUE_OR_RETURN_BINDER_STATUS(aidl2legacy_int32_t_audio_port_handle_t(portId));
+    const status_t status = mThread->stop(handle);
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
-status_t MmapThreadHandle::reportData(const void* buffer, size_t frameCount)
+binder::Status MmapThreadHandle::standby()
 {
-    return mThread->reportData(buffer, frameCount);
+    const status_t status = mThread->standby();
+    return aidl_utils::binderStatusFromStatusT(status);
 }
 
+binder::Status MmapThreadHandle::reportData(const ::std::vector<uint8_t>& buffer)
+{
+    ALOGV("%s: SoundDose ThreadHandle reportData: %zu", __func__, buffer.size());
+    const size_t frameCount = buffer.size() /
+            std::max(mThread->frameSize(), static_cast<size_t>(1));
+    const status_t status = mThread->reportData(buffer.data(), frameCount);
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+                                       media::TimerQueueHandle* handle) {
+    audio_utils::TimerQueue::handle_t legacy = audio_utils::TimerQueue::INVALID_HANDLE;
+    const status_t status = mThread->drain(wakeUpNanos, allowSoftWakeUp, &legacy);
+    if (status == NO_ERROR) {
+        *handle = VALUE_OR_RETURN_BINDER_STATUS(
+                legacy2aidl_timer_queue_handle_t_TimerQueueHandle(legacy));
+    }
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::activate(const media::TimerQueueHandle& handle) {
+    audio_utils::TimerQueue::handle_t legacy = VALUE_OR_RETURN_BINDER_STATUS(
+            aidl2legacy_TimerQueueHandle_timer_queue_handle_t(handle));
+    const status_t status = mThread->activate(legacy);
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    const status_t status = mThread->setPlaybackParameters(rate);
+    return aidl_utils::binderStatusFromStatusT(status);
+}
+
+binder::Status MmapThreadHandle::getPlaybackParameters(
+        media::audio::common::AudioPlaybackRate* rate) {
+    const status_t status = mThread->getPlaybackParameters(rate);
+    return aidl_utils::binderStatusFromStatusT(status);
+}
 
 MmapThread::MmapThread(
         const sp<IAfThreadCallback>& afThreadCallback, audio_io_handle_t id,
@@ -10567,7 +10649,7 @@ void MmapThread::disconnect()
 void MmapThread::configure_l(const audio_attributes_t* attr,
                                                 audio_stream_type_t streamType __unused,
                                                 audio_session_t sessionId,
-                                                const sp<MmapStreamCallback>& callback,
+                             const sp<media::IMmapStreamCallback>& callback,
                                                 const DeviceIdVector& deviceIds,
                                                 audio_port_handle_t portId)
 {
@@ -10644,22 +10726,14 @@ status_t MmapThread::start(const AudioClient& client,
 
     audio_io_handle_t io = mId;
     AttributionSourceState adjAttributionSource;
-    if (!com::android::media::audio::audioserver_permissions()) {
-        adjAttributionSource = afutils::checkAttributionSourcePackage(
-                client.attributionSource);
-    } else {
-        // TODO(b/342475009) validate in oboeservice, and plumb downwards
-        auto validatedRes = ValidatedAttributionSourceState::createFromTrustedUidNoPackage(
-                    client.attributionSource,
-                    mAfThreadCallback->getPermissionProvider()
-                );
-        if (!validatedRes.has_value()) {
-            ALOGE("MMAP client package validation fail: %s",
-                    validatedRes.error().toString8().c_str());
-            return aidl_utils::statusTFromBinderStatus(validatedRes.error());
-        }
-        adjAttributionSource = std::move(validatedRes.value()).unwrapInto();
+    // TODO(b/342475009) validate in oboeservice, and plumb downwards
+    auto validatedRes = ValidatedAttributionSourceState::createFromTrustedUidNoPackage(
+            client.attributionSource, mAfThreadCallback->getPermissionProvider());
+    if (!validatedRes.has_value()) {
+        ALOGE("MMAP client package validation fail: %s", validatedRes.error().toString8().c_str());
+        return aidl_utils::statusTFromBinderStatus(validatedRes.error());
     }
+    adjAttributionSource = std::move(validatedRes.value()).unwrapInto();
 
     const auto localSessionId = mSessionId;
     auto localAttr = mAttr;
@@ -10916,6 +10990,28 @@ status_t MmapThread::reportData(const void* /*buffer*/, size_t /*frameCount*/) {
     return INVALID_OPERATION;
 }
 
+status_t MmapThread::drain(int64_t /*wakeUpNanos*/, bool /*allowSoftWakeUp*/,
+                           audio_utils::TimerQueue::handle_t* /*handle*/) {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
+status_t MmapThread::activate(audio_utils::TimerQueue::handle_t /*handle*/) {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
+status_t MmapThread::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& /*rate*/) {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
+status_t MmapThread::getPlaybackParameters(media::audio::common::AudioPlaybackRate* /*rate*/) {
+    // This is a stub implementation. The MmapPlaybackThread overrides this function.
+    return INVALID_OPERATION;
+}
+
 void MmapThread::readHalParameters_l()
 {
     status_t result = mHalStream->getAudioProperties(&mSampleRate, &mChannelMask, &mHALFormat);
@@ -11137,7 +11233,7 @@ NO_THREAD_SAFETY_ANALYSIS  // elease and re-acquire mutex()
     // For mmap streams, once the routing has changed, they will be disconnected. It should be
     // okay to notify the client earlier before the new patch creation.
     if (!areDeviceIdsEqual(deviceIds, mDeviceIds)) {
-        if (const sp<MmapStreamCallback> callback = mCallback.promote()) {
+        if (const sp<media::IMmapStreamCallback> callback = mCallback.promote()) {
             // The aaudioservice handle the routing changed event asynchronously. In that case,
             // it is safe to hold the lock here.
             callback->onRoutingChanged(deviceIds);
@@ -11276,7 +11372,7 @@ void MmapThread::threadLoop_standby()
 
 void MmapThread::threadLoop_exit()
 {
-    sp<MmapStreamCallback> callback;
+    sp<media::IMmapStreamCallback> callback;
     std::vector<audio_port_handle_t> portIds;
     {
         audio_utils::lock_guard _l(mutex());
@@ -11309,7 +11405,7 @@ void MmapThread::checkInvalidTracks_l()
 {
     for (const auto& track : mActiveTracks) {
         if (track->isInvalid()) {
-            if (const sp<MmapStreamCallback> callback = mCallback.promote()) {
+            if (const sp<media::IMmapStreamCallback> callback = mCallback.promote()) {
                 // The aaudioservice handle the routing changed event asynchronously. In that case,
                 // it is safe to hold the lock here.
                 callback->onRoutingChanged({});
@@ -11402,7 +11498,7 @@ MmapPlaybackThread::MmapPlaybackThread(
 void MmapPlaybackThread::configure(const audio_attributes_t* attr,
                                    audio_stream_type_t streamType,
                                    audio_session_t sessionId,
-                                   const sp<MmapStreamCallback>& callback,
+                                   const sp<media::IMmapStreamCallback>& callback,
                                    const DeviceIdVector& deviceIds,
                                    audio_port_handle_t portId,
                                    const audio_offload_info_t* offloadInfo)
@@ -11481,7 +11577,7 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
             mHalVolFloat = volume; // HW volume control worked, so update value.
             mNoCallbackWarningCount = 0;
         } else {
-            sp<MmapStreamCallback> callback = mCallback.promote();
+            sp<media::IMmapStreamCallback> callback = mCallback.promote();
             if (callback != 0) {
                 mHalVolFloat = volume; // SW volume control worked, so update value.
                 mNoCallbackWarningCount = 0;
@@ -11563,7 +11659,7 @@ void MmapPlaybackThread::toAudioPortConfig(struct audio_port_config* config)
     }
 }
 
-status_t MmapPlaybackThread::getExternalPosition(uint64_t* position,
+status_t MmapPlaybackThread::getObservablePosition(uint64_t* position,
         int64_t* timeNanos) const
 {
     if (mOutput == nullptr) {
@@ -11587,16 +11683,107 @@ status_t MmapPlaybackThread::reportData(const void* buffer, size_t frameCount) {
     return NO_ERROR;
 }
 
+void MmapPlaybackThread::onWakeUp() {
+    sp<media::IMmapStreamCallback> callback = nullptr;
+    media::TimerQueueHandle handle;
+    {
+        audio_utils::lock_guard _l(mutex());
+        callback = mCallback.promote();
+        auto aidl = legacy2aidl_timer_queue_handle_t_TimerQueueHandle(mWakeUpHandle);
+        mWakeUpHandle = audio_utils::TimerQueue::INVALID_HANDLE;
+        if (!aidl.ok()) {
+            return;
+        }
+        handle = aidl.value();
+    }
+    if (callback != nullptr) {
+        callback->onWakeUp(handle);
+    }
+}
+
+status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/,
+                                   audio_utils::TimerQueue::handle_t* handle) {
+    {
+        audio_utils::lock_guard _l(mutex());
+        if (mTq == nullptr) {
+            mTq = std::make_unique<audio_utils::TimerQueue>(true /*alarm*/);
+        }
+        if (!mTq->ready()) {
+            ALOGW("%s timer queue is not ready", __func__);
+            *handle = audio_utils::TimerQueue::INVALID_HANDLE;
+            return NO_ERROR;
+        }
+        auto weakPtr = wp<MmapPlaybackThread>::fromExisting(this);
+        *handle = mTq->add([weakPtr]() {
+            auto strongPtr = weakPtr.promote();
+            strongPtr->onWakeUp();
+        }, wakeUpNanos);
+        mWakeUpHandle = *handle;
+    }
+    releaseWakeLock();
+    return NO_ERROR;
+}
+
+status_t MmapPlaybackThread::activate(audio_utils::TimerQueue::handle_t handle) {
+    {
+        audio_utils::lock_guard _l(mutex());
+        if (mTq != nullptr) {
+            if (!mTq->remove(handle)) {
+                ALOGW("%s(%jd), the handle does not exist", __func__, handle);
+                return BAD_VALUE;
+            }
+        }
+        if (mWakeUpHandle != handle) {
+            // This should not happen.
+            ALOGW("%s(%jd) does not match %jd", __func__, handle, mWakeUpHandle);
+        }
+        mWakeUpHandle = audio_utils::TimerQueue::INVALID_HANDLE;
+    }
+    acquireWakeLock();
+    return NO_ERROR;
+}
+
+status_t MmapPlaybackThread::setPlaybackParameters(
+        const media::audio::common::AudioPlaybackRate& rate) {
+    const audio_playback_rate_t legacy = VALUE_OR_RETURN_STATUS(
+            aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(rate));
+    audio_utils::lock_guard lock(mutex());
+    return mOutput->stream->setPlaybackRateParameters(legacy);
+}
+
+status_t MmapPlaybackThread::getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate) {
+    audio_playback_rate_t legacy;
+    {
+        audio_utils::lock_guard lock(mutex());
+        if (status_t status = mOutput->stream->getPlaybackRateParameters(&legacy);
+            status != NO_ERROR) {
+            ALOGE("%s failed, result=%d", __func__, status);
+            return status;
+        }
+    }
+    *rate = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(legacy));
+    return NO_ERROR;
+}
+
 // startMelComputation_l() must be called with AudioFlinger::mutex() held
 void MmapPlaybackThread::startMelComputation_l(
         const sp<audio_utils::MelProcessor>& processor)
 {
-    ALOGV("%s: starting mel processor for thread %d", __func__, id());
+    ALOGV("%s(%d): SoundDose starting mel processor %s", __func__, id(),
+            (processor ? "active" : "inactive"));
     mMelProcessor.store(processor);
     if (processor) {
         processor->resume();
     }
-
+    sp<media::IMmapStreamCallback> callback;
+    {
+        audio_utils::lock_guard lock(mutex());
+        callback = mCallback.promote();
+    }
+    if (callback) {
+        callback->onSoundDoseChanged(processor != nullptr);
+    }
     // no need to update output format for MMapPlaybackThread since it is
     // assigned constant for each thread
 }
@@ -11604,10 +11791,17 @@ void MmapPlaybackThread::startMelComputation_l(
 // stopMelComputation_l() must be called with AudioFlinger::mutex() held
 void MmapPlaybackThread::stopMelComputation_l()
 {
-    ALOGV("%s: pausing mel processor for thread %d", __func__, id());
-    auto melProcessor = mMelProcessor.load();
-    if (melProcessor != nullptr) {
+    ALOGV("%s(%d): SoundDose pausing mel processor", __func__, id());
+    if (auto melProcessor = mMelProcessor.load()) {
         melProcessor->pause();
+        sp<media::IMmapStreamCallback> callback;
+        {
+            audio_utils::lock_guard lock(mutex());
+            callback = mCallback.promote();
+        }
+        if (callback) {
+            callback->onSoundDoseChanged(false /* active */);
+        }
     }
 }
 
@@ -11641,7 +11835,7 @@ void MmapCaptureThread::processVolume_l()
     bool changed = false;
     bool silenced = false;
 
-    sp<MmapStreamCallback> callback = mCallback.promote();
+    sp<media::IMmapStreamCallback> callback = mCallback.promote();
     if (callback == 0) {
         if (mNoCallbackWarningCount < kMaxNoCallbackWarnings) {
             ALOGW("Could not set MMAP stream silenced: no onStreamSilenced callback!");
@@ -11708,7 +11902,7 @@ void MmapCaptureThread::toAudioPortConfig(struct audio_port_config* config)
     }
 }
 
-status_t MmapCaptureThread::getExternalPosition(
+status_t MmapCaptureThread::getObservablePosition(
         uint64_t* position, int64_t* timeNanos) const
 {
     if (mInput == nullptr) {

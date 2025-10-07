@@ -17,6 +17,7 @@
 #ifndef ANDROID_AUDIO_MMAP_STREAM_CALLBACK_H
 #define ANDROID_AUDIO_MMAP_STREAM_CALLBACK_H
 
+#include <audio_utils/TimerQueue.h>
 #include <media/AudioContainers.h>
 #include <system/audio.h>
 #include <utils/Errors.h>
@@ -47,6 +48,21 @@ class MmapStreamCallback : public virtual RefBase {
      * \param[in] deviceIds a set of the device IDs of the new devices.
      */
     virtual void onRoutingChanged(const DeviceIdVector& deviceIds) = 0;
+
+    /**
+     * The sound dose computation state has changed
+     * \param[in] active true if the sound dose computation is active and
+     *            the client is required to use IMmapStream::reportData,
+     *            false otherwise.
+     */
+    virtual void onSoundDoseChanged(bool active) = 0;
+
+    /**
+     * Notify the stream to wake up.
+     *
+     * @param handle the handle of the wake up task.
+     */
+    virtual void onWakeUp(android::audio_utils::TimerQueue::handle_t handle) = 0;
 
   protected:
     MmapStreamCallback() {}

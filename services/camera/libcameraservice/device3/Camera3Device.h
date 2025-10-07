@@ -935,6 +935,8 @@ class Camera3Device :
     void               setErrorStateV(const char *fmt, va_list args);
     void               setErrorStateLockedV(const char *fmt, va_list args);
 
+    bool               isInErrorState();
+
     /////////////////////////////////////////////////////////////////////
     // Implements InflightRequestUpdateInterface
 
@@ -1230,7 +1232,7 @@ class Camera3Device :
                 const camera_metadata_t *request);
 
         // Check and update latest session parameters based on the current request settings.
-        bool updateSessionParameters(const CameraMetadata& settings);
+        bool updateSessionParameters(const CameraMetadata& settings, bool *updatesDetected/*out*/);
 
         // Check whether FPS range session parameter re-configuration is needed in constrained
         // high speed recording camera sessions.
@@ -1316,7 +1318,7 @@ class Camera3Device :
         Vector<int32_t>    mSessionParamKeys;
         CameraMetadata     mLatestSessionParams;
         CameraMetadata     mInjectedSessionParams;
-        bool               mForceNewRequestAfterReconfigure;
+        bool               mForceNewRequest;
 
         std::map<int32_t, std::set<std::string>> mGroupIdPhysicalCameraMap;
 
@@ -1514,6 +1516,9 @@ class Camera3Device :
     // Synchronizes access to status tracker between inflight updates and disconnect.
     // b/79972865
     Mutex mTrackerLock;
+
+    // Drop buffers for all streams
+    void dropAllStreamBuffers();
 
     // Whether HAL request buffers through requestStreamBuffers API
     bool mUseHalBufManager = false;

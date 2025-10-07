@@ -1211,7 +1211,8 @@ private:
     /**
      * Add an event log message that a client has unexpectedly died.
      */
-    void logClientDied(int clientPid, const std::string &reason);
+    void logClientDied(int clientPid, const std::string &clientPackage,
+            const std::string &reason);
 
     /**
      * Add a event log message that a serious service-level error has occured

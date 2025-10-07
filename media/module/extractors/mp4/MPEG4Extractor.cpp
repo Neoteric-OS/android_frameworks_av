@@ -55,6 +55,7 @@
 #include <media/stagefright/foundation/hexdump.h>
 #include <media/stagefright/foundation/OpusHeader.h>
 #include <media/stagefright/MediaBufferGroup.h>
+#include <media/stagefright/MediaCodecConstants.h>
 #include <media/stagefright/MediaDefs.h>
 #include <media/stagefright/MetaDataBase.h>
 #include <media/stagefright/MetaDataUtils.h>
@@ -441,6 +442,14 @@ static const char *FourCC2MIME(uint32_t fourcc) {
             return MEDIA_MIMETYPE_AUDIO_DTS_HD_MA;
         case FOURCC("dtsx"):
             return MEDIA_MIMETYPE_AUDIO_DTS_UHD_P2;
+        case FOURCC("iamf"):
+            // Enable IAMF codec support from Android Baklava
+            if (!(isAtLeastRelease(36, "Baklava") &&
+                  com::android::media::extractor::flags::extractor_mp4_enable_iamf())) {
+                ALOGV("IAMF support not enabled");
+                return "application/octet-stream";
+            }
+            return MEDIA_MIMETYPE_AUDIO_IAMF;
         default:
             ALOGW("Unknown fourcc: %c%c%c%c",
                    (fourcc >> 24) & 0xff,
@@ -1861,6 +1870,7 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
         case FOURCC("dtsh"):
         case FOURCC("dtsl"):
         case FOURCC("dtsx"):
+        case FOURCC("iamf"):
         {
             if (mIsQT && depth >= 1 && mPath[depth - 1] == FOURCC("wave")) {
 
@@ -2022,7 +2032,34 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                     return err;
                 }
                 *offset = data_offset;
-                CHECK_EQ(*offset, stop_offset);
+            }
+
+            if (chunk_type == FOURCC("iamf")) {
+                // Enable IAMF codec support from Android Baklava
+                if (!(isAtLeastRelease(36, "Baklava") &&
+                      com::android::media::extractor::flags::extractor_mp4_enable_iamf())) {
+                    ALOGV("IAMF support not enabled");
+                    *offset += chunk_size;
+                    break;
+                }
+                // TODO: (b/432378515)
+                // As per (https://aomediacodec.github.io/iamf/#iasampleentry-section) iamf
+                // specification, channel-count and sample-rate shall be set to 0 and must be
+                // ignored. But android media codec configuration requires keys sample-rate and
+                // channel-count to be set. Also platform extractor requires these keys to be set
+                // and additionally sample-rate must be > 0 and channel-count must be >= 0. Until
+                // exceptions are added for iamf media type in these modules, set sample-rate and
+                // channel-count to values that is common to all iamf encoding types so that
+                // MediaCodecInfo.CodecCapabilities#isFormatSupported does not return incorrect
+                // results. In short, sample-rate and channel-count are intentionally overwriting
+                // the values that may have been set earlier with these placeholders but do not
+                // reflect actual streams values.
+                AMediaFormat_setInt32(mLastTrack->meta, AMEDIAFORMAT_KEY_SAMPLE_RATE, 48000);
+                AMediaFormat_setInt32(mLastTrack->meta, AMEDIAFORMAT_KEY_CHANNEL_COUNT, 2);
+                status_t err = parseChunk(offset, depth + 1);
+                if (err != OK) {
+                    return err;
+                }
             }
 
             if (chunk_type == FOURCC("fLaC")) {
@@ -2039,6 +2076,48 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             if (*offset != stop_offset) {
                 return ERROR_MALFORMED;
+            }
+            break;
+        }
+        case FOURCC("iacb"): {
+            if (depth >= 1 && mPath[depth - 1] != FOURCC("iamf")) {
+                char parentChunk[5];
+                MakeFourCCString(mPath[depth - 1], parentChunk);
+                ALOGE("iacb: depth %d, parent %s", depth, parentChunk);
+                return ERROR_MALFORMED;
+            }
+            *offset = data_offset;
+            int8_t configVersion = 0;
+            if (mDataSource->readAt(*offset, &configVersion, 1) < 1) {
+                return ERROR_IO;
+            }
+            // https://aomediacodec.github.io/iamf/#iaconfigurationbox-section
+            if (configVersion != 1) {
+                ALOGE("Unrecognized configuration version: %d", configVersion);
+                return ERROR_MALFORMED;
+            }
+            *offset += 1;
+            uint32_t csdSize = 0;
+            uint8_t data[kMaxIamfLeb128SizesBytes] = {0};
+            ssize_t bytesRead = mDataSource->readAt(*offset, data, kMaxIamfLeb128SizesBytes);
+            if (bytesRead <= 0) {
+                return ERROR_IO;
+            }
+            int32_t numBytesConsumed = readIamfUnsignedLeb128(data, (uint32_t)bytesRead, csdSize);
+            if (numBytesConsumed <= 0) {
+                return ERROR_MALFORMED;
+            }
+            *offset += numBytesConsumed;
+            auto buffer = heapbuffer<uint8_t>(csdSize);
+            if (mDataSource->readAt(*offset, buffer.get(), csdSize) < csdSize) {
+                return ERROR_IO;
+            }
+            *offset += csdSize;
+            AMediaFormat_setBuffer(mLastTrack->meta, AMEDIAFORMAT_KEY_CSD_0, buffer.get(),
+                                   csdSize);
+            status_t status = parseIamfProfileLevelFromCsd(buffer.get(), csdSize, configVersion);
+            if (status != OK) {
+                return status;
             }
             break;
         }
@@ -3331,6 +3410,216 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
     return OK;
 }
 
+int32_t MPEG4Extractor::readIamfUnsignedLeb128(const uint8_t *data, uint32_t numBytesAvailable,
+                                            uint32_t &leb128Value) {
+    // The IAMF spec limits the encoded size to a maximum of 8 bytes.
+    // https://aomediacodec.github.io/iamf/#convention-data-types
+    numBytesAvailable = std::min(kMaxIamfLeb128SizesBytes, numBytesAvailable);
+    uint8_t cur = 0;
+    int32_t numBytesConsumed = 0;
+    uint64_t value = 0;
+    do {
+        cur = data[numBytesConsumed];
+        // Cast `cur` to uint64_t before the shift to prevent potential integer overflow
+        // due to promotion to a 32-bit `int` before the left-shift operation.
+        value |= (uint64_t)(cur & 0x7f) << (numBytesConsumed * 7);
+        if (value > UINT32_MAX) {
+            return -1;
+        }
+        numBytesConsumed++;
+    } while (numBytesConsumed < numBytesAvailable && (cur & 0x80) != 0);
+    if ((cur & 0x80) != 0) {
+        return -1;
+    }
+    leb128Value = (uint32_t)value;
+    return numBytesConsumed;
+}
+
+status_t MPEG4Extractor::parseIamfProfileLevelFromCsd(const uint8_t* data, uint32_t csdSize,
+                                                      int8_t configVersion) {
+    // Parse CSD structure to extract profile level information
+    // https://aomediacodec.github.io/iamf/#iaconfigurationbox-section
+    // The minimum size of the CSD is 15 bytes, which includes:
+    // - OBUHeader for IA Sequence (1 byte)
+    // - IA Sequence Header (variable bytes, minimum 1 byte)
+    // - ia_code (4 bytes)
+    // - profile (1 byte)
+    // - additional profile (1 byte)
+    // - OBUHeader (1 byte)
+    // - obu_size (variable bytes, minimum 1 byte)
+    // - codec_config_id (variable bytes, minimum 1 byte)
+    // - codec_id (4 bytes)
+    if (csdSize < 15) {
+        ALOGE("CSD size %ld is not according to IAMF Configuration Standard", (long)csdSize);
+        return ERROR_MALFORMED;
+    }
+
+    int32_t index = 0;
+
+    // check for reservedObus
+    status_t err = skipIamfReservedObus(data, csdSize, index);
+    if (err != OK) {
+        return err;
+    }
+
+    // OBUHeader https://aomediacodec.github.io/iamf/#obu-header-syntax (listed from LSB to MSB)
+    // obu_extension_flag (1 bit)
+    // obu_trimming_status_flag  (1 bit)
+    // obu_redundant_copy (1 bit)
+    // obu_type (5 bits)
+    // https://aomediacodec.github.io/iamf/#ia-sequence-header-obu
+    int8_t obuHeader = data[index];
+    int8_t obuType = (obuHeader >> 3) & 0x1F;
+    if (obuType != 31) {
+        ALOGE("obu_type %x is not Sequence Header", obuType);
+        return ERROR_MALFORMED;
+    }
+    index += 1;
+    if (index >= csdSize) {
+        return ERROR_MALFORMED;
+    }
+    uint32_t obuSize = 0;
+    int32_t numBytesConsumed =
+            readIamfUnsignedLeb128(data + index, csdSize - index, obuSize);  // obu_size
+    if (numBytesConsumed <= 0) {
+        ALOGE("ERROR : readIamfUnsignedLeb128 of Sequence Header size failed");
+        return ERROR_MALFORMED;
+    }
+    index += numBytesConsumed;
+    uint32_t endOfObu = index + obuSize;
+    if (obuSize < 6 || (endOfObu >= csdSize)) {
+        return ERROR_MALFORMED;
+    }
+    // Check for ia_code - https://aomediacodec.github.io/iamf/#obu-iasequenceheader
+    if (data[index] != 'i' || data[index + 1] != 'a' || data[index + 2] != 'm' ||
+        data[index + 3] != 'f') {
+        ALOGE("ia_code is not according to IAMF Configuration Standard");
+        return ERROR_MALFORMED;
+    }
+    index += 4; // ia_code (4 bytes)
+    int8_t profileFromStream = data[index];
+    index += 1;
+    // Map the profile from the Iamf stream to the corresponding Android internal constant.
+    int32_t androidProfileValue;
+    switch (profileFromStream) {
+        case 0:
+            androidProfileValue = IAMF_PROFILE_SIMPLE;
+            break;
+        case 1:
+            androidProfileValue = IAMF_PROFILE_BASE;
+            break;
+        case 2:
+            androidProfileValue = IAMF_PROFILE_BASE_ENHANCED;
+            break;
+        default:
+            ALOGE("Unknown IAMF profile value from stream : %d", profileFromStream);
+            return ERROR_MALFORMED;
+    }
+    index = endOfObu;
+
+    // check for reservedObus
+    err = skipIamfReservedObus(data, csdSize, index);
+    if (err != OK) {
+        return err;
+    }
+
+    // OBUHeader https://aomediacodec.github.io/iamf/#obu-header-syntax (listed from LSB to MSB)
+    // obu_extension_flag (1 bit)
+    // obu_trimming_status_flag  (1 bit)
+    // obu_redundant_copy (1 bit)
+    // obu_type (5 bits)
+    // https://aomediacodec.github.io/iamf/#obu-codecconfig
+    obuHeader = data[index];
+    obuType = (obuHeader >> 3) & 0x1F;
+    if (obuType != 0) {
+        ALOGE("obu_type %x is not Codec Config", obuType);
+        return ERROR_MALFORMED;
+    }
+    index += 1;
+    if (index >= csdSize) {
+        return ERROR_MALFORMED;
+    }
+    numBytesConsumed = readIamfUnsignedLeb128(data + index, csdSize - index, obuSize);  // obu_size
+    if (numBytesConsumed <= 0) {
+        ALOGE("Failed to readIamfUnsignedLeb128 Sequence Header size");
+        return ERROR_MALFORMED;
+    }
+    index += numBytesConsumed;
+    if (index >= csdSize) {
+        return ERROR_MALFORMED;
+    }
+    // CodecConfigOBU https://aomediacodec.github.io/iamf/#obu-codecconfig
+    uint32_t codecConfigId = 0;
+    numBytesConsumed = readIamfUnsignedLeb128(data + index, csdSize - index,
+                                              codecConfigId);  // codec_config_id
+    if (numBytesConsumed <= 0) {
+        ALOGE("Failed to readIamfUnsignedLeb128 of codec config id");
+        return ERROR_MALFORMED;
+    }
+    index += numBytesConsumed;
+    if (index + 4 >= csdSize) {
+        return ERROR_MALFORMED;
+    }
+    // codec_id (4 bytes) read in big-endian order
+    int32_t codecId = (data[index] << 24) + (data[index + 1] << 16) + (data[index + 2] << 8)
+                      + data[index + 3];
+    index += 4;
+    int32_t audioCodec;
+    switch (codecId) {
+        case FOURCC("Opus"):
+            audioCodec = 0x1;
+            break;
+        case FOURCC("mp4a"):
+            audioCodec = 0x1 << 1;
+            break;
+        case FOURCC("fLaC"):
+            audioCodec = 0x1 << 2;
+            break;
+        case FOURCC("ipcm"):
+            audioCodec = 0x1 << 3;
+            break;
+        default:
+            ALOGE("codec %x is not supported", codecId);
+            return ERROR_UNSUPPORTED;
+    }
+
+    // IAMF profiles are defined as the combination of the (listed from LSB to MSB):
+    //  - audio codec (2 bytes)
+    //  - profile (1 byte, offset 16)
+    //  - specification version (1 byte, offset 24)
+    AMediaFormat_setInt32(mLastTrack->meta, AMEDIAFORMAT_KEY_PROFILE,
+                          (configVersion << 24) | androidProfileValue | audioCodec);
+    return OK;
+}
+
+status_t MPEG4Extractor::skipIamfReservedObus(const uint8_t* data, uint32_t csdSize,
+                                              int32_t& index) {
+    // OBUHeader https://aomediacodec.github.io/iamf/#obu-header-syntax (listed from LSB to MSB)
+    // obu_extension_flag (1 bit)
+    // obu_trimming_status_flag  (1 bit)
+    // obu_redundant_copy (1 bit)
+    // obu_type (5 bits)
+    int8_t obuHeader = data[index];
+    int8_t obuType = (obuHeader >> 3) & 0x1F;
+    while (obuType >= 24 && obuType <= 30) {
+        index += 1;  // obuHeader
+        uint32_t obuSize = 0;
+        int32_t numBytesConsumed =
+                readIamfUnsignedLeb128(data + index, csdSize - index, obuSize);  // obu_size
+        if (numBytesConsumed <= 0) {
+            ALOGE("ERROR : readIamfUnsignedLeb128 of Reserved Obu size failed");
+            return ERROR_MALFORMED;
+        }
+        index += (numBytesConsumed + obuSize);
+        if (index >= csdSize) {
+            return ERROR_MALFORMED;
+        }
+        obuHeader = data[index];
+        obuType = (obuHeader >> 3) & 0x1F;
+    }
+    return OK;
+}
+
 status_t MPEG4Extractor::parseChannelCountSampleRate(
         off64_t *offset, uint16_t *channelCount, uint16_t *sampleRate) {
     // skip 16 bytes:
@@ -3423,27 +3712,58 @@ status_t MPEG4Extractor::parseAC4SpecificBox(off64_t offset) {
                 ap.mMasteringIndication = MASTERED_FOR_HEADPHONE;
             } else if (!presentation.mChannelCoded) {
                 ap.mMasteringIndication = MASTERED_FOR_3D;
-                // The ETSI TS 103 190-2 V1.2.1 (2018-02) specification defines the parameter
-                // n_umx_objects_minus1 in Annex E (E.11.11) to specify the number of fullband
-                // objects. While the elementary stream specification (section 6.3.2.8.1 and
-                // 6.3.2.10.4) provides information about the presence of an LFE channel within
-                // the set of dynamic objects, this detail is not explicitly stated in the ISO
-                // Base Media File Format (Annex E). However, current implementation practices
-                // consistently include the LFE channel when creating an object-based substream.
-                // As a result, it has been decided that when interpreting the ISO Base Media File
-                // Format, the LFE channel should always be counted as part of the total channel
-                // count.
-                int lfeChannelCount = 1;
-                channelCount = presentation.mNumOfUmxObjects + lfeChannelCount;
-                // TODO: There is a bug in ETSI TS 103 190-2 V1.2.1 (2018-02), E.11.11
-                // For AC-4 level 4 stream, the intention is to set 19 to n_umx_objects_minus1 but
-                // it is equal to 15 based on current specification. Dolby has filed a bug report
-                // to ETSI. The following sentence should be deleted after ETSI specification error
-                // is fixed.
-                if (presentation.mLevel == 4) {
-                    channelCount = channelCount == 17 ? 21 : channelCount;
+                if (presentation.mNumOfUmxObjects > 0) {
+                    // The ETSI TS 103 190-2 V1.2.1 (2018-02) specification defines the parameter
+                    // n_umx_objects_minus1 in Annex E (E.11.11) to specify the number of fullband
+                    // objects. While the elementary stream specification (section 6.3.2.8.1 and
+                    // 6.3.2.10.4) provides information about the presence of an LFE channel within
+                    // the set of dynamic objects, this detail is not explicitly stated in the ISO
+                    // Base Media File Format (Annex E). However, current implementation practices
+                    // consistently include the LFE channel when creating an object-based substream.
+                    // As a result, it has been decided that when interpreting the ISO Base Media
+                    // File Format, the LFE channel should always be counted as part of the total
+                    // channel count.
+                    int lfeChannelCount = 1;
+                    channelCount = presentation.mNumOfUmxObjects + lfeChannelCount;
+                    // TODO: There is a bug in ETSI TS 103 190-2 V1.2.1 (2018-02), E.11.11
+                    // For AC-4 level 4 stream, the intention is to set 19 to n_umx_objects_minus1
+                    // but it is equal to 15 based on current specification. Dolby has filed a bug
+                    // report to ETSI. The following sentence should be deleted after ETSI
+                    // specification error is fixed.
+                    if (presentation.mLevel == 4) {
+                        channelCount = channelCount == 17 ? 21 : channelCount;
+                    }
+                } else {
+                    // This presentation includes a substream with discrete objects. Due to
+                    // limitations in the current AC-4 specification (ETSI TS 103 190-2 V1.2.1
+                    // (2018-02)), discrete object number information is not explicitly stated in
+                    // the ISO Base Media File Format (Annex E). To prevent exceptions, "Maximum
+                    // number of tracks if audio presentation includes object audio" in table 77 of
+                    // ETSI TS 103 190-2 V1.2.1 (2018-02) is used as the channel count.
+                    switch (presentation.mLevel) {
+                        case 0:
+                            // This should not happen because level 0 is always channel coded.
+                            channelCount = 2;
+                            break;
+                        case 1:
+                            channelCount = 6;
+                            break;
+                        case 2:
+                            channelCount = 8;
+                            break;
+                        case 3:
+                            channelCount = 10;
+                            break;
+                        case 4:
+                            channelCount = 12;
+                            break;
+                        default:
+                            ALOGW("AC-4 level %d has not been defined.", presentation.mLevel);
+                            channelCount = 2;
+                            break;
+                    }
                 }
-                ALOGD("AJOC channelCount = %d", channelCount);
+                ALOGD("OBI channelCount = %d", channelCount);
                 AMediaFormat_setInt32(mLastTrack->meta,
                     AMEDIAFORMAT_KEY_CHANNEL_COUNT, channelCount);
             } else {
