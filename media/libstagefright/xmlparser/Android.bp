@@ -29,6 +29,7 @@ cc_library_shared {
     shared_libs: [
         "libbase",
         "libexpat",
+        "libgui",
         "liblog",
         "libstagefright_omx_utils",
 // QTI_BEGIN: 2018-06-05: Video: media: Add changes to pick target specific media xml's
