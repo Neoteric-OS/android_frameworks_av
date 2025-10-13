@@ -17,17 +17,22 @@
 #ifndef ANDROID_AAUDIO_AUDIO_STREAM_INTERNAL_H
 #define ANDROID_AAUDIO_AUDIO_STREAM_INTERNAL_H
 
-#include <stdint.h>
+// go/keep-sorted start
 #include <aaudio/AAudio.h>
 #include <aaudio/BnAAudioClientCallback.h>
+#include <core/AudioStream.h>
+#include <utility/AudioClock.h>
+// go/keep-sorted end
 
-#include "binding/AudioEndpointParcelable.h"
+#include <stdint.h>
+
+// go/keep-sorted start
+#include "AAudioFlowGraph.h"
+#include "AudioEndpoint.h"
+#include "IsochronousClockModel.h"
 #include "binding/AAudioServiceInterface.h"
-#include "client/AAudioFlowGraph.h"
-#include "client/AudioEndpoint.h"
-#include "client/IsochronousClockModel.h"
-#include "core/AudioStream.h"
-#include "utility/AudioClock.h"
+#include "binding/AudioEndpointParcelable.h"
+// go/keep-sorted end
 
 using android::sp;
 
@@ -108,6 +113,10 @@ protected:
         // The stream is draining. Client has requested stop before but the stream is pending
         // draining to fully stop.
         RESUME_WHILE_DRAINING = 1,
+        // This is only used by offload playback. It happens when the client has written a big
+        // amount of data and pause is called before all data is played. In this case, we will
+        // want to keep on playing unprocessed data when resuming.
+        RESUME_WITH_UNPROCESSED_DATA_TO_COPY = 2,
     };
     aaudio_result_t requestStart_l(StartType startType = DEFAULT) REQUIRES(mStreamMutex);
 
@@ -135,7 +144,7 @@ protected:
 
     aaudio_result_t stopCallback_l() REQUIRES(mStreamMutex);
 
-    virtual void prepareBuffersForStart_l() REQUIRES(mStreamMutex) {}
+    virtual void prepareBuffersForStart_l(StartType startType = DEFAULT) REQUIRES(mStreamMutex) {}
 
     virtual aaudio_result_t prepareBuffersForStop_l() REQUIRES(mStreamMutex) {
         return AAUDIO_OK;
