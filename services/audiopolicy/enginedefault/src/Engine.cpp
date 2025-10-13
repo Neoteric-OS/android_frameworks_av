@@ -252,11 +252,6 @@ product_strategy_t Engine::remapStrategyFromContext(product_strategy_t strategy,
                                                  const SwAudioOutputCollection &outputs) const {
     auto legacyStrategy = getLegacyStrategyFromProduct(strategy);
 
-    // TODO: b/429390420 remove when ASSISTANT strategy is in use
-    if (legacyStrategy == STRATEGY_ASSISTANT) {
-        legacyStrategy = STRATEGY_MEDIA;
-    }
-
     if (isInCall()) {
         switch (legacyStrategy) {
         case STRATEGY_ACCESSIBILITY:
@@ -521,7 +516,7 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
         }
 
         DeviceVector devices3;
-        if (strategy == STRATEGY_MEDIA) {
+        if (strategy == STRATEGY_MEDIA || strategy == STRATEGY_ASSISTANT) {
             // ARC, SPDIF and AUX_LINE can co-exist with others.
             devices3 = availableOutputDevices.getDevicesFromTypes({
                     AUDIO_DEVICE_OUT_HDMI_ARC, AUDIO_DEVICE_OUT_HDMI_EARC,
@@ -535,7 +530,7 @@ DeviceVector Engine::getDevicesForStrategyInt(legacy_strategy strategy,
         devices.add(devices2);
 
         // If hdmi system audio mode is on, remove speaker out of output list.
-        if ((strategy == STRATEGY_MEDIA) &&
+        if ((strategy == STRATEGY_MEDIA || strategy == STRATEGY_ASSISTANT) &&
             (getForceUse(AUDIO_POLICY_FORCE_FOR_HDMI_SYSTEM_AUDIO) ==
                 AUDIO_POLICY_FORCE_HDMI_SYSTEM_AUDIO_ENFORCED)) {
             devices.remove(devices.getDevicesFromType(AUDIO_DEVICE_OUT_SPEAKER));

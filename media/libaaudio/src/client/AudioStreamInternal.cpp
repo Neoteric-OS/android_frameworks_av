@@ -16,35 +16,37 @@
 
 #define LOG_TAG "AudioStreamInternal"
 //#define LOG_NDEBUG 0
-#include <utils/Log.h>
 
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 
-#include <stdint.h>
+#include "AudioStreamInternal.h"
 
-#include <binder/IServiceManager.h>
-
+// go/keep-sorted start
 #include <aaudio/AAudio.h>
 #include <aaudio/IAAudioClientCallback.h>
+#include <binder/IServiceManager.h>
+#include <core/AudioStreamBuilder.h>
 #include <cutils/properties.h>
+#include <fifo/FifoBuffer.h>
+#include <media/AidlConversion.h>
 #include <media/AudioParameter.h>
 #include <media/AudioSystem.h>
 #include <media/MediaMetricsItem.h>
 #include <mediautils/SchedulingPolicyService.h>
+#include <utility/AudioClock.h>
+#include <utility/AudioGlobal.h>
+#include <utils/Log.h>
 #include <utils/Trace.h>
+// go/keep-sorted end
 
-#include "AudioEndpointParcelable.h"
+#include <stdint.h>
+
+// go/keep-sorted start
 #include "binding/AAudioBinderClient.h"
-#include "binding/AAudioStreamRequest.h"
-#include "binding/AAudioStreamConfiguration.h"
 #include "binding/AAudioServiceMessage.h"
-#include "core/AudioGlobal.h"
-#include "core/AudioStreamBuilder.h"
-#include "fifo/FifoBuffer.h"
-#include "utility/AudioClock.h"
-#include <media/AidlConversion.h>
-
-#include "AudioStreamInternal.h"
+#include "binding/AAudioStreamConfiguration.h"
+#include "binding/AAudioStreamRequest.h"
+// go/keep-sorted end
 
 // We do this after the #includes because if a header uses ALOG.
 // it would fail on the reference to mInService.
@@ -489,12 +491,8 @@ aaudio_result_t AudioStreamInternal::requestStart_l(StartType startType) {
     const aaudio_stream_state_t originalState = getState();
     setState(AAUDIO_STREAM_STATE_STARTING);
 
-    if (startType == DEFAULT) {
-        // Clear any stale timestamps from the previous run.
-        drainTimestampsFromService();
-
-        prepareBuffersForStart_l(); // tell subclasses to get ready
-    }
+    // Clear any stale timestamps from the previous run.
+    drainTimestampsFromService();
 
     aaudio_result_t result = mServiceInterface.startStream(mServiceStreamHandleInfo);
     if (result == AAUDIO_ERROR_STANDBY) {
@@ -503,26 +501,33 @@ aaudio_result_t AudioStreamInternal::requestStart_l(StartType startType) {
         if (result == AAUDIO_OK) {
             result = mServiceInterface.startStream(mServiceStreamHandleInfo);
         }
+        if (result == AAUDIO_OK) {
+            // If the stream is started from standby, the shared mmap buffer is reallocated.
+            // The start request should perform as DEFAULT in this case.
+            startType = DEFAULT;
+        }
     }
-    if (result != AAUDIO_OK) {
+
+    if (result == AAUDIO_OK) {
+        prepareBuffersForStart_l(startType);
+        if (startType != RESUME_WHILE_DRAINING) {
+            startTime = AudioClock::getNanoseconds();
+            mClockModel.start(startTime);
+            mNeedCatchUp.request();  // Ask data processing code to catch up
+                                     // when first timestamp received.
+        }
+        // Start data callback thread.
+        if (isDataCallbackSet()) {
+            // Launch the callback loop thread.
+            result = startCallback_l();
+        }
+    } else {
         ALOGD("%s() error = %d, stream was probably stolen", __func__, result);
         // Stealing was added in R. Coerce result to improve backward compatibility.
         result = AAUDIO_ERROR_DISCONNECTED;
         setDisconnected();
     }
 
-    if (startType == DEFAULT) {
-        startTime = AudioClock::getNanoseconds();
-        mClockModel.start(startTime);
-        mNeedCatchUp.request();  // Ask data processing code to catch up
-                                 // when first timestamp received.
-    }
-
-    // Start data callback thread.
-    if (result == AAUDIO_OK && isDataCallbackSet()) {
-        // Launch the callback loop thread.
-        result = startCallback_l();
-    }
     if (result != AAUDIO_OK) {
         setState(originalState);
     }
