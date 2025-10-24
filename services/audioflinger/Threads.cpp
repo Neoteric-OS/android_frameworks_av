@@ -4241,12 +4241,15 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
             }
             // signal actual start of output stream when the render position reported by
             // the kernel starts moving.
-            if (!mHalStarted && ((isSuspended() && (mBytesWritten != 0)) || (!mStandby
+            {
+                audio_utils::unique_lock _whsl(mWaitHalStartMutex);
+                if (!mHalStarted && ((isSuspended() && (mBytesWritten != 0)) || (!mStandby
                     && (mKernelPositionOnStandby
                             != mTimestamp.mPosition[ExtendedTimestamp::LOCATION_KERNEL])))) {
-                mHalStarted = true;
-                mWaitHalStartCV.notify_all();
-            }
+                    mHalStarted = true;
+                    mWaitHalStartCV.notify_all();
+                }
+            } // mWaitHalStartMutex scope ends
 
             // prevent any changes in effect chain list and in each effect chain
             // during mixing and effect process as the audio buffers could be deleted
@@ -8262,7 +8265,7 @@ void SpatializerThread::setHalLatencyMode_l() {
 }
 
 status_t SpatializerThread::setRequestedLatencyMode(audio_latency_mode_t mode) {
-    if (mode < 0 || mode >= AUDIO_LATENCY_MODE_CNT) {
+    if (mode < 0 || static_cast<int>(mode) >= AUDIO_LATENCY_MODE_CNT) {
         return BAD_VALUE;
     }
     audio_utils::lock_guard _l(mutex());
@@ -11418,18 +11421,26 @@ void MmapThread::checkInvalidTracks_l()
     }
 }
 
-void MmapThread::dumpInternals_l(int fd, const Vector<String16>& /* args */)
+void MmapThread::dumpInternals_l(int fd, const Vector<String16>& args)
 {
     if (isOutput()) {
         AudioStreamOut *output = mOutput;
         audio_output_flags_t flags = output != NULL ? output->flags : AUDIO_OUTPUT_FLAG_NONE;
         dprintf(fd, "  AudioStreamOut: %p flags %#x (%s)\n",
                 output, flags, toString(flags).c_str());
+        if (output != nullptr && output->stream) {
+            dprintf(fd, "  Hal stream dump:\n");
+            (void)output->stream->dump(fd, args);
+        }
     } else {
         AudioStreamIn *input = mInput;
         audio_input_flags_t flags = input != NULL ? input->flags : AUDIO_INPUT_FLAG_NONE;
         dprintf(fd, "  AudioStreamIn: %p flags %#x (%s)\n",
                 input, flags, toString(flags).c_str());
+        if (input != nullptr && input->stream) {
+            dprintf(fd, "  Hal stream dump:\n");
+            (void)input->stream->dump(fd);
+        }
     }
     dprintf(fd, "  Attributes: content type %d usage %d source %d\n",
             mAttr.content_type, mAttr.usage, mAttr.source);
@@ -11468,16 +11479,20 @@ std::string MmapThread::getLocalLogHeader() const {
 /* static */
 sp<IAfMmapThread> IAfMmapThread::create(
         const sp<IAfThreadCallback>& afThreadCallback, audio_io_handle_t id,
-        AudioHwDevice* hwDev,  AudioStreamOut* output, bool systemReady) {
-    return sp<MmapPlaybackThread>::make(afThreadCallback, id, hwDev, output, systemReady);
+        AudioHwDevice* hwDev,  AudioStreamOut* output, bool systemReady,
+        const std::shared_ptr<audio_utils::TimerQueue>& timerQueue) {
+    return sp<MmapPlaybackThread>::make(
+            afThreadCallback, id, hwDev, output, systemReady, timerQueue);
 }
 
 MmapPlaybackThread::MmapPlaybackThread(
         const sp<IAfThreadCallback>& afThreadCallback, audio_io_handle_t id,
-        AudioHwDevice *hwDev,  AudioStreamOut *output, bool systemReady)
+        AudioHwDevice *hwDev,  AudioStreamOut *output, bool systemReady,
+        const std::shared_ptr<audio_utils::TimerQueue>& timerQueue)
     : MmapThread(afThreadCallback, id, hwDev, output->stream, systemReady, true /* isOut */,
             nullptr /* input */, output),
-      mStreamType(AUDIO_STREAM_MUSIC)
+      mStreamType(AUDIO_STREAM_MUSIC),
+      mTimerQueue(timerQueue)
 {
     snprintf(mThreadName, kThreadNameLength, "AudioMmapOut_%X", id);
     mFlagsAsString = toString(output->flags);
@@ -11628,7 +11643,7 @@ ThreadBase::MetadataUpdate MmapPlaybackThread::updateMetadata_l()
         };
         trackMetadata.channel_mask = track->channelMask();
         std::string tagStr(track->attributes().tags);
-        if (audioserver_flags::enable_gmap_mode() && track->attributes().usage == AUDIO_USAGE_GAME
+        if (track->attributes().usage == AUDIO_USAGE_GAME
                 && afThreadCallback()->hasAlreadyCaptured(track->uid())
                 && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
                     + (tagStr.size() ? 1 : 0))
@@ -11705,18 +11720,38 @@ status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/
                                    audio_utils::TimerQueue::handle_t* handle) {
     {
         audio_utils::lock_guard _l(mutex());
-        if (mTq == nullptr) {
-            mTq = std::make_unique<audio_utils::TimerQueue>(true /*alarm*/);
-        }
-        if (!mTq->ready()) {
+        if (!mTimerQueue->ready()) {
             ALOGW("%s timer queue is not ready", __func__);
             *handle = audio_utils::TimerQueue::INVALID_HANDLE;
             return NO_ERROR;
         }
         auto weakPtr = wp<MmapPlaybackThread>::fromExisting(this);
-        *handle = mTq->add([weakPtr]() {
-            auto strongPtr = weakPtr.promote();
-            strongPtr->onWakeUp();
+
+        *handle = mTimerQueue->add([weakPtr, this]() {
+            constexpr bool kAcquireWakelock = true;
+            constexpr bool kCheckDisplay = true;
+            const auto strongPtr = weakPtr.promote();
+            if (strongPtr) {  // if strongPr exists, "this" is valid
+                const auto startTime = systemTime(SYSTEM_TIME_BOOTTIME);
+
+                if constexpr (kAcquireWakelock) {
+                    // check screenstate and only acquire the wakelock if the display is off
+                    // as the device will not suspend with an active display.
+                    const bool displayOff = !kCheckDisplay ||
+                            (mAfThreadCallback->getScreenState() & 1);
+                    if (displayOff) {
+                        // acquire the wakelock here, the next drain call or stop
+                        // will release it.
+                        audio_utils::lock_guard _l(mutex());
+                        if (!mWakeLockToken) acquireWakeLock_l();
+                        ALOGV("MmapCallback: acquiring wakelock");
+                    }
+                }
+                onWakeUp();
+                // handle statistics
+                ++mTimerQueueCallbacks;
+                mTimerQueueCallbackNs += systemTime(SYSTEM_TIME_BOOTTIME) - startTime;
+            }
         }, wakeUpNanos);
         mWakeUpHandle = *handle;
     }
@@ -11727,11 +11762,9 @@ status_t MmapPlaybackThread::drain(int64_t wakeUpNanos, bool /*allowSoftWakeUp*/
 status_t MmapPlaybackThread::activate(audio_utils::TimerQueue::handle_t handle) {
     {
         audio_utils::lock_guard _l(mutex());
-        if (mTq != nullptr) {
-            if (!mTq->remove(handle)) {
-                ALOGW("%s(%jd), the handle does not exist", __func__, handle);
-                return BAD_VALUE;
-            }
+        if (!mTimerQueue->remove(handle)) {
+            ALOGW("%s(%jd), the handle does not exist", __func__, handle);
+            return BAD_VALUE;
         }
         if (mWakeUpHandle != handle) {
             // This should not happen.
@@ -11811,6 +11844,8 @@ void MmapPlaybackThread::dumpInternals_l(int fd, const Vector<String16>& args)
     dprintf(fd, "  HAL volume: %f", mHalVolFloat);
     dprintf(fd, "\n");
     dprintf(fd, "  Master volume: %f Master mute %d\n", mMasterVolume, mMasterMute);
+    dprintf(fd, "  TimerQueueCallbacks: %d\n", mTimerQueueCallbacks.load());
+    dprintf(fd, "  TimerQueueCallback Ms: %lf\n", mTimerQueueCallbackNs.load() * 1e-6);
 }
 
 /* static */

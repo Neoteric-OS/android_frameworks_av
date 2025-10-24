@@ -43,6 +43,7 @@
 #include <android/hardware/camera/device/3.5/ICameraDeviceCallback.h>
 #include <android/hardware/camera/device/3.5/ICameraDeviceSession.h>
 
+#include <android/content/res/CameraCompatibilityInfo.h>
 #include <camera/CameraUtils.h>
 #include <camera/StringUtils.h>
 #include <camera_metadata_hidden.h>
@@ -705,9 +706,9 @@ void processCaptureResult(CaptureOutputStates& states, const camera_capture_resu
                     states.listener->notifyPhysicalCameraChange(physicalId);
                 }
                 states.activePhysicalId = physicalId;
-                using hardware::ICameraService::ROTATION_OVERRIDE_NONE;
                 if (!states.legacyClient &&
-                        states.rotationOverride == ROTATION_OVERRIDE_NONE) {
+                    !states.compatInfo.shouldRotateAndCrop() &&
+                    !states.compatInfo.shouldOverrideSensorOrientation()) {
                     auto deviceInfo = states.physicalDeviceInfoMap.find(physicalId);
                     if (deviceInfo != states.physicalDeviceInfoMap.end()) {
                         auto orientation = deviceInfo->second.find(ANDROID_SENSOR_ORIENTATION);

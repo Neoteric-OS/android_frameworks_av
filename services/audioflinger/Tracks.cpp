@@ -609,10 +609,6 @@ Status TrackHandle::getTimestamp(media::AudioTimestampInternal* timestamp,
     if (*_aidl_return != OK) {
         return Status::ok();
     }
-
-    // restrict position modulo INT_MAX to avoid integer sanitization abort
-    legacy.mPosition &= INT_MAX;
-
     *timestamp = legacy2aidl_AudioTimestamp_AudioTimestampInternal(legacy).value();
     return Status::ok();
 }
@@ -1826,7 +1822,7 @@ void Track::copyMetadataTo(MetadataInserter& backInserter) const
 
     std::string tagStr(mAttr.tags);
     const sp<IAfThreadBase> thread = mThread.promote();
-    if (audioserver_flags::enable_gmap_mode() && mAttr.usage == AUDIO_USAGE_GAME
+    if (mAttr.usage == AUDIO_USAGE_GAME
             && thread != nullptr && thread->afThreadCallback()->hasAlreadyCaptured(uid())
             && (tagStr.size() + strlen(AUDIO_ATTRIBUTES_TAG_GMAP_BIDIRECTIONAL)
                 + (tagStr.size() ? 1 : 0))

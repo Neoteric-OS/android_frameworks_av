@@ -247,8 +247,10 @@ sp<IMemory> StagefrightMetadataRetriever::getImageInternal(
         }
     }
 
+    bool preferhw = property_get_bool(
+            "media.stagefright.thumbnail.prefer_hw_codecs", false);
     if (metaOnly) {
-        return FrameDecoder::getMetadataOnly(trackMeta, colorFormat, thumbnail, bitDepth);
+        return FrameDecoder::getMetadataOnly(trackMeta, colorFormat, preferhw, thumbnail, bitDepth);
     }
 
     sp<IMediaSource> source = mExtractor->getTrack(i);
@@ -258,8 +260,6 @@ sp<IMemory> StagefrightMetadataRetriever::getImageInternal(
         return NULL;
     }
 
-    bool preferhw = property_get_bool(
-            "media.stagefright.thumbnail.prefer_hw_codecs", false);
     uint32_t flags = preferhw ? 0 : MediaCodecList::kPreferSoftwareCodecs;
     Vector<AString> matchingCodecs;
 
@@ -386,8 +386,10 @@ sp<IMemory> StagefrightMetadataRetriever::getFrameInternal(
         return NULL;
     }
 
+    bool preferhw = property_get_bool(
+        "media.stagefright.thumbnail.prefer_hw_codecs", false);
     if (metaOnly) {
-        return FrameDecoder::getMetadataOnly(trackMeta, colorFormat);
+        return FrameDecoder::getMetadataOnly(trackMeta, colorFormat, preferhw);
     }
 
     sp<IMediaSource> source = mExtractor->getTrack(i);
@@ -411,8 +413,6 @@ sp<IMemory> StagefrightMetadataRetriever::getFrameInternal(
         return NULL;
     }
 
-    bool preferhw = property_get_bool(
-            "media.stagefright.thumbnail.prefer_hw_codecs", false);
     uint32_t flags = preferhw ? 0 : MediaCodecList::kPreferSoftwareCodecs;
     sp<AMessage> format = new AMessage;
     status_t err = convertMetaDataToMessage(trackMeta, &format);

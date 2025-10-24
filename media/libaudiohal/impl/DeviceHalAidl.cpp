@@ -95,10 +95,12 @@ namespace android {
 
 namespace {
 
-static constexpr int32_t kAidlVersion1 = 1;
-static constexpr int32_t kAidlVersion2 = 2;
-static constexpr int32_t kAidlVersion3 = 3;
-static constexpr int32_t kAidlVersion4 = 4;
+enum AidlVersion : int32_t {
+    kAidlVersion1 = 1,
+    kAidlVersion2 = 2,
+    kAidlVersion3 = 3,
+    kAidlVersion4 = 4,
+};
 
 // Note: these converters are for types defined in different AIDL files. Although these
 // AIDL files are copies of each other, however formally these are different types
@@ -700,6 +702,13 @@ status_t DeviceHalAidl::openInputStream(
     }
     cleanups.disarmAll();
     return OK;
+}
+
+void DeviceHalAidl::streamClosed(const sp<StreamHalInterface>& stream) {
+    AUGMENT_LOG(D);
+    TIME_CHECK();
+    std::lock_guard l(mLock);
+    mMapper.onStreamClosed(stream);
 }
 
 status_t DeviceHalAidl::supportsAudioPatches(bool* supportsPatches) {

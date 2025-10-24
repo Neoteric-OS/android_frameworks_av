@@ -17,7 +17,7 @@
 package android.media;
 
 /**
- * {@hide}
+ * @hide
  */
 parcelable VolumeShaperState {
     /** Linear volume in the range MIN_LINEAR_VOLUME to MAX_LINEAR_VOLUME. */

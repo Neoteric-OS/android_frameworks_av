@@ -85,8 +85,6 @@ using android::media::audio::common::AudioMMapPolicyType;
 using android::media::audio::common::AudioPortDeviceExt;
 using android::media::audio::common::AudioPortExt;
 using binder::Status;
-using com::android::media::audioserver::remove_stream_suspend;
-using com::android::media::audioserver::use_bt_sco_for_media;
 using content::AttributionSourceState;
 
 //FIXME: workaround for truncated touch sounds
@@ -395,25 +393,20 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
 
         auto checkCloseOutputs = [&]() {
             // outputs must be closed after checkOutputForAllStrategies() is executed
-            if (!outputs.empty()) {
-                for (audio_io_handle_t output : outputs) {
-                    sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(output);
-                    // close unused outputs after device disconnection or direct outputs that have
-                    // been opened by checkOutputsForDevice() to query dynamic parameters
-                    // "outputs" vector never contains duplicated outputs
-                    if ((state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE)
-                            || (((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) &&
-                                (desc->mDirectOpenCount == 0))
-                            || (((desc->mFlags & AUDIO_OUTPUT_FLAG_SPATIALIZER) != 0) &&
-                                !isOutputOnlyAvailableRouteToSomeDevice(desc))) {
-                        clearAudioSourcesForOutput(output);
-                        closeOutput(output);
-                    }
+            for (audio_io_handle_t output : outputs) {
+                sp<SwAudioOutputDescriptor> desc = mOutputs.valueFor(output);
+                // close unused outputs after device disconnection or direct outputs that have
+                // been opened by checkOutputsForDevice() to query dynamic parameters
+                // "outputs" vector never contains duplicated outputs
+                if ((state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE)
+                        || (((desc->mFlags & AUDIO_OUTPUT_FLAG_DIRECT) != 0) &&
+                            (desc->mDirectOpenCount == 0))
+                        || (((desc->mFlags & AUDIO_OUTPUT_FLAG_SPATIALIZER) != 0) &&
+                            !isOutputOnlyAvailableRouteToSomeDevice(desc))) {
+                    clearAudioSourcesForOutput(output);
+                    closeOutput(output);
                 }
-                // check A2DP again after closing A2DP output to reset mA2dpSuspended if needed
-                return true;
             }
-            return false;
         };
 
         if (doCheckForDeviceAndOutputChanges && !deviceSwitch) {
@@ -2669,7 +2662,7 @@ status_t AudioPolicyManager::startOutput(
         if (info != nullptr && info->getUid() == client->uid()) {
             if (info->getActiveClientCount() == 0 && !outputDesc->isConfigurationMatched(
                     info->getConfigBase(), info->getFlags())) {
-                stopSource(outputDesc, client);
+                stopSource(outputDesc, client, outputDesc->latency() * 2);
                 outputDesc->stop();
                 audio_config_t config = AUDIO_CONFIG_INITIALIZER;
                 config.channel_mask = info->getConfigBase().channel_mask;
@@ -3028,7 +3021,13 @@ status_t AudioPolicyManager::stopOutput(audio_port_handle_t portId)
     ALOGV("stopOutput() output %d, stream %d, session %d",
           outputDesc->mIoHandle, client->stream(), client->session());
 
-    status_t status = stopSource(outputDesc, client);
+    // delay the device switch by twice the latency because stopOutput() is executed when
+    // the track stop() command is received and at that time the audio track buffer can
+    // still contain data that needs to be drained. The latency only covers the audio HAL
+    // and kernel buffers. Also the latency does not always include additional delay in the
+    // audio path (audio DSP, CODEC ...)
+
+    status_t status = stopSource(outputDesc, client, outputDesc->latency() * 2);
 
     if (status == NO_ERROR ) {
         outputDesc->stop();
@@ -3057,8 +3056,7 @@ status_t AudioPolicyManager::stopOutput(audio_port_handle_t portId)
 }
 
 status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outputDesc,
-                                        const sp<TrackClientDescriptor>& client)
-{
+                                        const sp<TrackClientDescriptor>& client, uint32_t delayMs) {
     // always handle stream stop, check which stream type is stopping
     audio_stream_type_t stream = client->stream();
     auto clientVolSrc = client->volumeSource();
@@ -3106,13 +3104,8 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             bool requiresVolumeCheck = outputDesc->getActivityCount(clientVolSrc) == 0 &&
                     outputDesc->useHwGain() && outputDesc->isAnyActive(VOLUME_SOURCE_NONE);
 
-            // delay the device switch by twice the latency because stopOutput() is executed when
-            // the track stop() command is received and at that time the audio track buffer can
-            // still contain data that needs to be drained. The latency only covers the audio HAL
-            // and kernel buffers. Also the latency does not always include additional delay in the
-            // audio path (audio DSP, CODEC ...)
-            setOutputDevices(__func__, outputDesc, newDevices, false, outputDesc->latency()*2,
-                             nullptr, true /*requiresMuteCheck*/, requiresVolumeCheck);
+            setOutputDevices(__func__, outputDesc, newDevices, false, delayMs, nullptr,
+                             true /*requiresMuteCheck*/, requiresVolumeCheck);
 
             // force restoring the device selection on other active outputs if it differs from the
             // one being selected for this output
@@ -4146,9 +4139,8 @@ status_t AudioPolicyManager::setVolumeIndexForGroup(volume_group_t group,
                 && curSrcDevices.find(curVoiceDevice) != curSrcDevices.end()) {
             bool isVoiceVolSrc;
             bool isBtScoVolSrc;
-            if (isVolumeConsistentForCalls(vs, {rxSinkDevice},
-                    isVoiceVolSrc, isBtScoVolSrc, __func__)
-                    && (isVoiceVolSrc || isBtScoVolSrc)) {
+            updateVoiceBtScoVolumeSrcForCalls(vs, isVoiceVolSrc, isBtScoVolSrc);
+            if (isVoiceVolSrc || isBtScoVolSrc) {
                 bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
                         !audio_is_ble_out_device(rxSinkDevice);
                 setVoiceVolume(index, curves, voiceVolumeManagedByHost, 0);
@@ -6922,7 +6914,7 @@ status_t AudioPolicyManager::disconnectAudioSource(const sp<SourceClientDescript
     }
     sp<SwAudioOutputDescriptor> swOutput = sourceDesc->swOutput().promote();
     if (swOutput != 0) {
-        status_t status = stopSource(swOutput, sourceDesc);
+        status_t status = stopSource(swOutput, sourceDesc, 0);
         if (status == NO_ERROR) {
             swOutput->stop();
         }
@@ -7196,7 +7188,6 @@ AudioPolicyManager::AudioPolicyManager(const sp<const AudioPolicyConfig>& config
     mEngine(std::move(engine)),
     mpClientInterface(clientInterface),
     mLimitRingtoneVolume(false), mLastVoiceVolume(-1.0f),
-    mA2dpSuspended(false),
     mAudioPortGeneration(1),
     mBeaconMuteRefCount(0),
     mBeaconPlayingRefCount(0),
@@ -7992,19 +7983,12 @@ std::set<audio_io_handle_t> AudioPolicyManager::getOutputsForDevices(
     return outputs;
 }
 
-void AudioPolicyManager::checkForDeviceAndOutputChanges(std::function<bool()> onOutputsChecked)
+void AudioPolicyManager::checkForDeviceAndOutputChanges(std::function<void()> onOutputsChecked)
 {
-    // checkA2dpSuspend must run before checkOutputForAllStrategies so that A2DP
-    // output is suspended before any tracks are moved to it
-    if (!remove_stream_suspend()) {
-        checkA2dpSuspend();
-    }
     checkOutputForAllStrategies();
     checkSecondaryOutputs();
-    if (onOutputsChecked != nullptr && onOutputsChecked()) {
-        if (!remove_stream_suspend()) {
-            checkA2dpSuspend();
-        }
+    if (onOutputsChecked != nullptr) {
+        onOutputsChecked();
     }
     updateDevicesAndOutputs();
     if (mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_MSD) != 0) {
@@ -8294,63 +8278,6 @@ bool AudioPolicyManager::isHearingAidUsedForComm() const {
         }
     }
     return false;
-}
-
-
-void AudioPolicyManager::checkA2dpSuspend()
-{
-    audio_io_handle_t a2dpOutput = mOutputs.getA2dpOutput();
-
-// QTI_BEGIN: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
-    if (use_bt_sco_for_media()
-            || a2dpOutput == 0 || mOutputs.isA2dpOffloadedOnPrimary()) {
-// QTI_END: 2018-05-27: Audio: audiopolicy: revert selecting speaker when a2dp is suspended
-        mA2dpSuspended = false;
-        return;
-    }
-
-    bool isScoConnected =
-            (mAvailableInputDevices.types().count(AUDIO_DEVICE_IN_BLUETOOTH_SCO_HEADSET) != 0 ||
-             !Intersection(mAvailableOutputDevices.types(), getAudioDeviceOutAllScoSet()).empty());
-    bool isScoRequested = isScoRequestedForComm();
-
-    // if suspended, restore A2DP output if:
-// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-    //      (A2DP output is present and not on primary output) &&
-// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-    //      ((SCO device is NOT connected) ||
-    //       ((SCO is not requested) &&
-    //        (phone state is NOT in call) && (phone state is NOT ringing)))
-    //
-    // if not suspended, suspend A2DP output if:
-// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-    //      (A2DP output is present and not on primary output) &&
-// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-    //      (SCO device is connected) &&
-    //       ((SCO is requested) ||
-    //       ((phone state is in call) || (phone state is ringing)))
-    //
-    if (mA2dpSuspended) {
-        if (!isScoConnected ||
-             (!isScoRequested &&
-              (mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) &&
-              (mEngine->getPhoneState() != AUDIO_MODE_RINGTONE))) {
-// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-                mpClientInterface->restoreOutput(a2dpOutput);
-// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-            mA2dpSuspended = false;
-        }
-    } else {
-        if (isScoConnected &&
-             (isScoRequested ||
-              (mEngine->getPhoneState() == AUDIO_MODE_IN_CALL) ||
-              (mEngine->getPhoneState() == AUDIO_MODE_RINGTONE))) {
-// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-                mpClientInterface->suspendOutput(a2dpOutput);
-// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-            mA2dpSuspended = true;
-        }
-    }
 }
 
 DeviceVector AudioPolicyManager::getNewOutputDevices(const sp<SwAudioOutputDescriptor>& outputDesc,
@@ -9075,10 +9002,12 @@ float AudioPolicyManager::computeVolume(IVolumeCurves &curves,
     const auto musicVolumeSrc = toVolumeSource(AUDIO_STREAM_MUSIC, false);
     const auto alarmVolumeSrc = toVolumeSource(AUDIO_STREAM_ALARM, false);
     const auto a11yVolumeSrc = toVolumeSource(AUDIO_STREAM_ACCESSIBILITY, false);
-    if (AUDIO_MODE_RINGTONE == mEngine->getPhoneState() &&
+    if (volumeSource == a11yVolumeSrc && AUDIO_MODE_RINGTONE == mEngine->getPhoneState() &&
             mOutputs.isActive(ringVolumeSrc, 0)) {
         auto &ringCurves = getVolumeCurves(AUDIO_STREAM_RING);
-        const float ringVolumeDb = computeVolume(ringCurves, ringVolumeSrc, index, deviceTypes,
+        const float ringVolumeDb = computeVolume(ringCurves, ringVolumeSrc,
+                                                 rescaleVolumeIndex(index, a11yVolumeSrc,
+                                                                    ringVolumeSrc), deviceTypes,
                                                  adjustAttenuation,
                                                  /* computeInternalInteraction= */false);
         return ringVolumeDb - 4 > volumeDb ? ringVolumeDb - 4 : volumeDb;
@@ -9231,13 +9160,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     }
     bool isVoiceVolSrc;
     bool isBtScoVolSrc;
-    if (!isVolumeConsistentForCalls(
-            volumeSource, deviceTypes, isVoiceVolSrc, isBtScoVolSrc, __func__)) {
-        // Do not return an error here as AudioService will always set both voice call
-        // and Bluetooth SCO volumes due to stream aliasing.
-        return NO_ERROR;
-    }
-
+    updateVoiceBtScoVolumeSrcForCalls(volumeSource, isVoiceVolSrc, isBtScoVolSrc);
     if (deviceTypes.empty()) {
         deviceTypes = outputDesc->devices().types();
         index = curves.getVolumeIndex(deviceTypes);
@@ -9272,7 +9195,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     if (!com_android_media_audio_ring_my_car()) {
         muted = (index == 0) && (volumeDb != 0.0f);
     } else {
-        muted = curves.isMuted();
+        muted = curves.isMuted() && !outputDesc->isFixedVolume(deviceTypes);
     }
     outputDesc->setVolume(volumeDb, muted, volumeSource, curves.getStreamTypes(),
             deviceTypes, delayMs, force, isVoiceVolSrc);
@@ -9306,35 +9229,17 @@ void AudioPolicyManager::setVoiceVolume(
     }
 }
 
-bool AudioPolicyManager::isVolumeConsistentForCalls(VolumeSource volumeSource,
-                                                   const DeviceTypeSet& deviceTypes,
-                                                   bool& isVoiceVolSrc,
-                                                   bool& isBtScoVolSrc,
-                                                   const char* caller) {
+void AudioPolicyManager::updateVoiceBtScoVolumeSrcForCalls(VolumeSource volumeSource,
+                                                          bool& isVoiceVolSrc,
+                                                          bool& isBtScoVolSrc) {
     const VolumeSource callVolSrc = toVolumeSource(AUDIO_STREAM_VOICE_CALL, false);
     isVoiceVolSrc = (volumeSource != VOLUME_SOURCE_NONE) && (callVolSrc == volumeSource);
 
     const bool isScoRequested = isScoRequestedForComm();
     const bool isHAUsed = isHearingAidUsedForComm();
 
-    if (com_android_media_audio_replace_stream_bt_sco()) {
-        isBtScoVolSrc = (volumeSource != VOLUME_SOURCE_NONE) && (callVolSrc == volumeSource) &&
-                        (isScoRequested || isHAUsed);
-        return true;
-    }
-
-    const VolumeSource btScoVolSrc = toVolumeSource(AUDIO_STREAM_BLUETOOTH_SCO, false);
-    isBtScoVolSrc = (volumeSource != VOLUME_SOURCE_NONE) && (btScoVolSrc == volumeSource);
-
-    if ((callVolSrc != btScoVolSrc) &&
-            ((isVoiceVolSrc && isScoRequested) ||
-             (isBtScoVolSrc && !(isScoRequested || isHAUsed))) &&
-            !isSingleDeviceType(deviceTypes, AUDIO_DEVICE_OUT_TELEPHONY_TX)) {
-        ALOGV("%s cannot set volume group %d volume when is%srequested for comm", caller,
-             volumeSource, isScoRequested ? " " : " not ");
-        return false;
-    }
-    return true;
+    isBtScoVolSrc = (volumeSource != VOLUME_SOURCE_NONE) && (callVolSrc == volumeSource) &&
+                    (isScoRequested || isHAUsed);
 }
 
 void AudioPolicyManager::applyStreamVolumes(const sp<AudioOutputDescriptor>& outputDesc,

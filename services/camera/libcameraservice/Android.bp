@@ -71,6 +71,7 @@ cc_defaults {
         "libprocessgroup",
         "libprocinfo",
         "libsensorprivacy",
+        "libcameracompatbilityinfo",
         "libstagefright",
         "libstagefright_foundation",
         "libtinyxml2",

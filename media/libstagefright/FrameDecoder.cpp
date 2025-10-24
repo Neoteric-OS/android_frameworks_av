@@ -278,8 +278,8 @@ bool isFeatureSupported(const char *mimeType, const char *featureName) {
     return false;
 }
 
-uint32_t selectHeifMode(uint32_t gridNumInCols = 0) {
-    if (gridNumInCols <= 1) {
+uint32_t selectHeifMode(uint32_t gridNumInCols, uint32_t tileWidth, uint32_t tileHeight) {
+    if (gridNumInCols <= 1 || tileWidth % 512 != 0 || tileHeight % 512 !=0) {
         return HeifMode::TILE;
     }
     constexpr const char *FEATURE_ROW_BY_ROW = "feature-heic-row-by-row-decode";
@@ -355,6 +355,10 @@ void AsyncCodecHandler::onMessageReceived(const sp<AMessage>& msg) {
                     msg->findString("detail", &detail);
                     ALOGI("Codec reported error(0x%x/%s), actionCode(%d), detail(%s)", err,
                           StrMediaError(err).c_str(), actionCode, detail.c_str());
+                    sp<FrameDecoder> frameDecoder = mFrameDecoder.promote();
+                    if (frameDecoder != nullptr) {
+                        frameDecoder->onDecoderError(err);
+                    }
                     break;
                 }
                 case MediaCodec::CB_REQUIRED_RESOURCES_CHANGED:
@@ -402,7 +406,8 @@ bool InputBufferIndexQueue::dequeue(int32_t* index, int32_t timeOutUs) {
 
 //static
 sp<IMemory> FrameDecoder::getMetadataOnly(
-        const sp<MetaData> &trackMeta, int colorFormat, bool thumbnail, uint32_t bitDepth) {
+        const sp<MetaData> &trackMeta, int colorFormat, bool preferHw, bool thumbnail,
+        uint32_t bitDepth) {
     OMX_COLOR_FORMATTYPE dstFormat;
     ui::PixelFormat captureFormat;
     int32_t dstBpp;
@@ -425,7 +430,8 @@ sp<IMemory> FrameDecoder::getMetadataOnly(
             tileWidth = tileHeight = 0;
         }
 
-        if ((selectHeifMode(gridCols) == HeifMode::ROW) && !isAvif(trackMeta)) {
+        if (preferHw && (selectHeifMode(gridCols, tileWidth, tileHeight) == HeifMode::ROW) &&
+                !isAvif(trackMeta)) {
             // In HEIF row-by-row mode, the basic output is a row.
             // All tiles on a row are stitched into one output, so the display
             // info notified to Skia needs to be updated to the row size.
@@ -739,6 +745,13 @@ status_t FrameDecoder::extractInternal() {
     return err;
 }
 
+void FrameDecoder::onDecoderError(status_t err) {
+    std::unique_lock lock(mMutex);
+    mDecoderError = true;
+    mDecoderErrorCode = err;
+    mOutputFramePending.notify_one();
+}
+
 status_t FrameDecoder::extractInternalUsingBlockModel() {
     status_t err = OK;
     MediaBufferBase* mediaBuffer = NULL;
@@ -746,6 +759,7 @@ status_t FrameDecoder::extractInternalUsingBlockModel() {
     uint32_t flags = 0;
     int32_t index;
     mHandleOutputBufferAsyncDone = false;
+    mDecoderError = false;
 
     err = mSource->read(&mediaBuffer, &mReadOptions);
     mReadOptions.clearSeekTo();
@@ -808,11 +822,12 @@ status_t FrameDecoder::extractInternalUsingBlockModel() {
 
     // wait for handleOutputBufferAsync() to finish
     std::unique_lock _lk(mMutex);
-    if (!mOutputFramePending.wait_for(_lk, std::chrono::microseconds(kAsyncBufferTimeOutUs),
-                                 [this] { return mHandleOutputBufferAsyncDone; })) {
+    if (!mOutputFramePending.wait_for(
+            _lk, std::chrono::microseconds(kAsyncBufferTimeOutUs),
+            [this] { return mHandleOutputBufferAsyncDone || mDecoderError; })) {
         ALOGE("%s timed out waiting for handleOutputBufferAsync() to complete.", __func__);
     }
-    return mHandleOutputBufferAsyncDone ? OK : TIMED_OUT;
+    return mDecoderError ? mDecoderErrorCode : (mHandleOutputBufferAsyncDone ? OK : TIMED_OUT);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -898,7 +913,7 @@ status_t FrameDecoder::handleOutputBufferAsync(int32_t index, int64_t timeUs) {
     }
 
     if (err == OK && onOutputReceivedDone) {
-        std::lock_guard _lm(mMutex);
+        std::unique_lock lock(mMutex);
         mHandleOutputBufferAsyncDone = true;
         mOutputFramePending.notify_one();
     }
@@ -1413,7 +1428,8 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
     }
 
     if (!isAvif(trackMeta())) {
-        auto mode = selectHeifMode(mGridCols);
+        bool isHW = mComponentName.startsWithIgnoreCase("c2.qti.");
+        auto mode = isHW ? selectHeifMode(mGridCols, mTileWidth, mTileHeight) : HeifMode::TILE;
         ALOGD("Setting HEIF mode %u", mode);
         if (mode == HeifMode::ROW) {
             mTileWidth *= mGridCols;

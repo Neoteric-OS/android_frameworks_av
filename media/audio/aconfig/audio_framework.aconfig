@@ -23,6 +23,13 @@ flag {
 }
 
 flag {
+    name: "audio_focus_isolation"
+    namespace: "media_audio"
+    description: "Enables operation to isolate a uid's audio focus management."
+    bug: "428808570"
+}
+
+flag {
     name: "auto_public_volume_api_hardening"
     namespace: "media_audio"
     description: "On AAOS, make volume and ringer SDK APIs in AudioManager no-ops."
@@ -30,19 +37,10 @@ flag {
 }
 
 flag {
-    name: "cache_get_stream_min_max_volume"
+    name: "ble_hearing_aid_device"
     namespace: "media_audio"
-    description:
-       "Cache getStream[Min|Max]Volume calls between AudioManager and AudioService"
-    bug: "383667500"
-}
-
-flag {
-    name: "cache_get_stream_volume"
-    namespace: "media_audio"
-    description:
-       "Cache getStreamVolume calls between AudioManager and AudioService"
-    bug: "383667500"
+    description: "Add BLE hearing aid device category"
+    bug: "443740527"
 }
 
 flag {
@@ -164,6 +162,15 @@ flag {
  AudioManager.getFocusFadeOutDurationForTest()\
  AudioManager.getFocusUnmuteDelayAfterFadeOutForTest()"
     bug: "301713440"
+}
+
+flag {
+    name: "guard_stream_volume_apis"
+    namespace: "media_audio"
+    description:
+        "Guards getStreamVolume and getStreamMaxVolume APIs with permission."
+    bug: "417787833"
+    is_exported: true
 }
 
 flag {
