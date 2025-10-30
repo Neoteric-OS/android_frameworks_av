@@ -400,7 +400,8 @@ bool InputBufferIndexQueue::dequeue(int32_t* index, int32_t timeOutUs) {
 
 //static
 sp<IMemory> FrameDecoder::getMetadataOnly(
-        const sp<MetaData> &trackMeta, int colorFormat, bool thumbnail, uint32_t bitDepth) {
+        const sp<MetaData> &trackMeta, int colorFormat, bool preferHw, bool thumbnail,
+        uint32_t bitDepth) {
     OMX_COLOR_FORMATTYPE dstFormat;
     ui::PixelFormat captureFormat;
     int32_t dstBpp;
@@ -423,7 +424,7 @@ sp<IMemory> FrameDecoder::getMetadataOnly(
             tileWidth = tileHeight = 0;
         }
 
-        if ((selectHeifMode(gridCols, tileWidth, tileHeight) == HeifMode::ROW) &&
+        if (preferHw && (selectHeifMode(gridCols, tileWidth, tileHeight) == HeifMode::ROW) &&
                 !isAvif(trackMeta)) {
             // In HEIF row-by-row mode, the basic output is a row.
             // All tiles on a row are stitched into one output, so the display
@@ -1325,7 +1326,8 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
     }
 
     if (!isAvif(trackMeta())) {
-        auto mode = selectHeifMode(mGridCols, mTileWidth, mTileHeight);
+        bool isHW = mComponentName.startsWithIgnoreCase("c2.qti.");
+        auto mode = isHW ? selectHeifMode(mGridCols, mTileWidth, mTileHeight) : HeifMode::TILE;
         ALOGD("Setting HEIF mode %u", mode);
         if (mode == HeifMode::ROW) {
             mTileWidth *= mGridCols;
