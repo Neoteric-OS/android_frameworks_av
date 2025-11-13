@@ -2170,6 +2170,7 @@ public:
                 mCurrent->reset();
                 mCurrent.reset();
             }
+            mCurrentInterface.reset();
             mCurrentId.reset();
         }
     }

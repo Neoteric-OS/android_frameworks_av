@@ -1802,14 +1802,23 @@ status_t Camera3Device::waitUntilStateThenRelock(bool active, nsecs_t timeout,
 
 status_t Camera3Device::setNotifyCallback(wp<NotificationListener> listener) {
     ATRACE_CALL();
-    std::lock_guard<std::mutex> l(mOutputLock);
+    {
+        std::lock_guard<std::mutex> l(mOutputLock);
 
-    if (listener != NULL && mListener != NULL) {
-        ALOGW("%s: Replacing old callback listener", __FUNCTION__);
+        if (listener != NULL && mListener != NULL) {
+            ALOGW("%s: Replacing old callback listener", __FUNCTION__);
+        }
+        mListener = listener;
     }
-    mListener = listener;
-    mRequestThread->setNotificationListener(listener);
-    mPreparerThread->setNotificationListener(listener);
+    {
+        Mutex::Autolock l(mLock);
+        if (mRequestThread) {
+            mRequestThread->setNotificationListener(listener);
+        }
+        if (mPreparerThread) {
+            mPreparerThread->setNotificationListener(listener);
+        }
+    }
 
     return OK;
 }
@@ -2665,6 +2674,11 @@ status_t Camera3Device::configureStreamsLocked(int operatingMode,
                     (outputStream->data_space ==
                      static_cast<android_dataspace_t>(
                          aidl::android::hardware::graphics::common::Dataspace::HEIF_ULTRAHDR)) ||
+
+                    (outputStream->data_space ==
+                     static_cast<android_dataspace_t>(
+                         aidl::android::hardware::graphics::common::Dataspace::HEIF)) ||
+
                     (outputStream->data_space ==
                      static_cast<android_dataspace_t>(
                          aidl::android::hardware::graphics::common::Dataspace::JPEG_R))) {
