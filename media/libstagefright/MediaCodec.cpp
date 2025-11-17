@@ -4541,7 +4541,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                                               mState, stateString(mState).c_str());
                     if (err == DEAD_OBJECT) {
                         mFlags |= kFlagSawMediaServerDie;
+// QTI_BEGIN: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                         mFlags &= ~kFlagIsComponentAllocated;
+// QTI_END: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                     }
                     bool sendErrorResponse = true;
                     std::string origin;
@@ -4744,7 +4746,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                     }
                     CHECK_EQ(mState, INITIALIZING);
                     setState(INITIALIZED);
+// QTI_BEGIN: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                     mFlags |= kFlagIsComponentAllocated;
+// QTI_END: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
 
                     CHECK(msg->findString("componentName", &mComponentName));
 
@@ -5364,7 +5368,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     mComponentName.clear();
 
+// QTI_BEGIN: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                     mFlags &= ~kFlagIsComponentAllocated;
+// QTI_END: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
 
                     // off since we're removing all resources including the battery on
                     if (mBatteryChecker != nullptr) {
@@ -5954,7 +5960,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                 // 1) Permit release to shut down the component if allocated.
                 //
                 // 2) We may be in "UNINITIALIZED" state already and
+// QTI_BEGIN: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                 // also shutdown the encoder/decoder without the
+// QTI_END: 2014-10-21: Audio: Stagefright: MediaCodec: shutdown allocated codec on error
                 // client being aware of this if media server died while
                 // we were being stopped. The client would assume that
                 // after stop() returned, it would be safe to call release()

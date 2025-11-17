@@ -633,8 +633,10 @@ const char* IAfThreadBase::threadTypeToString(ThreadBase::type_t type)
         return "SPATIALIZER";
     case BIT_PERFECT:
         return "BIT_PERFECT";
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
     case DIRECT_RECORD:
         return "DIRECT_RECORD";
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
     default:
         return "unknown";
     }
@@ -1817,7 +1819,9 @@ void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
 // QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         &IID_VISUALIZER, sizeof (effect_uuid_t)) == 0)) {
         PlaybackThread *t = (PlaybackThread *)this;
+// QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
         t->invalidateTracks();
+// QTI_BEGIN: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
     }
 // QTI_END: 2020-04-03: Audio: Effects: Check DIRECT output while offloading effect
 }
@@ -1858,9 +1862,7 @@ status_t ThreadBase::addEffect_ll(const sp<IAfEffectModule>& effect)
     sp<IAfEffectChain> chain = getEffectChain_l(sessionId);
     bool chainCreated = false;
 
-// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
     ALOGD_IF((mIsOffload || mType == DIRECT) && !effect->isOffloadable(),
-// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
              "%s: on offload thread(%d): effect %s does not support offload flags %#x",
              __func__, mId, effect->desc().name, effect->desc().flags);
 
@@ -2310,9 +2312,7 @@ PlaybackThread::PlaybackThread(const sp<IAfThreadCallback>& afThreadCallback,
         mScreenState(mAfThreadCallback->getScreenState()),
         // index 0 is reserved for normal mixer's submix
         mFastTrackAvailMask(((1 << FastMixerState::sMaxFastTracks) - 1) & ~1),
-// QTI_BEGIN: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mHwSupportsPause(false), mHwPaused(false), mHwSupportsSuspend(false),
-// QTI_END: 2018-03-23: Audio: audioflinger: Throttle output if no active tracks
         mLeftVolFloat(-1.0), mRightVolFloat(-1.0),
         mDownStreamPatch{},
         mIsTimestampAdvancing(kMinimumTimeBetweenTimestampChecksNs)
@@ -2852,7 +2852,9 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
             ALOGE("createTrack_l() initCheck failed %d; no control block?", lStatus);
+// QTI_BEGIN: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
             // track must be cleared from the caller as the caller has the AF lock
+// QTI_END: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
             goto Exit;
         }
         mTracks.add(track);
@@ -3055,7 +3057,9 @@ status_t PlaybackThread::addTrack_l(const sp<IAfTrack>& track)
         status = NO_ERROR;
     }
 
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Offload track transition fix
     onAddNewTrack_l();
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Offload track transition fix
     return status;
 }
 
@@ -3158,10 +3162,14 @@ void PlaybackThread::onDrainReady()
 }
 
 void PlaybackThread::onError(bool isHardError)
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 {
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
     mCallbackThread->setAsyncError(isHardError);
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 }
 
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
 void PlaybackThread::onCodecFormatChanged(
         const std::vector<uint8_t>& metadataBs)
 {
@@ -3331,7 +3339,9 @@ NO_THREAD_SAFETY_ANALYSIS
                 multiplier = (double) maxNormalFrameCount / (double) mFrameCount;
             }
         } else {
+// QTI_BEGIN: 2016-05-10: Audio: audioflinger: update multiplier logic to calculate frameCount
             multiplier = floor(multiplier);
+// QTI_END: 2016-05-10: Audio: audioflinger: update multiplier logic to calculate frameCount
         }
     }
     mNormalFrameCount = multiplier * mFrameCount;
@@ -4572,11 +4582,13 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
                         // (1) mixer threads without a fast mixer (which has its own warm-up)
                         // (2) minimum buffer sized tracks (even if the track is full,
                         //     the app won't fill fast enough to handle the sudden draw).
+// QTI_BEGIN: 2016-05-10: Audio: audioflinger: Update throttling logic in MixerThread
                         //
                         // Total time spent in last processing cycle equals time spent in
                         // 1. threadLoop_write, as well as time spent in
                         // 2. threadLoop_mix (significant for heavy mixing, especially
                         //                    on low tier processors)
+// QTI_END: 2016-05-10: Audio: audioflinger: Update throttling logic in MixerThread
 
                         // it's OK if deltaMs is an overestimate.
 
@@ -5499,20 +5511,26 @@ void PlaybackThread::threadLoop_standby()
 }
 
 void PlaybackThread::onAddNewTrack_l()
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Offload track transition fix
 {
     ALOGV("signal playback thread");
     broadcast_l();
 }
 
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Offload track transition fix
 void PlaybackThread::onAsyncError(bool isHardError)
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 {
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
     if (!isHardError || !isOffloadOrDirect()) {
         invalidateTracks();
     } else {
         mAfThreadCallback->onHardError(id());
     }
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 }
 
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
 void MixerThread::threadLoop_mix()
 {
     // mix buffers...
@@ -6017,7 +6035,9 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                 track->fillingStatus() = IAfTrack::FS_ACTIVE;
                 if (track->state() == IAfTrackBase::RESUMING) {
                     track->setState(IAfTrackBase::ACTIVE);
+// QTI_BEGIN: 2019-02-07: Audio: don't apply ramp if track is paused before the first mix
                     // If a new track is paused immediately after start, do not ramp on resume.
+// QTI_END: 2019-02-07: Audio: don't apply ramp if track is paused before the first mix
 // QTI_BEGIN: 2018-03-22: Audio: don't apply ramp if track is paused before the first mix
                     if (cblk->mServer != 0) {
                         param = AudioMixer::RAMP_VOLUME;
@@ -7448,7 +7468,9 @@ AsyncCallbackThread::AsyncCallbackThread(
     :   Thread(false /*canCallJava*/),
         mPlaybackThread(playbackThread),
         mWriteAckSequence(0),
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
         mDrainSequence(0),
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
         mAsyncError(ASYNC_ERROR_NONE)
 {
 }
@@ -7467,13 +7489,21 @@ bool AsyncCallbackThread::threadLoop()
 
         {
             audio_utils::unique_lock _l(mutex());
+// QTI_BEGIN: 2013-12-06: Audio: audioflinger: check for condition before waiting
             while (!((mWriteAckSequence & 1) ||
                      (mDrainSequence & 1) ||
+// QTI_END: 2013-12-06: Audio: audioflinger: check for condition before waiting
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
                      mAsyncError ||
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
+// QTI_BEGIN: 2013-12-06: Audio: audioflinger: check for condition before waiting
                      exitPending())) {
+// QTI_END: 2013-12-06: Audio: audioflinger: check for condition before waiting
                 mWaitWorkCV.wait(_l);
+// QTI_BEGIN: 2013-12-06: Audio: audioflinger: check for condition before waiting
             }
 
+// QTI_END: 2013-12-06: Audio: audioflinger: check for condition before waiting
             if (exitPending()) {
                 break;
             }
@@ -7483,7 +7513,9 @@ bool AsyncCallbackThread::threadLoop()
             mWriteAckSequence &= ~1;
             drainSequence = mDrainSequence;
             mDrainSequence &= ~1;
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
             asyncError = mAsyncError;
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
             mAsyncError = ASYNC_ERROR_NONE;
         }
         {
@@ -7497,7 +7529,9 @@ bool AsyncCallbackThread::threadLoop()
                 }
                 if (asyncError != ASYNC_ERROR_NONE) {
                     playbackThread->onAsyncError(asyncError == ASYNC_ERROR_HARD);
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
                 }
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
             }
         }
     }
@@ -7547,12 +7581,16 @@ void AsyncCallbackThread::resetDraining()
 }
 
 void AsyncCallbackThread::setAsyncError(bool isHardError)
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 {
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
     audio_utils::lock_guard _l(mutex());
     mAsyncError = isHardError ? ASYNC_ERROR_HARD : ASYNC_ERROR_SOFT;
     mWaitWorkCV.notify_one();
+// QTI_BEGIN: 2016-07-11: Audio: audioflinger: async callback error handling
 }
 
+// QTI_END: 2016-07-11: Audio: audioflinger: async callback error handling
 
 // ----------------------------------------------------------------------------
 
@@ -7617,14 +7655,18 @@ PlaybackThread::mixer_state OffloadThread::prepareTracks_l(
         const sp<IAfTrack> l = mActiveTracks.getLatest()->asIAfTrack();
         bool last = l.get() == track;
 
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
         if (track->isInvalid()) {
             ALOGW("An invalidated track shouldn't be in active list");
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             tracksToRemove->push_back(track);
         } else if (track->state() == IAfTrackBase::IDLE) {
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             ALOGW("An idle track shouldn't be in active list");
             continue;
         }
 
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
         const size_t framesReady = track->framesReady();
         if (ATRACE_ENABLED()) [[unlikely]] {
             ATRACE_INT(std::string(AUDIO_TRACE_PREFIX_AUDIO_TRACK_NRDY)
@@ -7655,16 +7697,21 @@ PlaybackThread::mixer_state OffloadThread::prepareTracks_l(
                 mBytesRemaining = 0;    // stop writing
             }
             tracksToRemove->push_back(track);
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
         } else if (track->isFlushPending()) {
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             if (track->isStopping_1()) {
                 track->retryCount() = kMaxTrackStopRetriesOffload;
             } else {
                 track->retryCount() = kMaxTrackRetriesOffload;
             }
+// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             track->flushAck();
             if (last) {
                 mFlushPending = true;
             }
+// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
+// QTI_BEGIN: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
         } else if (track->isResumePending()){
             track->resumeAck();
             if (last) {
@@ -7681,13 +7728,16 @@ PlaybackThread::mixer_state OffloadThread::prepareTracks_l(
                     // resume an interrupted write
                 }
                 // enable write to audio HAL
+// QTI_END: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
                 mSleepTimeUs = 0;
 
                 mLeftVolFloat = mRightVolFloat = -1.0;
 
+// QTI_BEGIN: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
                 // Do not handle new data in this iteration even if track->framesReady()
                 mixerStatus = MIXER_TRACKS_ENABLED;
             }
+// QTI_END: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
         } else if (framesReady && track->isReady() &&
                 !track->isPaused() && !track->isTerminated() && !track->isStopping_2()) {
             ALOGVV("OffloadThread: track(%d) s=%08x [OK]", track->id(), cblk->mServer);
@@ -8344,14 +8394,18 @@ sp<IAfRecordThread> IAfRecordThread::create(const sp<IAfThreadCallback>& afThrea
         AudioStreamIn* input,
         audio_io_handle_t id,
         bool systemReady) {
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
     if (input->flags & AUDIO_INPUT_FLAG_DIRECT) {
         return sp<DirectRecordThread>::make(afThreadCallback, input, id, systemReady);
     }
     return sp<RecordThread>::make(afThreadCallback, RECORD, input, id, systemReady);
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
 }
 
 RecordThread::RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
                                          ThreadBase::type_t type,
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
                                          AudioStreamIn *input,
                                          audio_io_handle_t id,
                                          bool systemReady
@@ -9063,12 +9117,14 @@ reacquire_wakelock:
                         // Sanitize before releasing if the track has no access to the source data
                         // An idle UID receives silence from non virtual devices until active
                         if (activeTrack->isSilenced()) {
+// QTI_BEGIN: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
                             if (type() == IAfThreadBase::DIRECT_RECORD && mIsHwSilenced) {
                                 // do not silence
                             } else {
                                 memset(activeTrack->sinkBuffer().raw, 0,
                                        framesOut * activeTrack->frameSize());
                             }
+// QTI_END: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
                         }
                         activeTrack->releaseBuffer(&activeTrack->sinkBuffer());
                     }
@@ -9384,7 +9440,9 @@ sp<IAfRecordTrack> RecordThread::createRecordTrack_l(
         lStatus = track->initCheck();
         if (lStatus != NO_ERROR) {
             ALOGE("createRecordTrack_l() initCheck failed %d; no control block?", lStatus);
+// QTI_BEGIN: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
             // track must be cleared from the caller as the caller has the AF lock
+// QTI_END: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
             goto Exit;
         }
         mTracks.add(track);
@@ -9730,7 +9788,9 @@ void RecordThread::dumpInternals_l(int fd, const Vector<String16>& /* args */)
 
     dprintf(fd, "  Fast capture thread: %s\n", hasFastCapture() ? "yes" : "no");
     dprintf(fd, "  Fast track available: %s\n", mFastTrackAvail ? "yes" : "no");
+// QTI_BEGIN: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
     dprintf(fd, "  Hw silenced: %s\n", mIsHwSilenced ? "yes" : "no");
+// QTI_END: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
 
     // Make a non-atomic copy of fast capture dump state so it won't change underneath us
     // while we are dumping it.  It may be inconsistent, but it won't mutate!
@@ -9786,12 +9846,14 @@ void RecordThread::dumpTracks_l(int fd, const Vector<String16>& /* args */)
 void RecordThread::setRecordSilenced(audio_port_handle_t portId, bool silenced)
 {
     audio_utils::lock_guard _l(mutex());
+// QTI_BEGIN: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
 
     if (type() == IAfThreadBase::DIRECT_RECORD && mIsHwSilenced != silenced) {
         auto status = mInput->stream->setGain(silenced ? 0.0f : 1.0f);
         mIsHwSilenced = silenced && status == NO_ERROR;
     }
 
+// QTI_END: 2025-05-15: Audio: audioflinger: support hardware gain for silenced inputs
     for (const auto& track : mRecordTracksView) {
         if (track != 0 && track->portId() == portId) {
             track->setSilenced(silenced);
@@ -9799,6 +9861,7 @@ void RecordThread::setRecordSilenced(audio_port_handle_t portId, bool silenced)
     }
 }
 
+// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
 // --------------------------------------------------------------------------------------
 //              DirectRecordThread
 // --------------------------------------------------------------------------------------
@@ -9811,6 +9874,7 @@ DirectRecordThread::DirectRecordThread(const sp<IAfThreadCallback>& afThreadCall
 
 DirectRecordThread::~DirectRecordThread() {}
 
+// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
 void ResamplerBufferProvider::reset()
 {
     const auto threadBase = mRecordTrack->thread().promote();
@@ -9961,10 +10025,12 @@ bool RecordThread::checkForNewParameter_l(const String8& keyValuePair,
 
     AudioParameter param = AudioParameter(keyValuePair);
     int value;
+// QTI_BEGIN: 2016-03-25: Audio: Park FastCapture in HOT_IDLE while processing new parameters
 
     // scope for AutoPark extends to end of method
     AutoPark<FastCapture> park(mFastCapture);
 
+// QTI_END: 2016-03-25: Audio: Park FastCapture in HOT_IDLE while processing new parameters
     // TODO Investigate when this code runs. Check with audio policy when a sample rate and
     //      channel count change can be requested. Do we mandate the first client defines the
     //      HAL sampling rate and channel count or do we allow changes on the fly?

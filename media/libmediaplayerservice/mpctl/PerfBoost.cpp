@@ -124,5 +124,5 @@ HeifPerfBoost::~HeifPerfBoost() {
         }
 }
 
-} // namespace android
 // QTI_END: 2023-06-21: Video: libmediaplayerservice: Enable perfboost during heif decode
+} // namespace android

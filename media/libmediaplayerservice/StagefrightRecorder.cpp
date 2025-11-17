@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
+// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "StagefrightRecorder"
 // QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #define ATRACE_TAG ATRACE_TAG_VIDEO
@@ -2057,6 +2059,7 @@ status_t StagefrightRecorder::setupCameraSource(
             return BAD_VALUE;
         }
 
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
          if (!mPreviewSurface) {
             // `Surface(...)` below does not support nullptr in its ctor
@@ -2070,15 +2073,17 @@ status_t StagefrightRecorder::setupCameraSource(
                 videoSize, mFrameRate, mediaflagtools::mediaSurfaceToCameraSurfaceType(surface),
                 std::llround(1e6 / mCaptureFps));
 #else
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid, videoSize, mFrameRate,
                 mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface),
                 std::llround(1e6 / mCaptureFps));
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 #endif
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         *cameraSource = mCameraSourceTimeLapse;
     } else {
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         if (!mPreviewSurface) {
             // `Surface(...)` below does not support nullptr in its ctor
@@ -2087,7 +2092,9 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
         sp<Surface> surface = new Surface(mPreviewSurface);
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         *cameraSource = CameraSource::CreateFromCamera(
+// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate,
                 mediaflagtools::mediaSurfaceToCameraSurfaceType(surface));
@@ -2097,6 +2104,7 @@ status_t StagefrightRecorder::setupCameraSource(
                videoSize, mFrameRate,
                mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
 #endif
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
     }
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
@@ -2320,9 +2328,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("android._input-metadata-buffer-type", mMetaDataStoredInVideoBuffers);
     }
 
-// QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_BEGIN: 2025-03-03: Video: StagefrightRecorder: Fix dolby recording issue.
     if (mOutputFormat == OUTPUT_FORMAT_MPEG_4 && mVideoEncoder != VIDEO_ENCODER_DOLBY_VISION) {
-// QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
+// QTI_END: 2025-03-03: Video: StagefrightRecorder: Fix dolby recording issue.
 // QTI_BEGIN: 2018-05-31: Video: libstagefirght: Add changes to handle multiple slices in writer
         format->setInt32("feature-nal-length-bitstream", 1);
         format->setInt32("nal-length-in-bytes", 4);

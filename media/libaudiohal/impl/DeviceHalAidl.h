@@ -225,8 +225,10 @@ class DeviceHalAidl : public DeviceHalInterface, public ConversionHelperAidl,
     status_t filterAndUpdateBtScoParameters(AudioParameter &parameters);
     status_t filterAndUpdateScreenParameters(AudioParameter &parameters);
     status_t filterAndUpdateTelephonyParameters(AudioParameter &parameters);
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     status_t parseAndGetVendorParameters(const AudioParameter& parameterKeys, String8* values);
     status_t parseAndSetVendorParameters(const AudioParameter& parameters);
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 
     // StreamCloseHandler implementation
     void streamClosed(const sp<StreamHalInterface>& stream);

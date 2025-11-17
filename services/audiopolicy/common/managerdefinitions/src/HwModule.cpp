@@ -365,34 +365,44 @@ sp<HwModule> HwModuleCollection::getModuleForDeviceType(audio_devices_t type,
                                                         std::string *tagName) const
 {
     for (const auto& module : *this) {
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         const auto& profiles = audio_is_output_device(type) ?
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                 module->getOutputProfiles() : module->getInputProfiles();
         for (const auto& profile : profiles) {
             if (profile->supportsDeviceTypes({type})) {
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                 if (encodedFormat != AUDIO_FORMAT_DEFAULT) {
                     DeviceVector declaredDevices = module->getDeclaredDevices();
                     sp <DeviceDescriptor> deviceDesc =
                             declaredDevices.getDevice(type, String8(), encodedFormat);
                     if (deviceDesc) {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                         if (tagName != nullptr) {
                             *tagName = deviceDesc->getTagName();
                         }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                         return module;
                     }
                 } else {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                     if (tagName != nullptr) {
                         *tagName = profile->getTag({type});
                     }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                     return module;
                 }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             }
         }
     }
     return nullptr;
 }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 sp<HwModule> HwModuleCollection::getModuleForDevice(const sp<DeviceDescriptor> &device,
                                                      audio_format_t encodedFormat) const
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 {
     return getModuleForDeviceType(device->type(), encodedFormat);
 }
@@ -410,7 +420,9 @@ DeviceVector HwModuleCollection::getAvailableDevicesFromModuleName(
 sp<DeviceDescriptor> HwModuleCollection::getDeviceDescriptor(const audio_devices_t deviceType,
                                                              const char *address,
                                                              const char *name,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                              const audio_format_t encodedFormat,
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                              bool allowToCreate,
                                                              bool matchAddress) const
 {
@@ -429,7 +441,9 @@ sp<DeviceDescriptor> HwModuleCollection::getDeviceDescriptor(const audio_devices
             }
         }
         DeviceVector moduleDevices = hwModule->getAllDevices();
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         auto moduleDevice = moduleDevices.getDevice(deviceType, devAddress, encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
         // Prevent overwriting moduleDevice address if connected device does not have the same
         // address (since getDevice with empty address ignores match on address), use dynamic device
@@ -439,9 +453,11 @@ sp<DeviceDescriptor> HwModuleCollection::getDeviceDescriptor(const audio_devices
             break;
         }
         if (moduleDevice) {
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             if (encodedFormat != AUDIO_FORMAT_DEFAULT) {
                 moduleDevice->setEncodedFormat(encodedFormat);
             }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             if (allowToCreate) {
                 moduleDevice->attach(hwModule);
                 // Name may be overwritten, restored on detach.
@@ -457,13 +473,17 @@ sp<DeviceDescriptor> HwModuleCollection::getDeviceDescriptor(const audio_devices
                 name, audio_device_to_string(deviceType), deviceType, address);
         return nullptr;
     }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     return createDevice(deviceType, address, name, encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 }
 
 sp<DeviceDescriptor> HwModuleCollection::createDevice(const audio_devices_t type,
                                                       const char *address,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                       const char *name,
                                                       const audio_format_t encodedFormat) const
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 {
     std::string tagName = {};
     sp<HwModule> hwModule = getModuleForDeviceType(type, encodedFormat, &tagName);
@@ -481,7 +501,9 @@ sp<DeviceDescriptor> HwModuleCollection::createDevice(const audio_devices_t type
 
     sp<DeviceDescriptor> device = new DeviceDescriptor(type, tagName, address);
     device->setName(name);
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     device->setEncodedFormat(encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     device->setDynamic();
     // Add the device to the list of dynamic devices
     hwModule->addDynamicDevice(device);
@@ -498,8 +520,10 @@ sp<DeviceDescriptor> HwModuleCollection::createDevice(const audio_devices_t type
         if (profile->supportsDevice(device, false /*matchAddress*/)) {
 
             // @todo quid of audio profile? import the profile from device of the same type?
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             const auto &isoTypeDeviceForProfile =
                 profile->getSupportedDevices().getDevice(type, String8(), AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 // QTI_BEGIN: 2019-06-03: Audio: audiopolicy: check for device before adding to profile
             if (isoTypeDeviceForProfile) {
 // QTI_END: 2019-06-03: Audio: audiopolicy: check for device before adding to profile

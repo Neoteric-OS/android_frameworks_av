@@ -27,7 +27,9 @@
 #include "DeviceDescriptor.h"
 #include "TypeConverter.h"
 #include "HwModule.h"
+// QTI_BEGIN: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
 #include <unordered_set>
+// QTI_END: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
 
 namespace android {
 
@@ -59,7 +61,9 @@ DeviceDescriptor::DeviceDescriptor(const AudioDeviceTypeAddr &deviceTypeAddr,
         DeviceDescriptorBase(deviceTypeAddr, encodedFormats), mTagName(tagName),
         mDeclaredAddress(DeviceDescriptorBase::address())
 {
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     mCurrentEncodedFormat = AUDIO_FORMAT_DEFAULT;
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 }
 
 void DeviceDescriptor::attach(const sp<HwModule>& module)
@@ -68,7 +72,9 @@ void DeviceDescriptor::attach(const sp<HwModule>& module)
     mId = getNextUniqueId();
 }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 void DeviceDescriptor::detach() {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     mId = AUDIO_PORT_HANDLE_NONE;
     PolicyAudioPort::detach();
     // The device address may have been overwritten on device connection
@@ -77,6 +83,7 @@ void DeviceDescriptor::detach() {
     setName("");
 }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 template<typename T>
 bool checkEqual(const T& f1, const T& f2)
 {
@@ -85,17 +92,21 @@ bool checkEqual(const T& f1, const T& f2)
     return s1 == s2;
 }
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 bool DeviceDescriptor::equals(const sp<DeviceDescriptor>& other) const
 {
     // Devices are considered equal if they:
     // - are of the same type (a device type cannot be AUDIO_DEVICE_NONE)
     // - have the same address
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     // - have the same encodingFormats (if device supports encoding)
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (other == 0) {
         return false;
     }
 
     return mDeviceTypeAddr.equals(other->mDeviceTypeAddr) &&
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
            checkEqual(mEncodedFormats, other->mEncodedFormats);
 }
 
@@ -104,13 +115,16 @@ bool DeviceDescriptor::hasCurrentEncodedFormat() const
     if (!device_has_encoding_capability(type())) {
         return true;
     }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (mEncodedFormats.empty()) {
         return true;
     }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     return (mCurrentEncodedFormat != AUDIO_FORMAT_DEFAULT);
 }
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 status_t DeviceDescriptor::applyAudioPortConfig(const struct audio_port_config *config,
                                                 audio_port_config *backupConfig)
 {
@@ -307,6 +321,7 @@ ssize_t DeviceVector::add(const sp<DeviceDescriptor>& item)
 }
 
 // QTI_END: 2019-08-06: Audio: audiopolicy: sort devices based on type, id and addr
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Add support for multiple display ports.
 int DeviceVector::do_compare(const void* lhs, const void* rhs) const {
     const auto ldevice = *reinterpret_cast<const sp<DeviceDescriptor>*>(lhs);
     const auto rdevice = *reinterpret_cast<const sp<DeviceDescriptor>*>(rhs);
@@ -324,6 +339,7 @@ int DeviceVector::do_compare(const void* lhs, const void* rhs) const {
     return SortedVector::do_compare(lhs, rhs);
 }
 
+// QTI_END: 2021-02-04: Audio: audiopolicy: Add support for multiple display ports.
 ssize_t DeviceVector::remove(const sp<DeviceDescriptor>& item)
 {
     ssize_t ret = indexOf(item);
@@ -358,8 +374,10 @@ DeviceVector DeviceVector::getDevicesFromHwModule(audio_module_handle_t moduleHa
     return devices;
 }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 sp<DeviceDescriptor> DeviceVector::getDevice(audio_devices_t type, const String8& address,
                                              audio_format_t format) const
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 {
     sp<DeviceDescriptor> device;
     for (size_t i = 0; i < size(); i++) {
@@ -368,7 +386,9 @@ sp<DeviceDescriptor> DeviceVector::getDevice(audio_devices_t type, const String8
             // Otherwise if address is specified match it
             // Otherwise always match
             if (((address == "" || (itemAt(i)->address().compare(address.c_str()) == 0)) &&
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                  format == AUDIO_FORMAT_DEFAULT) ||
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                 (itemAt(i)->supportsFormat(format) && format != AUDIO_FORMAT_DEFAULT)) {
                 device = itemAt(i);
                 if (itemAt(i)->address().compare(address.c_str()) == 0) {
@@ -377,7 +397,9 @@ sp<DeviceDescriptor> DeviceVector::getDevice(audio_devices_t type, const String8
             }
         }
     }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     ALOGV("DeviceVector::%s() for type %08x address \"%s\" found %p format %08x",
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             __func__, type, address.c_str(), device.get(), format);
     return device;
 }
@@ -400,13 +422,19 @@ DeviceVector DeviceVector::getDevicesFromTypes(const DeviceTypeSet& types) const
     if (types.empty()) {
         return devices;
     }
+// QTI_BEGIN: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
     std::unordered_set<audio_devices_t> foundType;
+// QTI_END: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
     for (size_t i = 0; i < size(); i++) {
+// QTI_BEGIN: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
         if (types.count(itemAt(i)->type()) != 0 && (foundType.count(itemAt(i)->type()) == 0)) {
+// QTI_END: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
             devices.add(itemAt(i));
+// QTI_BEGIN: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
             foundType.insert(itemAt(i)->type());
             ALOGV("DeviceVector::%s() for type %08x address %s",
                     __func__, itemAt(i)->type(), itemAt(i)->address().c_str());
+// QTI_END: 2025-07-14: Audio: audiopolicy: select last connected device from same type of devices
         }
     }
     return devices;

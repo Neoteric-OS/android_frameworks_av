@@ -290,7 +290,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
                 ALOGW("%s() device already connected: %s", __func__, device->toString().c_str());
                 return INVALID_OPERATION;
             }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             ALOGV("%s() connecting device %s format %x",
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                     __func__, device->toString().c_str(), device->getEncodedFormat());
 
             // register new device as available
@@ -352,8 +354,10 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
             // Send Disconnect to HALs
             broadcastDeviceConnectionState(device, media::DeviceConnectedState::DISCONNECTED);
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             // Reset active device codec
             device->setEncodedFormat(AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
             // remove device from mReportedFormatsMap cache
             mReportedFormatsMap.erase(device);
@@ -609,8 +613,10 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
                                                                       const char *device_address)
 {
     sp<DeviceDescriptor> devDesc =
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             mHwModules.getDeviceDescriptor(device, device_address, "", AUDIO_FORMAT_DEFAULT,
                                            false /* allowToCreate */,
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                            (strlen(device_address) != 0)/*matchAddress*/);
 
     if (devDesc == 0) {
@@ -630,20 +636,26 @@ audio_policy_dev_state_t AudioPolicyManager::getDeviceConnectionState(audio_devi
         return AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
     }
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     return (deviceVector->getDevice(
                 device, String8(device_address), AUDIO_FORMAT_DEFAULT) != 0) ?
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             AUDIO_POLICY_DEVICE_STATE_AVAILABLE : AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE;
 }
 
 status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
                                                       const char *device_address,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                       const char *device_name,
                                                       audio_format_t encodedFormat)
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 {
 // QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     status_t status = NO_ERROR;
 // QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
+// QTI_BEGIN: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
     String8 reply;
+// QTI_END: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
 // QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
     int volIndex = 0;
 // QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
@@ -651,19 +663,25 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
     int isA2dpSuspended = 0;
 // QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
 
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     ALOGV("handleDeviceConfigChange(() device: 0x%X, address %s name %s encodedFormat: 0x%X",
           device, device_address, device_name, encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
     // connect/disconnect only 1 device at a time
     if (!audio_is_output_device(device) && !audio_is_input_device(device)) return BAD_VALUE;
 
     // Check if the device is currently connected
     DeviceVector deviceList = mAvailableOutputDevices.getDevicesFromType(device);
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (deviceList.empty()) {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         // Nothing to do: device is not connected
         return NO_ERROR;
     }
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     sp<DeviceDescriptor> devDesc = deviceList.itemAt(0);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
 // QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
 
@@ -690,38 +708,52 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
     auto musicStrategy = streamToStrategy(AUDIO_STREAM_MUSIC);
     uint32_t muteWaitMs = 0;
 
+// QTI_BEGIN: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
     // For offloaded A2DP, Hw modules may have the capability to
+// QTI_END: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     // configure codecs.
     // Handle two specific cases by sending a set parameter to
     // configure A2DP codecs. No need to toggle device state.
     // Case 1: A2DP active device switches from primary to primary
     // module
     // Case 2: A2DP device config changes on primary module.
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (device_has_encoding_capability(device) && hasPrimaryOutput()) {
         sp<HwModule> module = mHwModules.getModuleForDeviceType(device, encodedFormat);
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         audio_module_handle_t primaryHandle = mPrimaryOutput->getModuleHandle();
         if (availablePrimaryOutputDevices().contains(devDesc) &&
            (module != 0 && module->getHandle() == primaryHandle)) {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             bool isA2dp = audio_is_a2dp_out_device(device);
             const String8 supportKey = isA2dp ? String8(AudioParameter::keyReconfigA2dpSupported)
                     : String8(AudioParameter::keyReconfigLeSupported);
             String8 reply = mpClientInterface->getParameters(AUDIO_IO_HANDLE_NONE, supportKey);
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             AudioParameter repliedParameters(reply);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             int isReconfigSupported;
             repliedParameters.getInt(supportKey, isReconfigSupported);
             if (isReconfigSupported) {
                 const String8 key = isA2dp ? String8(AudioParameter::keyReconfigA2dp)
                         : String8(AudioParameter::keyReconfigLe);
                 AudioParameter param;
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                 param.add(key, String8("true"));
                 mpClientInterface->setParameters(AUDIO_IO_HANDLE_NONE, param.toString());
                 devDesc->setEncodedFormat(encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 // QTI_BEGIN: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
                 goto exit;
 // QTI_END: 2020-09-10: Audio: APM: Fix music leak over speaker during SHO
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
+// QTI_BEGIN: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
         }
     }
+// QTI_END: 2018-05-17: Audio: audiopolicy: Optimize A2DP codec config change
     for (size_t i = 0; i < mOutputs.size(); i++) {
        sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
        // mute media strategies to avoid sending the music tail into
@@ -760,8 +792,10 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
     // This will force reading again the device configuration
     status = setDeviceConnectionState(device,
                                       AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                       device_address, device_name,
                                       devDesc->getEncodedFormat());
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (status != NO_ERROR) {
         ALOGW("handleDeviceConfigChange() error disabling connection state: %d",
               status);
@@ -780,7 +814,9 @@ status_t AudioPolicyManager::handleDeviceConfigChange(audio_devices_t device,
 // QTI_END: 2023-05-31: Audio: APM: check and apply A2dpSuspended param
     status = setDeviceConnectionState(device,
                                       AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                       device_address, device_name, encodedFormat);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (status != NO_ERROR) {
         ALOGW("handleDeviceConfigChange() error enabling connection state: %d",
               status);
@@ -804,12 +840,18 @@ exit:
 
 status_t AudioPolicyManager::getHwOffloadFormatsSupportedForBluetoothMedia(
                                     audio_devices_t device, std::vector<audio_format_t> *formats)
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 {
+// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     ALOGV("getHwOffloadFormatsSupportedForBluetoothMedia()");
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     status_t status = NO_ERROR;
+// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
+// QTI_BEGIN: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
     std::unordered_set<audio_format_t> formatSet;
     sp<HwModule> primaryModule =
             mHwModules.getModuleFromName(AUDIO_HARDWARE_MODULE_ID_PRIMARY);
+// QTI_END: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
 // QTI_BEGIN: 2019-06-26: Audio: audiopolicy: add null pointer check for primary hw
     if (primaryModule == nullptr) {
         ALOGE("%s() unable to get primary module", __func__);
@@ -836,13 +878,21 @@ status_t AudioPolicyManager::getHwOffloadFormatsSupportedForBluetoothMedia(
 
     DeviceVector declaredDevices = primaryModule->getDeclaredDevices().getDevicesFromTypes(
             audioDeviceSet);
+// QTI_BEGIN: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
     for (const auto& device : declaredDevices) {
         formatSet.insert(device->encodedFormats().begin(), device->encodedFormats().end());
+// QTI_END: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     }
+// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
+// QTI_BEGIN: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
     formats->assign(formatSet.begin(), formatSet.end());
+// QTI_END: 2019-02-28: Audio: audiopolicy: Get Hw offloaded A2DP formats from declared devices
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     return status;
 }
 
+// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 DeviceVector AudioPolicyManager::selectBestRxSinkDevicesForCall(bool fromCache)
 {
     DeviceVector rxSinkdevices{};
@@ -948,7 +998,9 @@ status_t AudioPolicyManager::updateCallRoutingInternal(
             ALOGW("%s() no primary output available", __func__);
             return INVALID_OPERATION;
         }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         muteWaitMs = setOutputDevices(__func__, mPrimaryOutput, rxDevices, true, delayMs);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     } else { // create RX path audio patch
         connectTelephonyRxAudioSource(delayMs);
         // If the TX device is on the primary HW module but RX device is
@@ -1177,7 +1229,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
             if (isStateInCall(oldState) && rxDevices.isEmpty()) {
                 rxDevices = mPrimaryOutput->devices();
             }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             setOutputDevices(__func__, mPrimaryOutput, rxDevices, force, 0);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         }
     }
 
@@ -1187,7 +1241,9 @@ void AudioPolicyManager::setPhoneState(audio_mode_t state)
         DeviceVector newDevices = getNewOutputDevices(desc, false /*fromCache*/);
         if (state != AUDIO_MODE_IN_CALL || (desc != mPrimaryOutput && !isTelephonyRxOrTx(desc))) {
             bool forceRouting = !newDevices.isEmpty();
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             setOutputDevices(__func__, desc, newDevices, forceRouting, 0 /*delayMs*/, nullptr,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                              true /*requiresMuteCheck*/, !forceRouting /*requiresVolumeCheck*/);
         }
     }
@@ -1312,9 +1368,11 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
                                         audio_channel_mask_t channelMask,
                                         audio_output_flags_t flags,
                                         bool directOnly) {
+// QTI_BEGIN: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
     sp<IOProfile> directOnlyProfile = nullptr;
     sp<IOProfile> compressOffloadProfile = nullptr;
     sp<IOProfile> profile = nullptr;
+// QTI_END: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
     uint32_t additionalMandatoryFlags = 0;
     if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) != 0) {
         // For mmap, only select mmap offload if offload is explicitly requested.
@@ -1348,6 +1406,7 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
              }
 
              profile = curProfile;
+// QTI_BEGIN: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
              if ((flags == AUDIO_OUTPUT_FLAG_DIRECT) &&
                  curProfile->getFlags() == AUDIO_OUTPUT_FLAG_DIRECT) {
                  directOnlyProfile = curProfile;
@@ -1355,13 +1414,16 @@ sp<IOProfile> AudioPolicyManager::searchCompatibleProfileHwModules (
 
              if ((curProfile->getFlags() & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) != 0) {
                  compressOffloadProfile = curProfile;
+// QTI_END: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
              }
         }
     }
+// QTI_BEGIN: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
 
     return directOnlyProfile ? directOnlyProfile
                             : (compressOffloadProfile ? compressOffloadProfile : profile);
 
+// QTI_END: 2025-03-11: Audio: audiopolicy: return appropriate profile from searchCompatibleProfileHwModules
 }
 
 sp<IOProfile> AudioPolicyManager::getSpatializerOutputProfile(
@@ -1736,7 +1798,9 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
     *selectedDeviceIds = sanitizedRequestedPortIds;
 
     status_t status = getOutputForAttrInt(&resultAttr, output, session, attr, stream, uid,
+// QTI_BEGIN: 2025-03-19: Audio: audiopolicy: Remove customization to internally use direct pcm
             config, flags, selectedDeviceIds, &isRequestedDeviceForExclusiveUse,
+// QTI_END: 2025-03-19: Audio: audiopolicy: Remove customization to internally use direct pcm
             secondaryOutputs != nullptr ? &secondaryMixes : nullptr, outputType, isSpatialized,
             isBitPerfect);
     if (status != NO_ERROR) {
@@ -1994,15 +2058,24 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
         *flags = (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_DIRECT);
     }
 
+// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
     const bool offloadDisable =
             property_get_bool("audio.offload.disable", false /* default_value */);
+// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
+// QTI_BEGIN: 2025-03-19: Audio: audiopolicy: Remove customization to internally use direct pcm
     if ((offloadDisable || stream != AUDIO_STREAM_MUSIC) &&
         (audio_is_linear_pcm(config->format) && *flags == AUDIO_OUTPUT_FLAG_DIRECT)) {
         ALOGV("%s Remove direct flags stream %d,orginal flags %0x, offload disabled %d ", __func__,
               stream, *flags, offloadDisable);
+// QTI_END: 2025-03-19: Audio: audiopolicy: Remove customization to internally use direct pcm
+// QTI_BEGIN: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
         *flags = AUDIO_OUTPUT_FLAG_NONE;
+// QTI_END: 2021-10-06: Audio: audiopolicy: Fix direct flag selection logic
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
     }
 
+// QTI_END: 2021-02-23: Audio: audiopolicy: Force direct flags for pcm offload.
+// QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     bool forceDeepBuffer = false;
 // QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     // only allow deep buffering for music stream type
@@ -2011,18 +2084,22 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
 // QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     } else if ((*flags == AUDIO_OUTPUT_FLAG_NONE || *flags == AUDIO_OUTPUT_FLAG_DIRECT ||
                 (*flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD)) && !isInCall() &&
+// QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
                 audio_channel_count_from_out_mask(config->channel_mask) == 2 &&
                 config->sample_rate <= SAMPLE_RATE_HZ_MAX &&
-// QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
 // QTI_BEGIN: 2024-12-26: Audio: audiopolicy : Fix force deep buffer condition
                 mConfig->useDeepBufferForMedia()) {
 // QTI_END: 2024-12-26: Audio: audiopolicy : Fix force deep buffer condition
+// QTI_BEGIN: 2015-06-11: Audio: audiopolicy: use deep buffer output by default for music streams
         // use DEEP_BUFFER as default output for music stream type
+// QTI_END: 2015-06-11: Audio: audiopolicy: use deep buffer output by default for music streams
 // QTI_BEGIN: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
         forceDeepBuffer = true;
 // QTI_END: 2021-01-27: Audio: audiopolicy: Force deep-buffer for media.
     }
+// QTI_BEGIN: 2015-05-11: Audio: audiopolicy: Use AUDIO_OUTPUT_FLAG_TTS for TTS stream
     if (stream == AUDIO_STREAM_TTS) {
+// QTI_END: 2015-05-11: Audio: audiopolicy: Use AUDIO_OUTPUT_FLAG_TTS for TTS stream
         *flags = AUDIO_OUTPUT_FLAG_TTS;
 // QTI_BEGIN: 2021-11-15: Audio: Select low latency path during voice call for voice stream
     } else if ((stream == AUDIO_STREAM_VOICE_CALL &&
@@ -2032,6 +2109,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
                (*flags & AUDIO_OUTPUT_FLAG_INCALL_MUSIC) == 0) &&
                (mEngine->getPhoneState() != AUDIO_MODE_IN_CALL)) {
 // QTI_END: 2021-11-15: Audio: Select low latency path during voice call for voice stream
+// QTI_BEGIN: 2025-05-16: Audio: audio policy: Prevent MMAP flag from getting overwritten
         // TODO b/418144806: define a proper routing policy when multiple output profiles
         // can be used for voice communication use case.
         if (*flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) {
@@ -2041,7 +2119,10 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
                                            AUDIO_OUTPUT_FLAG_DIRECT);
             ALOGV("Set VoIP and Direct output flags for PCM format");
         }
+// QTI_END: 2025-05-16: Audio: audio policy: Prevent MMAP flag from getting overwritten
+// QTI_BEGIN: 2015-05-11: Audio: audiopolicy: Use AUDIO_OUTPUT_FLAG_TTS for TTS stream
     }
+// QTI_END: 2015-05-11: Audio: audiopolicy: Use AUDIO_OUTPUT_FLAG_TTS for TTS stream
     // Attach the Ultrasound flag for the AUDIO_CONTENT_TYPE_ULTRASOUND
     if (attr->content_type == AUDIO_CONTENT_TYPE_ULTRASOUND) {
         *flags = (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_ULTRASOUND);
@@ -2908,8 +2989,10 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
             reopenOutput(outputToReopen, nullptr /*config*/, AUDIO_OUTPUT_FLAG_NONE, __func__);
         }
         const uint32_t muteWaitMs =
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 setOutputDevices(__func__, outputDesc, devices, force, 0, nullptr,
                                  requiresMuteCheck);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
         // apply volume rules for current stream and device if necessary
         auto &curves = getVolumeCurves(client->attributes());
@@ -2957,8 +3040,10 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
         setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                                     AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                     address,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                     "remote-submix",
                                     AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     }
 
     checkLeBroadcastRoutes(wasLeUnicastActive, outputDesc, *delayMs);
@@ -2991,7 +3076,9 @@ void AudioPolicyManager::checkLeBroadcastRoutes(bool wasUnicastActive,
                     outputsToReopen.emplace(mOutputs.keyAt(i), newDevices);
                     continue;
                 }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 setOutputDevices(__func__, desc, newDevices, force, delayMs);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 // re-apply device specific volume if not done by setOutputDevice()
                 if (!force) {
                     applyStreamVolumes(desc, newDevices.types(), delayMs);
@@ -3080,7 +3167,9 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
                 setDeviceConnectionStateInt(AUDIO_DEVICE_IN_REMOTE_SUBMIX,
                                             AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                             policyMix->mDeviceAddress,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                             "remote-submix", AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             }
         }
         bool forceDeviceUpdate = false;
@@ -3127,7 +3216,9 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
                         outputsToReopen.emplace(mOutputs.keyAt(i), newDevices2);
                         continue;
                     }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                     setOutputDevices(__func__, desc, newDevices2, force, delayMs);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
                     // re-apply device specific volume if not done by setOutputDevice()
                     if (!force) {
@@ -3483,7 +3574,9 @@ audio_io_handle_t AudioPolicyManager::getInputForDevice(const sp<DeviceDescripto
         }
     } else if (attributes.source == AUDIO_SOURCE_VOICE_COMMUNICATION &&
                audio_is_linear_pcm(config.format)) {
+// QTI_BEGIN: 2017-06-20: Audio: APM: Allow VOIP_TX input selection
         flags = (audio_input_flags_t)(flags | AUDIO_INPUT_FLAG_VOIP_TX);
+// QTI_END: 2017-06-20: Audio: APM: Allow VOIP_TX input selection
     }
 
     if (attributes.source == AUDIO_SOURCE_ULTRASOUND) {
@@ -3746,7 +3839,9 @@ status_t AudioPolicyManager::startInput(audio_port_handle_t portId)
             if (address != "") {
                 setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                         AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                         address, "remote-submix", AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             }
         }
     } else if (status != NO_ERROR) {
@@ -3805,7 +3900,9 @@ status_t AudioPolicyManager::stopInput(audio_port_handle_t portId)
             if (address != "") {
                 setDeviceConnectionStateInt(AUDIO_DEVICE_OUT_REMOTE_SUBMIX,
                                          AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                          address, "remote-submix", AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             }
         }
         resetInputDevice(input);
@@ -3961,10 +4058,12 @@ status_t AudioPolicyManager::setDeviceAbsoluteVolumeEnabled(audio_devices_t devi
 void AudioPolicyManager::initStreamVolume(audio_stream_type_t stream, int indexMin, int indexMax)
 {
     ALOGV("initStreamVolume() stream %d, min %d, max %d", stream , indexMin, indexMax);
+// QTI_BEGIN: 2019-01-23: Audio: audiopolicy: fix wrong volume db value for voice call stream
     if (indexMin < 0 || indexMax < 0) {
         ALOGE("%s for stream %d: invalid min %d or max %d", __func__, stream , indexMin, indexMax);
         return;
     }
+// QTI_END: 2019-01-23: Audio: audiopolicy: fix wrong volume db value for voice call stream
     if (audio_flags::volume_group_management_update()) {
         int groupId = mEngine->getVolumeGroupForStreamType(stream, /* fallbackOnDefault= */ false);
         if (groupId == VOLUME_GROUP_NONE) {
@@ -4046,11 +4145,15 @@ status_t AudioPolicyManager::setVolumeIndexForGroup(volume_group_t group,
     }
     status_t status = NO_ERROR;
     IVolumeCurves &curves = getVolumeCurves(group);
-    // AUDIO_STREAM_BLUETOOTH_SCO is only used for volume control so we remap
-    // to AUDIO_STREAM_VOICE_CALL to match with relevant playback activity
-    VolumeSource activityVs = (vs == toVolumeSource(AUDIO_STREAM_BLUETOOTH_SCO, false)) ?
-            toVolumeSource(AUDIO_STREAM_VOICE_CALL, false) : vs;
-
+    VolumeSource activityVs;
+    if (com::android::media::audio::audio_stream_bt_sco_cleanup()) {
+        activityVs = vs;
+    } else {
+        // AUDIO_STREAM_BLUETOOTH_SCO is only used for volume control so we remap
+        // to AUDIO_STREAM_VOICE_CALL to match with relevant playback activity
+        activityVs = (vs == toVolumeSource(AUDIO_STREAM_BLUETOOTH_SCO, false)) ?
+                     toVolumeSource(AUDIO_STREAM_VOICE_CALL, false) : vs;
+    }
     status = setVolumeCurveIndex(index, muted, device, curves);
     if (status != NO_ERROR) {
         ALOGE("%s failed to set curve index for group %d device 0x%X", __func__, group, device);
@@ -4891,11 +4994,13 @@ void AudioPolicyManager::updateCallAndOutputRouting(bool forceVolumeReeval, uint
 
 void AudioPolicyManager::updateInputRouting() {
     for (const auto& activeDesc : mInputs.getActiveInputs()) {
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: avoid unnecessary closure of HOTWORD recording.
         // Skip for hotword recording as the input device switch
         // is handled within sound trigger HAL
         if (activeDesc->isSoundTrigger() && activeDesc->source() == AUDIO_SOURCE_HOTWORD) {
             continue;
         }
+// QTI_END: 2021-02-04: Audio: audiopolicy: avoid unnecessary closure of HOTWORD recording.
         auto newDevice = getNewInputDevice(activeDesc);
         // Force new input selection if the new device can not be reached via current input
         if (activeDesc->mProfile->getRoutableDevices().contains(newDevice)) {
@@ -5687,7 +5792,9 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
             generation == nullptr) {
         return BAD_VALUE;
     }
+// QTI_BEGIN: 2025-08-19: Audio: audiopolicy: change log type for listAudioPorts
     ALOGVV("listAudioPorts() role %d type %d num_ports %d ports %p", role, type, *num_ports, ports);
+// QTI_END: 2025-08-19: Audio: audiopolicy: change log type for listAudioPorts
     if (ports == nullptr) {
         *num_ports = 0;
     }
@@ -5743,7 +5850,9 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
     }
 
     *generation = curAudioPortGeneration();
+// QTI_BEGIN: 2025-08-19: Audio: audiopolicy: change log type for listAudioPorts
     ALOGVV("listAudioPorts() got %zu ports needed %d", portsWritten, *num_ports);
+// QTI_END: 2025-08-19: Audio: audiopolicy: change log type for listAudioPorts
     return NO_ERROR;
 }
 
@@ -5980,7 +6089,9 @@ status_t AudioPolicyManager::createAudioPatchInternal(const struct audio_patch *
         // TODO: reconfigure output format and channels here
         ALOGV("%s setting device %s on output %d",
               __func__, dumpDeviceTypes(devices.types()).c_str(), outputDesc->mIoHandle);
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         setOutputDevices(__func__, outputDesc, devices, true, 0, handle);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         index = mAudioPatches.indexOfKey(*handle);
         if (index >= 0) {
             if (patchDesc != 0 && patchDesc != mAudioPatches.valueAt(index)) {
@@ -6240,7 +6351,9 @@ status_t AudioPolicyManager::releaseAudioPatchInternal(audio_patch_handle_t hand
             return BAD_VALUE;
         }
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         setOutputDevices(__func__, outputDesc,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                          getNewOutputDevices(outputDesc, true /*fromCache*/),
                          true,
                          0,
@@ -6289,7 +6402,9 @@ status_t AudioPolicyManager::releaseAudioPatchInternal(audio_patch_handle_t hand
             //      3 / Inactive Output previously hosting SwBridge that can be closed.
             bool updateDevice = outputDesc->isActive() || !sourceDesc->useSwBridge() ||
                     sourceDesc->canCloseOutput();
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             setOutputDevices(__func__, outputDesc,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                              updateDevice ? getNewOutputDevices(outputDesc, true /*fromCache*/) :
                                             outputDesc->devices(),
                              force,
@@ -6426,7 +6541,9 @@ void AudioPolicyManager::checkStrategyRoute(product_strategy_t ps, audio_io_hand
                 outputsToReopen.emplace(mOutputs.keyAt(j), newDevices);
                 continue;
             }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             setOutputDevices(__func__, outputDesc, newDevices, false);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         }
     }
     reopenOutputsWithDevices(outputsToReopen);
@@ -6537,8 +6654,10 @@ status_t AudioPolicyManager::startAudioSourceInternal(const struct audio_port_co
 
     sp<DeviceDescriptor> srcDevice =
             mAvailableInputDevices.getDevice(source->ext.device.type,
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              String8(source->ext.device.address),
                                              AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     if (srcDevice == 0) {
         ALOGW("%s source->ext.device.type %08x not found", __FUNCTION__, source->ext.device.type);
         return BAD_VALUE;
@@ -6786,16 +6905,20 @@ status_t AudioPolicyManager::setSurroundFormatEnabled(audio_format_t audioFormat
         status_t status = setDeviceConnectionStateInt(hdmiOutputDevices[i]->type(),
                                                       AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                                       address.c_str(),
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                       name.c_str(),
                                                       AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         if (status != NO_ERROR) {
             continue;
         }
         status = setDeviceConnectionStateInt(hdmiOutputDevices[i]->type(),
                                              AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                              address.c_str(),
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              name.c_str(),
                                              AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         profileUpdated |= (status == NO_ERROR);
     }
     // FIXME: Why doing this for input HDMI devices if we don't augment their reported formats?
@@ -6808,16 +6931,20 @@ status_t AudioPolicyManager::setSurroundFormatEnabled(audio_format_t audioFormat
         status_t status = setDeviceConnectionStateInt(AUDIO_DEVICE_IN_HDMI,
                                                       AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE,
                                                       address.c_str(),
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                                       name.c_str(),
                                                       AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         if (status != NO_ERROR) {
             continue;
         }
         status = setDeviceConnectionStateInt(AUDIO_DEVICE_IN_HDMI,
                                              AUDIO_POLICY_DEVICE_STATE_AVAILABLE,
                                              address.c_str(),
+// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              name.c_str(),
                                              AUDIO_FORMAT_DEFAULT);
+// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         profileUpdated |= (status == NO_ERROR);
     }
 
@@ -7382,7 +7509,9 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
                 outputDesc->close();
             } else {
                 addOutput(output, outputDesc);
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 setOutputDevices(__func__, outputDesc,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                                  DeviceVector(routableDevice),
                                  true,
                                  0,
@@ -7432,9 +7561,11 @@ void AudioPolicyManager::onNewAudioModulesAvailableInt(DeviceVector *newDevices)
 // QTI_END: 2024-06-27: Audio: audiopolicy: use profile flags during opening an input
                                               &input);
             if (status != NO_ERROR) {
+// QTI_BEGIN: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                 ALOGW("%s: Cannot open input stream for device %s for profile %s on hw module %s",
                         __func__, availProfileDevices.toString().c_str(),
                         inProfile->getTagName().c_str(), hwModule->getName());
+// QTI_END: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                 continue;
             }
             for (const auto &device : availProfileDevices) {
@@ -7542,8 +7673,10 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 sp<IOProfile> profile = hwModule->getOutputProfiles()[j];
                 if (profile->routesToDevice(device)) {
                     profiles.insert(profile);
+// QTI_BEGIN: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s(): adding profile %s from module %s",
                             __func__, profile->getTagName().c_str(), hwModule->getName());
+// QTI_END: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                 }
             }
         }
@@ -7581,7 +7714,9 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
             if (profile->isMmap() && !profile->hasDynamicAudioProfile()) {
                 ALOGV("%s skip opening output for mmap profile %s",
                       __func__, profile->getTagName().c_str());
+// QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
                 ++it;
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
                 continue;
             }
 // QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
@@ -7611,8 +7746,10 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 if (device_distinguishes_on_address(deviceType)) {
                     ALOGV("checkOutputsForDevice(): setOutputDevices %s",
                             device->toString().c_str());
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                     setOutputDevices(__func__, desc, DeviceVector(device), true/*force*/,
                                       0/*delay*/, NULL/*patch handle*/);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 }
                 ALOGV("checkOutputsForDevice(): adding output %d", output);
                 ++it;
@@ -7646,8 +7783,10 @@ status_t AudioPolicyManager::checkOutputsForDevice(const sp<DeviceDescriptor>& d
                 if (!profile->routesToDevice(device)) {
                     continue;
                 }
+// QTI_BEGIN: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                 ALOGV("%s(): clearing direct output profile %s on module %s",
                         __func__, profile->getTagName().c_str(), hwModule->getName());
+// QTI_END: 2024-07-08: Audio: audiopolicy: Improve logging for device connection cases
                 profile->clearAudioProfiles();
                 if (!profile->hasDynamicAudioProfile()) {
                     continue;
@@ -7701,8 +7840,8 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
                 sp<IOProfile> profile = hwModule->getInputProfiles()[profile_index];
 
                 if (profile->routesToDevice(device)) {
-// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     profiles.insert(profile);
+// QTI_BEGIN: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
                     ALOGV("%s : adding profile %s from module %s", __func__,
                           profile->getTagName().c_str(), hwModule->getName());
 // QTI_END: 2024-07-05: Audio: audiopolicy: Improve logging for device connection cases
@@ -7740,7 +7879,9 @@ status_t AudioPolicyManager::checkInputsForDevice(const sp<DeviceDescriptor>& de
             if (profile->isMmap() && !profile->hasDynamicAudioProfile()) {
                 ALOGV("%s skip opening input for mmap profile %s",
                       __func__, profile->getTagName().c_str());
+// QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
                 ++it;
+// QTI_BEGIN: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
                 continue;
             }
 // QTI_END: 2024-06-27: Audio: audiopolicy: skip opening mmap profile during new device connection
@@ -7958,9 +8099,13 @@ void AudioPolicyManager::closeInput(audio_io_handle_t input)
 
     DeviceVector primaryInputDevices = availablePrimaryModuleInputDevices();
     if (primaryInputDevices.contains(device) &&
+// QTI_BEGIN: 2018-08-02: Audio: audiopolicy: reset capture state when input is closed
             mInputs.activeInputsCountOnDevices(primaryInputDevices) == 0) {
+// QTI_END: 2018-08-02: Audio: audiopolicy: reset capture state when input is closed
         mpClientInterface->setSoundTriggerCaptureState(false);
+// QTI_BEGIN: 2018-08-02: Audio: audiopolicy: reset capture state when input is closed
     }
+// QTI_END: 2018-08-02: Audio: audiopolicy: reset capture state when input is closed
 }
 
 std::set<audio_io_handle_t> AudioPolicyManager::getOutputsForDevices(
@@ -8322,30 +8467,42 @@ DeviceVector AudioPolicyManager::getNewOutputDevices(const sp<SwAudioOutputDescr
     DeviceVector devices;
     for (const auto &productStrategy : mEngine->getOrderedProductStrategies()) {
         StreamTypeVector streams = mEngine->getStreamTypesForProductStrategy(productStrategy);
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
         auto hasStreamActive = [&](auto stream) {
             return hasStream(streams, stream) && isStreamActive(stream, 0);
         };
 
         auto doGetOutputDevicesForVoice = [&]() {
             return hasVoiceStream(streams) && (outputDesc == mPrimaryOutput ||
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
                 outputDesc->isActive(toVolumeSource(AUDIO_STREAM_VOICE_CALL, false))) &&
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
                 (isInCall() ||
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
                  mOutputs.isStrategyActiveOnSameModule(productStrategy, outputDesc)) &&
                 !isStreamActive(AUDIO_STREAM_ENFORCED_AUDIBLE, 0);
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
         };
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
 
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
         // With low-latency playing on speaker, music on WFD, when the first low-latency
         // output is stopped, getNewOutputDevices checks for a product strategy
         // from the list, as STRATEGY_SONIFICATION comes prior to STRATEGY_MEDIA.
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
         // If an ALARM or ENFORCED_AUDIBLE stream is supported by the product strategy,
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
         // devices are returned for STRATEGY_SONIFICATION without checking whether the
         // stream is associated to the output descriptor.
         if (doGetOutputDevicesForVoice() || outputDesc->isStrategyActive(productStrategy) ||
                ((hasStreamActive(AUDIO_STREAM_ALARM) ||
                 hasStreamActive(AUDIO_STREAM_ENFORCED_AUDIBLE)) &&
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
                 (outputDesc->isActive(toVolumeSource(AUDIO_STREAM_VOICE_CALL)) ||
                  outputDesc == mPrimaryOutput) &&
+// QTI_BEGIN: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
                 mOutputs.isStrategyActiveOnSameModule(productStrategy, outputDesc))) {
+// QTI_END: 2021-02-04: Audio: audiopolicy: Wrong device selection for music during concurrency.
             // Retrieval of devices for voice DL is done on primary output profile, cannot
             // check the route (would force modifying configuration file for this profile)
             auto attr = mEngine->getAllAttributesForProductStrategy(productStrategy).front();
@@ -8561,7 +8718,9 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
                 if (!desc->routableDevices().containsAtLeastOne(outputDesc->routableDevices())) {
                     continue;
                 }
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 ALOGVV("%s() output %s %s (curDevice %s)", __func__, desc->info().c_str(),
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                       mute ? "muting" : "unmuting", curDevices.toString().c_str());
                 setStrategyMute(productStrategy, mute, desc, mute ? 0 : delayMs);
                 if (desc->isStrategyActive(productStrategy)) {
@@ -8625,8 +8784,10 @@ uint32_t AudioPolicyManager::checkDeviceMuteStrategies(const sp<AudioOutputDescr
     return 0;
 }
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
                                               const sp<SwAudioOutputDescriptor>& outputDesc,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                                               const DeviceVector &devices,
                                               bool force,
                                               int delayMs,
@@ -8635,15 +8796,21 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
                                               bool skipMuteDelay)
 {
     // TODO(b/262404095): Consider if the output need to be reopened.
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     std::string logPrefix = std::string("caller ") + caller + outputDesc->info();
     ALOGV("%s %s device %s delayMs %d", __func__, logPrefix.c_str(),
           devices.toString().c_str(), delayMs);
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     uint32_t muteWaitMs;
 
     if (outputDesc->isDuplicated()) {
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         muteWaitMs = setOutputDevices(__func__, outputDesc->subOutput1(), devices, force, delayMs,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 nullptr /* patchHandle */, requiresMuteCheck, skipMuteDelay);
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         muteWaitMs += setOutputDevices(__func__, outputDesc->subOutput2(), devices, force, delayMs,
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
                 nullptr /* patchHandle */, requiresMuteCheck, skipMuteDelay);
         return muteWaitMs;
     }
@@ -8653,8 +8820,10 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
     DeviceVector prevDevices = outputDesc->devices();
     DeviceVector availPrevDevices = mAvailableOutputDevices.filter(prevDevices);
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     ALOGV("%s %s prevDevice %s", __func__, logPrefix.c_str(),
           prevDevices.toString().c_str());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
     if (!filteredDevices.isEmpty()) {
         outputDesc->setDevices(filteredDevices);
@@ -8664,8 +8833,10 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
     if (requiresMuteCheck) {
         muteWaitMs = checkDeviceMuteStrategies(outputDesc, prevDevices, delayMs);
     } else {
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         ALOGV("%s: %s suppressing checkDeviceMuteStrategies", __func__,
               logPrefix.c_str());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         muteWaitMs = 0;
     }
 
@@ -8675,8 +8846,10 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
     // output profile or if new device is not routable AND previous device(s) is(are) still
     // available (otherwise reset device must be done on the output)
     if (!devices.isEmpty() && filteredDevices.isEmpty() && !availPrevDevices.empty()) {
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         ALOGV("%s: %s unsupported device %s for output", __func__, logPrefix.c_str(),
               devices.toString().c_str());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         // restore previous device after evaluating strategy mute state
         outputDesc->setDevices(prevDevices);
         applyStreamVolumes(outputDesc, prevDevices.types(), delayMs, true /*force*/);
@@ -8690,19 +8863,25 @@ uint32_t AudioPolicyManager::setOutputDevices(const char *caller,
     //  AND the output is connected by a valid audio patch.
     // Doing this check here allows the caller to call setOutputDevices() without conditions
     if ((filteredDevices.isEmpty() || filteredDevices == prevDevices) && !force && outputRouted) {
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         ALOGV("%s %s setting same device %s or null device, force=%d, patch handle=%d",
               __func__, logPrefix.c_str(), filteredDevices.toString().c_str(), force,
               outputDesc->getPatchHandle());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
         if (requiresVolumeCheck && !filteredDevices.isEmpty()) {
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             ALOGV("%s %s setting same device on routed output, force apply volumes",
                   __func__, logPrefix.c_str());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
             applyStreamVolumes(outputDesc, filteredDevices.types(), delayMs, true /*force*/);
         }
         return muteWaitMs;
     }
 
+// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     ALOGV("%s %s changing device to %s", __func__, logPrefix.c_str(),
           filteredDevices.toString().c_str());
+// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
     // do the routing
     if (filteredDevices.isEmpty() || mAvailableOutputDevices.filter(filteredDevices).empty()) {
@@ -9125,6 +9304,7 @@ int AudioPolicyManager::rescaleVolumeIndex(int srcIndex,
     float minDst = (float)dstCurves.getVolumeIndexMin();
     float maxDst = (float)dstCurves.getVolumeIndexMax();
 
+// QTI_BEGIN: 2019-01-23: Audio: audiopolicy: fix wrong volume db value for voice call stream
     // preserve mute request or correct range
     if (srcIndex < minSrc) {
         if (srcIndex == 0) {
@@ -9134,6 +9314,7 @@ int AudioPolicyManager::rescaleVolumeIndex(int srcIndex,
     } else if (srcIndex > maxSrc) {
         srcIndex = maxSrc;
     }
+// QTI_END: 2019-01-23: Audio: audiopolicy: fix wrong volume db value for voice call stream
     return (int)(minDst + ((srcIndex - minSrc) * (maxDst - minDst)) / (maxSrc - minSrc));
 }
 
@@ -9173,7 +9354,7 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
             invalidCurvesReported.insert(&curves);
             String8 dump;
             curves.dump(&dump);
-            ALOGE("invalid volume index range in the curve:\n%s", dump.c_str());
+            ALOGE("invalid volume index range in the curve %d:\n%s", volumeSource, dump.c_str());
         }
         return BAD_VALUE;
     }

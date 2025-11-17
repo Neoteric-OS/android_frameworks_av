@@ -1117,12 +1117,16 @@ void AudioTrack::pause()
 
             // TODO: check return code for getRenderPosition.
 
+// QTI_BEGIN: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
             uint32_t halFrames;
             AudioSystem::getRenderPosition(mOutput, &halFrames, &mPausedPosition);
+// QTI_END: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
             ALOGV("%s(%d): for offload, cache current position %u",
                     __func__, mPortId, mPausedPosition);
+// QTI_BEGIN: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
         }
     }
+// QTI_END: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
 }
 
 status_t AudioTrack::setVolume(float left, float right)
@@ -1668,10 +1672,12 @@ status_t AudioTrack::getPosition(uint32_t *position)
         if (isOffloaded_l() && ((mState == STATE_PAUSED) || (mState == STATE_PAUSED_STOPPING))) {
             ALOGV("%s(%d): called in paused state, return cached position %u",
                 __func__, mPortId, mPausedPosition);
+// QTI_BEGIN: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
             *position = mPausedPosition;
             return NO_ERROR;
         }
 
+// QTI_END: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
         uint32_t dspFrames = 0;
         if (mOutput != AUDIO_IO_HANDLE_NONE) {
             uint32_t halFrames; // actually unused
@@ -1846,6 +1852,7 @@ audio_stream_type_t AudioTrack::streamType() const
     return mStreamType;
 }
 
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 uint32_t AudioTrack::latency()
 {
     AutoMutex lock(mLock);
@@ -1853,20 +1860,27 @@ uint32_t AudioTrack::latency()
     return mLatency;
 }
 
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 void AudioTrack::updateLatency_l()
 {
     status_t status = AudioSystem::getLatency(mOutput, &mAfLatency);
     if (status != NO_ERROR) {
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
         ALOGW("%s(%d): getLatency(%d) failed status %d", __func__, mPortId, mOutput, status);
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     } else {
         // FIXME don't believe this lie
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
         mLatency = mAfLatency + (1000LL * mFrameCount) / mSampleRate;
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     }
 }
 
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 // TODO Move this macro to a common header file for enum to string conversion in audio framework.
 #define MEDIA_CASE_ENUM(name) case name: return #name
 const char * AudioTrack::convertTransferToText(transfer_type transferType) {
@@ -1893,8 +1907,10 @@ status_t AudioTrack::createTrack_l()
     }
 
     {
+// QTI_BEGIN: 2016-03-09: Audio: AudioTrack: Use original flags during track recreation
     // mFlags (not mOrigFlags) is modified depending on whether fast request is accepted.
     // After fast request is denied, we will request again if IAudioTrack is re-created.
+// QTI_END: 2016-03-09: Audio: AudioTrack: Use original flags during track recreation
     // Client can only express a preference for FAST.  Server will perform additional tests.
     if (mFlags & AUDIO_OUTPUT_FLAG_FAST) {
         // either of these use cases:
@@ -2990,8 +3006,10 @@ status_t AudioTrack::restoreTrack_l(const char *from, bool forceRestore)
     const uint32_t RETRY_DELAY_US = 150000;
     int retries = INITIAL_RETRIES;
 retry:
+// QTI_BEGIN: 2016-03-09: Audio: AudioTrack: Use original flags during track recreation
     mFlags = mOrigFlags;
 
+// QTI_END: 2016-03-09: Audio: AudioTrack: Use original flags during track recreation
     // If a new IAudioTrack is successfully created, createTrack_l() will modify the
     // following member variables: mAudioTrack, mCblkMemory and mCblk.
     // It will also delete the strong references on previous IAudioTrack and IMemory.
@@ -3099,9 +3117,13 @@ Modulo<uint32_t> AudioTrack::updateAndGetPosition_l()
     return mPosition;
 }
 
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed)
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 {
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     updateLatency_l();
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
     // applicable for mixing tracks only (not offloaded or direct)
     if (mStaticProxy != 0) {
         return true; // static tracks do not have issues with buffer sizing.
@@ -3109,15 +3131,23 @@ bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed)
     const size_t minFrameCount =
             AudioSystem::calculateMinFrameCount(mAfLatency, mAfFrameCount, mAfSampleRate,
                                             sampleRate, speed /*, 0 mNotificationsPerBufferReq*/);
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     const bool allowed = mFrameCount >= minFrameCount;
     ALOGD_IF(!allowed,
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             "%s(%d): denied "
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             "mAfLatency:%u  mAfFrameCount:%zu  mAfSampleRate:%u  sampleRate:%u  speed:%f "
             "mFrameCount:%zu < minFrameCount:%zu",
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             __func__, mPortId,
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             mAfLatency, mAfFrameCount, mAfSampleRate, sampleRate, speed,
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             mFrameCount, minFrameCount);
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     return allowed;
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 }
 
 status_t AudioTrack::setParameters(const String8& keyValuePairs)
@@ -3318,7 +3348,9 @@ status_t AudioTrack::getTimestamp_l(AudioTimestamp& timestamp)
             status = ets.getBestTimestamp(&timestamp, &location);
 
             if (status == OK) {
+// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
                 updateLatency_l();
+// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
                 // It is possible that the best location has moved from the kernel to the server.
                 // In this case we adjust the position from the previous computed latency.
                 if (location == ExtendedTimestamp::LOCATION_SERVER) {

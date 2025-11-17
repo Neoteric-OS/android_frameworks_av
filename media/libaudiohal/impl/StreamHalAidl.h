@@ -58,7 +58,9 @@ class StreamContextAidl {
           mDataMQ(maybeCreateDataMQ(descriptor)),
           mIsAsynchronous(isAsynchronous),
           mIsMmapped(isMmapped(descriptor)),
+// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
           mMmapBufferDescriptor(maybeGetMmapBuffer(descriptor)),
+// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
           mIoHandle(ioHandle),
           mHasClipTransitionSupport(hasClipTransitionSupport) {}
     StreamContextAidl(StreamContextAidl&&) = default;
@@ -76,8 +78,10 @@ class StreamContextAidl {
     size_t getBufferSizeBytes() const { return mFrameSizeBytes * mBufferSizeFrames; }
     size_t getBufferSizeFrames() const { return mBufferSizeFrames; }
     size_t getBufferDurationMs(int32_t sampleRate) const {
+// QTI_BEGIN: 2024-05-24: Audio: libaudiohal: Modify calculation of buffer duration for mmap streams
         auto bufferSize = mIsMmapped ? getMmapBurstSize() : mBufferSizeFrames;
         return sampleRate != 0 ? bufferSize * MILLIS_PER_SECOND / sampleRate : 0;
+// QTI_END: 2024-05-24: Audio: libaudiohal: Modify calculation of buffer duration for mmap streams
     }
     CommandMQ* getCommandMQ() const { return mCommandMQ.get(); }
     DataMQ* getDataMQ() const { return mDataMQ.get(); }
@@ -87,8 +91,10 @@ class StreamContextAidl {
     bool isMmapped() const { return mIsMmapped; }
     const ::aidl::android::hardware::audio::core::MmapBufferDescriptor&
             getMmapBufferDescriptor() const { return mMmapBufferDescriptor; }
+// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     size_t getMmapBurstSize() const { return mMmapBufferDescriptor.burstSizeFrames; }
     int getIoHandle() const { return mIoHandle; }
+// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     bool hasClipTransitionSupport() const { return mHasClipTransitionSupport; }
     void updateMmapBufferDescriptor(
             ::aidl::android::hardware::audio::core::MmapBufferDescriptor&& desc) {
@@ -125,7 +131,9 @@ class StreamContextAidl {
     bool mIsAsynchronous;
     bool mIsMmapped;
     ::aidl::android::hardware::audio::core::MmapBufferDescriptor mMmapBufferDescriptor;
+// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     int mIoHandle;
+// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     bool mHasClipTransitionSupport;
 };
 
@@ -214,11 +222,14 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
 
     status_t dumpImpl(int fd, const Vector<String16>& args, ::ndk::ICInterface* stream);
 
+// QTI_BEGIN: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
     ::aidl::android::hardware::audio::core::StreamDescriptor::State getState() {
         std::lock_guard l(mLock);
         return mLastReply.state;
     }
 
+// QTI_END: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
+// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: Fix drain expectation
     bool isInDrainedState(
             const ::aidl::android::hardware::audio::core::StreamDescriptor::State state) {
         if (state == ::aidl::android::hardware::audio::core::StreamDescriptor::State::IDLE ||
@@ -229,6 +240,8 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
         return false;
     }
 
+// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: Fix drain expectation
+// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
     bool isInPlayOrRecordState(
             const ::aidl::android::hardware::audio::core::StreamDescriptor::State state) {
         if (state == ::aidl::android::hardware::audio::core::StreamDescriptor::State::ACTIVE ||
@@ -254,6 +267,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
         return false;
     }
 
+// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
     status_t getLatency(uint32_t *latency);
 
     // Always returns non-negative values.
@@ -282,6 +296,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
 
     status_t exit();
 
+// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     template <typename T, typename Callable, typename... Args>
     auto serializeCall(const std::shared_ptr<T>& obj, Callable&& func, Args&&... args)
             EXCLUDES(mCallLock) {
@@ -291,13 +306,16 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
                            std::forward<Args&&>(args)...);
     }
 
+// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     void onAsyncTransferReady();
     void onAsyncDrainReady();
     void onAsyncError();
 
+// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     status_t parseAndGetVendorParameters(const AudioParameter& parameterKeys, String8* values);
     status_t parseAndSetVendorParameters(const AudioParameter& parameters);
 
+// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     const bool mIsInput;
     const audio_config_base_t mConfig;
     const wp<StreamCloseHandler> mStreamCloseHandler;
@@ -331,6 +349,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
             ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply = nullptr,
             StatePositions* statePositions = nullptr);
 
+// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     /*
      * This lock is exclusively intended to serialize binder calls to remote
      * IStream[Common|Out|In] objects in Audio HAL. Thereby, preventing any race conditions in Audio
@@ -342,6 +361,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
 
     using Stream = ::aidl::android::hardware::audio::core::IStreamCommon;
     const std::shared_ptr<Stream> mStream;
+// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     const std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension> mVendorExt;
     const int64_t mLastReplyLifeTimeNs;
     std::mutex mLock;
@@ -456,8 +476,10 @@ class StreamOutHalAidl : public virtual StreamOutHalInterface,
     static ConversionResult<::aidl::android::hardware::audio::common::SourceMetadata>
     legacy2aidl_SourceMetadata(const StreamOutHalInterface::SourceMetadata& legacy);
 
+// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     using Stream = ::aidl::android::hardware::audio::core::IStreamOut;
     const std::shared_ptr<Stream> mStream;
+// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     const wp<CallbackBroker> mCallbackBroker;
     mediautils::atomic_wp<StreamOutHalInterfaceCallback> mClientCallback;
 
@@ -516,8 +538,10 @@ class StreamInHalAidl : public StreamInHalInterface, public StreamHalAidl {
     static ConversionResult<::aidl::android::hardware::audio::common::SinkMetadata>
     legacy2aidl_SinkMetadata(const StreamInHalInterface::SinkMetadata& legacy);
 
+// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     using Stream = ::aidl::android::hardware::audio::core::IStreamIn;
     const std::shared_ptr<Stream> mStream;
+// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     const wp<MicrophoneInfoProvider> mMicInfoProvider;
 
     // Can not be constructed directly by clients.
