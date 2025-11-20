@@ -136,6 +136,7 @@ protected:
     int32_t mFrameRate;
     int32_t mVideoBitRate;
     int32_t mVideoBitRateMode;
+    int32_t mVideoEncodingQuality;
     int32_t mAudioBitRate;
     int32_t mAudioChannels;
     int32_t mSampleRate;
@@ -252,6 +253,7 @@ protected:
     status_t setParamCaptureFps(double fps);
     status_t setParamVideoEncodingBitRate(int32_t bitRate);
     status_t setParamVideoBitRateMode(int32_t bitRateMode);
+    status_t setParamVideoEncodingQuality(int32_t quality);
     status_t setParamVideoIFramesInterval(int32_t seconds);
     status_t setParamVideoEncoderProfile(int32_t profile);
     status_t setParamVideoEncoderLevel(int32_t level);
