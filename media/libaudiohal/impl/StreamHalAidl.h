@@ -206,6 +206,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
         FrameCounters hardware;
         enum DrainState : int32_t { NONE, ALL, EN /*early notify*/, EN_RECEIVED };
         DrainState drainState;
+        int continueDrainRequests;
     };
 
     template<class T>
@@ -293,7 +294,8 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
             ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply = nullptr);
 
     status_t drain(bool earlyNotify,
-            ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply = nullptr);
+            ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply = nullptr,
+            bool* sendCb = nullptr);
 
     status_t flush(
             ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply = nullptr);
@@ -312,7 +314,7 @@ class StreamHalAidl : public virtual StreamHalInterface, public ConversionHelper
 
 // QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     void onAsyncTransferReady();
-    void onAsyncDrainReady();
+    bool onAsyncDrainReady();
     void onAsyncError();
 
 // QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
@@ -472,6 +474,7 @@ class StreamOutHalAidl : public virtual StreamOutHalInterface,
     void onWriteReady() override;
     void onDrainReady() override;
     void onError(bool isHardError) override;
+    void sendOnDrainReadyToClients();
 
     status_t dump(int fd, const Vector<String16>& args) override;
 

@@ -758,10 +758,30 @@ status_t StreamHalAidl::resume(StreamDescriptor::Reply* reply) {
     }
 }
 
-status_t StreamHalAidl::drain(bool earlyNotify, StreamDescriptor::Reply* reply) {
+status_t StreamHalAidl::drain(bool earlyNotify, StreamDescriptor::Reply* reply, bool* sendCb) {
     AUGMENT_LOG(D);
     TIME_CHECK();
     if (!mStream) return NO_INIT;
+    if (sendCb != nullptr) {
+        bool skip = false;
+        std::lock_guard l(mLock);
+        if (mContext.hasClipTransitionSupport() &&
+                mLastReply.state == StreamDescriptor::State::DRAINING) {
+            *sendCb = mStatePositions.drainState != StatePositions::DrainState::EN_RECEIVED;
+            if (!*sendCb) {
+                mStatePositions.continueDrainRequests++;
+                AUGMENT_LOG(D, "scheduled drain after the current clip ends (%d)",
+                            mStatePositions.continueDrainRequests);
+            }
+            skip = true;
+        } else if (isInDrainedState(mLastReply.state)) {
+            *sendCb = skip = true;
+        }
+        if (skip) {
+            AUGMENT_LOG(D, "stream already in %s state", toString(mLastReply.state).c_str());
+            return OK;
+        }
+    }
     return sendCommand(makeHalCommand<HalCommand::Tag::drain>(
                     mIsInput ? StreamDescriptor::DrainMode::DRAIN_UNSPECIFIED :
                     earlyNotify ? StreamDescriptor::DrainMode::DRAIN_EARLY_NOTIFY :
@@ -813,8 +833,15 @@ void StreamHalAidl::onAsyncTransferReady() {
         state = getState();
     }
     bool isCallbackExpected = false;
+    int continueDrainRequests = 0;
     if (state == StreamDescriptor::State::TRANSFERRING) {
         isCallbackExpected = true;
+        if (mContext.hasClipTransitionSupport()) {
+            std::lock_guard l(mLock);
+            if (mStatePositions.continueDrainRequests > 0) {
+                continueDrainRequests = mStatePositions.continueDrainRequests--;
+            }
+        }
     } else if (mContext.hasClipTransitionSupport() && state == StreamDescriptor::State::DRAINING) {
         std::lock_guard l(mLock);
         isCallbackExpected = mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED;
@@ -823,10 +850,16 @@ void StreamHalAidl::onAsyncTransferReady() {
         }
     }
     if (isCallbackExpected) {
-        // Retrieve the current state together with position counters unconditionally
-        // to ensure that the state on our side gets updated.
-        sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
-                nullptr, true /*safeFromNonWorkerThread */);
+        if (!continueDrainRequests) {
+            // Retrieve the current state together with position counters unconditionally
+            // to ensure that the state on our side gets updated.
+            sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
+                    nullptr, true /*safeFromNonWorkerThread */);
+        } else {
+            AUGMENT_LOG(D, "executing scheduled drain after clip end (%d)", continueDrainRequests);
+            /* We know this can only be true for an output stream. */
+            reinterpret_cast<StreamOutHalAidl*>(this)->drain(true /*earlyNotify*/);
+        }
     } else {
 // QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(W, "unexpected onTransferReady in the state %s", toString(state).c_str());
@@ -834,7 +867,9 @@ void StreamHalAidl::onAsyncTransferReady() {
     }
 }
 
-void StreamHalAidl::onAsyncDrainReady() {
+bool StreamHalAidl::onAsyncDrainReady() {
+    bool propagateToFramework = true;
+    int continueDrainRequests = 0;
     StreamDescriptor::State state;
     {
         // Use 'mCommandReplyLock' to ensure that 'sendCommand' has finished updating the state
@@ -857,9 +892,19 @@ void StreamHalAidl::onAsyncDrainReady() {
                 (!mContext.hasClipTransitionSupport() ||
                         (mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED
                                 || mStatePositions.drainState == StatePositions::DrainState::ALL))) {
-            AUGMENT_LOG(D, "setting position %lld as clip end",
-                    (long long)mLastReply.observable.frames);
+            AUGMENT_LOG(D, "setting position %lld as clip end, stream state: %s",
+                    (long long)mLastReply.observable.frames, toString(mLastReply.state).c_str());
             mStatePositions.observable.framesAtFlushOrDrain = mLastReply.observable.frames;
+            if (mContext.hasClipTransitionSupport() &&
+                    mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED) {
+                // The second 'onDrainReady' for 'drain(early_notify)' is not propagated
+                // for compatibility with HIDL.
+                propagateToFramework = false;
+                if (mLastReply.state == StreamDescriptor::State::IDLE &&
+                        mStatePositions.continueDrainRequests > 0) {
+                    continueDrainRequests = mStatePositions.continueDrainRequests--;
+                }
+            }
         }
         mStatePositions.drainState = mStatePositions.drainState == StatePositions::DrainState::EN ?
                 StatePositions::DrainState::EN_RECEIVED : StatePositions::DrainState::NONE;
@@ -868,6 +913,12 @@ void StreamHalAidl::onAsyncDrainReady() {
         AUGMENT_LOG(W, "unexpected onDrainReady in the state %s", toString(state).c_str());
 // QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     }
+    if (continueDrainRequests) {
+        AUGMENT_LOG(D, "executing scheduled drain after clip end (%d)", continueDrainRequests);
+        /* We know this can only be true for an output stream. */
+        reinterpret_cast<StreamOutHalAidl*>(this)->drain(true /*earlyNotify*/);
+    }
+    return propagateToFramework;
 }
 
 void StreamHalAidl::onAsyncError() {
@@ -1044,12 +1095,16 @@ status_t StreamHalAidl::sendCommand(
                         mStatePositions.hardware.framesAtFlushOrDrain = reply->hardware.frames;
                     } // for asynchronous drain, the frame count is saved in 'onAsyncDrainReady'
                 }
-                if (mContext.isAsynchronous() &&
-                        command.getTag() == StreamDescriptor::Command::drain) {
-                    mStatePositions.drainState =
-                            command.get<StreamDescriptor::Command::drain>() ==
-                            StreamDescriptor::DrainMode::DRAIN_ALL ?
-                            StatePositions::DrainState::ALL : StatePositions::DrainState::EN;
+                if (mContext.isAsynchronous()) {
+                    if (command.getTag() == StreamDescriptor::Command::drain) {
+                        mStatePositions.drainState =
+                                command.get<StreamDescriptor::Command::drain>() ==
+                                StreamDescriptor::DrainMode::DRAIN_ALL ?
+                                StatePositions::DrainState::ALL : StatePositions::DrainState::EN;
+                    } else if (command.getTag() == StreamDescriptor::Command::flush) {
+                        mStatePositions.continueDrainRequests = 0;
+                        AUGMENT_LOG(D, "reset scheduled drain requests");
+                    }
                 }
             }
             if (statePositions != nullptr) {
@@ -1262,24 +1317,15 @@ status_t StreamOutHalAidl::supportsDrain(bool *supportsDrain) {
 }
 
 status_t StreamOutHalAidl::drain(bool earlyNotify) {
-// QTI_BEGIN: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
     if (!mStream) return NO_INIT;
 
-// QTI_END: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-    if (const auto state = getState();
-            state == StreamDescriptor::State::DRAINING || isInDrainedState(state)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-        AUGMENT_LOG(D, "stream already in %s state", toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-        if (mContext.isAsynchronous() && isInDrainedState(state)) {
-            onDrainReady();
-        }
-// QTI_BEGIN: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-        return OK;
+    StreamDescriptor::Reply reply;
+    bool sendCallback = false;
+    RETURN_STATUS_IF_ERROR(StreamHalAidl::drain(earlyNotify, &reply, &sendCallback));
+    if (sendCallback && mContext.isAsynchronous()) {
+        sendOnDrainReadyToClients();
     }
-
-// QTI_END: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-    return StreamHalAidl::drain(earlyNotify);
+    return OK;
 }
 
 status_t StreamOutHalAidl::flush() {
@@ -1477,16 +1523,21 @@ void StreamOutHalAidl::onWriteReady() {
 }
 
 void StreamOutHalAidl::onDrainReady() {
-    onAsyncDrainReady();
-    if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
-        clientCb->onDrainReady();
-    }
+    if (!onAsyncDrainReady()) return;
+    sendOnDrainReadyToClients();
 }
 
 void StreamOutHalAidl::onError(bool isHardError) {
     onAsyncError();
     if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
         clientCb->onError(isHardError);
+    }
+}
+
+void StreamOutHalAidl::sendOnDrainReadyToClients() {
+    AUGMENT_LOG(D, "sending onDrainReady to framework");
+    if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
+        clientCb->onDrainReady();
     }
 }
 

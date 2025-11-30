@@ -53,6 +53,13 @@ flag {
 }
 
 flag {
+    name: "ble_peripheral_devices"
+    namespace: "media_audio"
+    description: "Add devices for BLE peripheral mode"
+    bug: "423053144"
+}
+
+flag {
     name: "bt_audio_disconnect_api"
     namespace: "media_audio"
     description: "Add API to notify audio for SCO disconnection under AMSCO."
@@ -404,6 +411,14 @@ flag {
     description: "Unify absolute volume management in AudioService for A2DP, LEA, SCO, ASHA"
     is_exported: true
     bug: "393657380"
+}
+
+flag {
+    name: "vibration_sound_usage"
+    namespace: "media_audio"
+    description: "Support new AudioAttribute usage for vibration sound"
+    bug: "411481053"
+    is_exported: true
 }
 
 # TODO remove
