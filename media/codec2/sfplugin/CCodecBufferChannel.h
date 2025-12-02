@@ -318,6 +318,7 @@ private:
 // QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     status_t queueInputBufferInternal(sp<MediaCodecBuffer> buffer,
                                       std::shared_ptr<C2LinearBlock> encryptedBlock = nullptr,
+                                      std::vector<std::shared_ptr<C2Info>> c2Infos = {},
                                       size_t blockSize = 0);
     bool handleWork(
             std::unique_ptr<C2Work> work,
@@ -440,6 +441,8 @@ private:
         return mCrypto != nullptr || mDescrambler != nullptr;
     }
     std::atomic_bool mSendEncryptedInfoBuffer;
+    std::atomic_bool mSendEncryptionInfo;
+    std::atomic_bool mSendEncryptionKeyHandle;
 
     std::atomic_bool mTunneled;
 
