@@ -226,7 +226,7 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         res = device->createStream(mAppSegmentSurface, mAppSegmentMaxSize, 1, format,
                 kAppSegmentDataSpace, rotation, &mAppSegmentStreamId, physicalCameraId,
                 sensorPixelModesUsed, &sourceSurfaceId, camera3::CAMERA3_STREAM_SET_ID_INVALID,
-                /*isShared*/false, /*isMultiResolution*/false,
+                /*isShared*/false, OutputConfiguration::MULTI_RES_OFF,
                 /*consumerUsage*/0, ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
                 ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT,
                 OutputConfiguration::TIMESTAMP_BASE_DEFAULT,
@@ -302,7 +302,8 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
 // QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     res = device->createStream(mMainImageSurface, width, height, srcStreamFmt, mInternalDataSpace,
             rotation, id, physicalCameraId, sensorPixelModesUsed, surfaceIds,
-            camera3::CAMERA3_STREAM_SET_ID_INVALID, /*isShared*/false, /*isMultiResolution*/false,
+            camera3::CAMERA3_STREAM_SET_ID_INVALID, /*isShared*/false,
+            OutputConfiguration::MULTI_RES_OFF,
 // QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
             /*consumerUsage*/0, (mHDRGainmapEnabled || mDynamicProfileHLG10) ?
 // QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format

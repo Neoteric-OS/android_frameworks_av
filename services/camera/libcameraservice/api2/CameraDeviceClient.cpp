@@ -1230,7 +1230,7 @@ binder::Status CameraDeviceClient::createStreamLocked(
     bool isShared = outputConfiguration.isShared();
     const std::string &physicalCameraId = outputConfiguration.getPhysicalCameraId();
     bool deferredConsumerOnly = deferredConsumer && numSurfaces == 0;
-    bool isMultiResolution = outputConfiguration.isMultiResolution();
+    int multiResMode  = outputConfiguration.getMultiResMode();
     int64_t dynamicRangeProfile = outputConfiguration.getDynamicRangeProfile();
     int64_t streamUseCase = outputConfiguration.getStreamUseCase();
     int timestampBase = outputConfiguration.getTimestampBase();
@@ -1292,12 +1292,13 @@ binder::Status CameraDeviceClient::createStreamLocked(
         res = SessionConfigurationUtils::createConfiguredSurface(streamInfo,
                 isStreamInfoValid, outputConfiguration, outSurface,
                 flagtools::convertParcelableSurfaceTypeToSurface(surface), mCameraIdStr,
-                mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
+                mDevice->info(), mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
                 streamUseCase,
                 timestampBase,
                 mirrorMode,
                 colorSpace,
                 /*respectSurfaceSize*/false,
+                multiResMode,
                 mPrivilegedClient);
 
         if (!res.isOk())
@@ -1354,7 +1355,7 @@ binder::Status CameraDeviceClient::createStreamLocked(
                 streamInfo.height, streamInfo.format,
                 static_cast<camera_stream_rotation_t>(outputConfiguration.getRotation()),
                 &streamId, physicalCameraId, streamInfo.sensorPixelModesUsed, &surfaceIds,
-                outputConfiguration.getSurfaceSetID(), isShared, isMultiResolution,
+                outputConfiguration.getSurfaceSetID(), isShared, multiResMode,
                 streamInfo.colorSpace, streamInfo.dynamicRangeProfile, streamInfo.streamUseCase,
                 useReadoutTimestamp);
             if (err == OK) {
@@ -1374,7 +1375,7 @@ binder::Status CameraDeviceClient::createStreamLocked(
                     streamInfo.height, streamInfo.format, streamInfo.dataSpace,
                     static_cast<camera_stream_rotation_t>(outputConfiguration.getRotation()),
                     &streamId, physicalCameraId, streamInfo.sensorPixelModesUsed, &surfaceIds,
-                    outputConfiguration.getSurfaceSetID(), isShared, isMultiResolution,
+                    outputConfiguration.getSurfaceSetID(), isShared, multiResMode,
                     /*consumerUsage*/0, streamInfo.dynamicRangeProfile, streamInfo.streamUseCase,
                     streamInfo.timestampBase, streamInfo.colorSpace, useReadoutTimestamp);
         }
@@ -1480,7 +1481,7 @@ binder::Status CameraDeviceClient::createDeferredSurfaceStreamLocked(
             overriddenSensorPixelModesUsed,
             &surfaceIds,
             outputConfiguration.getSurfaceSetID(), isShared,
-            outputConfiguration.isMultiResolution(), consumerUsage,
+            outputConfiguration.getMultiResMode(), consumerUsage,
             outputConfiguration.getDynamicRangeProfile(),
             outputConfiguration.getStreamUseCase(),
             outputConfiguration.useReadoutTimestamp());
@@ -1702,6 +1703,7 @@ binder::Status CameraDeviceClient::updateOutputConfigurationLocked(int streamId,
     int timestampBase = outputConfiguration.getTimestampBase();
     int64_t dynamicRangeProfile = outputConfiguration.getDynamicRangeProfile();
     int32_t colorSpace = outputConfiguration.getColorSpace();
+    int32_t multiResMode = outputConfiguration.getMultiResMode();
 
     for (size_t i = 0; i < newOutputsMap.size(); i++) {
         OutputStreamInfo outInfo;
@@ -1710,13 +1712,9 @@ binder::Status CameraDeviceClient::updateOutputConfigurationLocked(int streamId,
         res = SessionConfigurationUtils::createConfiguredSurface(
                 outInfo, /*isStreamInfoValid*/ false, outputConfiguration, outSurface,
                 flagtools::convertParcelableSurfaceTypeToSurface(newOutputsMap.valueAt(i)),
-                mCameraIdStr,
-                mDevice->infoPhysical(physicalCameraId), sensorPixelModesUsed, dynamicRangeProfile,
-                streamUseCase,
-                timestampBase,
-                mirrorMode,
-                colorSpace,
-                /*respectSurfaceSize*/false,
+                mCameraIdStr, mDevice->info(), mDevice->infoPhysical(physicalCameraId),
+                sensorPixelModesUsed, dynamicRangeProfile, streamUseCase, timestampBase,
+                mirrorMode, colorSpace, /*respectSurfaceSize*/false, multiResMode,
                 mPrivilegedClient);
         if (!res.isOk())
             return res;
@@ -2096,6 +2094,7 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
     int32_t colorSpace = outputConfiguration.getColorSpace();
     int64_t streamUseCase = outputConfiguration.getStreamUseCase();
     int timestampBase = outputConfiguration.getTimestampBase();
+    int32_t multiResMode = outputConfiguration.getMultiResMode();
 
     for (auto& surface : surfaces) {
         // Don't create multiple streams for the same target surface
@@ -2118,21 +2117,11 @@ binder::Status CameraDeviceClient::finalizeOutputConfigurations(int32_t streamId
         sp<Surface> outSurface;
         int mirrorMode = outputConfiguration.getMirrorMode(surface);
         res = SessionConfigurationUtils::createConfiguredSurface(
-                mStreamInfoMap[streamId], 
-                true /*isStreamInfoValid*/, 
-                outputConfiguration,
-                outSurface,
-                flagtools::convertParcelableSurfaceTypeToSurface(surface),
-                mCameraIdStr, 
-                mDevice->infoPhysical(physicalId),
-                sensorPixelModesUsed, 
-                dynamicRangeProfile, 
-                streamUseCase, 
-                timestampBase, 
-                mirrorMode,
-                colorSpace, 
-                /*respectSurfaceSize*/ false,
-                mPrivilegedClient);
+                mStreamInfoMap[streamId], true, outputConfiguration, outSurface,
+                flagtools::convertParcelableSurfaceTypeToSurface(surface), mCameraIdStr,
+                mDevice->info(), mDevice->infoPhysical(physicalId), sensorPixelModesUsed,
+                dynamicRangeProfile, streamUseCase, timestampBase, mirrorMode, colorSpace,
+                /*respectSurfaceSize*/false, multiResMode, mPrivilegedClient);
 
         if (!res.isOk()) return res;
 
