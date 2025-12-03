@@ -1051,9 +1051,20 @@ void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
         sp<DeviceDescriptor> rxDevice = rxDevices.itemAt(0);
         if (mCallRxSourceClient->isConnected()
                 && mCallRxSourceClient->sinkDevice()->equals(rxDevice)) {
+            ALOGV("%s same sink device %s", __func__, rxDevice->toString().c_str());
             return;
         }
-        disconnectTelephonyAudioSource(mCallRxSourceClient);
+        if (com::android::media::audioserver::optimize_call_routing()) {
+            rerouteTelephonyAudioSource(mCallRxSourceClient, mCallRxSourceClient->srcDevice(),
+                                        rxDevice, delayMs);
+            ALOGV("%s rerouted portd ID %d between source %s and sink %s", __func__,
+                  mCallRxSourceClient->portId(),
+                  mCallRxSourceClient->srcDevice()->toString().c_str(),
+                  mCallRxSourceClient->sinkDevice()->toString().c_str());
+            return;
+        } else {
+            disconnectTelephonyAudioSource(mCallRxSourceClient);
+        }
     }
 
     const struct audio_port_config source = {
@@ -1066,7 +1077,7 @@ void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
                                        true /*internal*/, true /*isCallRx*/, delayMs);
     ALOGE_IF(status != OK, "%s: failed to start audio source (%d)", __func__, status);
     mCallRxSourceClient = mAudioSources.valueFor(portId);
-    ALOGV_IF(mCallRxSourceClient != nullptr, "%s portdID %d between source %s and sink %s",
+    ALOGV_IF(mCallRxSourceClient != nullptr, "%s portd ID %d between source %s and sink %s",
         __func__, portId, mCallRxSourceClient->srcDevice()->toString().c_str(),
         mCallRxSourceClient->sinkDevice()->toString().c_str());
     ALOGE_IF(mCallRxSourceClient == nullptr,
@@ -1095,9 +1106,18 @@ void AudioPolicyManager::connectTelephonyTxAudioSource(
     if (mCallTxSourceClient != nullptr) {
         if (mCallTxSourceClient->isConnected()
                 && mCallTxSourceClient->srcDevice()->equals(srcDevice)) {
+            ALOGV("%s same source device %s", __func__, srcDevice->toString().c_str());
             return;
         }
-        disconnectTelephonyAudioSource(mCallTxSourceClient);
+        if (com::android::media::audioserver::optimize_call_routing()) {
+            rerouteTelephonyAudioSource(mCallTxSourceClient, srcDevice, sinkDevice, delayMs);
+            ALOGV("%s rerouted portdID %d between source %s and sink %s", __func__,
+                  mCallTxSourceClient->portId(),
+                  srcDevice->toString().c_str(), sinkDevice->toString().c_str());
+            return;
+        } else {
+            disconnectTelephonyAudioSource(mCallTxSourceClient);
+        }
     }
 
     PatchBuilder patchBuilder;
@@ -1124,6 +1144,41 @@ void AudioPolicyManager::connectTelephonyTxAudioSource(
     if (status == NO_ERROR) {
         mAudioSources.add(callTxSourceClientPortId, mCallTxSourceClient);
     }
+}
+
+void AudioPolicyManager::rerouteTelephonyAudioSource(const sp<SourceClientDescriptor> &source,
+        const sp<DeviceDescriptor> &srcDevice, const sp<DeviceDescriptor> &sinkDevice,
+        uint32_t delayMs) {
+    sp<SwAudioOutputDescriptor> swOutput = source->swOutput().promote();
+    swOutput->removeClient(source->portId(), false /*checkExists*/);
+    audio_patch_handle_t handle;
+    // createAudioPatchInternal() automatically handles same patch update only if the source
+    // device does not change. Otherwise the patch must be recreated.
+    if (srcDevice->equals(source->srcDevice())) {
+        handle = source->getPatchHandle();
+    } else {
+        handle = AUDIO_PATCH_HANDLE_NONE;
+        releaseAudioPatchInternal(source->getPatchHandle(), 0, source);
+        source->disconnect();
+        source->setSrcDevice(srcDevice);
+    }
+    PatchBuilder patchBuilder;
+    patchBuilder.addSink(sinkDevice).addSource(srcDevice);
+    status_t status = createAudioPatchInternal(
+            patchBuilder.patch(), &handle, mUidCached, delayMs, source);
+    // Note: the SW output associated with "source" can be updated by createAudioPatchInternal()
+
+    if (status != NO_ERROR || mAudioPatches.indexOfKey(handle) < 0) {
+        ALOGW("%s patch panel could not connect device patch, error %d", __func__, status);
+        return;
+    }
+
+    swOutput = source->swOutput().promote();
+    swOutput->addClient(source);
+    source->connect(handle, sinkDevice);
+    applyStreamVolumes(swOutput, {sinkDevice->type()}, delayMs);
+    ALOGV("%s portd ID %d between source %s and sink %s delayMs %u", __func__, source->portId(),
+        srcDevice->toString().c_str(), sinkDevice->toString().c_str(), delayMs);
 }
 
 void AudioPolicyManager::setPhoneState(audio_mode_t state)
@@ -4089,7 +4144,8 @@ status_t AudioPolicyManager::setStreamVolumeIndex(audio_stream_type_t stream,
 {
     if (audio_flags::volume_group_management_update()) {
         auto group = mEngine->getVolumeGroupForStreamType(stream);
-        ALOGV("%s: stream %s group=%d", __func__, toString(stream).c_str(), group);
+        ALOGV("%s: stream %s group=%d device %s",
+              __func__, toString(stream).c_str(), group, toString(device).c_str());
         return setVolumeIndexForGroup(group, index, muted, device);
     }
     auto attributes = mEngine->getAttributesForStreamType(stream);
@@ -4160,77 +4216,80 @@ status_t AudioPolicyManager::setVolumeIndexForGroup(volume_group_t group,
         return status;
     }
 
-    DeviceTypeSet curSrcDevices;
-    auto curCurvAttrs = curves.getAttributes();
-    if (!curCurvAttrs.empty() && curCurvAttrs.front() != defaultAttr) {
-        auto attr = curCurvAttrs.front();
-        curSrcDevices = mEngine->getOutputDevicesForAttributes(attr, nullptr, false).types();
+    DeviceTypeSet attrDevices;
+    auto attrs = curves.getAttributes();
+    if (!attrs.empty() && attrs.front() != defaultAttr) {
+        auto attr = attrs.front();
+        attrDevices = mEngine->getOutputDevicesForAttributes(attr, nullptr, false).types();
     } else if (!curves.getStreamTypes().empty()) {
         auto stream = curves.getStreamTypes().front();
-        curSrcDevices = mEngine->getOutputDevicesForStream(stream, false).types();
+        attrDevices = mEngine->getOutputDevicesForStream(stream, false).types();
     } else {
         ALOGE("%s: Invalid src %d: no valid attributes nor stream",__func__, vs);
         return BAD_VALUE;
     }
-    audio_devices_t curSrcDevice = Volume::getDeviceForVolume(curSrcDevices);
-    resetDeviceTypes(curSrcDevices, curSrcDevice);
+    audio_devices_t attrDevice = Volume::getDeviceForVolume(attrDevices);
+    resetDeviceTypes(attrDevices, attrDevice);
+    if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
+        attrDevices.insert(device);
+    }
 
-    // update volume on all outputs and streams matching the following:
-    // - The requested volume source (or a volume source for volume control) is active on the output
-    // - The device (or devices) selected by the engine for this stream includes
-    // the requested device
-    // - For non default requested device, currently selected device on the output is either the
-    // requested device or one of the devices selected by the engine for this stream
-    // - For default requested device (AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME), apply volume only if
-    // no specific device volume value exists for currently selected device.
-    // - Only apply the volume if the requested device is the desired device for volume control.
-    for (size_t i = 0; i < mOutputs.size(); i++) {
-        sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-        DeviceTypeSet curDevices = desc->devices().types();
+    // Update volume on all outputs matching the following:
+    // - The requested volume source is active on the output or we are in a call
+    // - A specific device was requested and:
+    //     - The requested device is included in the device set selected for the audio attributes
+    //     - And the requested device is part of current output devices
+    //     - And current output device for volume is included in the device set selected for
+    //     the audio attributes
+    // - No specific device was requested and:
+    //     - The volume curve does not currently have an index set for the volume device from
+    //     the device set selected for the audio attributes
 
-        if (curDevices.erase(AUDIO_DEVICE_OUT_SPEAKER_SAFE)) {
-            curDevices.insert(AUDIO_DEVICE_OUT_SPEAKER);
-        }
+    if ((device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME
+                && attrDevices.find(device) != attrDevices.end())
+            || (device == AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME
+                && !curves.hasVolumeIndexForDevice(attrDevice))) {
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
 
-        if (!(desc->isActive(activityVs) || isInCallOrScreening())) {
-            continue;
-        }
-        if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME &&
-                curDevices.find(device) == curDevices.end()) {
-            continue;
-        }
-        bool applyVolume = false;
-        if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
-            curSrcDevices.insert(device);
-            applyVolume = (curSrcDevices.find(
-                    Volume::getDeviceForVolume(curDevices)) != curSrcDevices.end())
-                    && Volume::getDeviceForVolume(curSrcDevices) == device;
-        } else {
-            applyVolume = !curves.hasVolumeIndexForDevice(curSrcDevice);
-        }
-        if (!applyVolume) {
-            continue; // next output
-        }
-        // Inter / intra volume group priority management: Loop on strategies arranged by priority
-        // If a higher priority strategy is active, and the output is routed to a device with a
-        // HW Gain management, do not change the volume
-        if (desc->useHwGain()) {
-            bool swMute = com_android_media_audio_ring_my_car() ? curves.isMuted() : (index == 0);
-            // If the volume source is active with higher priority source, ensure at least Sw Muted
-            desc->setSwMute(swMute, vs, curDevices, 0 /*delayMs*/);
-            if (!desc->canSetVolumeForVolumeSource(activityVs)) {
+            if (!(desc->isActive(activityVs) || isInCallOrScreening())) {
                 continue; // next output
             }
-        }
-        //FIXME: workaround for truncated touch sounds
-        // delayed volume change for system stream to be removed when the problem is
-        // handled by system UI
-        status_t volStatus = checkAndSetVolume(curves, vs, index, desc,
-                                               curDevices, /*adjustAttenuation*/true,
-                                               ((vs == toVolumeSource(AUDIO_STREAM_SYSTEM, false)) ?
-                                                TOUCH_SOUND_FIXED_DELAY_MS : 0));
-        if (volStatus != NO_ERROR) {
-            status = volStatus;
+
+            DeviceTypeSet outputDevices = desc->devices().types();
+            if (outputDevices.erase(AUDIO_DEVICE_OUT_SPEAKER_SAFE)) {
+                outputDevices.insert(AUDIO_DEVICE_OUT_SPEAKER);
+            }
+            if (device != AUDIO_DEVICE_OUT_DEFAULT_FOR_VOLUME) {
+                if (outputDevices.find(device) == outputDevices.end()
+                        || attrDevices.find(Volume::getDeviceForVolume(outputDevices))
+                            == attrDevices.end()) {
+                    continue; // next output
+                }
+            }
+            // Inter / intra volume group priority management:
+            // Loop on strategies arranged by priority; if a higher priority strategy is active,
+            // and the output is routed to a device with a HW Gain management,
+            // do not change the volume
+            if (desc->useHwGain()) {
+                bool swMute =
+                        com_android_media_audio_ring_my_car() ? curves.isMuted() : (index == 0);
+                // If the volume source is active with higher priority source,
+                // ensure at least Sw Muted
+                desc->setSwMute(swMute, vs, outputDevices, 0 /*delayMs*/);
+                if (!desc->canSetVolumeForVolumeSource(activityVs)) {
+                    continue; // next output
+                }
+            }
+            //FIXME: workaround for truncated touch sounds
+            // delayed volume change for system stream to be removed when the problem is
+            // handled by system UI
+            status_t volStatus = checkAndSetVolume(curves, vs, index, desc, outputDevices,
+                    /*adjustAttenuation*/true, (vs == toVolumeSource(AUDIO_STREAM_SYSTEM, false)) ?
+                    TOUCH_SOUND_FIXED_DELAY_MS : 0);
+            if (volStatus != NO_ERROR) {
+                status = volStatus;
+            }
         }
     }
 
@@ -4239,7 +4298,7 @@ status_t AudioPolicyManager::setVolumeIndexForGroup(volume_group_t group,
         audio_devices_t rxSinkDevice = mCallRxSourceClient->sinkDevice()->type();
         audio_devices_t curVoiceDevice = Volume::getDeviceForVolume({rxSinkDevice});
         if (curVoiceDevice == device
-                && curSrcDevices.find(curVoiceDevice) != curSrcDevices.end()) {
+                && attrDevices.find(curVoiceDevice) != attrDevices.end()) {
             bool isVoiceVolSrc;
             bool isBtScoVolSrc;
             updateVoiceBtScoVolumeSrcForCalls(vs, isVoiceVolSrc, isBtScoVolSrc);
@@ -4954,7 +5013,7 @@ void AudioPolicyManager::updateCallAndOutputRouting(bool forceVolumeReeval, uint
 {
     uint32_t waitMs = 0;
     bool wasLeUnicastActive = isLeUnicastActive();
-    if (updateCallRouting(true /*fromCache*/, delayMs, &waitMs) == NO_ERROR) {
+    if (updateCallRouting(true /*fromCache*/, 0 /*delayMs*/, &waitMs) == NO_ERROR) {
         // Only apply special touch sound delay once
         delayMs = 0;
     }
@@ -6032,6 +6091,7 @@ status_t AudioPolicyManager::createAudioPatchInternal(const struct audio_patch *
         ALOGV("%s mUidCached %d patchDesc->mUid %d uid %d",
               __func__, mUidCached, patchDesc->getUid(), uid);
         if (patchDesc->getUid() != mUidCached && uid != patchDesc->getUid()) {
+            ALOGW("%s patch UID mismatch", __func__);
             return INVALID_OPERATION;
         }
     } else {
@@ -6160,6 +6220,7 @@ status_t AudioPolicyManager::createAudioPatchInternal(const struct audio_patch *
             // device to device connection
             if (patchDesc != 0) {
                 if (patchDesc->mPatch.sources[0].id != patch->sources[0].id) {
+                    ALOGW("%s invalid patch update: different source devices", __func__);
                     return BAD_VALUE;
                 }
             }
@@ -6696,10 +6757,7 @@ status_t AudioPolicyManager::connectAudioSource(const sp<SourceClientDescriptor>
             mEngine->getOutputDevicesForAttributes(attributes, nullptr, false /*fromCache*/);
     ALOG_ASSERT(!sinkDevices.isEmpty(), "connectAudioSource(): no device found for attributes");
     sp<DeviceDescriptor> sinkDevice = sinkDevices.itemAt(0);
-    if (!mAvailableOutputDevices.contains(sinkDevice)) {
-        ALOGE("%s Device %s not available", __func__, sinkDevice->toString().c_str());
-        return INVALID_OPERATION;
-    }
+
     PatchBuilder patchBuilder;
     patchBuilder.addSink(sinkDevice).addSource(srcDevice);
     audio_patch_handle_t handle = AUDIO_PATCH_HANDLE_NONE;
@@ -8567,7 +8625,7 @@ sp<DeviceDescriptor> AudioPolicyManager::getNewInputDevice(
                 attributes, false /*ignorePreferredDevice*/, uid, session);
     }
 
-    if (com::android::media::audioserver::enable_strict_port_routing_checks()
+    if (device && com::android::media::audioserver::enable_strict_port_routing_checks()
             && com::android::media::audio::check_route_in_get_audio_mix_port()
             && !inputDesc->mProfile->routesToDevice(device)) {
         ALOGW("%s: profile %s is not routable to device %s", __func__,
@@ -9376,7 +9434,9 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     if (!com_android_media_audio_ring_my_car()) {
         muted = (index == 0) && (volumeDb != 0.0f);
     } else {
-        muted = curves.isMuted() && !outputDesc->isFixedVolume(deviceTypes);
+        const bool isBleBroadcast =
+                Volume::getDeviceForVolume(deviceTypes) == AUDIO_DEVICE_OUT_BLE_BROADCAST;
+        muted = curves.isMuted() && !outputDesc->isFixedVolume(deviceTypes) && !isBleBroadcast;
     }
     outputDesc->setVolume(volumeDb, muted, volumeSource, curves.getStreamTypes(),
             deviceTypes, delayMs, force, isVoiceVolSrc);

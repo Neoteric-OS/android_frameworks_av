@@ -3145,28 +3145,46 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::getCameraInfo(
         return NAME_NOT_FOUND;
     }
 
-    if (compatInfo.shouldRotateAndCrop() && compatInfo.shouldOverrideSensorOrientation()
-            && (info->orientation == 0 || info->orientation == 180)) {
-        *portraitRotation = 90;
-        if (info->facing == hardware::CAMERA_FACING_FRONT) {
-            info->orientation = (360 + info->orientation - 90) % 360;
-        } else {
-            info->orientation = (360 + info->orientation + 90) % 360;
+    *portraitRotation = 0;
+    if (wm_flags::camera_compat_landscape_camera_support()) {
+        if (compatInfo.shouldOverrideSensorOrientation()) {
+            if (info->facing == hardware::CAMERA_FACING_FRONT) {
+                info->orientation = (360 + info->orientation - 90) % 360;
+            } else {
+                info->orientation = (360 + info->orientation + 90) % 360;
+            }
         }
-    } else if (compatInfo.shouldRotateAndCrop() && !compatInfo.shouldOverrideSensorOrientation()
-            && (info->orientation == 90 || info->orientation == 270)) {
-        // Check device rotation: display rotation will be sandboxed, therefore rotate-and-crop
-        // needs to take display rotation into account.
-        int rotateAndCropDegrees = ui::toRotationInt(
-                compatInfo.getRotateAndCropRotation().value()) * 90;
-        *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK ? rotateAndCropDegrees
-                : 360 - rotateAndCropDegrees;
+
+        if (compatInfo.shouldRotateAndCrop()) {
+            int rotateAndCropDegrees = ui::toRotationInt(compatInfo.getRotateAndCropRotation()
+                    .value()) * 90;
+            *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK
+                    ? rotateAndCropDegrees
+                    : 360 - rotateAndCropDegrees;
+        }
     } else {
-        *portraitRotation = 0;
+        if (compatInfo.shouldRotateAndCrop() && compatInfo.shouldOverrideSensorOrientation()
+            && (info->orientation == 0 || info->orientation == 180)) {
+            *portraitRotation = 90;
+            if (info->facing == hardware::CAMERA_FACING_FRONT) {
+                info->orientation = (360 + info->orientation - 90) % 360;
+            } else {
+                info->orientation = (360 + info->orientation + 90) % 360;
+            }
+        } else if (compatInfo.shouldRotateAndCrop() && !compatInfo.shouldOverrideSensorOrientation()
+                && (info->orientation == 90 || info->orientation == 270)) {
+            // Check device rotation: display rotation will be sandboxed, therefore rotate-and-crop
+            // needs to take display rotation into account.
+            int rotateAndCropDegrees = ui::toRotationInt(
+                    compatInfo.getRotateAndCropRotation().value()) * 90;
+            *portraitRotation = info->facing == hardware::CAMERA_FACING_BACK ? rotateAndCropDegrees
+                    : 360 - rotateAndCropDegrees;
+        }
     }
 
     return OK;
 }
+
 bool CameraProviderManager::ProviderInfo::DeviceInfo3::isAPI1Compatible() const {
     // Do not advertise NIR cameras to API1 camera app.
     camera_metadata_ro_entry cfa = mCameraCharacteristics.find(
@@ -3316,6 +3334,41 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::filterSmallJpegSizes(
     }
     if (newStallDurations.size() == 0 || largeJpegCount == 0) {
         return BAD_VALUE;
+    }
+
+    // Make sure RECOMMENDED stream configurations do not contain small JPEG
+    // sizes
+    camera_metadata_entry recommendedStreams =
+            mCameraCharacteristics.find(ANDROID_SCALER_AVAILABLE_RECOMMENDED_STREAM_CONFIGURATIONS);
+    if (recommendedStreams.count > 0) {
+        std::vector<int32_t> newRecommendedStreams;
+        largeJpegCount = 0;
+        for (size_t i = 0; i < recommendedStreams.count; i += 5) {
+            int32_t width = recommendedStreams.data.i32[i];
+            int32_t height = recommendedStreams.data.i32[i+1];
+            int32_t format = recommendedStreams.data.i32[i+2];
+            if (format == HAL_PIXEL_FORMAT_BLOB) {
+                if (width * height < thresholdW * thresholdH) {
+                    continue;
+                } else {
+                    largeJpegCount++;
+                }
+            }
+            newRecommendedStreams.insert(newRecommendedStreams.end(),
+                                         recommendedStreams.data.i32 + i,
+                                         recommendedStreams.data.i32 + i + 5);
+        }
+        if (largeJpegCount == 0) {
+            ALOGE("%s: AVAILABLE_RECOMMENDED_STREAM_CONFIGURATIONS do not contain large JPEG size."
+                  " Removing!", __FUNCTION__);
+            mCameraCharacteristics.erase(
+                    ANDROID_SCALER_AVAILABLE_RECOMMENDED_STREAM_CONFIGURATIONS);
+        } else {
+            mCameraCharacteristics.update(
+                    ANDROID_SCALER_AVAILABLE_RECOMMENDED_STREAM_CONFIGURATIONS,
+                    newRecommendedStreams.data(),
+                    newRecommendedStreams.size());
+        }
     }
 
     mCameraCharacteristics.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS,

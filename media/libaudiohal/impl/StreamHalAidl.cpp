@@ -195,6 +195,8 @@ status_t StreamHalAidl::close() {
         if (auto handler = mStreamCloseHandler.promote(); handler != nullptr) {
             handler->streamClosed(sp<StreamHalInterface>::fromExisting(this));
         }
+        std::lock_guard l(mLock);
+        mIsClosed = true;
     }
     AUGMENT_LOG_IF(E, !status.isOk(), "status %s", status.getDescription().c_str());
     return statusTFromBinderStatus(status);
@@ -576,14 +578,15 @@ status_t StreamHalAidl::getHardwarePosition(int64_t *frames, int64_t *timestamp)
         return NOT_ENOUGH_DATA;
     }
     if (mSupportsCreateMmapBuffer) {
-        // HAL is required to report continuous position. Reset for compatibility.
         int64_t mostRecentResetPoint = std::max(statePositions.hardware.framesAtStandby,
                 statePositions.hardware.framesAtFlushOrDrain);
-        int64_t aidlFrames = reply.hardware.frames;
-        *frames = aidlFrames <= mostRecentResetPoint ? 0 : aidlFrames - mostRecentResetPoint;
-    } else {
-        *frames = reply.hardware.frames;
+        // This should not happen as HAL is required to report monotonically increasing position.
+        // Add a warning log for future debugging in case it happens.
+        ALOGW_IF(reply.hardware.frames < mostRecentResetPoint,
+                 "The position is not monotonic increasing, mostRecentResetPoint=%jd, "
+                 "reportedPosition=%jd", mostRecentResetPoint, reply.hardware.frames);
     }
+    *frames = reply.hardware.frames;
     *timestamp = reply.hardware.timeNs;
     return OK;
 }
@@ -978,6 +981,10 @@ status_t StreamHalAidl::sendCommand(
         const ::aidl::android::hardware::audio::core::StreamDescriptor::Command& command,
         ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply,
         bool safeFromNonWorkerThread, StatePositions* statePositions) {
+    {
+        std::lock_guard l(mLock);
+        if (mIsClosed) return DEAD_OBJECT;
+    }
 
     // Add timeCheck only for start command (pause, flush checked at caller).
     std::unique_ptr<mediautils::TimeCheck> timeCheck;
@@ -1200,7 +1207,9 @@ status_t StreamOutHalAidl::getRenderPosition(uint64_t *dspFrames) {
     // Number of audio frames since the stream has exited standby.
     // See the table at the start of 'StreamHalInterface' on when it needs to reset.
     int64_t mostRecentResetPoint;
-    if (!mContext.isAsynchronous() && audio_has_proportional_frames(mConfig.format)) {
+    if (!mContext.isAsynchronous() &&
+        !mContext.isDirect() &&
+        audio_has_proportional_frames(mConfig.format)) {
         mostRecentResetPoint = statePositions.observable.framesAtStandby;
     } else {
         mostRecentResetPoint = std::max(statePositions.observable.framesAtStandby,
@@ -1285,7 +1294,9 @@ status_t StreamOutHalAidl::getPresentationPosition(uint64_t *frames, struct time
     StatePositions statePositions{};
     RETURN_STATUS_IF_ERROR(getObservablePosition(&aidlFrames, &aidlTimestamp, &statePositions));
     // See the table at the start of 'StreamHalInterface'.
-    if (!mContext.isAsynchronous() && audio_has_proportional_frames(mConfig.format)) {
+    if (!mContext.isAsynchronous() &&
+        !mContext.isDirect() &&
+        audio_has_proportional_frames(mConfig.format)) {
         *frames = aidlFrames;
     } else {
         const int64_t mostRecentResetPoint = std::max(statePositions.observable.framesAtStandby,

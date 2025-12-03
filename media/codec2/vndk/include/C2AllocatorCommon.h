@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef AAUDIO_LEGACY_H
-#define AAUDIO_LEGACY_H
+#pragma once
 
-#include <aaudio/AAudio.h>
+#include <cstddef>
+#include <functional>
+#include <sys/types.h>
 
-#include <stdint.h>
-
-/**
- * Common code for legacy classes.
- */
-
-/* AudioTrack uses a 32-bit frame counter that can wrap around in about a day. */
-typedef uint32_t aaudio_wrapping_frames_t;
-
-#endif /* AAUDIO_LEGACY_H */
+// mmap / munmap function used by the allocation
+typedef std::function<void *(void *, size_t, int, int, int, off_t)> C2LinearMapFn;
+typedef std::function<int(void *, size_t)> C2LinearUnmapFn;
