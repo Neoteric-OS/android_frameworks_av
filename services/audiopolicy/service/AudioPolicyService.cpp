@@ -20,9 +20,7 @@
 #include "Configuration.h"
 #include <stdint.h>
 #include <sys/time.h>
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 #include <dlfcn.h>
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
 #include <audio_utils/clock.h>
 #include <binder/IServiceManager.h>
@@ -46,9 +44,7 @@
 #include <system/audio.h>
 #include <system/audio_policy.h>
 #include <AudioPolicyConfig.h>
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 #include <AudioPolicyManager.h>
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
 #include <com_android_media_audio.h>
 
@@ -58,9 +54,7 @@ using media::audio::common::Spatialization;
 
 static const char kDeadlockedString[] = "AudioPolicyService may be deadlocked\n";
 static const char kCmdDeadlockedString[] = "AudioPolicyService command thread may be deadlocked\n";
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 static const char kAudioPolicyManagerCustomPath[] = "libaudiopolicymanagercustom.so";
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
 static const int kDumpLockTimeoutNs = 1 * NANOS_PER_SECOND;
 
@@ -213,10 +207,8 @@ static auto& getIAudioPolicyServiceStatistics() {
 
 // ----------------------------------------------------------------------------
 
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 static AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface *clientInterface)
 {
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     AudioPolicyManager *apm = nullptr;
     media::AudioPolicyConfig apmConfig;
     if (status_t status = clientInterface->getAudioPolicyConfig(&apmConfig); status == OK) {
@@ -232,7 +224,6 @@ static AudioPolicyInterface* createAudioPolicyManager(AudioPolicyClientInterface
                 loadApmEngineLibraryAndCreateEngine(config->getEngineLibraryNameSuffix()),
                 clientInterface);
     }
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     status_t status = apm->initialize();
     if (status != NO_ERROR) {
         delete apm;
@@ -247,23 +238,19 @@ static void destroyAudioPolicyManager(AudioPolicyInterface *interface)
 }
 // ----------------------------------------------------------------------------
 
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 AudioPolicyService::AudioPolicyService()
     : BnAudioPolicyService(),
       mAudioPolicyManager(NULL),
       mAudioPolicyClient(NULL),
       mPhoneState(AUDIO_MODE_INVALID),
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
       mCaptureStateNotifier(false),
       mCreateAudioPolicyManager(createAudioPolicyManager),
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
       mDestroyAudioPolicyManager(destroyAudioPolicyManager),
       mUsecaseValidator(media::createUsecaseValidator()),
       mPermissionController(sp<NativePermissionController>::make())
 {
       setMinSchedulerPolicy(SCHED_NORMAL, ANDROID_PRIORITY_AUDIO);
       setInheritRt(true);
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 }
 
 void AudioPolicyService::loadAudioPolicyManager()
@@ -287,7 +274,6 @@ void AudioPolicyService::loadAudioPolicyManager()
             LOG_ALWAYS_FATAL("could not find audiopolicymanager interface methods");
         }
     }
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 }
 
 void AudioPolicyService::onFirstRef()
@@ -308,11 +294,9 @@ void AudioPolicyService::onFirstRef()
         mOutputCommandThread = new AudioCommandThread(String8("ApmOutput"), this);
 
         mAudioPolicyClient = new AudioPolicyClient(this);
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
         loadAudioPolicyManager();
         mAudioPolicyManager = mCreateAudioPolicyManager(mAudioPolicyClient);
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     }
 
     // load audio processing modules
@@ -365,7 +349,6 @@ void AudioPolicyService::onAudioSystemReady() {
     audioPolicyEffects->initDefaultDeviceEffects();
 }
 
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 void AudioPolicyService::unloadAudioPolicyManager()
 {
     ALOGV("%s ", __func__);
@@ -377,17 +360,14 @@ void AudioPolicyService::unloadAudioPolicyManager()
     mDestroyAudioPolicyManager = nullptr;
 }
 
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 AudioPolicyService::~AudioPolicyService()
 {
     mAudioCommandThread->exit();
     mOutputCommandThread->exit();
 
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     mDestroyAudioPolicyManager(mAudioPolicyManager);
     unloadAudioPolicyManager();
 
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     delete mAudioPolicyClient;
 
     mNotificationClients.clear();

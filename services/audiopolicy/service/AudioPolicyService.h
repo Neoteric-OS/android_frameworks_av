@@ -1105,10 +1105,8 @@ private:
 
     // Internal dump utilities.
     status_t dumpPermissionDenial(int fd);
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     void loadAudioPolicyManager();
     void unloadAudioPolicyManager();
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
     /**
      * Returns the channel masks for active audio tracks on the specified output mixer.
@@ -1125,9 +1123,7 @@ private:
     // prevents concurrent access to AudioPolicy manager functions changing
     // device connection state or routing.
     // mMutex protects AudioPolicyManager methods that can call into audio flinger
-// QTI_BEGIN: 2016-02-19: Audio: audiopolicy: Synchronize calls to Effects state
     // and possibly back in to audio policy service and acquire mEffectsLock.
-// QTI_END: 2016-02-19: Audio: audiopolicy: Synchronize calls to Effects state
     sp<AudioCommandThread> mAudioCommandThread;     // audio commands thread
     sp<AudioCommandThread> mOutputCommandThread;    // process stop and release output
     AudioPolicyInterface *mAudioPolicyManager;
@@ -1158,11 +1154,9 @@ private:
     // created in onFirstRef() and never cleared: does not need to be guarded by mMutex
     sp<Spatializer> mSpatializer;
 
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     void *mLibraryHandle = nullptr;
     CreateAudioPolicyManagerInstance mCreateAudioPolicyManager;
     DestroyAudioPolicyManagerInstance mDestroyAudioPolicyManager;
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     std::unique_ptr<media::UsecaseValidator> mUsecaseValidator;
     const sp<NativePermissionController> mPermissionController;
     std::atomic<bool> mShouldEnableHardening;

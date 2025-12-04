@@ -26,9 +26,7 @@
 #include <media/AidlConversionUtil.h>
 
 #include "Cleanups.h"
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 #include "ConversionHelperAidl.h"
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 
 namespace android {
 
@@ -44,9 +42,7 @@ class StreamHalInterface;
 // but still consider some of the outputs to be valid (for example, in 'open{Input|Output}Stream'),
 // 'Hal2AidlMapper' follows the Binder convention. It means that if a method returns an error,
 // the outputs may not be initialized at all and should not be considered by the caller.
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 class Hal2AidlMapper : public ConversionHelperAidl {
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
   public:
     using Cleanups = Cleanups<Hal2AidlMapper>;
 

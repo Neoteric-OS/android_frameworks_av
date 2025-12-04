@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #define LOG_TAG "UsecaseLookup"
 // #define LOG_NDEBUG 0
 
@@ -93,4 +92,3 @@ bool UsecaseLookup::isGameStream(STREAMID streamId) {
 
 }  // namespace media
 }  // namespace android
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

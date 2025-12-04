@@ -4783,19 +4783,15 @@ status_t CameraService::BasicClient::setPrimaryClient(bool isPrimary) {
 
 void CameraService::Client::notifyError(int32_t errorCode,
         [[maybe_unused]] const CaptureResultExtras& resultExtras) {
-// QTI_BEGIN: 2015-10-16: Camera: frameworks: Add NULL check for callback
     if (mRemoteCallback != NULL) {
-// QTI_END: 2015-10-16: Camera: frameworks: Add NULL check for callback
         int32_t api1ErrorCode = CAMERA_ERROR_RELEASED;
         if (errorCode == hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DISABLED) {
             api1ErrorCode = CAMERA_ERROR_DISABLED;
         }
         mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, api1ErrorCode, 0);
-// QTI_BEGIN: 2015-10-16: Camera: frameworks: Add NULL check for callback
     } else {
         ALOGE("mRemoteCallback is NULL!!");
     }
-// QTI_END: 2015-10-16: Camera: frameworks: Add NULL check for callback
 }
 
 // NOTE: function is idempotent

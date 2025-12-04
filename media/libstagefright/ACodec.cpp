@@ -157,10 +157,8 @@ static OMX_VIDEO_CONTROLRATETYPE getVideoBitrateMode(const sp<AMessage> &msg) {
         // explicitly translate from MediaCodecInfo.EncoderCapabilities.
         // BITRATE_MODE_* into OMX bitrate mode.
         switch (tmp) {
-// QTI_BEGIN: 2018-07-08: Video: Revert "stagefright: Handle constant quality mode"
             //BITRATE_MODE_CQ
             case 0: return OMX_Video_ControlRateConstantQuality;
-// QTI_END: 2018-07-08: Video: Revert "stagefright: Handle constant quality mode"
             //BITRATE_MODE_VBR
             case 1: return OMX_Video_ControlRateVariable;
             //BITRATE_MODE_CBR
@@ -1309,9 +1307,7 @@ status_t ACodec::allocateOutputBuffersFromNativeWindow() {
         info.mIsReadFence = false;
         info.mGraphicBuffer = graphicBuffer;
         info.mNewGraphicBuffer = false;
-// QTI_BEGIN: 2018-06-17: Video: media: initialize dequeue counter in buffer info
         info.mDequeuedAt = mDequeueCounter;
-// QTI_END: 2018-06-17: Video: media: initialize dequeue counter in buffer info
 
         // TODO: We shouln't need to create MediaCodecBuffer. In metadata mode
         //       OMX doesn't use the shared memory buffer, but some code still
@@ -1372,9 +1368,7 @@ status_t ACodec::allocateOutputMetadataBuffers() {
     OMX_U32 bufferCount, bufferSize, minUndequeuedBuffers;
     status_t err = configureOutputBuffersFromNativeWindow(
             &bufferCount, &bufferSize, &minUndequeuedBuffers,
-// QTI_BEGIN: 2020-01-21: Video: Disconnect from native window for secure case
             mFlags & kFlagPreregisterMetadataBuffers /* preregister */);
-// QTI_END: 2020-01-21: Video: Disconnect from native window for secure case
     if (err != OK)
         return err;
     mNumUndequeuedBuffers = minUndequeuedBuffers;
@@ -2016,7 +2010,6 @@ status_t ACodec::configureCodec(
             setPortMode(kPortIndexInput, IOMX::kPortModePresetByteBuffer);
             err = OK; // ignore error for now
         }
-// QTI_BEGIN: 2020-01-21: Video: Disconnect from native window for secure case
 
         OMX_INDEXTYPE index;
         if (mOMXNode->getExtensionIndex(
@@ -2030,7 +2023,6 @@ status_t ACodec::configureCodec(
                 }
             }
         }
-// QTI_END: 2020-01-21: Video: Disconnect from native window for secure case
     }
     if (haveNativeWindow) {
         sp<ANativeWindow> nativeWindow =
@@ -2858,12 +2850,8 @@ status_t ACodec::configureTemporalLayers(
         layerParams.nPLayerCountActual = numLayers - numBLayers;
         layerParams.nBLayerCountActual = numBLayers;
         layerParams.bBitrateRatiosSpecified = OMX_FALSE;
-// QTI_BEGIN: 2019-04-26: Video: ACodec: Update max temporal layer count
         layerParams.nLayerCountMax = numLayers;
-// QTI_END: 2019-04-26: Video: ACodec: Update max temporal layer count
-// QTI_BEGIN: 2018-06-25: Video: ACodec: Update max temporal layer count
         layerParams.nBLayerCountMax = numBLayers;
-// QTI_END: 2018-06-25: Video: ACodec: Update max temporal layer count
 
         err = mOMXNode->setParameter(
                 (OMX_INDEXTYPE)OMX_IndexParamAndroidVideoTemporalLayering,
@@ -3743,11 +3731,9 @@ status_t ACodec::setupVideoDecoder(
         err = setVideoPortFormatType(
                 kPortIndexOutput, OMX_VIDEO_CodingUnused, colorFormat, haveNativeWindow);
         if (err != OK) {
-// QTI_BEGIN: 2020-04-13: Video: libstagefright: Remove RGB565 color-format for thumbnail
             ALOGW("[%s] does not support color format %d",
                   mComponentName.c_str(), colorFormat);
             err = setSupportedOutputFormat(!haveNativeWindow /* getLegacyFlexibleFormat */);
-// QTI_END: 2020-04-13: Video: libstagefright: Remove RGB565 color-format for thumbnail
         }
     } else {
         err = setSupportedOutputFormat(!haveNativeWindow /* getLegacyFlexibleFormat */);
@@ -4862,32 +4848,26 @@ status_t ACodec::setupAVCEncoderParameters(const sp<AMessage> &msg) {
 status_t ACodec::configureImageGrid(
         const sp<AMessage> &msg, sp<AMessage> &outputFormat) {
     int32_t tileWidth, tileHeight, gridRows, gridCols;
-// QTI_BEGIN: 2019-08-05: Video: libstagefright: Always query grid config from component
     OMX_BOOL useGrid = OMX_FALSE;
     if (msg->findInt32("tile-width", &tileWidth) &&
         msg->findInt32("tile-height", &tileHeight) &&
         msg->findInt32("grid-rows", &gridRows) &&
         msg->findInt32("grid-cols", &gridCols)) {
         useGrid = OMX_TRUE;
-// QTI_END: 2019-08-05: Video: libstagefright: Always query grid config from component
     } else {
         // when bEnabled is false, the tile info is not used,
         // but clear out these too.
         tileWidth = tileHeight = gridRows = gridCols = 0;
-// QTI_BEGIN: 2019-08-05: Video: libstagefright: Always query grid config from component
     }
 
     if (!mIsImage && !useGrid) {
-// QTI_END: 2019-08-05: Video: libstagefright: Always query grid config from component
         return OK;
     }
 
     OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE gridType;
     InitOMXParams(&gridType);
     gridType.nPortIndex = kPortIndexOutput;
-// QTI_BEGIN: 2019-08-05: Video: libstagefright: Always query grid config from component
     gridType.bEnabled = useGrid;
-// QTI_END: 2019-08-05: Video: libstagefright: Always query grid config from component
     gridType.nTileWidth = tileWidth;
     gridType.nTileHeight = tileHeight;
     gridType.nGridRows = gridRows;

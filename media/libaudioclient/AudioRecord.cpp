@@ -1267,29 +1267,21 @@ audio_io_handle_t AudioRecord::getInputPrivate() const
     return mInput;
 }
 
-// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 status_t AudioRecord::setParameters(const String8& keyValuePairs) {
     AutoMutex lock(mLock);
-// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
-// QTI_BEGIN: 2024-12-16: Audio: AudioRecord: add set/get Parameters API's
     if (mInput == AUDIO_IO_HANDLE_NONE || mAudioRecord == nullptr) {
         return NO_INIT;
     }
     return statusTFromBinderStatus(mAudioRecord->setParameters(keyValuePairs.c_str()));
-// QTI_END: 2024-12-16: Audio: AudioRecord: add set/get Parameters API's
-// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 }
 
 String8 AudioRecord::getParameters(const String8& keys) {
     AutoMutex lock(mLock);
     return mInput != AUDIO_IO_HANDLE_NONE
                ? AudioSystem::getParameters(mInput, keys)
-// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
                : String8();
-// QTI_BEGIN: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 }
 
-// QTI_END: 2022-10-19: Audio: AudioRecord: add set/get Parameters API's
 // -------------------------------------------------------------------------
 
 ssize_t AudioRecord::read(void* buffer, size_t userSize, bool blocking)

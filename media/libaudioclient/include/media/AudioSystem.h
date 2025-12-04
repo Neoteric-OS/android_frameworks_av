@@ -304,10 +304,8 @@ public:
                                                                 const char *device_address);
     static status_t handleDeviceConfigChange(audio_devices_t device,
                                              const char *device_address,
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              const char *device_name,
                                              audio_format_t encodedFormat);
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     static status_t setPhoneState(audio_mode_t state, uid_t uid);
     static status_t setForceUse(audio_policy_force_use_t usage, audio_policy_forced_cfg_t config);
     static audio_policy_forced_cfg_t getForceUse(audio_policy_force_use_t usage);

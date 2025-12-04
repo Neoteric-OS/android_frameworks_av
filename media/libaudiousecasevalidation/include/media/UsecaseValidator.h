@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #ifndef MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASEVALIDATOR_H_
 #define MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASEVALIDATOR_H_
 
@@ -96,4 +95,3 @@ std::unique_ptr<UsecaseValidator> createUsecaseValidator();
 }  // namespace android
 
 #endif  // MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASEVALIDATOR_H_
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

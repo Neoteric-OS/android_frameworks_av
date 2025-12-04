@@ -22,9 +22,7 @@
 
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AString.h>
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 #include <mediaplayerservice/AVMediaServiceExtensions.h>
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 
 #include <stdlib.h>
 
@@ -307,10 +305,8 @@ bool ASessionDescription::getDurationUs(int64_t *durationUs) const {
 // QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
 // QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     if (!AVMediaServiceUtils::get()->parseNTPRange(
             value.c_str() + 4, &from, &to)) {
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
         return false;
     }
 // QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni

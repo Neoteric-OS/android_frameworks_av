@@ -626,11 +626,9 @@ status_t OMXNodeInstance::freeNode() {
         freeActiveBuffers();
     }
 // QTI_END: 2018-05-07: Video: libstagefright: Free buffers on observer died
-// QTI_BEGIN: 2019-03-26: Videp: libstagefright: Fix memory leak due to lock timeout
 
     Mutex::Autolock _l(mLock);
 
-// QTI_END: 2019-03-26: Videp: libstagefright: Fix memory leak due to lock timeout
     status_t err = mOwner->freeNode(this);
 
     mDispatcher.clear();
@@ -1299,10 +1297,8 @@ status_t OMXNodeInstance::useBuffer(
                 // Allow extradata ports
                 } else if (mPortMode[portIndex] != IOMX::kPortModePresetByteBuffer
 // QTI_END: 2018-06-17: Audio: libstagefright: Avoid additional checks for extradata ports
-// QTI_BEGIN: 2018-05-29: Video: OMXNodeInstance: Allow dynamic native handle mode for input buffers
                         && mPortMode[portIndex] != IOMX::kPortModeDynamicANWBuffer
                         && mPortMode[portIndex] != IOMX::kPortModeDynamicNativeHandle) {
-// QTI_END: 2018-05-29: Video: OMXNodeInstance: Allow dynamic native handle mode for input buffers
                     break;
                 }
                 sp<IHidlMemory> hidlMemory = mapMemory(omxBuffer.mHidlMemory);

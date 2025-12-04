@@ -24,12 +24,10 @@
 #include <media/MediaCodecBuffer.h>
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AUtils.h>
-// QTI_BEGIN: 2022-07-28: Data: converter: Support 24bit converter
 #include <system/audio.h>
 #include <audio_utils/primitives.h>
 #include <audio_utils/format.h>
 
-// QTI_END: 2022-07-28: Data: converter: Support 24bit converter
 
 namespace android {
 
@@ -87,7 +85,6 @@ size_t SampleConverterBase::targetSize(size_t sourceSize) {
     return numSamples * mTargetSampleSize;
 }
 
-// QTI_BEGIN: 2022-07-28: Data: converter: Support 24bit converter
 static audio_format_t getAudioFormat(AudioEncoding e) {
     audio_format_t format = AUDIO_FORMAT_INVALID;
     switch (e) {
@@ -111,18 +108,15 @@ static audio_format_t getAudioFormat(AudioEncoding e) {
         }
         return format;
 }
-// QTI_END: 2022-07-28: Data: converter: Support 24bit converter
 
 static size_t getAudioSampleSize(AudioEncoding e) {
     switch (e) {
-// QTI_BEGIN: 2022-07-28: Data: converter: Support 24bit converter
         case kAudioEncodingPcm16bit:
         case kAudioEncodingPcm8bit:
         case kAudioEncodingPcmFloat:
         case kAudioEncodingPcm24bitPacked:
         case kAudioEncodingPcm32bit:
             return audio_bytes_per_sample(getAudioFormat(e));
-// QTI_END: 2022-07-28: Data: converter: Support 24bit converter
         default: return 0;
     }
 }
@@ -152,7 +146,6 @@ status_t AudioConverter::safeConvert(const sp<MediaCodecBuffer> &src, sp<MediaCo
     } else if (mTo == kAudioEncodingPcmFloat && mFrom == kAudioEncodingPcm16bit) {
         memcpy_to_float_from_i16((float*)tgt->base(), (const int16_t*)src->data(), src->size() / 2);
     } else {
-// QTI_BEGIN: 2022-07-28: Data: converter: Support 24bit converter
         audio_format_t srcFormat = getAudioFormat(mFrom);
         audio_format_t dstFormat = getAudioFormat(mTo);
 
@@ -162,7 +155,6 @@ status_t AudioConverter::safeConvert(const sp<MediaCodecBuffer> &src, sp<MediaCo
         size_t frames = src->size() / audio_bytes_per_sample(srcFormat);
         memcpy_by_audio_format((void*)tgt->base(), dstFormat, (void*)src->data(),
                 srcFormat, frames);
-// QTI_END: 2022-07-28: Data: converter: Support 24bit converter
     }
     return OK;
 }

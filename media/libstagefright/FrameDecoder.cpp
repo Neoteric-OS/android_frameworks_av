@@ -136,9 +136,7 @@ sp<IMemory> allocVideoFrame(const sp<MetaData>& trackMeta,
             std::swap(tileWidth, tileHeight);
         }
         // Rotation is already applied.
-// QTI_BEGIN: 2020-07-31: Video: stagefright: Correct rotation angle set to video frame in surface-mode
         rotationAngle = 0;
-// QTI_END: 2020-07-31: Video: stagefright: Correct rotation angle set to video frame in surface-mode
     }
 
     if (!metaOnly) {
@@ -953,9 +951,7 @@ sp<AMessage> VideoFrameDecoder::onGetFormatAndSeekOptions(
     mIsHevc = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_HEVC);
 
     if (frameTimeUs < 0) {
-// QTI_BEGIN: 2018-05-08: Video: media: fixing klock work issue.
         int64_t thumbNailTime = -1ll;
-// QTI_END: 2018-05-08: Video: media: fixing klock work issue.
         if (!trackMeta()->findInt64(kKeyThumbnailTime, &thumbNailTime)
                 || thumbNailTime < 0) {
             thumbNailTime = 0;
@@ -1096,13 +1092,9 @@ status_t VideoFrameDecoder::onOutputReceived(
     }
 
 // QTI_END: 2020-07-16: Video: stagefright: remove slice-height as mandatory parameter
-// QTI_BEGIN: 2020-07-13: Video: Revert "stagefright: route all video thumbnails to surface"
     if (!outputFormat->findInt32("stride", &stride)) {
-// QTI_END: 2020-07-13: Video: Revert "stagefright: route all video thumbnails to surface"
         if (mCaptureLayer == NULL) {
-// QTI_BEGIN: 2020-07-13: Video: Revert "stagefright: route all video thumbnails to surface"
             ALOGE("format must have stride for byte buffer mode: %s",
-// QTI_END: 2020-07-13: Video: Revert "stagefright: route all video thumbnails to surface"
                     outputFormat->debugString().c_str());
             return ERROR_MALFORMED;
         }
@@ -1250,36 +1242,28 @@ status_t VideoFrameDecoder::captureSurface() {
 
 ////////////////////////////////////////////////////////////////////////
 
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 struct MediaImageDecoder::ImageOutputThread : public Thread {
     ImageOutputThread(MediaImageDecoder *mediaImageDecoder)
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
         : Thread(false /*canCallJava*/),
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
 // QTI_BEGIN: 2021-03-06: Video: media: Rename ImageDecoder class
           mImageDecoder(mediaImageDecoder) {
 // QTI_END: 2021-03-06: Video: media: Rename ImageDecoder class
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         ALOGD("ImageOutputThread created");
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
     }
 
     virtual bool threadLoop() {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         return mImageDecoder->outputLoop();
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
     }
 
 protected:
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     virtual ~ImageOutputThread() {
         ALOGD("ImageOutputThread destroyed");
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
     }
 
@@ -1289,9 +1273,7 @@ private:
     MediaImageDecoder *mImageDecoder;
 // QTI_END: 2021-03-06: Video: media: Rename ImageDecoder class
 
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     DISALLOW_EVIL_CONSTRUCTORS(ImageOutputThread);
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
 };
 
@@ -1433,10 +1415,8 @@ sp<AMessage> MediaImageDecoder::onGetFormatAndSeekOptions(
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
     } else {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         ALOGD("Enable multi-thread for Heif");
         mUseMultiThread = true;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     }
 
 // QTI_BEGIN: 2025-04-16: Video: FrameDecoder: HEIF decoding optimization
@@ -1518,9 +1498,7 @@ status_t MediaImageDecoder::onOutputReceived(
     if (outputFormat->findInt32("width", &width) == false) {
         ALOGE("MediaImageDecoder::onOutputReceived:width is missing in outputFormat");
         return ERROR_MALFORMED;
-// QTI_BEGIN: 2021-09-25: Video: stagefright: update aligned stride only if it's published
     }
-// QTI_END: 2021-09-25: Video: stagefright: update aligned stride only if it's published
     if (outputFormat->findInt32("height", &height) == false) {
         ALOGE("MediaImageDecoder::onOutputReceived:height is missing in outputFormat");
         return ERROR_MALFORMED;
@@ -1633,9 +1611,7 @@ status_t MediaImageDecoder::onOutputReceived(
     return ERROR_UNSUPPORTED;
 }
 
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 bool MediaImageDecoder::outputLoop() {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
     status_t err = OK;
     size_t index;
@@ -1646,9 +1622,7 @@ bool MediaImageDecoder::outputLoop() {
     constexpr nsecs_t kConditionTimeoutNs = nsecs_t(100) * 1000 * 1000;  // 100ms
 
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     mOutInfo.lock()->mThrStarted = true;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
     do {
         if (err == OK){
@@ -1681,21 +1655,16 @@ bool MediaImageDecoder::outputLoop() {
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
     bool done = mOutInfo.lock()->mDone;
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     while (err == OK && !done) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
         if (mOutInfo.lock()->mSignalType == EXIT) {
             ALOGI("Exiting the ImageOutputThread");
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
             return 0;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
         }
 
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         size_t offset, size;
         // wait for a decoded buffer
         err = mDecoder->dequeueOutputBuffer(
@@ -1715,11 +1684,9 @@ bool MediaImageDecoder::outputLoop() {
             if (err == -EAGAIN && --mOutInfo.lock()->mRetriesLeft > 0) {
                 ALOGV("Timed-out waiting for output.. retries left = %zu",
                     mOutInfo.lock()->mRetriesLeft);
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
                 err = OK;
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
             } else if (err == OK) {
                 // If we're seeking with CLOSEST option and obtained a valid targetTimeUs
                 // from the extractor, decode to the specified frame. Otherwise we're done.
@@ -1730,53 +1697,38 @@ bool MediaImageDecoder::outputLoop() {
                     ALOGE("failed to get output buffer %zu", index);
                     break;
                 }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 uint8_t* frameData = videoFrameBuffer->data();
                 sp<ABuffer> imageData;
                 videoFrameBuffer->meta()->findBuffer("image-data", &imageData);
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 if (mSurface != nullptr) {
                     if (!shouldDropOutput(ptsUs)) {
                         mDecoder->renderOutputBufferAndRelease(index);
                     } else {
                         mDecoder->releaseOutputBuffer(index);
                     }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                     err = onOutputReceived(frameData, imageData, mOutputFormat, ptsUs, &done);
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 } else {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                     err = onOutputReceived(frameData, imageData, mOutputFormat, ptsUs, &done);
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                     mDecoder->releaseOutputBuffer(index);
                 }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             } else {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 ALOGW("Received error %d (%s) instead of output", err, asString(err));
                 done = true;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
             if(done) {
                 mOutInfo.lock()->mDone = done;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             }
         }
     }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     mOutInfo.lock()->mErrorCode = err;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     return done;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
 }
 
@@ -1788,37 +1740,27 @@ status_t MediaImageDecoder::extractInternal() {
     status_t err = OK;
     bool done = false;
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     bool outThreadRunning = false;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     {
         Mutexed<OutputInfo>::Locked outInfo(mOutInfo);
         outInfo->mRetriesLeft = kRetryCount;
         outInfo->mErrorCode = OK;
         outInfo->mDone = false;
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
         outInfo->mSignalType = NONE;
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
     }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
 
     if (mUseMultiThread && mThread == NULL) {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         mThread = new ImageOutputThread(this);
         err = mThread->run("ImageDecoderOutput");
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
         if (err != OK) {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
             ALOGE("Failed to create MediaImageDecoder output thread");
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             mThread.clear();
             return err;
@@ -1834,17 +1776,13 @@ status_t MediaImageDecoder::extractInternal() {
         // outputs. After getting each output, come back and queue the inputs
         // again to keep the decoder busy.
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         while (mHaveMoreInputs) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             err = mDecoder->dequeueInputBuffer(&index, 0);
             if (err != OK) {
                 ALOGV("Timed out waiting for input");
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 if (mOutInfo.lock()->mRetriesLeft) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
                     err = OK;
                 }
@@ -1906,21 +1844,17 @@ status_t MediaImageDecoder::extractInternal() {
                     mHaveMoreInputs = false;
                 }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 
                 // Signal output thread after queueing at least 1 input
                 if (mUseMultiThread && !outThreadRunning && mOutInfo.lock()->mThrStarted) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
                     ALOGI("Signaling ImageOutputThread to start executing");
                     Mutexed<OutputInfo>::Locked outInfo(mOutInfo);
                     outInfo->mSignalType = EXECUTE;
                     outInfo->mCond.signal();
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                     outThreadRunning = true;
                 }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
@@ -1934,22 +1868,18 @@ status_t MediaImageDecoder::extractInternal() {
         }
 
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         // If output thread is still not running, signal it now.
         if (mUseMultiThread && !outThreadRunning && mOutInfo.lock()->mThrStarted) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
             ALOGI("ImageOutputThread is not executing. Signaling now");
             Mutexed<OutputInfo>::Locked outInfo(mOutInfo);
             outInfo->mSignalType = EXECUTE;
             outInfo->mCond.signal();
 // QTI_END: 2021-10-06: Video: libstagefright: Fix a corner case during HEIF decode
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
             outThreadRunning = true;
         }
 
         while (!mUseMultiThread && err == OK) {
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
             size_t offset, size;
             // wait for a decoded buffer
@@ -1969,11 +1899,9 @@ status_t MediaImageDecoder::extractInternal() {
                 err = OK;
             } else {
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 if (err == -EAGAIN && --mOutInfo.lock()->mRetriesLeft > 0) {
                     ALOGV("Timed-out waiting for output.. retries left = %zu",
                         mOutInfo.lock()->mRetriesLeft);
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
                     err = OK;
                 } else if (err == OK) {
@@ -2011,20 +1939,16 @@ status_t MediaImageDecoder::extractInternal() {
                     done = true;
                 }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
                 if(done) {
                     mOutInfo.lock()->mDone = done;
                 }
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
                 break;
             }
         }
 // QTI_END: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
-// QTI_BEGIN: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
         err |= mOutInfo.lock()->mErrorCode;
     } while (err == OK && !mOutInfo.lock()->mDone);
-// QTI_END: 2021-10-06: Video: Revert "Revert "Stagefright: Restructure HEIF decode multi-threading""
 // QTI_BEGIN: 2020-10-16: Video: stagefright: FrameDecoder: use 2 threads for heif decoder
 
     if (err != OK) {

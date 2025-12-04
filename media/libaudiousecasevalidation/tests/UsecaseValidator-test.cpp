@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #include "tests/UsecaseValidator-test.h"
 
 #include <gtest/gtest.h>
@@ -53,9 +52,7 @@ audio_port_handle_t UsecaseValidatorTest::testCreatePortId(audio_io_handle_t str
  */
 error::Result<audio_attributes_t> UsecaseValidatorTest::testStartClient(audio_io_handle_t streamId,
         audio_port_handle_t portId,
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
         audio_attributes_t attributes) {
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     content::AttributionSourceState attributionSource;
 
     return m_validator->startClient(streamId, portId, attributionSource, attributes, NULL);
@@ -142,20 +139,14 @@ TEST_F(UsecaseValidatorTest, testHangingClient) {
     mediaPortId = testCreatePortId(mediaStreamId);
     EXPECT_NE(mediaPortId, 0);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     audio_attributes_t attributes = AUDIO_ATTRIBUTES_INITIALIZER;
     attributes.usage = AUDIO_USAGE_GAME;
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     // Start client on game stream.
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     testStartClient(gameStreamId, gamePortId, attributes);
 
     attributes.usage = AUDIO_USAGE_MEDIA;
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     // Start client on media stream.
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     testStartClient(mediaStreamId, mediaPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 
     // Unregister media stream before stopClient.
     EXPECT_EQ(m_validator->unregisterStream(gameStreamId), 0);
@@ -185,33 +176,23 @@ TEST_F(UsecaseValidatorTest, testAttributesUsageUnchanged) {
     voiceCommPortId = testCreatePortId(gameStreamId);
     EXPECT_NE(voiceCommPortId, 0);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     audio_attributes_t attributes = AUDIO_ATTRIBUTES_INITIALIZER;
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     // Verify attributes on game stream.
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_GAME;
     auto attr = testStartClient(gameStreamId, gamePortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_GAME);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_VOICE_COMMUNICATION;
     attr = testStartClient(gameStreamId, voiceCommPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_VOICE_COMMUNICATION);
 
     // Verify attributes on media stream.
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_MEDIA;
     attr = testStartClient(mediaStreamId, mediaPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_MEDIA);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_UNKNOWN;
     attr = testStartClient(mediaStreamId, unknownPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_UNKNOWN);
 
     // Stop client on game and media stream.
@@ -240,28 +221,21 @@ TEST_F(UsecaseValidatorTest, testAttributesUsageChanged) {
     unknownPortId = testCreatePortId(gameStreamId);
     EXPECT_NE(unknownPortId, 0);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     audio_attributes_t attributes = AUDIO_ATTRIBUTES_INITIALIZER;
     attributes.flags = AUDIO_FLAG_LOW_LATENCY;
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     // Verify attributes on game stream.
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_MEDIA;
     auto attr = testStartClient(gameStreamId, mediaPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_GAME);
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     attributes.usage = AUDIO_USAGE_UNKNOWN;
     attr = testStartClient(gameStreamId, unknownPortId, attributes);
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
     EXPECT_EQ(attr.value().usage, AUDIO_USAGE_GAME);
 
     // Unregister game stream.
     EXPECT_EQ(m_validator->unregisterStream(gameStreamId), 0);
 }
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
 /**
  * Verify attributes usage does not change for non low latency clients.
  */
@@ -321,7 +295,5 @@ TEST_F(UsecaseValidatorTest, testAttributesUsageUnChangedIfSpeech) {
     EXPECT_EQ(m_validator->unregisterStream(gameStreamId), 0);
 }
 
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 }  // namespace media
 }  // namespace android
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

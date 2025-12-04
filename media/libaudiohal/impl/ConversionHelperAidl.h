@@ -71,21 +71,15 @@ class Args {
 
 class ConversionHelperAidl {
   protected:
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     ConversionHelperAidl(std::string_view className, std::string_view instanceName)
         : mClassName(className), mInstanceName(instanceName) {}
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     const std::string& getClassName() const { return mClassName; }
 
     const std::string& getInstanceName() const { return mInstanceName; }
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 
     const std::string mClassName;
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     const std::string mInstanceName;
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 };
 
 // 'action' must accept a value of type 'T' and return 'status_t'.
@@ -112,11 +106,8 @@ error::Result<bool> filterOutAndProcessParameter(
 using VendorParametersRecipient = std::variant<
         std::shared_ptr<::aidl::android::hardware::audio::core::IModule>,
         std::shared_ptr<::aidl::android::hardware::audio::core::IStreamCommon>>;
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t fillVendorParameterIds(
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
         std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension> vendorExt,
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
         ::aidl::android::media::audio::IHalAdapterVendorExtension::ParameterScope scope,
         const AudioParameter& parameterKeys, std::vector<std::string>& vendorParametersIds);
 status_t fillKeyValuePairsFromVendorParameters(
@@ -124,17 +115,12 @@ status_t fillKeyValuePairsFromVendorParameters(
         ::aidl::android::media::audio::IHalAdapterVendorExtension::ParameterScope scope,
         const std::vector<::aidl::android::hardware::audio::core::VendorParameter>&
                 vendorParameters,
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
         String8* values);
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t fillVendorParameters(
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
         std::shared_ptr<::aidl::android::media::audio::IHalAdapterVendorExtension> vendorExt,
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
         ::aidl::android::media::audio::IHalAdapterVendorExtension::ParameterScope scope,
         const AudioParameter& parameters,
         std::vector<::aidl::android::hardware::audio::core::VendorParameter>& syncParameters,
         std::vector<::aidl::android::hardware::audio::core::VendorParameter>& asyncParameters);
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 
 }  // namespace android

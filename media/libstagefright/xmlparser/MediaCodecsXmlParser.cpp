@@ -2300,9 +2300,7 @@ void MediaCodecsXmlParser::Impl::generateRoleMap() const {
         const auto& typeMap = codec.second.typeMap;
         for (const auto& type : typeMap) {
             const auto& typeName = type.first;
-// QTI_BEGIN: 2018-04-13: Video: Revert "libstagefright: Use getComponentRole extension in xmlparser."
             const char* roleName = GetComponentRole(isEncoder, typeName.data());
-// QTI_END: 2018-04-13: Video: Revert "libstagefright: Use getComponentRole extension in xmlparser."
             if (roleName == nullptr) {
                 ALOGE("Cannot find the role for %s of type %s",
                         isEncoder ? "an encoder" : "a decoder",

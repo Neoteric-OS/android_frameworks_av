@@ -423,13 +423,11 @@ sp<ABuffer> AMPEG4AudioAssembler::removeLATMFraming(const sp<ABuffer> &buffer) {
             CHECK_LE(offset + (mOtherDataLenBits / 8), buffer->size());
             offset += mOtherDataLenBits / 8;
         }
-// QTI_BEGIN: 2019-02-19: Video: rtsp: Limit subframe processing to available buffer range
 
         if (i < mNumSubFrames && offset >= buffer->size()) {
             ALOGW("Skip subframes after %d, total %d", (int)i, (int)mNumSubFrames);
             break;
         }
-// QTI_END: 2019-02-19: Video: rtsp: Limit subframe processing to available buffer range
     }
 
     if (offset < buffer->size()) {

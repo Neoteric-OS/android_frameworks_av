@@ -2914,9 +2914,7 @@ status_t getAudioOffloadInfo(const sp<MetaData>& meta, bool hasVideo,
     }
     info->duration_us = duration;
 
-// QTI_BEGIN: 2021-03-18: Audio: Utils: intialize bitrate to 0
     int32_t brate = 0;
-// QTI_END: 2021-03-18: Audio: Utils: intialize bitrate to 0
     if (!meta->findInt32(kKeyBitRate, &brate)) {
         ALOGV("track of type '%s' does not publish bitrate", mime);
     }

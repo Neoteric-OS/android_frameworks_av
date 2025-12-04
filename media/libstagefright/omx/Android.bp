@@ -185,9 +185,7 @@ cc_library_shared {
         "libstagefright_foundation",
         "liblog",
         "libutils",
-// QTI_BEGIN: 2021-10-04: Audio: media: Make software OMX plugins updatable
         "libcutils",
-// QTI_END: 2021-10-04: Audio: media: Make software OMX plugins updatable
     ],
 
     cflags: [

@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-// QTI_BEGIN: 2022-08-16: Video: Revert "Dynamic Video Framework Log Enablement"
 //#define LOG_NDEBUG 0
-// QTI_END: 2022-08-16: Video: Revert "Dynamic Video Framework Log Enablement"
 #define LOG_TAG "MediaCodecSource"
 #define DEBUG_DRIFT_TIME 0
 
@@ -179,9 +177,7 @@ status_t MediaCodecSource::Puller::postSynchronouslyAndReturnError(
 }
 
 status_t MediaCodecSource::Puller::setStopTimeUs(int64_t stopTimeUs) {
-// QTI_BEGIN: 2018-05-22: Video: media: fix infinite wait at source for HAL1 based recording
     return mSource->setStopTimeUs(stopTimeUs);
-// QTI_END: 2018-05-22: Video: media: fix infinite wait at source for HAL1 based recording
 }
 
 status_t MediaCodecSource::Puller::start(const sp<MetaData> &meta, const sp<AMessage> &notify) {
@@ -759,12 +755,10 @@ void MediaCodecSource::signalEOS(status_t err) {
 // QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 output->mErrorCode = ERROR_IO;
 // QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
-// QTI_BEGIN: 2018-05-15: Audio: av: stop puller before releasing encoder
             }
             if (!(mFlags & FLAG_USE_SURFACE_INPUT)) {
                 mStopping = true;
                 mPuller->stop();
-// QTI_END: 2018-05-15: Audio: av: stop puller before releasing encoder
 // QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
             }
 // QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
@@ -865,11 +859,9 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
             sp<MediaCodecBuffer> inbuf;
             status_t err = mEncoder->getInputBuffer(bufferIndex, &inbuf);
-// QTI_BEGIN: 2017-01-09: Audio: libstagefright: Add NULL check during memcpy for MediaCodecSource
 
             if (err != OK || inbuf == NULL || inbuf->data() == NULL
                     || mbuf->data() == NULL || mbuf->size() == 0) {
-// QTI_END: 2017-01-09: Audio: libstagefright: Add NULL check during memcpy for MediaCodecSource
                 mbuf->release();
 // QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
                 signalEOS(err);
@@ -923,9 +915,7 @@ status_t MediaCodecSource::feedEncoderInputBuffers() {
 
 status_t MediaCodecSource::onStart(MetaData *params) {
     if (mStopping || mOutput.lock()->mEncoderReachedEOS) {
-// QTI_BEGIN: 2018-05-13: Video: libstagefright: encoder must exist when source starting.
         ALOGE("Failed to start while we're stopping or encoder already stopped due to EOS error");
-// QTI_END: 2018-05-13: Video: libstagefright: encoder must exist when source starting.
         return INVALID_OPERATION;
     }
     int64_t startTimeUs;
@@ -1249,10 +1239,8 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
              break;
         }
 
-// QTI_BEGIN: 2019-02-28: Video: libstagefright: call release encoder instead of signalEOS
         releaseEncoder();
 
-// QTI_END: 2019-02-28: Video: libstagefright: call release encoder instead of signalEOS
         ALOGD("source (%s) stopping stalled", mIsVideo ? "video" : "audio");
         signalEOS();
         break;

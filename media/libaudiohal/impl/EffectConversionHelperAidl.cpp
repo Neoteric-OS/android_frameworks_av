@@ -373,10 +373,8 @@ status_t EffectConversionHelperAidl::handleSetVolume(uint32_t cmdSize, const voi
 
     // get volume from effect and set if changed, return the volume in command if HAL not return
     // correct parameter.
-// QTI_BEGIN: 2023-09-04: Audio: change volume only if effect updates the volume
     Parameter::Id id = Parameter::Id::make<Parameter::Id::commonTag>(Parameter::volumeStereo);
     Parameter volParam;
-// QTI_END: 2023-09-04: Audio: change volume only if effect updates the volume
     const status_t getParamStatus = statusTFromBinderStatus(mEffect->getParameter(id, &volParam));
     if (getParamStatus != OK || volParam.getTag() != Parameter::volumeStereo) {
         ALOGW("%s no valid volume return from HAL, status %d: %s, return volume in command",
@@ -388,9 +386,7 @@ status_t EffectConversionHelperAidl::handleSetVolume(uint32_t cmdSize, const voi
     }
 
     if (replySize && *replySize == 2 * sizeof(uint32_t) && pReplyData) {
-// QTI_BEGIN: 2023-09-04: Audio: change volume only if effect updates the volume
         uint32_t vol_ret[2] = {vl, vr};
-// QTI_END: 2023-09-04: Audio: change volume only if effect updates the volume
         memcpy(pReplyData, vol_ret, sizeof(vol_ret));
     }
     return OK;
