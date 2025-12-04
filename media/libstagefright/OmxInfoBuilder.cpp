@@ -199,9 +199,7 @@ status_t OmxInfoBuilder::buildMediaCodecList(MediaCodecListWriter* writer) {
                 // treat OMX.google codecs as non-hardware-accelerated and non-vendor
                 if (!isSoftware) {
                     attrs |= MediaCodecInfo::kFlagIsVendor;
-// QTI_BEGIN: 2019-06-19: Camera: stagefright: Fix OmxInfoBuilder assignment of kFlagIsHardwareAccelerated
                     if (!std::count_if(
-// QTI_END: 2019-06-19: Camera: stagefright: Fix OmxInfoBuilder assignment of kFlagIsHardwareAccelerated
                             node.attributes.begin(), node.attributes.end(),
                             [](const IOmxStore::Attribute &i) -> bool {
                                 return i.key == "attribute::software-codec";

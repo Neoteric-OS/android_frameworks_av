@@ -739,9 +739,7 @@ public:
 
     void clearInputBuffer_l() REQUIRES(audio_utils::EffectChain_Mutex);
 
-// QTI_BEGIN: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
     // true if any effect module within the chain has volume control
-// QTI_END: 2020-03-06: Audio: Effects: set hw volume if effect chain doesn't have volume control
     bool hasVolumeControlEnabled_l() const REQUIRES(audio_utils::EffectChain_Mutex);
 
     void setVolumeForOutput_l(uint32_t left, uint32_t right)
@@ -770,9 +768,7 @@ public:
              uint32_t mRightVolume;      // previous volume on right channel
              uint32_t mNewLeftVolume;       // new volume on left channel
              uint32_t mNewRightVolume;      // new volume on right channel
-// QTI_BEGIN: 2024-07-10: Audio: audioflinger: initialize strategy to PRODUCT_STRATEGY_NONE
              product_strategy_t mStrategy = PRODUCT_STRATEGY_NONE; // strategy for this effect chain
-// QTI_END: 2024-07-10: Audio: audioflinger: initialize strategy to PRODUCT_STRATEGY_NONE
              // mSuspendedEffects lists all effects currently suspended in the chain.
              // Use effect type UUID timelow field as key. There is no real risk of identical
              // timeLow fields among effect type UUIDs.
@@ -870,9 +866,7 @@ private:
         void checkSuspendOnEffectEnabled(const sp<IAfEffectBase>& effect __unused,
                               bool enabled __unused, bool threadLocked __unused) override {}
         void resetVolume_l() override REQUIRES(audio_utils::EffectChain_Mutex) {}
-// QTI_BEGIN: 2024-07-10: Audio: audioflinger: initialize strategy to PRODUCT_STRATEGY_NONE
         product_strategy_t strategy() const override  { return PRODUCT_STRATEGY_NONE; }
-// QTI_END: 2024-07-10: Audio: audioflinger: initialize strategy to PRODUCT_STRATEGY_NONE
         int32_t activeTrackCnt() const override { return 0; }
         void onEffectEnable(const sp<IAfEffectBase>& effect __unused) override;
         void onEffectDisable(const sp<IAfEffectBase>& effect __unused) override;

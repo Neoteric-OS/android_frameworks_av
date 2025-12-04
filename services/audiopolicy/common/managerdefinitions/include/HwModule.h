@@ -127,10 +127,8 @@ public:
     // TODO remove from here (split serialization)
     void dump(String8 *dst, int spaces) const;
 
-// QTI_BEGIN: 2018-03-23: Audio: Check if A2DP playback happens via primary output
     OutputProfileCollection mOutputProfiles; // output profiles exposed by this module
 
-// QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
 private:
     void refreshSupportedDevices();
 
@@ -163,10 +161,8 @@ public:
                                         audio_format_t encodedFormat,
                                         std::string *tagName = nullptr) const;
 
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     sp<HwModule> getModuleForDevice(const sp<DeviceDescriptor> &device,
                                     audio_format_t encodedFormat) const;
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
     DeviceVector getAvailableDevicesFromModuleName(const char *name,
                                                    const DeviceVector &availableDevices) const;
@@ -183,9 +179,7 @@ public:
      * @param type of the device requested
      * @param address of the device requested
      * @param name of the device that requested
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
      * @param encodedFormat if not AUDIO_FORMAT_DEFAULT, must match one supported format
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
      * @param matchAddress true if a strong match is required
      * @param allowToCreate true if allowed to create dynamic device (e.g. hdmi, usb...)
      * @return device descriptor associated to the type (and address if matchAddress is true)
@@ -193,9 +187,7 @@ public:
     sp<DeviceDescriptor> getDeviceDescriptor(const audio_devices_t type,
                                              const char *address,
                                              const char *name,
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              audio_format_t encodedFormat,
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                              bool allowToCreate = false,
                                              bool matchAddress = true) const;
 
@@ -211,10 +203,8 @@ public:
      */
     sp<DeviceDescriptor> createDevice(const audio_devices_t type,
                                       const char *address,
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                       const char *name,
                                       const audio_format_t encodedFormat) const;
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
 
     /**
      * @brief cleanUpForDevice: loop on all profiles of all modules to remove device from

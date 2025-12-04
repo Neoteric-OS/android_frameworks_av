@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #define LOG_TAG "UsecaseValidator"
 // #define LOG_NDEBUG 0
 
@@ -100,10 +99,8 @@ class UsecaseValidatorImpl : public UsecaseValidator {
 
         audio_attributes_t attrRet = attributes;
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
         if (isUsageValid(attributes.usage) && isContentTypeValid(attributes.content_type)
                 && areFlagsValid(attributes.flags) && m_lookup.isGameStream(streamId)) {
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
             ALOGI("%s update usage: %d to AUDIO_USAGE_GAME for output: %d pid: %d package: %s",
                     __func__, attributes.usage, streamId, attributionSource.pid,
                     attributionSource.packageName.value_or("").c_str());
@@ -118,11 +115,9 @@ class UsecaseValidatorImpl : public UsecaseValidator {
     /**
      * Check if attribute usage valid.
      */
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     bool isUsageValid(audio_usage_t usage) {
         ALOGV("isUsageValid usage: %d", usage);
         switch (usage) {
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
             case AUDIO_USAGE_MEDIA:
             case AUDIO_USAGE_UNKNOWN:
                 return true;
@@ -132,7 +127,6 @@ class UsecaseValidatorImpl : public UsecaseValidator {
         return false;
     }
 
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library
     bool isContentTypeValid(audio_content_type_t contentType) {
         ALOGV("isContentTypeValid contentType: %d", contentType);
         switch (contentType) {
@@ -157,7 +151,6 @@ class UsecaseValidatorImpl : public UsecaseValidator {
         return false;
     }
 
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
  protected:
     UsecaseLookup m_lookup;
 };
@@ -170,4 +163,3 @@ std::unique_ptr<UsecaseValidator> createUsecaseValidator() {
 
 }  // namespace media
 }  // namespace android
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

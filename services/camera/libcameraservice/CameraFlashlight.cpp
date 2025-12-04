@@ -62,10 +62,8 @@ status_t CameraFlashlight::createFlashlightControl(const std::string& cameraId) 
 
 status_t CameraFlashlight::setTorchMode(const std::string& cameraId, bool enabled) {
     if (!mFlashlightMapInitialized) {
-// QTI_BEGIN: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         ALOGE("%s: findFlashUnits() must be called before this method.",
                __FUNCTION__);
-// QTI_END: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         return NO_INIT;
     }
 
@@ -223,10 +221,8 @@ bool CameraFlashlight::hasFlashUnit(const std::string& cameraId) {
 
 bool CameraFlashlight::hasFlashUnitLocked(const std::string& cameraId) {
     if (!mFlashlightMapInitialized) {
-// QTI_BEGIN: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         ALOGE("%s: findFlashUnits() must be called before this method.",
                __FUNCTION__);
-// QTI_END: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         return false;
     }
 
@@ -255,10 +251,8 @@ status_t CameraFlashlight::prepareDeviceOpen(const std::string& cameraId) {
 
     Mutex::Autolock l(mLock);
     if (!mFlashlightMapInitialized) {
-// QTI_BEGIN: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         ALOGE("%s: findFlashUnits() must be called before this method.",
                __FUNCTION__);
-// QTI_END: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         return NO_INIT;
     }
 
@@ -295,10 +289,8 @@ status_t CameraFlashlight::deviceClosed(const std::string& cameraId) {
 
     Mutex::Autolock l(mLock);
     if (!mFlashlightMapInitialized) {
-// QTI_BEGIN: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         ALOGE("%s: findFlashUnits() must be called before this method.",
                __FUNCTION__);
-// QTI_END: 2015-10-16: Camera: libcameraservice: Fix ALOG prints in FlashLight.
         return NO_INIT;
     }
 

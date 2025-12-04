@@ -142,9 +142,7 @@ public:
         MMAP_CAPTURE,   // Thread class for MMAP capture stream
         SPATIALIZER,    //
         BIT_PERFECT,    // Thread class for BitPerfectThread
-// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
         DIRECT_RECORD,  // Thread class for DirectRecordThread
-// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
         // When adding a value, also update IAfThreadBase::threadTypeToString()
     };
 

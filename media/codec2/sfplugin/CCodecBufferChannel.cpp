@@ -1439,9 +1439,7 @@ void CCodecBufferChannel::feedInputBufferIfAvailableInternal() {
         return;
     }
     size_t numActiveSlots = 0;
-// QTI_BEGIN: 2024-11-14: Video: sfplugin: Reset fixes of Pipeline watcher and CCodecBufferChannel
     while (!mPipelineWatcher.lock()->pipelineFull()) {
-// QTI_END: 2024-11-14: Video: sfplugin: Reset fixes of Pipeline watcher and CCodecBufferChannel
         sp<MediaCodecBuffer> inBuffer;
         size_t index;
         {
@@ -1616,13 +1614,10 @@ status_t CCodecBufferChannel::renderOutputBuffer(
         return UNKNOWN_ERROR;
     }
     const C2ConstGraphicBlock &block = blocks.front();
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     C2Fence c2fence = block.fence();
     sp<Fence> fence = Fence::NO_FENCE;
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     // TODO: it's not sufficient to just check isHW() and then construct android::fence from it.
     // Once C2Fence::type() is added, check the exact C2Fence type
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     if (c2fence.isHW()) {
         int fenceFd = c2fence.fd();
         fence = sp<Fence>::make(fenceFd);
@@ -1632,7 +1627,6 @@ status_t CCodecBufferChannel::renderOutputBuffer(
             return NO_MEMORY;
         }
     }
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 
     // TODO: revisit this after C2Fence implementation.
     IGraphicBufferProducer::QueueBufferInput qbi(
@@ -1645,9 +1639,7 @@ status_t CCodecBufferChannel::renderOutputBuffer(
                  blocks.front().crop().bottom()),
             videoScalingMode,
             transform,
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
             fence, 0);
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     if (hdrStaticInfo || hdrDynamicInfo) {
         HdrMetadata hdr;
         if (hdrStaticInfo) {

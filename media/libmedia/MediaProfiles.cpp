@@ -85,9 +85,7 @@ std::array<char const*, 5> const& getXmlPaths() {
 Mutex MediaProfiles::sLock;
 bool MediaProfiles::sIsInitialized = false;
 MediaProfiles *MediaProfiles::sInstance = NULL;
-// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 MediaProfiles::MediaProfiles_override *MediaProfiles::mMediaProfiles_override = NULL;
-// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 
 const MediaProfiles::NameToTagMap MediaProfiles::sVideoEncoderNameMap[] = {
     {"h263", VIDEO_ENCODER_H263},
@@ -182,11 +180,9 @@ const MediaProfiles::NameToTagMap MediaProfiles::sCamcorderQualityNameMap[] = {
     {"highspeed720p", CAMCORDER_QUALITY_HIGH_SPEED_720P},
     {"highspeed1080p", CAMCORDER_QUALITY_HIGH_SPEED_1080P},
     {"highspeed2160p", CAMCORDER_QUALITY_HIGH_SPEED_2160P},
-// QTI_BEGIN: 2018-02-07: Video: CamcorderProfiles: Add new camcorder profiles
     {"highspeedcif", CAMCORDER_QUALITY_HIGH_SPEED_CIF},
     {"highspeedvga", CAMCORDER_QUALITY_HIGH_SPEED_VGA},
     {"highspeed4kdci", CAMCORDER_QUALITY_HIGH_SPEED_4KDCI},
-// QTI_END: 2018-02-07: Video: CamcorderProfiles: Add new camcorder profiles
 
     // Vendor-specific profiles
 };
@@ -754,7 +750,6 @@ void MediaProfiles::addStartTimeOffset(int cameraId, const char** atts, size_t n
     mStartTimeOffsets.replaceValueFor(cameraId, offsetTimeMs);
 }
 
-// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ void
 MediaProfiles::startOverrideXmlElementHandler(void *userData, const char *name, const char **atts)
 {
@@ -898,7 +893,6 @@ MediaProfiles::startElementHandler_override(void *userData, const char *name, co
     }
 }
 
-// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ void
 MediaProfiles::startElementHandler(void *userData, const char *name, const char **atts)
 {
@@ -1219,7 +1213,6 @@ MediaProfiles::getInstance()
                         strlcpy(value, xmlPath.c_str(), PROPERTY_VALUE_MAX);
                         ALOGI("Profiles xml path: %s", value);
 // QTI_END: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
-// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
                         //Checking if QSPA is enabled
                         char qspaEnabled[PROPERTY_VALUE_MAX];
                         property_get("ro.boot.vendor.qspa", qspaEnabled, NULL);
@@ -1250,7 +1243,6 @@ MediaProfiles::getInstance()
                                 }
                             }
                         }
-// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 // QTI_BEGIN: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
                     }
 // QTI_END: 2020-08-04: Video: media: add support to pick profiles xml based on target variant
@@ -1510,7 +1502,6 @@ bool MediaProfiles::checkXmlFile(const char* xmlFile) {
     // TODO: Add validation
 }
 
-// QTI_BEGIN: 2023-11-22: Core: libmedia: Add support for media profiles override
 //Parsing the Qspa override xml file
 /*static*/ MediaProfiles::MediaProfiles_override*
 MediaProfiles::parseOverrideXmlFile(const char *xml)
@@ -1610,7 +1601,6 @@ MediaProfiles::createInstanceFromXmlFile_override(const char *xml, MediaProfiles
         return profiles;
 }
 
-// QTI_END: 2023-11-22: Core: libmedia: Add support for media profiles override
 /*static*/ MediaProfiles*
 MediaProfiles::createInstanceFromXmlFile(const char *xml)
 {

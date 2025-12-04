@@ -192,9 +192,7 @@ status_t EffectHalAidl::process() {
               mConversion->isBypassing()
                       ? "bypassing"
                       : aidl::android::hardware::audio::effect::toString(state).c_str());
-// QTI_BEGIN: 2023-09-19: Audio: av: change return value if effect is not processing
         return -ENODATA;
-// QTI_END: 2023-09-19: Audio: av: change return value if effect is not processing
     }
 
     const std::shared_ptr<android::hardware::EventFlag> efGroup = mConversion->getEventFlagGroup();

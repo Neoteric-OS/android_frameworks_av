@@ -28,9 +28,7 @@
 #include <media/stagefright/foundation/base64.h>
 #include <media/stagefright/MediaErrors.h>
 #include <media/stagefright/Utils.h>
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 #include <mediaplayerservice/AVMediaServiceExtensions.h>
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 #include <media/stagefright/FoundationUtils.h>
 
 #include <arpa/inet.h>
@@ -177,9 +175,7 @@ bool ARTSPConnection::ParseURL(
 // QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #ifndef __NO_AVEXTENSIONS__
 // QTI_END: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     const char *colonPos = AVMediaServiceUtils::get()->parseURL(host);
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 // QTI_BEGIN: 2019-05-06: Video: av: Strip avextension modifications for libmedia2_jni
 #else
     const char *colonPos = strchr(host->c_str(), ':');
@@ -265,13 +261,11 @@ void ARTSPConnection::onConnect(const sp<AMessage> &msg) {
         ALOGV("user = '%s', pass = '%s'", mUser.c_str(), mPass.c_str());
     }
 
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     performConnect(reply, host, port);
 }
 
 void ARTSPConnection::performConnect(const sp<AMessage> &reply,
         AString host, unsigned port) {
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     struct hostent *ent = gethostbyname(host.c_str());
     if (ent == NULL) {
         ALOGE("Unknown host %s", uriDebugString(host).c_str());
@@ -402,16 +396,12 @@ void ARTSPConnection::onCompleteConnection(const sp<AMessage> &msg) {
     socklen_t optionLen = sizeof(err);
     CHECK_EQ(getsockopt(mSocket, SOL_SOCKET, SO_ERROR, &err, &optionLen), 0);
     CHECK_EQ(optionLen, (socklen_t)sizeof(err));
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     performCompleteConnection(msg, err);
 }
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 void ARTSPConnection::performCompleteConnection(const sp<AMessage> &msg, int err) {
     sp<AMessage> reply;
     CHECK(msg->findMessage("reply", &reply));
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     if (err != 0) {
         ALOGE("err = %d (%s)", err, strerror(err));
 

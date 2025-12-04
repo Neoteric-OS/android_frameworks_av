@@ -18,10 +18,8 @@
 //#define LOG_NDEBUG 0
 // QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "StagefrightRecorder"
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Trace.h>
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #include <inttypes.h>
 // TODO/workaround: including base logging now as it conflicts with ADebug.h
 // and it must be included first.
@@ -2029,9 +2027,7 @@ void StagefrightRecorder::clipVideoFrameHeight() {
 // Set up the appropriate MediaSource depending on the chosen option
 status_t StagefrightRecorder::setupMediaSource(
                       sp<MediaSource> *mediaSource) {
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     if (mVideoSource == VIDEO_SOURCE_DEFAULT
             || mVideoSource == VIDEO_SOURCE_CAMERA) {
 // QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
@@ -2160,9 +2156,7 @@ status_t StagefrightRecorder::setupCameraSource(
 status_t StagefrightRecorder::setupVideoEncoder(
         const sp<MediaSource> &cameraSource,
         sp<MediaCodecSource> *source) {
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     source->clear();
 
     sp<AMessage> format = new AMessage();
@@ -2358,10 +2352,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
 // QTI_BEGIN: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
         format->setInt32("vendor.qti-ext-enc-nal-length-bs.num-bytes", 4);
 // QTI_END: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
-// QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
 
-// QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
 // QTI_BEGIN: 2018-12-18: Videp: libmediaplayerservice: Add native recorder key
     // Will send this info to encoder component for custom optimizations
     format->setInt32("isNativeRecorder", 1);
@@ -2400,9 +2392,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
 // QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 status_t StagefrightRecorder::setupAudioEncoder() {
 // QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     status_t status = BAD_VALUE;
     if (OK != (status = checkAudioEncoderCapabilities())) {
         return status;
@@ -2676,9 +2666,7 @@ status_t StagefrightRecorder::resume() {
 // QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
         // 30 ms buffer to avoid timestamp overlap
 // QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
-// QTI_BEGIN: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
         mTotalPausedDurationUs += resumeStartTimeUs - mPauseStartTimeUs - 30000;
-// QTI_END: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
     }
     double timeOffset = -mTotalPausedDurationUs;
     if (mCaptureFpsEnable && (mVideoSource == VIDEO_SOURCE_CAMERA) &&

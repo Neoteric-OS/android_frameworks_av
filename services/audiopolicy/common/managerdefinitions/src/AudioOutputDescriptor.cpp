@@ -130,18 +130,12 @@ void AudioOutputDescriptor::setClientActive(const sp<TrackClientDescriptor>& cli
     client->setActive(active);
 }
 
-// QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
 bool AudioOutputDescriptor::isClientActive(const sp<TrackClientDescriptor>& client)
 {
-// QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
-// QTI_BEGIN: 2020-12-01: Audio: audiopolicy: stop output if it's still active before being released.
     return client != nullptr &&
             std::find(begin(mActiveClients), end(mActiveClients), client) != end(mActiveClients);
-// QTI_END: 2020-12-01: Audio: audiopolicy: stop output if it's still active before being released.
-// QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
 }
 
-// QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
 bool AudioOutputDescriptor::isActive(VolumeSource vs, uint32_t inPastMs, nsecs_t sysTime) const
 {
     return (vs == VOLUME_SOURCE_NONE) ?
@@ -1057,19 +1051,16 @@ bool SwAudioOutputCollection::isA2dpOnPrimary() const
 }
 
 // QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-// QTI_BEGIN: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
 bool SwAudioOutputCollection::isA2dpOffloadedOnPrimary() const
 {
     sp<SwAudioOutputDescriptor> primaryOutput = getPrimaryOutput();
 
     if ((primaryOutput != NULL) && (primaryOutput->mProfile != NULL)
-// QTI_END: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
         && (primaryOutput->mProfile->getModule() != NULL)) {
         sp<HwModule> primaryHwModule = primaryOutput->mProfile->getModule();
 
         for (const auto &outputProfile : primaryHwModule->getOutputProfiles()) {
             if (outputProfile->supportsDeviceTypes(getAudioDeviceOutAllA2dpSet())) {
-// QTI_BEGIN: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
                 return true;
             }
         }
@@ -1077,7 +1068,6 @@ bool SwAudioOutputCollection::isA2dpOffloadedOnPrimary() const
     return false;
 }
 
-// QTI_END: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
 sp<SwAudioOutputDescriptor> SwAudioOutputCollection::getPrimaryOutput() const
 {
     for (size_t i = 0; i < size(); i++) {
@@ -1166,7 +1156,6 @@ bool SwAudioOutputCollection::isUsageActiveOnDevice(audio_usage_t usage,
     return false;
 }
 
-// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 std::string SwAudioOutputDescriptor::info() const {
     std::string result;
     result.append("[" );
@@ -1174,14 +1163,11 @@ std::string SwAudioOutputDescriptor::info() const {
     result.append("[io:" );
     result.append(android::internal::ToString(mIoHandle));
     result.append(", " );
-// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     result.append(isDuplicated() ? "duplicating" : mProfile->getTagName());
-// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     result.append("]]");
     return result;
 }
 
-// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 void SwAudioOutputCollection::dump(String8 *dst) const
 {
     dst->appendFormat("\n Outputs (%zu):\n", size());

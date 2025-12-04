@@ -99,9 +99,7 @@ static const char kMetaKey_Model[]      = "com.android.model";
 static const char kMetaKey_Build[]      = "com.android.build";
 #endif
 static const char kMetaKey_CaptureFps[] = "com.android.capture.fps";
-// QTI_BEGIN: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 static const char kMetaKey_TemporalLayerCount[] = "com.android.video.temporal_layers_count";
-// QTI_END: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 
 static const int kTimestampDebugCount = 10;
 static const int kItemIdBase = 10000;
@@ -1803,9 +1801,7 @@ void MPEG4Writer::addMultipleLengthPrefixedSamples_l(MediaBuffer *buffer) {
     const uint8_t *nextNalStart;
     const uint8_t *data = dataStart;
     size_t nextNalSize;
-// QTI_BEGIN: 2020-09-03: Video: Revert "Stagefright: Reduce NAL search range for AVC"
     size_t searchSize = buffer->range_length();
-// QTI_END: 2020-09-03: Video: Revert "Stagefright: Reduce NAL search range for AVC"
 
     while (getNextNALUnit(&data, &searchSize, &nextNalStart,
             &nextNalSize, true) == OK) {
@@ -2089,7 +2085,6 @@ status_t MPEG4Writer::setCaptureRate(float captureFps) {
     return OK;
 }
 
-// QTI_BEGIN: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
     if (layerCount > 9) {
         return BAD_VALUE;
@@ -2103,7 +2098,6 @@ status_t MPEG4Writer::setTemporalLayerCount(uint32_t layerCount) {
     return OK;
 }
 
-// QTI_END: 2016-07-12: Audio: stagefright: Enhance MPEG4 writer/extractor to store/retrieve layer info
 void MPEG4Writer::notifyApproachingLimit() {
     Mutex::Autolock autolock(mLock);
     // Only notify once.

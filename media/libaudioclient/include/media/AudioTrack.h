@@ -465,9 +465,7 @@ public:
      * This includes the latency due to AudioTrack buffer size, AudioMixer (if any)
      * and audio hardware driver.
      */
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             uint32_t    latency();
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 
     /* Returns the number of application-level buffer underruns
      * since the AudioTrack was created.
@@ -1195,10 +1193,8 @@ public:
 
             // caller must hold lock on mLock for all _l methods
 
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             void updateLatency_l(); // updates mAfLatency and mLatency from AudioSystem cache
 
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             status_t createTrack_l();
 
             // can only be called when mState != STATE_ACTIVE
@@ -1239,9 +1235,7 @@ public:
             Modulo<uint32_t> updateAndGetPosition_l();
 
             // check sample rate and speed is compatible with AudioTrack
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             bool     isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed);
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 
             void     restartIfDisabled();
 

@@ -23,9 +23,7 @@
 #include <camera/CameraUtils.h>
 #include <gui/Surface.h>
 #include <gui/view/Surface.h>
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <media/hardware/HardwareAPI.h>
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <stdint.h>
 #include <sys/types.h>
 #include <utils/Log.h>

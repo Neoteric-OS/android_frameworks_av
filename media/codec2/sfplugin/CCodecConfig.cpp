@@ -1237,9 +1237,7 @@ status_t CCodecConfig::subscribeToConfigUpdate(
         (kBoardApiLevel != 0) ? kBoardApiLevel : kProductFirstApiLevel;
     mSubscribedIndices.insert(indices.begin(), indices.end());
     if (mSubscribedIndices.size() != mSubscribedIndicesSize
-// QTI_BEGIN: 2022-10-06: Video: Revert "sfplugin WA: disable subscribing to config update"
             && kFirstApiLevel >= __ANDROID_API_T__) {
-// QTI_END: 2022-10-06: Video: Revert "sfplugin WA: disable subscribing to config update"
         std::vector<uint32_t> indicesVector;
         for (C2Param::Index ix : mSubscribedIndices) {
             indicesVector.push_back(ix);
@@ -2220,11 +2218,9 @@ status_t CCodecConfig::querySupportedParameters(std::vector<std::string> *names)
     names->clear();
     // TODO: expand to standard params
     for (const auto &[key, desc] : mVendorParams) {
-// QTI_BEGIN: 2022-03-24: Video: CodecConfig: Hide vendor params that are marked hidden
         if (desc->isVisible()) {
             names->push_back(key);
         }
-// QTI_END: 2022-03-24: Video: CodecConfig: Hide vendor params that are marked hidden
     }
     return OK;
 }

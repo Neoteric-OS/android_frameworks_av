@@ -297,9 +297,7 @@ sp<IMemory> StagefrightMetadataRetriever::getImageInternal(
 
     for (size_t i = 0; i < matchingCodecs.size(); ++i) {
         const AString &componentName = matchingCodecs[i];
-// QTI_BEGIN: 2021-03-06: Video: media: Rename ImageDecoder class
         sp<MediaImageDecoder> decoder = new MediaImageDecoder(componentName, trackMeta, source);
-// QTI_END: 2021-03-06: Video: media: Rename ImageDecoder class
         int64_t frameTimeUs = thumbnail ? -1 : 0;
         if (decoder->init(frameTimeUs, 0 /*option*/, colorFormat) == OK) {
             sp<IMemory> frame = decoder->extractFrame(rect);

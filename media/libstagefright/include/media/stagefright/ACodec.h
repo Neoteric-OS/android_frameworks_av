@@ -177,9 +177,7 @@ protected:
         kFlagIsSecure                                 = 1,
         kFlagPushBlankBuffersToNativeWindowOnShutdown = 2,
         kFlagIsGrallocUsageProtected                  = 4,
-// QTI_BEGIN: 2020-01-21: Video: Disconnect from native window for secure case
         kFlagPreregisterMetadataBuffers               = 8,
-// QTI_END: 2020-01-21: Video: Disconnect from native window for secure case
     };
 
     enum {

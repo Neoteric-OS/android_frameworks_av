@@ -2,22 +2,16 @@
 **
 ** Copyright 2008, The Android Open Source Project
 **
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
 ** You may obtain a copy of the License at
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 **
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 **     http://www.apache.org/licenses/LICENSE-2.0
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 **
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 ** Unless required by applicable law or agreed to in writing, software
 ** distributed under the License is distributed on an "AS IS" BASIS,
 ** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ** See the License for the specific language governing permissions and
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 ** limitations under the License.
 */
 
@@ -26,13 +20,9 @@
 #include <utils/Log.h>
 #include <stdint.h>
 #include <sys/types.h>
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <camera/CameraUtils.h>
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <android/hardware/ICameraClient.h>
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <media/hardware/HardwareAPI.h>
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 
 namespace android {
 namespace hardware {
@@ -201,10 +191,8 @@ status_t BnCameraClient::onTransact(
             if (handle == nullptr) {
                 ALOGE("%s: Received a null native handle", __FUNCTION__);
                 return BAD_VALUE;
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
             }
 
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
             // The native handle will be freed in BpCamera::releaseRecordingFrameHandle.
             recordingFrameHandleCallbackTimestamp(timestamp, handle);
             return NO_ERROR;

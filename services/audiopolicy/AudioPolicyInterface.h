@@ -121,10 +121,8 @@ public:
     // indicate a change in device configuration
     virtual status_t handleDeviceConfigChange(audio_devices_t device,
                                               const char *device_address,
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
                                               const char *device_name,
                                               audio_format_t encodedFormat) = 0;
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     // indicate a change in phone state. Valid phones states are defined by audio_mode_t
     virtual void setPhoneState(audio_mode_t state) = 0;
     // force using a specific device category for the specified usage
@@ -730,16 +728,12 @@ public:
                                                               const PermissionReqs& req) = 0;
 };
 
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     // These are the signatures of createAudioPolicyManager/destroyAudioPolicyManager
     // methods respectively, expected by AudioPolicyService, needs to be exposed by
     // libaudiopolicymanagercustom.
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     using CreateAudioPolicyManagerInstance =
             AudioPolicyInterface* (*)(AudioPolicyClientInterface*);
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
     using DestroyAudioPolicyManagerInstance = void (*)(AudioPolicyInterface*);
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
 
 } // namespace android
 
