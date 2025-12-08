@@ -49,6 +49,7 @@
 #include <mpeg2ts/ATSParser.h>
 #include <gui/Surface.h>
 
+#undef ATRACE_TAG
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 #include <utils/Trace.h>
 
