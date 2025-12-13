@@ -35,9 +35,7 @@
 #include <functional>
 
 #include <media/stagefright/MediaSource.h>
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 #include <media/stagefright/foundation/ABitReader.h>
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 #include <media/stagefright/foundation/ADebug.h>
 #include <media/stagefright/foundation/AMessage.h>
 #include <media/stagefright/foundation/ALookup.h>
@@ -361,9 +359,7 @@ public:
     bool mIsAvif;
     bool mIsHeif;
     bool mIsMPEG4;
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     bool mIsMPEGH;
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     bool mGotStartKeyFrame;
     bool mIsMalformed;
     TrackId mTrackId;
@@ -479,9 +475,7 @@ public:
 
     status_t getDolbyVisionProfile();
 
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     status_t parseMHASPackets(MediaBufferBase *buffer);
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     // Track authoring progress status
     void trackProgressStatus(int64_t timeUs, status_t err = OK);
     void initTrackingProgressStatus(MetaData *params);
@@ -536,9 +530,7 @@ public:
     void writeMdcvAndClliBoxes();
     void writeMp4aEsdsBox();
     void writeMp4vEsdsBox();
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     void writeMhaCBox();
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     void writeAudioFourCCBox();
     void writeVideoFourCCBox();
     void writeMetadataFourCCBox();
@@ -714,10 +706,8 @@ const char *MPEG4Writer::Track::getFourCCForMime(const char *mime) {
             return "sawb";
         } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime)) {
             return "mp4a";
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime)) {
             return "mhm1";
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         }
     } else if (!strncasecmp(mime, "video/", 6)) {
         if (!strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime)) {
@@ -2390,9 +2380,7 @@ MPEG4Writer::Track::Track(MPEG4Writer* owner, const sp<MediaSource>& source, uin
     mIsHeif = mIsHeic || mIsAvif;
     mIsMPEG4 = !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4) ||
                !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC);
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     mIsMPEGH = !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_MHAS);
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 
 // QTI_BEGIN: 2021-03-19: Video: libstagefright: Add changes to handle multiple slices in writer
     if (!mMeta->findInt32(kKeyFeatureNalLengthBitstream, &mNalLengthBitstream)) {
@@ -3806,7 +3794,6 @@ status_t MPEG4Writer::Track::getDolbyVisionProfile() {
     return OK;
 }
 
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 uint32_t parseEscaped(ABitReader &br, uint32_t bits1 = 0,
                       uint32_t bits2 = 0, uint32_t bits3 = 0) {
   if (bits1 == 0)
@@ -3848,7 +3835,6 @@ status_t MPEG4Writer::Track::parseMHASPackets(MediaBufferBase *buffer) {
     return (size == 0) ? OK : ERROR_MALFORMED;
 }
 
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 /*
  * Updates the drift time from the audio track so that
  * the video track can get the updated drift time information
@@ -4118,7 +4104,6 @@ status_t MPEG4Writer::Track::threadEntry() {
         }
         ALOGV("sampleFileOffset:%lld", (long long)sampleFileOffset);
 
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         if (mIsMPEGH && !mGotAllCodecSpecificData) {
             err = parseMHASPackets(buffer);
             if (OK != err || !mGotAllCodecSpecificData) {
@@ -4129,7 +4114,6 @@ status_t MPEG4Writer::Track::threadEntry() {
             }
         }
 
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         /*
          * Reserve space in the file for the current sample + to be written MOOV box. If reservation
          * for a new sample fails, preAllocate(...) stops muxing session completely. Stop() could
@@ -4818,9 +4802,7 @@ status_t MPEG4Writer::Track::checkCodecSpecificData() const {
     const char *mime;
     CHECK(mMeta->findCString(kKeyMIMEType, &mime));
     if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AAC, mime) ||
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         !strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime) ||
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime) ||
         !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime) ||
@@ -5137,10 +5119,8 @@ void MPEG4Writer::Track::writeAudioFourCCBox() {
     } else if (!strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_NB, mime) ||
                !strcasecmp(MEDIA_MIMETYPE_AUDIO_AMR_WB, mime)) {
         writeDamrBox();
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     } else if(!strcasecmp(MEDIA_MIMETYPE_AUDIO_MHAS, mime)) {
         writeMhaCBox();
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
     }
     mOwner->endBox();
 }
@@ -5272,7 +5252,6 @@ void MPEG4Writer::Track::writeMp4vEsdsBox() {
 
     mOwner->endBox();  // esds
 }
-// QTI_BEGIN: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 void MPEG4Writer::Track::writeMhaCBox() {
     mOwner->beginBox("mhaC");
     mOwner->writeInt8(0x01);          // version=1
@@ -5285,7 +5264,6 @@ void MPEG4Writer::Track::writeMhaCBox() {
 
     mOwner->endBox();  // mhaC
 }
-// QTI_END: 2019-06-07: Video: av: Add MPEG-H track support in MP4 muxer
 
 void MPEG4Writer::Track::writeTkhdBox(uint32_t now) {
     mOwner->beginBox("tkhd");
