@@ -17,9 +17,7 @@
 #include <inttypes.h>
 
 #define LOG_TAG "GraphicBufferSource"
-// QTI_BEGIN: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 //#define LOG_NDEBUG 0
-// QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #include <utils/Log.h>
 
 #define STRINGIFY_ENUMS // for asString in HardwareAPI.h/VideoAPI.h
@@ -37,7 +35,9 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/bufferqueue/1.0/WGraphicBufferProducer.h>
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 #include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <media/hardware/HardwareAPI.h>
@@ -408,12 +408,14 @@ GraphicBufferSource::getHGraphicBufferProducer_V1_0() const {
     return new TWGraphicBufferProducer(getIGraphicBufferProducer());
 }
 
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 sp<::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer>
 GraphicBufferSource::getHGraphicBufferProducer() const {
     return new ::android::hardware::graphics::bufferqueue::V2_0::utils::
                     B2HGraphicBufferProducer(getIGraphicBufferProducer());
 }
 
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 status_t GraphicBufferSource::start() {
     Mutex::Autolock autoLock(mMutex);
     ALOGV("--> start; available=%zu, submittable=%zd",
@@ -569,7 +571,7 @@ status_t GraphicBufferSource::onInputBufferEmptied(codec_buffer_id bufferId, int
 
     if (haveAvailableBuffers_l()) {
         // Fill this codec buffer.
-// QTI_BEGIN: 2025-05-29: Video: libstagefright_bufferqueue_helper: Update EOS-buffer releasing mechanism
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
         if (!mEndOfStreamSent) {
             ALOGV("onInputBufferEmptied: buffer freed, feeding codec (available=%zu+%d, eos=%d)",
                     mAvailableBuffers.size(), mNumAvailableUnacquiredBuffers, mEndOfStream);
@@ -577,7 +579,7 @@ status_t GraphicBufferSource::onInputBufferEmptied(codec_buffer_id bufferId, int
         } else {
             releaseAllAvailableBuffers_l();
         }
-// QTI_END: 2025-05-29: Video: libstagefright_bufferqueue_helper: Update EOS-buffer releasing mechanism
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     } else if (mEndOfStream && mStopTimeUs == -1) {
         // No frames available, but EOS is pending and no stop time, so use this buffer to
         // send that.
@@ -818,9 +820,9 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
 
     if (mCaptureFps > 0.
             && (mFps > 2 * mCaptureFps
-// QTI_BEGIN: 2018-04-30: Video: libstagefright: Allow HFR-60 in HAL-3 recording
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
             || mCaptureFps > mFps)) {
-// QTI_END: 2018-04-30: Video: libstagefright: Allow HFR-60 in HAL-3 recording
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
         // Time lapse or slow motion mode
         if (mPrevCaptureUs < 0LL) {
             // first capture
@@ -1403,11 +1405,11 @@ status_t GraphicBufferSource::setTimeLapseConfig(double fps, double captureFps) 
     if (captureFps > fps) {
         mSnapTimestamps = 1 == base::GetIntProperty(
                 "debug.stagefright.snap_timestamps", int64_t(0));
-// QTI_BEGIN: 2020-04-30: Video: GraphicBufferSource: Enable timestamp snapping in timelapse mode
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     } else if (fps > 2 * captureFps) {
         // Timelapse mode
         mSnapTimestamps = true;
-// QTI_END: 2020-04-30: Video: GraphicBufferSource: Enable timestamp snapping in timelapse mode
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     } else {
         mSnapTimestamps = false;
     }
