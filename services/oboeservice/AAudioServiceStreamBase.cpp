@@ -130,16 +130,16 @@ void AAudioServiceStreamBase::logOpen(aaudio_handle_t streamHandle) {
         .set(AMEDIAMETRICS_PROP_BUFFERCAPACITYFRAMES, (int32_t)getBufferCapacity())
         .set(AMEDIAMETRICS_PROP_BURSTFRAMES, (int32_t)getFramesPerBurst())
         .set(AMEDIAMETRICS_PROP_CHANNELCOUNT, (int32_t)getSamplesPerFrame())
-        .set(AMEDIAMETRICS_PROP_CONTENTTYPE, toString(attributes.content_type).c_str())
+        .set(AMEDIAMETRICS_PROP_CONTENTTYPE, android::toString(attributes.content_type).c_str())
         .set(AMEDIAMETRICS_PROP_DIRECTION,
                 AudioGlobal_convertDirectionToText(getDirection()))
-        .set(AMEDIAMETRICS_PROP_ENCODING, toString(getFormat()).c_str())
+        .set(AMEDIAMETRICS_PROP_ENCODING, android::toString(getFormat()).c_str())
         .set(AMEDIAMETRICS_PROP_ROUTEDDEVICEID, android::getFirstDeviceId(getDeviceIds()))
         .set(AMEDIAMETRICS_PROP_ROUTEDDEVICEIDS, android::toString(getDeviceIds()).c_str())
         .set(AMEDIAMETRICS_PROP_SAMPLERATE, (int32_t)getSampleRate())
         .set(AMEDIAMETRICS_PROP_SESSIONID, (int32_t)getSessionId())
-        .set(AMEDIAMETRICS_PROP_SOURCE, toString(attributes.source).c_str())
-        .set(AMEDIAMETRICS_PROP_USAGE, toString(attributes.usage).c_str())
+        .set(AMEDIAMETRICS_PROP_SOURCE, android::toString(attributes.source).c_str())
+        .set(AMEDIAMETRICS_PROP_USAGE, android::toString(attributes.usage).c_str())
         .record();
 }
 
@@ -204,8 +204,9 @@ error:
     return result;
 }
 
-aaudio_result_t AAudioServiceStreamBase::close() {
-    aaudio_result_t result = sendCommand(CLOSE, nullptr, true /*waitForReply*/, TIMEOUT_NANOS);
+aaudio_result_t AAudioServiceStreamBase::close(bool force) {
+    aaudio_result_t result = sendCommand(
+            CLOSE, std::make_shared<CloseParam>(force), true /*waitForReply*/, TIMEOUT_NANOS);
     if (result == AAUDIO_ERROR_ALREADY_CLOSED) {
         // AAUDIO_ERROR_ALREADY_CLOSED is not a really error but just indicate the stream has
         // already been closed. In that case, there is no need to close the stream once more.
@@ -426,10 +427,10 @@ aaudio_result_t AAudioServiceStreamBase::updateTimestamp() {
     return sendCommand(UPDATE_TIMESTAMP, nullptr /*param*/, true /*waitForReply*/, TIMEOUT_NANOS);
 }
 
-aaudio_result_t AAudioServiceStreamBase::drain(int64_t wakeUpNanos, bool allowSoftWakeUp,
+aaudio_result_t AAudioServiceStreamBase::drain(int64_t wakeUpNanos, DrainType drainType,
                                                TimerQueue::handle_t* handle) {
     return sendCommand(DRAIN,
-                       std::make_shared<DrainParam>(wakeUpNanos, allowSoftWakeUp, handle),
+                       std::make_shared<DrainParam>(wakeUpNanos, drainType, handle),
                        true /*waitForReply*/,
                        TIMEOUT_NANOS);
 }
@@ -573,7 +574,7 @@ void AAudioServiceStreamBase::run() {
     int64_t nextTimestampReportTime = std::numeric_limits<int64_t>::max();
     int64_t nextDataReportTime = std::numeric_limits<int64_t>::max();
     // When to try to enter standby.
-    int64_t standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
+    mStandbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
     // Balance the incStrong from when the thread was launched.
     holdStream->decStrong(nullptr);
 
@@ -585,10 +586,10 @@ void AAudioServiceStreamBase::run() {
     while (mThreadEnabled.load()) {
         loopCount++;
         int64_t timeoutNanos = -1; // wait forever
-        if (isDisconnected_l() || isIdle_l()) {
+        if (isDisconnected_l() || isIdle()) {
             if (isStandbyImplemented() && !isStandby_l()) {
                 // If not in standby mode, wait until standby time.
-                timeoutNanos = standbyTime - AudioClock::getNanoseconds();
+                timeoutNanos = mStandbyTime - AudioClock::getNanoseconds();
                 timeoutNanos = std::max<int64_t>(0, timeoutNanos);
             }
             // Otherwise, keep `timeoutNanos` as -1 to wait forever until next command.
@@ -629,16 +630,16 @@ void AAudioServiceStreamBase::run() {
         }
 
         // Is it time to enter standby?
-        if ((isIdle_l() || isDisconnected_l())
+        if ((isIdle() || isDisconnected_l())
                 && isStandbyImplemented()
                 && !isStandby_l()
-                && (AudioClock::getNanoseconds() >= standbyTime)) {
+                && (AudioClock::getNanoseconds() >= mStandbyTime)) {
             ALOGD("%s() call standby_l(), %d loops", __func__, loopCount);
             aaudio_result_t result = standby_l();
             if (result != AAUDIO_OK) {
                 ALOGW("Failed to enter standby, error = %d", result);
                 // Try again later.
-                standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
+                mStandbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
             }
         }
 
@@ -696,11 +697,9 @@ void AAudioServiceStreamBase::run() {
                     nextDataReportTime = nextDataReportTime_l();
                     ALOGV("%s: SoundDose nextDataReportTime: %lld",
                             __func__, (long long)nextDataReportTime);
-                    standbyTime = std::numeric_limits<int64_t>::max();
                 } break;
                 case PAUSE: {
                     command->result = pause_l();
-                    standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
                 } break;
                 case STOP: {
                     if (mIsDraining && !isDisconnected_l()) {
@@ -710,16 +709,16 @@ void AAudioServiceStreamBase::run() {
                         command->result = AAUDIO_OK;
                     } else {
                         command->result = stop_l();
-                        standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
                     }
                 } break;
                 case FLUSH: {
                     command->result = flush_l();
                 } break;
                 case CLOSE: {
-                    // When the stream is draining and not disconnected, close the stream when
-                    // all data is drained and waken up by audio flinger.
-                    bool shouldDeferClose = (mIsDraining && !isDisconnected_l());
+                    // When the stream is draining and not disconnected and it is not a force close,
+                    // close the stream when all data is drained and waken up by audio flinger.
+                    const auto param = (CloseParam *) command->parameter.get();
+                    bool shouldDeferClose = (!param->mForce && mIsDraining && !isDisconnected_l());
                     command->result = close_l(shouldDeferClose);
                 } break;
                 case DISCONNECT: {
@@ -752,7 +751,6 @@ void AAudioServiceStreamBase::run() {
                     auto param = (ExitStandbyParam *) command->parameter.get();
                     command->result = param == nullptr ? AAUDIO_ERROR_ILLEGAL_ARGUMENT
                                                        : exitStandby_l(param->mParcelable);
-                    standbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
                 } break;
                 case START_CLIENT: {
                     auto param = (StartClientParam *) command->parameter.get();
@@ -776,14 +774,32 @@ void AAudioServiceStreamBase::run() {
                     }
                     ALOGV("%s: DRAIN SoundDose report data", __func__);
                     reportData_l();
+                    auto param = (DrainParam *) command->parameter.get();
+                    if (param->mDrainType == DrainType::DRAIN_ALL_WITHOUT_WAKEUP_CALLBACK) {
+                        // DRAIN_ALL_WITHOUT_WAKEUP_CALLBACK indicates this is a short period of
+                        // drain. This doesn't require to setup an alarm to wakeup on the scheduled
+                        // time. In this case, the device is not expected to suspend. Deferring the
+                        // timestamp and data report time to wakeup time since there is not new
+                        // data written when this is called and the client is not going to consume
+                        // and timestamp.
+                        const int64_t currentNanos = AudioClock::getNanoseconds();
+                        const int64_t diffNanos =
+                                param->mWakeUpNanos - AudioClock::getNanoseconds(CLOCK_BOOTTIME);
+                        nextDataReportTime = currentNanos + diffNanos;
+                        nextTimestampReportTime = currentNanos + diffNanos;
+                        command->result = AAUDIO_OK;
+                        break;
+                    }
                     timestampScheduler.stop();
                     nextDataReportTime = std::numeric_limits<int64_t>::max();
                     mIsDraining = true;
                     sp<AAudioServiceEndpoint> endpoint = mServiceEndpointWeak.promote();
                     if (endpoint != nullptr) {
-                        auto param = (DrainParam *) command->parameter.get();
                         command->result = endpoint->drain(
-                                param->mWakeUpNanos, param->mAllowSoftWakeUp, param->mHandle);
+                                param->mWakeUpNanos,
+                                // Do not allow soft wake up when it is needed to drain all data.
+                                param->mDrainType != DrainType::DRAIN_ALL_DATA /*allowSoftWakeUp*/,
+                                param->mHandle);
                         if (command->result == AAUDIO_OK) {
                             mTQWakeUpHandle = *param->mHandle;
                         }
@@ -859,6 +875,7 @@ void AAudioServiceStreamBase::disconnect() {
 
 void AAudioServiceStreamBase::disconnect_l() {
     if (!isDisconnected_l() && getState() != AAUDIO_STREAM_STATE_CLOSED) {
+        mStandbyTime = AudioClock::getNanoseconds();
 
         mediametrics::LogItem(mMetricsId)
             .set(AMEDIAMETRICS_PROP_EVENT, AMEDIAMETRICS_PROP_EVENT_VALUE_DISCONNECT)
@@ -919,6 +936,11 @@ void AAudioServiceStreamBase::setState(aaudio_stream_state_t state) {
     // CLOSED is a final state.
     if (mState != AAUDIO_STREAM_STATE_CLOSED) {
         mState = state;
+        if (isIdle()) {
+            mStandbyTime = AudioClock::getNanoseconds() + IDLE_TIMEOUT_NANOS;
+        } else if (mState == AAUDIO_STREAM_STATE_STARTED) {
+            mStandbyTime = std::numeric_limits<int64_t>::max();
+        }
     } else {
         ALOGW_IF(mState != state, "%s(%d) when already CLOSED", __func__, state);
     }

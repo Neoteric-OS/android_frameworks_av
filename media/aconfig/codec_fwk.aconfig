@@ -1,10 +1,9 @@
 # Codec framework feature flags.
-#
-# !!! Please add flags in alphabetical order. !!!
 
 package: "android.media.codec"
 container: "system"
 
+# go/keep-sorted start block=yes newline_separated=yes by_regex=name:\s*"([^"]+)"
 flag {
   name: "aidl_hal_input_surface"
   is_exported: true
@@ -84,6 +83,13 @@ flag {
   namespace: "codec_fwk"
   description: "Feature flag for dynamic color aspect support"
   bug: "297914560"
+}
+
+flag {
+  name: "dynamic_operating_mode_switch"
+  namespace: "codec_fwk"
+  description: "Feature flag for supporting dynamic operating mode switch"
+  bug: "448167144"
 }
 
 flag {
@@ -208,6 +214,13 @@ flag {
 }
 
 flag {
+  name: "retry_decrypt_for_hdcp_failure"
+  namespace: "codec_fwk"
+  description: "Feature flag retrying decryption upon HDCP failure"
+  bug: "338440115"
+}
+
+flag {
   name: "secure_codecs_require_crypto"
   namespace: "codec_fwk"
   description: "Bugfix flag for requiring setting crypto for secure codecs"
@@ -283,3 +296,4 @@ flag {
   bug: "426238242"
   is_exported: true
 }
+# go/keep-sorted end

@@ -29,6 +29,7 @@
 // go/keep-sorted start
 #include <algorithm>
 #include <functional>
+#include <map>
 #include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,13 +38,21 @@
 
 /**
  * Convert an AAudio result into the closest matching Android status.
+ * The conversion will first find the value from customizedMap and then fallback to standard
+ * conversion.
  */
-android::status_t AAudioConvert_aaudioToAndroidStatus(aaudio_result_t result);
+android::status_t AAudioConvert_aaudioToAndroidStatus(
+        aaudio_result_t result,
+        const std::map<aaudio_result_t, android::status_t>& customizedMap = {});
 
 /**
  * Convert an Android status into the closest matching AAudio result.
+ * The conversion will first find the value from customizedMap and then fallback to standard
+ * conversion.
  */
-aaudio_result_t AAudioConvert_androidToAAudioResult(android::status_t status);
+aaudio_result_t AAudioConvert_androidToAAudioResult(
+        android::status_t status,
+        const std::map<android::status_t, aaudio_result_t>& customizedMap = {});
 
 /**
  * Convert an aaudio_session_id_t to a value that is safe to pass to AudioFlinger.
@@ -392,5 +401,25 @@ static inline bool isAAudioPlaybackParametersEqual(
             p1.stretchMode == p2.stretchMode &&
             p1.fallbackMode == p2.fallbackMode;
 }
+
+/**
+ * Constants to describe if the capture is privacy sensitive.
+ */
+enum {
+    /**
+     * Let the framework decide the privacy sensitivity. By default, communication and
+     * camcorder captures are considered privacy sensitive
+     */
+    PRIVACY_SENSITIVE_DEFAULT = -1,
+    /**
+     * The capture is not privacy sensitive.
+     */
+    PRIVACY_SENSITIVE_DISABLED = 0,
+    /**
+     * The capture is privacy sensitive.
+     */
+    PRIVACY_SENSITIVE_ENABLED = 1,
+};
+typedef int32_t privacy_sensitive_t;
 
 #endif //UTILITY_AAUDIO_UTILITIES_H

@@ -216,6 +216,14 @@ support."
 }
 
 flag {
+    name: "manage_assistant_audio_permission"
+    namespace: "media_audio"
+    description: "Add new permission for managing the assistant audio experience"
+    bug: "442485756"
+    is_exported: true
+}
+
+flag {
     name: "mute_background_audio"
     namespace: "media_audio"
     description: "mute audio playing in background"
@@ -228,6 +236,13 @@ flag {
     description: "Playback monitoring flag used when player muted by port volume"
     bug: "319515324"
     is_exported: true
+}
+
+flag {
+    name: "partial_flush_for_pcm_offload"
+    namespace: "media_audio"
+    description: "Partial flush support for classical PCM offload"
+    bug: "428981741"
 }
 
 flag {
@@ -356,4 +371,12 @@ flag {
             "callback APIs"
     bug: "402502314"
     is_fixed_read_only: true
+}
+
+flag {
+    name: "support_per_phone_account_ringtone"
+    namespace: "telecom"
+    description: "Support setting ringtone separately for each PhoneAccountHandle"
+    bug: "118735436"
+    is_exported: true
 }

@@ -270,6 +270,24 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
                                                          audio_policy_dev_state_t state,
                                                          bool deviceSwitch)
 {
+    auto skipCheckingConnect = [&] (auto type) {
+        // For ARC/eARC devices, a device connection can be received for an already
+        // connected device when the SAD(Sink Audio Capabilities) changes.
+        // Old flow:
+        // 1. Connect ARC/eARC with empty SAD.
+        // 2. Disconnect ARC/eARC.
+        // 3. Reconnect ARC/eARC with SAD.
+        //
+        // New flow:
+        // 1. Connect ARC/eARC with empty SAD.
+        // 2. connect ARC/eARC with SAD.
+        bool skip = ((type & AUDIO_DEVICE_OUT_HDMI_ARC || type & AUDIO_DEVICE_OUT_HDMI_EARC) &&
+                    state == AUDIO_POLICY_DEVICE_STATE_AVAILABLE);
+
+        ALOGV("%s: skip %d, device 0x%x", __FUNCTION__, skip, type);
+        return skip;
+    };
+
     // handle output devices
     if (audio_is_output_device(device->type())) {
         std::set<audio_io_handle_t> outputs;
@@ -281,14 +299,28 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
         mPreviousOutputs = mOutputs;
 
         bool wasLeUnicastActive = isLeUnicastActive();
+        bool skipCheckConnect = skipCheckingConnect(device->type());
 
         switch (state)
         {
         // handle output device connection
         case AUDIO_POLICY_DEVICE_STATE_AVAILABLE: {
             if (index >= 0) {
-                ALOGW("%s() device already connected: %s", __func__, device->toString().c_str());
-                return INVALID_OPERATION;
+                if (!skipCheckConnect) {
+                    ALOGW("%s() device already connected: %s",
+                        __func__, device->toString().c_str());
+                    return INVALID_OPERATION;
+                } else {
+                    ALOGI("%s: device already connected (skipped check for ARC/eARC): %s",
+                            __FUNCTION__, device->toString().c_str());
+                    // Notify the HAL to prepare to disconnect device
+                    broadcastDeviceConnectionState(
+                            device, media::DeviceConnectedState::PREPARE_TO_DISCONNECT);
+                    mAvailableOutputDevices.remove(device);
+                    // Send Disconnect to HALs
+                    broadcastDeviceConnectionState(device,
+                            media::DeviceConnectedState::DISCONNECTED);
+                }
             }
 // QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             ALOGV("%s() connecting device %s format %x",
@@ -426,8 +458,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
             std::map<audio_io_handle_t, DeviceVector> outputsToReopenWithDevices;
             for (size_t i = 0; i < mOutputs.size(); i++) {
                 sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
-                if (desc->isActive() && ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) ||
-                    (desc != mPrimaryOutput))) {
+                if ((desc->isActive() || skipCheckConnect) &&
+                    ((mEngine->getPhoneState() != AUDIO_MODE_IN_CALL) ||
+                     (desc != mPrimaryOutput))) {
                     DeviceVector newDevices = getNewOutputDevices(desc, true /*fromCache*/);
                     // do not force device change on duplicated output because if device is 0,
                     // it will also force a device 0 for the two outputs it is duplicated to
@@ -436,7 +469,9 @@ status_t AudioPolicyManager::setDeviceConnectionStateInt(const sp<DeviceDescript
                             && !desc->isDuplicated()
                             && (!device_distinguishes_on_address(device->type())
                                     // always force when disconnecting (a non-duplicated device)
-                                    || (state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE));
+                                    || (state == AUDIO_POLICY_DEVICE_STATE_UNAVAILABLE)
+                                    // alwyas force when skipping ARC/EARC duplicate connect
+                                    || skipCheckConnect);
                     if (desc->mPreferredAttrInfo != nullptr && newDevices != desc->devices()) {
                         // If the device is using preferred mixer attributes, the output need to
                         // reopen with default configuration when the new selected devices are
@@ -866,6 +901,7 @@ status_t AudioPolicyManager::getHwOffloadFormatsSupportedForBluetoothMedia(
         audioDeviceSet = getAudioDeviceOutAllA2dpSet();
         break;
     case AUDIO_DEVICE_OUT_BLE_HEADSET:
+    case AUDIO_DEVICE_OUT_BLE_HEARING_AID:
         audioDeviceSet = getAudioDeviceOutLeAudioUnicastSet();
         break;
     case AUDIO_DEVICE_OUT_BLE_BROADCAST:
@@ -1054,7 +1090,8 @@ void AudioPolicyManager::connectTelephonyRxAudioSource(uint32_t delayMs)
             ALOGV("%s same sink device %s", __func__, rxDevice->toString().c_str());
             return;
         }
-        if (com::android::media::audioserver::optimize_call_routing()) {
+        if (com::android::media::audioserver::optimize_call_routing()
+                && mCallRxSourceClient->isConnected()) {
             rerouteTelephonyAudioSource(mCallRxSourceClient, mCallRxSourceClient->srcDevice(),
                                         rxDevice, delayMs);
             ALOGV("%s rerouted portd ID %d between source %s and sink %s", __func__,
@@ -1109,9 +1146,10 @@ void AudioPolicyManager::connectTelephonyTxAudioSource(
             ALOGV("%s same source device %s", __func__, srcDevice->toString().c_str());
             return;
         }
-        if (com::android::media::audioserver::optimize_call_routing()) {
+        if (com::android::media::audioserver::optimize_call_routing()
+                && mCallTxSourceClient->isConnected()) {
             rerouteTelephonyAudioSource(mCallTxSourceClient, srcDevice, sinkDevice, delayMs);
-            ALOGV("%s rerouted portdID %d between source %s and sink %s", __func__,
+            ALOGV("%s rerouted portd ID %d between source %s and sink %s", __func__,
                   mCallTxSourceClient->portId(),
                   srcDevice->toString().c_str(), sinkDevice->toString().c_str());
             return;
@@ -1150,6 +1188,9 @@ void AudioPolicyManager::rerouteTelephonyAudioSource(const sp<SourceClientDescri
         const sp<DeviceDescriptor> &srcDevice, const sp<DeviceDescriptor> &sinkDevice,
         uint32_t delayMs) {
     sp<SwAudioOutputDescriptor> swOutput = source->swOutput().promote();
+
+    swOutput->setClientActive(source, false);
+    swOutput->stop();
     swOutput->removeClient(source->portId(), false /*checkExists*/);
     audio_patch_handle_t handle;
     // createAudioPatchInternal() automatically handles same patch update only if the source
@@ -1176,6 +1217,9 @@ void AudioPolicyManager::rerouteTelephonyAudioSource(const sp<SourceClientDescri
     swOutput = source->swOutput().promote();
     swOutput->addClient(source);
     source->connect(handle, sinkDevice);
+    swOutput->start();
+    swOutput->setClientActive(source, true);
+
     applyStreamVolumes(swOutput, {sinkDevice->type()}, delayMs);
     ALOGV("%s portd ID %d between source %s and sink %s delayMs %u", __func__, source->portId(),
         srcDevice->toString().c_str(), sinkDevice->toString().c_str(), delayMs);
@@ -2187,14 +2231,8 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     // was specified and offload or direct playback is not explicitly requested, and there is no
     // haptic channel included in playback
     *isSpatialized = false;
-    if (mSpatializerOutput != nullptr &&
-        canBeSpatializedInt(attr, config, devices.toTypeAddrVector()) &&
-        prefMixerConfigInfo == nullptr &&
-        ((((*flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0) &&
-        checkHapticCompatibilityOnSpatializerOutput(config, session))
-// QTI_BEGIN: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
-                  || audio_is_linear_pcm(config->format))) {
-// QTI_END: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
+    if (shouldBeSpatialized(attr, config, devices.toTypeAddrVector(),
+                            *flags, session, prefMixerConfigInfo)) {
         *isSpatialized = true;
         return mSpatializerOutput->mIoHandle;
     }
@@ -8233,6 +8271,7 @@ void AudioPolicyManager::clearAudioSourcesForOutput(audio_io_handle_t output)
         if (sourceDesc != nullptr && sourceDesc->swOutput().promote() != nullptr
                 && sourceDesc->swOutput().promote()->mIoHandle == output) {
             disconnectAudioSource(sourceDesc);
+            sourceDesc->setSwOutput(nullptr);
         }
     }
 }
@@ -8980,9 +9019,11 @@ void AudioPolicyManager::checkSpatializedClientsReroute(
         audio_attributes_t attr = client->attributes();
         audio_config_base_t clientConfig = client->config();
         audio_config_t config = audio_config_initializer(&clientConfig);
-        AudioDeviceTypeAddrVector devicesTypeAddress = devices.toTypeAddrVector();
-        if (client->isSpatialized() !=
-                canBeSpatializedInt(&attr, &config, devicesTypeAddress)) {
+
+        if (client->isSpatialized() != shouldBeSpatialized(&attr, &config,
+                devices.toTypeAddrVector(), client->flags(), client->session(),
+                getPreferredMixerAttributesInfo(outputDesc->devices()[0]->getId(),
+                                                client->strategy()))) {
             clientsToInvalidate.push_back(client->portId());
         }
     }
@@ -8992,6 +9033,26 @@ void AudioPolicyManager::checkSpatializedClientsReroute(
         mpClientInterface->invalidateTracks(clientsToInvalidate);
     }
 }
+
+bool AudioPolicyManager::shouldBeSpatialized(const audio_attributes_t *attr,
+                                             const audio_config_t *config,
+                                             const AudioDeviceTypeAddrVector &devices,
+                                             const audio_output_flags_t flags,
+                                             audio_session_t session,
+                                             const sp<PreferredMixerAttributesInfo>& mixConfInfo) {
+    if (mSpatializerOutput != nullptr && canBeSpatializedInt(attr, config, devices)
+            && ((((flags & (AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD | AUDIO_OUTPUT_FLAG_DIRECT)) == 0)
+            && checkHapticCompatibilityOnSpatializerOutput(config, session))
+// QTI_BEGIN: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
+                         || audio_is_linear_pcm(config->format))
+// QTI_END: 2024-04-09: Audio: audiopolicy: check for spatialization before direct PCM
+            && mixConfInfo == nullptr) {
+        return true;
+    }
+
+    return false;
+}
+
 status_t AudioPolicyManager::resetOutputDevice(const sp<AudioOutputDescriptor>& outputDesc,
                                                int delayMs,
                                                audio_patch_handle_t *patchHandle)
@@ -9294,7 +9355,7 @@ float AudioPolicyManager::computeVolume(IVolumeCurves &curves,
             {AUDIO_DEVICE_OUT_BLUETOOTH_A2DP, AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES,
              AUDIO_DEVICE_OUT_WIRED_HEADSET, AUDIO_DEVICE_OUT_WIRED_HEADPHONE,
              AUDIO_DEVICE_OUT_USB_HEADSET, AUDIO_DEVICE_OUT_HEARING_AID,
-             AUDIO_DEVICE_OUT_BLE_HEADSET}).empty() &&
+             AUDIO_DEVICE_OUT_BLE_HEADSET, AUDIO_DEVICE_OUT_BLE_HEARING_AID}).empty() &&
             ((volumeSource == alarmVolumeSrc ||
               volumeSource == ringVolumeSrc) ||
              (volumeSource == toVolumeSource(AUDIO_STREAM_NOTIFICATION, false)) ||
@@ -9328,7 +9389,7 @@ float AudioPolicyManager::computeVolume(IVolumeCurves &curves,
             if (Volume::getDeviceForVolume(deviceTypes) != AUDIO_DEVICE_OUT_SPEAKER
                     &&  !Intersection(deviceTypes, {AUDIO_DEVICE_OUT_BLUETOOTH_A2DP,
                         AUDIO_DEVICE_OUT_BLUETOOTH_A2DP_HEADPHONES,
-                        AUDIO_DEVICE_OUT_BLE_HEADSET}).empty()) {
+                        AUDIO_DEVICE_OUT_BLE_HEADSET, AUDIO_DEVICE_OUT_BLE_HEARING_AID}).empty()) {
                 // on A2DP/BLE, also ensure notification volume is not too low compared to media
                 // when intended to be played.
                 if ((volumeDb > -96.0f) &&
