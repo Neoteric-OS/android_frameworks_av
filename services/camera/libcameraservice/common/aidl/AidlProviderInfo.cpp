@@ -684,6 +684,12 @@ AidlProviderInfo::AidlDeviceInfo3::AidlDeviceInfo3(
         }
     }
 
+    res = addDeviceTypeTag(mCameraCharacteristics);
+    if (OK != res) {
+        ALOGE("%s: Unable to add device type tag: %s (%d)",
+            __FUNCTION__, strerror(-res), res);
+    }
+
     camera_metadata_entry flashAvailable =
             mCameraCharacteristics.find(ANDROID_FLASH_INFO_AVAILABLE);
     if (flashAvailable.count == 1 &&
@@ -789,6 +795,13 @@ AidlProviderInfo::AidlDeviceInfo3::AidlDeviceInfo3(
                             __FUNCTION__, strerror(-res), res);
                 }
             }
+
+            res = addDeviceTypeTag(mPhysicalCameraCharacteristics[id]);
+            if (OK != res) {
+                ALOGE("%s: Unable to add device type tag: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+            }
+
         }
     }
 
@@ -837,6 +850,30 @@ status_t AidlProviderInfo::AidlDeviceInfo3::turnOnTorchWithStrengthLevel(
         return mapToStatusT(s);
     }
     mTorchStrengthLevel = torchStrength;
+    return OK;
+}
+
+status_t AidlProviderInfo::AidlDeviceInfo3::warmUp() {
+    const std::shared_ptr<camera::device::ICameraDevice> interface = startDeviceInterface();
+    if (interface == nullptr) {
+        return DEAD_OBJECT;
+    }
+    int32_t interfaceVersion = 0;
+    auto status = interface->getInterfaceVersion(&interfaceVersion);
+    if (!status.isOk()) {
+        ALOGE("%s: Unable to obtain interface version for camera device %s: %s", __FUNCTION__,
+                mId.c_str(), status.getMessage());
+        return DEAD_OBJECT;
+    }
+
+    if (interfaceVersion >= 4) {
+        ::ndk::ScopedAStatus status = interface->warmUp();
+        if (!status.isOk()) {
+            ALOGE("%s: Couldn't call warmUp() for camera id %s: %s", __FUNCTION__,
+                    mId.c_str(), status.getMessage());
+            return mapToStatusT(status);
+        }
+    }
     return OK;
 }
 

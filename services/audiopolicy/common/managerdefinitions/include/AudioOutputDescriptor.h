@@ -191,9 +191,7 @@ public:
      * Active ref count of the client will be incremented/decremented through setActive API
      */
     virtual void setClientActive(const sp<TrackClientDescriptor>& client, bool active);
-// QTI_BEGIN: 2019-08-30: Audio: APM: stop output if it's still active before being released
     bool isClientActive(const sp<TrackClientDescriptor>& client);
-// QTI_END: 2019-08-30: Audio: APM: stop output if it's still active before being released
 
     bool isActive(uint32_t inPastMs) const;
     bool isActive(VolumeSource volumeSource = VOLUME_SOURCE_NONE,
@@ -325,9 +323,7 @@ public:
                                   product_strategy_t strategy = PRODUCT_STRATEGY_NONE,
                                   bool preferredDeviceOnly = false) const;
 
-// QTI_BEGIN: 2018-02-19: Audio: audiopolicy: make audio policy extensible
     audio_io_handle_t mIoHandle;           // output handle
-// QTI_END: 2018-02-19: Audio: audiopolicy: make audio policy extensible
     // override ClientMapHandler to abort when removing a client when active.
     bool removeClient(audio_port_handle_t portId, bool checkExists = true) override {
         if (checkExists) {
@@ -360,7 +356,6 @@ public:
     wp<AudioPolicyMix> mPolicyMix;  // non NULL when used by a dynamic policy
 
     virtual uint32_t getRecommendedMuteDurationMs() const { return 0; }
-// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     virtual std::string info() const {
         std::string result;
         result.append("[portId:" );
@@ -368,7 +363,6 @@ public:
         result.append("]");
         return result;
     }
-// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
 
 protected:
     const sp<PolicyAudioPort> mPolicyAudioPort;
@@ -568,10 +562,8 @@ public:
      */
     bool isUsageActiveOnDevice(audio_usage_t usage, sp<DeviceDescriptor> device) const;
 
-// QTI_BEGIN: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     virtual std::string info() const override;
 
-// QTI_END: 2023-08-04: Audio: audiopolicy: Modify logging in setOutputDevices
     /**
      * Finds all ports matching the given volume source.
      * @param vs to be considered
@@ -687,13 +679,11 @@ public:
     bool isA2dpOnPrimary() const;
 
 // QTI_END: 2018-03-23: Audio: Check if A2DP playback happens via primary output
-// QTI_BEGIN: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
     /**
      * returns true if primary HAL supports A2DP Offload
      */
     bool isA2dpOffloadedOnPrimary() const;
 
-// QTI_END: 2018-03-12: Audio: audiopolicy: Check if A2DP playback happens via primary output
     sp<SwAudioOutputDescriptor> getOutputFromId(audio_port_handle_t id) const;
 
     sp<SwAudioOutputDescriptor> getPrimaryOutput() const;

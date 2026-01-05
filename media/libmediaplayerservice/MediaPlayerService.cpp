@@ -2158,20 +2158,16 @@ status_t MediaPlayerService::AudioOutput::open(
         if (AudioSystem::getOutputSamplingRate(&afSampleRate, mStreamType) != NO_ERROR) {
             return NO_INIT;
         }
-// QTI_BEGIN: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
         if (afSampleRate == 0) {
             return NO_INIT;
         }
-// QTI_END: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
         const size_t framesPerBuffer =
                 (unsigned long long)sampleRate * afFrameCount / afSampleRate;
 
         if (bufferCount == 0) {
-// QTI_BEGIN: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
             if (framesPerBuffer == 0) {
                 return NO_INIT;
             }
-// QTI_END: 2018-08-07: Audio: libmediaplayerservice: Check for a possible divide by 0
             // use suggestedFrameCount
             bufferCount = (suggestedFrameCount + framesPerBuffer - 1) / framesPerBuffer;
         }
@@ -2319,16 +2315,12 @@ status_t MediaPlayerService::AudioOutput::open(
                       mRecycledTrack->frameCount(), t->frameCount());
                 reuse = false;
             }
-// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
             // If recycled and new tracks are not on the same output,
             // don't reuse the recycled one.
             if (mRecycledTrack->getOutput() != t->getOutput()) {
-// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 ALOGV("output has changed, don't reuse track");
-// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                 reuse = false;
             }
-// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
         }
 
         if (reuse) {
@@ -2781,9 +2773,7 @@ size_t MediaPlayerService::AudioOutput::CallbackData::onMoreData(const AudioTrac
     // This is a benign busy-wait, with the next data request generated 10 ms or more later;
     // nevertheless for power reasons, we don't want to see too many of these.
 
-// QTI_BEGIN: 2022-04-25: Video: libmediaplayerservice: Fixing compilation issue on enabling verbose log
     ALOGV_IF(actualSize == 0 && buffer.size() > 0, "callbackwrapper: empty buffer returned");
-// QTI_END: 2022-04-25: Video: libmediaplayerservice: Fixing compilation issue on enabling verbose log
     unlock();
     return actualSize;
 }

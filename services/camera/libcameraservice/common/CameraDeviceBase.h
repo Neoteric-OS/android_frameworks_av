@@ -196,7 +196,7 @@ class CameraDeviceBase : public virtual FrameProducer {
             const std::unordered_set<int32_t>  &sensorPixelModesUsed,
             std::vector<int> *surfaceIds = nullptr,
             int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
-            bool isShared = false, bool isMultiResolution = false,
+            bool isShared = false, int multiResMode = OutputConfiguration::MULTI_RES_OFF,
             uint64_t consumerUsage = 0,
             int64_t dynamicProfile = ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
             int64_t streamUseCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT,
@@ -220,7 +220,7 @@ class CameraDeviceBase : public virtual FrameProducer {
             const std::unordered_set<int32_t> &sensorPixelModesUsed,
             std::vector<int> *surfaceIds = nullptr,
             int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
-            bool isShared = false, bool isMultiResolution = false,
+            bool isShared = false, int multiResMode = OutputConfiguration::MULTI_RES_OFF,
             uint64_t consumerUsage = 0,
             int64_t dynamicProfile = ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
             int64_t streamUseCase = ANDROID_SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT,
@@ -492,7 +492,9 @@ class CameraDeviceBase : public virtual FrameProducer {
     virtual status_t updateStream(int streamId, const std::vector<SurfaceHolder> &newSurfaces,
             const std::vector<android::camera3::OutputStreamInfo> &outputInfo,
             const std::vector<size_t> &removedSurfaceIds,
-            KeyedVector<sp<Surface>, size_t> *outputMap/*out*/) = 0;
+            bool modifyRequests,
+            KeyedVector<sp<Surface>, size_t> *outputMap/*out*/,
+            int64_t *lastFrameNumber = nullptr /*out*/) = 0;
 
     /**
      * Drop buffers for stream of streamId if dropping is true. If dropping is false, do not

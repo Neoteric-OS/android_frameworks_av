@@ -109,9 +109,7 @@ void PipelineWatcher::flush() {
     mFramesInPipeline.clear();
 }
 
-// QTI_BEGIN: 2024-11-14: Video: sfplugin: Reset fixes of Pipeline watcher and CCodecBufferChannel
 bool PipelineWatcher::pipelineFull() const {
-// QTI_END: 2024-11-14: Video: sfplugin: Reset fixes of Pipeline watcher and CCodecBufferChannel
     if (mFramesInPipeline.size() >=
             mInputDelay + mPipelineDelay + mOutputDelay + mSmoothnessFactor) {
         ALOGV("pipelineFull: too many frames in pipeline (%zu)", mFramesInPipeline.size());

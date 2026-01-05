@@ -179,9 +179,7 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
     // Skip reserved
     reader.skipBits(16);
 
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     if (reader.atLeastNumBitsLeft(96)) {
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         mParams.add(kGeneralProfileSpace, reader.getBits(2));
         mParams.add(kGeneralTierFlag, reader.getBits(1));
         mParams.add(kGeneralProfileIdc, reader.getBits(5));
@@ -191,10 +189,8 @@ status_t HevcParameterSets::parseVps(const uint8_t* data, size_t size) {
                 ((uint64_t)reader.getBits(16) << 32) | reader.getBits(32));
         mParams.add(kGeneralLevelIdc, reader.getBits(8));
         // 96 bits total for general profile.
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     } else {
         reader.skipBits(96);
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
     }
 
     return reader.overRead() ? ERROR_MALFORMED : OK;
@@ -459,7 +455,6 @@ status_t HevcParameterSets::makeHvcc(uint8_t *hvcc, size_t *hvccSize,
         }
         ++numOfArrays;
         size += 3;
-// QTI_BEGIN: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
         for (size_t j = 0; j < numNalUnits; ++j) {
             if (getType(j) != type) {
                 continue;
@@ -548,11 +543,8 @@ status_t HevcParameterSets::makeHvcc(uint8_t *hvcc, size_t *hvccSize,
     }
     CHECK_EQ(header - size, hvcc);
 
-// QTI_END: 2024-11-05: Video: MPEG4Writer: Changes to support SEI metadata for multiview HEVC am: aeb787d7f2
-// QTI_BEGIN: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
     return OK;
 }
-// QTI_END: 2024-09-13: Video: MPEG4Writer: MVHEVC mimetype definition and mpeg4writer
 
 bool HevcParameterSets::IsHevcIDR(const uint8_t *data, size_t size) {
     bool foundIDR = false;

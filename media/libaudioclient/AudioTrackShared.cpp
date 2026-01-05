@@ -977,10 +977,8 @@ size_t AudioTrackServerProxy::framesReady()
     }
     audio_track_cblk_t* cblk = mCblk;
 
-// QTI_BEGIN: 2021-03-19: Audio: return accurate frame count when track is flushed
     flushBufferIfNeeded();
 
-// QTI_END: 2021-03-19: Audio: return accurate frame count when track is flushed
     const int32_t rear = getRear();
     ssize_t filled = audio_utils::safe_sub_overflow(rear, cblk->u.mStreaming.mFront);
     // pipe should not already be overfull

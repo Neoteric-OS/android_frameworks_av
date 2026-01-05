@@ -102,9 +102,7 @@ void NuPlayer::GenericSource::resetDataSource() {
     }
     mUri.clear();
     mUriHeaders.clear();
-// QTI_BEGIN: 2018-05-07: Video: MediaPlayerService: Clear the vector holding tracks
     mSources.clear();
-// QTI_END: 2018-05-07: Video: MediaPlayerService: Clear the vector holding tracks
     mFd.reset();
     mOffset = 0;
     mLength = 0;
@@ -319,9 +317,7 @@ status_t NuPlayer::GenericSource::startSources() {
     //
     // TODO: this logic may no longer be relevant after the removal of widevine
     // support
-// QTI_BEGIN: 2019-09-11: Video: media: Disable ByteStream mode support
     if (mAudioTrack.mSource != NULL && mAudioTrack.mSource->start() != OK) {
-// QTI_END: 2019-09-11: Video: media: Disable ByteStream mode support
         ALOGE("failed to start audio track!");
         return UNKNOWN_ERROR;
     }

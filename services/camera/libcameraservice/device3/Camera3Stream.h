@@ -160,6 +160,7 @@ class Camera3Stream :
      * Is this stream part of a multi-resolution stream set
      */
     bool             isMultiResolution() const;
+    int              getMultiResMode() const;
     /**
      * Get the HAL stream group id for a multi-resolution stream set
      */
@@ -176,7 +177,7 @@ class Camera3Stream :
     uint64_t           getUsage() const;
     void               setUsage(uint64_t usage);
     void               setFormatOverride(bool formatOverridden);
-    const std::vector<AHardwareBufferLongOptions>& getAdditionalOptions() const;
+    const std::vector<gui::AdditionalOptions>& getAdditionalOptions() const;
     void               setAdditionalOptions(const std::vector<GrallocExtendableType>&
                                             additionalOptions);
     bool               isFormatOverridden() const;
@@ -515,7 +516,7 @@ class Camera3Stream :
             android_dataspace dataSpace, camera_stream_rotation_t rotation,
             const std::string& physicalCameraId,
             const std::unordered_set<int32_t> &sensorPixelModesUsed,
-            int setId, bool isMultiResolution, int64_t dynamicRangeProfile,
+            int setId, int multiResMode, int64_t dynamicRangeProfile,
             int64_t streamUseCase, bool deviceTimeBaseIsRealtime, int timestampBase,
             int32_t colorSpace);
 
@@ -641,22 +642,13 @@ class Camera3Stream :
     std::string mPhysicalCameraId;
     nsecs_t mLastTimestamp;
 
-    bool mIsMultiResolution = false;
+    int mMultiResMode = OutputConfiguration::MULTI_RES_OFF;
     bool mSupportOfflineProcessing = false;
 
     bool mDeviceTimeBaseIsRealtime;
     int mTimestampBase;
 
-    // Keep track of the gralloc additionalOptions
-    struct AdditionalOptionsWrapper {
-        // Note: These 2 vectors must be kept in sync because mOptions
-        // keep raw const char pointers to mNames.
-        std::vector<std::string> mNames;
-        std::vector<AHardwareBufferLongOptions> mOptions;
-
-        void initialize(const std::vector<GrallocExtendableType>& options);
-    };
-    AdditionalOptionsWrapper mAdditionalOptions;
+    std::vector<gui::AdditionalOptions> mAdditionalOptions;
 }; // class Camera3Stream
 
 }; // namespace camera3

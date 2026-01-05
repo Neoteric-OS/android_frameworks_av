@@ -51,6 +51,7 @@
 #include <binderthreadstate/CallerUtils.h>
 #include <android/content/res/CameraCompatibilityInfo.h>
 #include <com_android_internal_camera_flags.h>
+#include <com_android_server_lights_feature_flags.h>
 #include <cutils/atomic.h>
 #include <cutils/properties.h>
 #include <cutils/misc.h>
@@ -136,11 +137,13 @@ using hardware::ICameraClient;
 using hardware::ICameraServiceListener;
 using hardware::camera2::ICameraInjectionCallback;
 using hardware::camera2::ICameraInjectionSession;
+using hardware::camera2::ICameraDeviceUser;
 using hardware::camera2::utils::CameraIdAndSessionConfiguration;
 using hardware::camera2::utils::ConcurrentCameraIdCombination;
 
 namespace flags = com::android::internal::camera::flags;
 namespace vd_flags = android::companion::virtualdevice::flags;
+namespace lights_flags = com::android::server::lights::feature::flags;
 
 // ----------------------------------------------------------------------------
 // Logging support -- this is for debugging only
@@ -198,7 +201,7 @@ CameraService::CameraService(
         mNumberOfCameras(0),
         mNumberOfCamerasWithoutSystemCamera(0),
         mSoundRef(0), mInitialized(false),
-        mAudioRestriction(hardware::camera2::ICameraDeviceUser::AUDIO_RESTRICTION_NONE) {
+        mAudioRestriction(ICameraDeviceUser::AudioRestriction::NONE) {
     ALOGI("CameraService started (pid=%d)", getpid());
     mAttributionAndPermissionUtils->setCameraService(this);
     mServiceLockWrapper = std::make_shared<WaitableMutexWrapper>(&mServiceLock);
@@ -219,7 +222,7 @@ void CameraService::onServiceRegistration(const String16& name, const sp<IBinder
     }
 
     ALOGV("appops service registered. setting camera audio restriction");
-    mAppOps.setCameraAudioRestriction(mAudioRestriction);
+    mAppOps.setCameraAudioRestriction(static_cast<int32_t>(mAudioRestriction));
 }
 
 void CameraService::onFirstRef()
@@ -255,7 +258,7 @@ void CameraService::onFirstRef()
     if (!binder) {
         sm->registerForNotifications(toString16(kAppopsServiceName), this);
     } else {
-        mAppOps.setCameraAudioRestriction(mAudioRestriction);
+        mAppOps.setCameraAudioRestriction(static_cast<int32_t>(mAudioRestriction));
     }
 
     sp<HidlCameraService> hcs = HidlCameraService::getInstance(this);
@@ -1115,6 +1118,45 @@ Status CameraService::getSessionCharacteristics(const std::string& unresolvedCam
                 getCallingUid(), sessionConfiguration, res);
     }
     return res;
+}
+
+Status CameraService::warmUp(const std::string &unresolvedCameraId,
+            const AttributionSourceState& clientAttribution,
+            int32_t devicePolicy) {
+    ATRACE_CALL();
+
+    if (!callerHasSystemUid()) {
+        ALOGE("%s: Caller uid %d not system uid, permission denied", __FUNCTION__, getCallingUid());
+        return STATUS_ERROR_FMT(ERROR_PERMISSION_DENIED,
+                "%s: Caller with uid %d not system uid, permission denied",
+                __FUNCTION__, getCallingUid());
+    }
+    Mutex::Autolock l(mServiceLock);
+    std::optional<std::string> cameraIdOptional =
+            resolveCameraId(unresolvedCameraId, clientAttribution.deviceId, devicePolicy);
+    if (!cameraIdOptional.has_value()) {
+        std::string msg = fmt::sprintf("Camera %s: Invalid camera id for device id %d",
+                unresolvedCameraId.c_str(), clientAttribution.deviceId);
+        ALOGE("%s: %s", __FUNCTION__, msg.c_str());
+        return STATUS_ERROR(CameraService::ERROR_ILLEGAL_ARGUMENT, msg.c_str());
+    }
+    std::string cameraId = cameraIdOptional.value();
+
+    ALOGV("%s", __FUNCTION__);
+    if (!mInitialized) {
+        ALOGE("%s: Camera HAL not initialized", __FUNCTION__);
+        logServiceError("Camera subsystem is not available", ERROR_DISCONNECTED);
+        return STATUS_ERROR(ERROR_DISCONNECTED,
+                "Camera subsystem is not available");
+    }
+    // Call into camera provider to deliver power hint.
+    status_t ret = mCameraProviderManager->warmUp(cameraId);
+    if (ret != OK) {
+        return STATUS_ERROR_FMT(ERROR_INVALID_OPERATION,
+                "Error delivering power hint: %s (%d)", strerror(-ret), ret);
+    }
+
+    return Status::ok();
 }
 
 Status CameraService::filterSensitiveMetadataIfNeeded(
@@ -2342,7 +2384,7 @@ Status CameraService::connectDevice(
         int oomScoreOffset, int targetSdkVersion,
         const CameraCompatibilityInfo& compatInfo, const AttributionSourceState& clientAttribution,
         int32_t devicePolicy, bool sharedMode,
-        /*out*/sp<hardware::camera2::ICameraDeviceUser>* device) {
+        /*out*/sp<ICameraDeviceUser>* device) {
     return connectDeviceImpl(cameraCb, unresolvedCameraId, oomScoreOffset, targetSdkVersion,
             compatInfo, clientAttribution, devicePolicy, sharedMode,
             /*isVendorClient*/false, device);
@@ -2354,7 +2396,7 @@ Status CameraService::connectDeviceVendor(
         int oomScoreOffset, int targetSdkVersion,
         const CameraCompatibilityInfo& compatInfo, const AttributionSourceState& clientAttribution,
         int32_t devicePolicy, bool sharedMode,
-        /*out*/sp<hardware::camera2::ICameraDeviceUser>* device) {
+        /*out*/sp<ICameraDeviceUser>* device) {
             return connectDeviceImpl(cameraCb, unresolvedCameraId, oomScoreOffset, targetSdkVersion,
                     compatInfo, clientAttribution, devicePolicy, sharedMode,
                     /*isVendorClient*/true, device);
@@ -4256,7 +4298,7 @@ CameraService::BasicClient::BasicClient(
       mDisconnected(false),
       mUidIsTrusted(false),
       mCompatInfo(compatInfo), mSharedMode(sharedMode),
-      mAudioRestriction(hardware::camera2::ICameraDeviceUser::AUDIO_RESTRICTION_NONE),
+      mAudioRestriction(ICameraDeviceUser::AudioRestriction::NONE),
       mRemoteBinder(remoteCallback),
       mCameraOpen(false),
       mCameraStreaming(false) {
@@ -4385,7 +4427,7 @@ bool CameraService::BasicClient::canCastToApiClient(apiLevel level) const {
     return level == API_2;
 }
 
-status_t CameraService::BasicClient::setAudioRestriction(int32_t mode) {
+status_t CameraService::BasicClient::setAudioRestriction(ICameraDeviceUser::AudioRestriction mode) {
     {
         Mutex::Autolock l(mAudioRestrictionLock);
         mAudioRestriction = mode;
@@ -4394,20 +4436,20 @@ status_t CameraService::BasicClient::setAudioRestriction(int32_t mode) {
     return OK;
 }
 
-int32_t CameraService::BasicClient::getServiceAudioRestriction() const {
+ICameraDeviceUser::AudioRestriction CameraService::BasicClient::getServiceAudioRestriction() const {
     return sCameraService->updateAudioRestriction();
 }
 
-int32_t CameraService::BasicClient::getAudioRestriction() const {
+ICameraDeviceUser::AudioRestriction CameraService::BasicClient::getAudioRestriction() const {
     Mutex::Autolock l(mAudioRestrictionLock);
     return mAudioRestriction;
 }
 
-bool CameraService::BasicClient::isValidAudioRestriction(int32_t mode) {
+bool CameraService::BasicClient::isValidAudioRestriction(ICameraDeviceUser::AudioRestriction mode) {
     switch (mode) {
-        case hardware::camera2::ICameraDeviceUser::AUDIO_RESTRICTION_NONE:
-        case hardware::camera2::ICameraDeviceUser::AUDIO_RESTRICTION_VIBRATION:
-        case hardware::camera2::ICameraDeviceUser::AUDIO_RESTRICTION_VIBRATION_SOUND:
+        case ICameraDeviceUser::AudioRestriction::NONE:
+        case ICameraDeviceUser::AudioRestriction::VIBRATION:
+        case ICameraDeviceUser::AudioRestriction::VIBRATION_SOUND:
             return true;
         default:
             return false;
@@ -4744,19 +4786,15 @@ status_t CameraService::BasicClient::setPrimaryClient(bool isPrimary) {
 
 void CameraService::Client::notifyError(int32_t errorCode,
         [[maybe_unused]] const CaptureResultExtras& resultExtras) {
-// QTI_BEGIN: 2015-10-16: Camera: frameworks: Add NULL check for callback
     if (mRemoteCallback != NULL) {
-// QTI_END: 2015-10-16: Camera: frameworks: Add NULL check for callback
         int32_t api1ErrorCode = CAMERA_ERROR_RELEASED;
         if (errorCode == hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_DISABLED) {
             api1ErrorCode = CAMERA_ERROR_DISABLED;
         }
         mRemoteCallback->notifyCallback(CAMERA_MSG_ERROR, api1ErrorCode, 0);
-// QTI_BEGIN: 2015-10-16: Camera: frameworks: Add NULL check for callback
     } else {
         ALOGE("mRemoteCallback is NULL!!");
     }
-// QTI_END: 2015-10-16: Camera: frameworks: Add NULL check for callback
 }
 
 // NOTE: function is idempotent
@@ -6075,9 +6113,6 @@ void CameraService::updateOpenCloseStatus(const std::string& cameraId, bool open
     if (state == nullptr) {
         ALOGW("%s: Could not update the status for %s, no such device exists", __FUNCTION__,
                 cameraId.c_str());
-        if (!flags::on_camera_closed_at_hal_crash()) {
-            return;
-        }
     } else {
         if (open) {
             if (flags::camera_multi_client() && sharedMode) {
@@ -6946,23 +6981,31 @@ bool CameraService::isClientWatchedLocked(const BasicClient *client) {
            mWatchedClientPackages.find(client->getPackageName()) != mWatchedClientPackages.end();
 }
 
-int32_t CameraService::updateAudioRestriction() {
+ICameraDeviceUser::AudioRestriction CameraService::updateAudioRestriction() {
     Mutex::Autolock lock(mServiceLock);
     return updateAudioRestrictionLocked();
 }
 
-int32_t CameraService::updateAudioRestrictionLocked() {
-    int32_t mode = 0;
+ICameraDeviceUser::AudioRestriction CameraService::updateAudioRestrictionLocked() {
+    ICameraDeviceUser::AudioRestriction mode = ICameraDeviceUser::AudioRestriction::NONE;
     // iterate through all active client
     for (const auto& i : mActiveClientManager.getAll()) {
         const auto clientSp = i->getValue();
-        mode |= clientSp->getAudioRestriction();
+        auto clientMode = clientSp->getAudioRestriction();
+        ALOGV("Device %s restriction mode: %s", clientSp->mCameraIdStr.c_str(),
+            hardware::camera2::toString(clientMode).c_str());
+        if (clientMode > mode) {
+            mode = clientMode;
+        }
     }
 
     bool modeChanged = (mAudioRestriction != mode);
     mAudioRestriction = mode;
     if (modeChanged) {
-        mAppOps.setCameraAudioRestriction(mode);
+        mAppOps.setCameraAudioRestriction(static_cast<int32_t>(mode));
+        if (lights_flags::enable_light_animations()) {
+            mCameraServiceProxyWrapper->notifyCameraDistractionRestriction(mode);
+        }
     }
     return mode;
 }

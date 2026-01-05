@@ -938,9 +938,7 @@ Track::Track(
     /* The track might not play immediately after being active, similarly as if its volume was 0.
      * When the track starts playing, its volume will be computed. */
     mFinalVolume(0.f),
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     mResumeToStopping(false),
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     mFlushHwPending(false),
     mFlags(flags),
     mSpeed(speed),
@@ -1369,11 +1367,9 @@ void Track::onTimestamp(const ExtendedTimestamp &timestamp)
 // Don't call for fast tracks; the framesReady() could result in priority inversion
 bool Track::isReady() const {
     if (mFillingStatus != FS_FILLING || isStopped() || isPausing()) {
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         return true;
     }
 
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     if (isStopping()) {
         if (framesReady() > 0) {
             mFillingStatus = FS_FILLED;
@@ -1418,23 +1414,17 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
         // here the track could be either new, or restarted
         // in both cases "unstop" the track
 
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         // initial state-stopping. next state-pausing.
         // What if resume is called ?
 
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
-// QTI_BEGIN: 2020-09-28: Audio: return accurate frame count when track is flushed
         if (state == FLUSHED) {
             // avoid underrun glitches when starting after flush
             reset();
         }
 
-// QTI_END: 2020-09-28: Audio: return accurate frame count when track is flushed
         // clear mPauseHwPending because of pause (and possibly flush) during underrun.
         mPauseHwPending = false;
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         if (state == PAUSED || state == PAUSING) {
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
             if (mResumeToStopping) {
                 // happened we need to resume to STOPPING_1
                 mState = TrackBase::STOPPING_1;
@@ -1468,14 +1458,12 @@ status_t Track::start(AudioSystem::sync_event_t event __unused,
                                playbackThread->framesWritten());
             }
         }
-// QTI_BEGIN: 2015-03-16: Audio: audioflinger: refresh fast track underrun state upon start
         if (isFastTrack()) {
             // refresh fast track underruns on start because that field is never cleared
             // by the fast mixer; furthermore, the same track can be recycled, i.e. start
             // after stop.
             mObservedUnderruns = playbackThread->getFastTrackUnderruns(mFastIndex);
         }
-// QTI_END: 2015-03-16: Audio: audioflinger: refresh fast track underrun state upon start
         status = playbackThread->addTrack_l(this);
         if (status == INVALID_OPERATION || status == PERMISSION_DENIED || status == DEAD_OBJECT) {
             triggerEvents(AudioSystem::SYNC_EVENT_PRESENTATION_COMPLETE);
@@ -1681,9 +1669,7 @@ void Track::flush()
                 mState = ACTIVE;
             }
 
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             mFlushHwPending = true;
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
             mResumeToStopping = false;
         } else {
             if (mState != STOPPING_1 && mState != STOPPING_2 && mState != STOPPED &&
@@ -1714,28 +1700,20 @@ void Track::flush()
     }
 }
 
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
 // must be called with thread lock held
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
 void Track::flushAck()
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
 {
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     if (!isOffloaded() && !isDirect()) {
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
         return;
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     }
 
     // Clear the client ring buffer so that the app can prime the buffer while paused.
     // Otherwise it might not get cleared until playback is resumed and obtainBuffer() is called.
     mServerProxy->flushBufferIfNeeded();
 
-// QTI_BEGIN: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
     mFlushHwPending = false;
 }
 
-// QTI_END: 2014-02-06: Audio: AudioFlinger: Modify flush handling for offload path
 void Track::pauseAck()
 {
     mPauseHwPending = false;
@@ -2198,51 +2176,33 @@ status_t Track::setPlaybackRateParameters(
     return status;
 }
 
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 //To be called with thread lock held
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 bool Track::isResumePending() const {
     if (mState == RESUMING) {
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         return true;
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     }
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     /* Resume is pending if track was stopping before pause was called */
     if (mState == STOPPING_1 &&
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         mResumeToStopping) {
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         return true;
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     }
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 
     return false;
 }
 
 //To be called with thread lock held
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 void Track::resumeAck() {
     if (mState == RESUMING) {
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
         mState = ACTIVE;
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     }
 
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
     // Other possibility of  pending resume is stopping_1 state
     // Do not update the state from stopping as this prevents
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
     // drain being called.
     if (mState == STOPPING_1) {
         mResumeToStopping = false;
     }
-// QTI_END: 2014-03-17: Audio: audioflinger: OffloadThread fix for resume underrun
-// QTI_BEGIN: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 }
-// QTI_END: 2014-03-17: Audio: audioflinger: Handle pause /resume in stopping state
 
 //To be called with thread lock held
 void Track::updateTrackFrameInfo(
@@ -2869,9 +2829,7 @@ public:
     binder::Status setPreferredMicrophoneFieldDimension(float zoom) final;
     binder::Status shareAudioHistory(
             const std::string& sharedAudioPackageName, int64_t sharedAudioStartMs) final;
-// QTI_BEGIN: 2024-12-16: Audio: add setParameters support in IAudioRecord
     binder::Status setParameters(const ::std::string& keyValuePairs) final;
-// QTI_END: 2024-12-16: Audio: add setParameters support in IAudioRecord
 
 private:
     const sp<IAfRecordTrack> mRecordTrack;
@@ -2941,13 +2899,11 @@ binder::Status RecordHandle::shareAudioHistory(
             mRecordTrack->shareAudioHistory(sharedAudioPackageName, sharedAudioStartMs));
 }
 
-// QTI_BEGIN: 2024-12-16: Audio: add setParameters support in IAudioRecord
 binder::Status RecordHandle::setParameters(const ::std::string& keyValuePairs) {
     return binderStatusFromStatusT(mRecordTrack->setParameters(
             String8(keyValuePairs.c_str())));
 }
 
-// QTI_END: 2024-12-16: Audio: add setParameters support in IAudioRecord
 // ----------------------------------------------------------------------------
 #undef LOG_TAG
 #define LOG_TAG "AF::RecordTrack"
@@ -3357,24 +3313,18 @@ status_t RecordTrack::shareAudioHistory(
     }
 }
 
-// QTI_BEGIN: 2024-12-16: Audio: add setParameters support in IAudioRecord
 status_t RecordTrack::setParameters(const String8& keyValuePairs) {
     const sp<IAfThreadBase> thread = mThread.promote();
     if (thread == nullptr) {
         ALOGE("%s(%d): thread is dead", __func__, mId);
         return FAILED_TRANSACTION;
-// QTI_END: 2024-12-16: Audio: add setParameters support in IAudioRecord
-// QTI_BEGIN: 2025-02-16: Audio: audioflinger: add DirectRecordThread
     } else if (thread->type() == IAfThreadBase::DIRECT_RECORD) {
-// QTI_END: 2025-02-16: Audio: audioflinger: add DirectRecordThread
-// QTI_BEGIN: 2024-12-16: Audio: add setParameters support in IAudioRecord
         return thread->setParameters(keyValuePairs);
     } else {
         return PERMISSION_DENIED;
     }
 }
 
-// QTI_END: 2024-12-16: Audio: add setParameters support in IAudioRecord
 void RecordTrack::copyMetadataTo(MetadataInserter& backInserter) const
 {
 
@@ -3395,7 +3345,6 @@ void RecordTrack::copyMetadataTo(MetadataInserter& backInserter) const
     *backInserter++ = metadata;
 }
 
-// QTI_BEGIN: 2024-10-25: Audio: audioflinger: RecordTrack: add debug log
 void RecordTrack::setSilenced(bool silenced) {
     if (!isPatchTrack() && mSilenced != silenced) {
         mSilenced = silenced;
@@ -3404,7 +3353,6 @@ void RecordTrack::setSilenced(bool silenced) {
     }
 }
 
-// QTI_END: 2024-10-25: Audio: audioflinger: RecordTrack: add debug log
 // ----------------------------------------------------------------------------
 #undef LOG_TAG
 #define LOG_TAG "AF::PatchRecord"

@@ -210,9 +210,7 @@ Descriptor::Common EffectProxy::buildDescriptorCommon(
             desc.common.flags.deviceIndication != firstFlag.deviceIndication) {
             ALOGW("Inconsistent flags %s vs %s", desc.common.flags.toString().c_str(),
                   firstFlag.toString().c_str());
-// QTI_BEGIN: 2024-03-05: Audio: libaudiohal: Publish AUX type in proxy effects
         }
-// QTI_END: 2024-03-05: Audio: libaudiohal: Publish AUX type in proxy effects
     }
 
     swCommon.flags.offloadIndication = offloadExist;
@@ -276,12 +274,10 @@ ndk::ScopedAStatus EffectProxy::runWithActiveSubEffectThenOthers(
     }
 
     // proceed with others
-// QTI_BEGIN: 2023-08-14: Audio: av: Fix command/setParameter for inactive subEffects
     for (size_t i = 0; i < mSubEffects.size(); i++) {
         if (i == mActiveSubIdx) {
             continue;
         }
-// QTI_END: 2023-08-14: Audio: av: Fix command/setParameter for inactive subEffects
         if (!mSubEffects[i].handle) {
             ALOGW("%s null sub-effect interface for %s", __func__,
                   mSubEffects[i].descriptor.common.id.uuid.toString().c_str());

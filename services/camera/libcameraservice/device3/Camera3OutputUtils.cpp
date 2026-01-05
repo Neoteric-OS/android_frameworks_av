@@ -185,6 +185,33 @@ status_t fixupManualFlashStrengthControlTags(CameraMetadata& resultMetadata) {
     return res;
 }
 
+status_t fixupDeviceTypeTag(const CameraMetadata& staticInfo, CameraMetadata& resultMetadata) {
+    if (!flags::camera_device_type_api()) return OK;
+    status_t res = OK;
+    if (!resultMetadata.exists(ANDROID_INFO_DEVICE_TYPE)) {
+        uint8_t deviceType = ANDROID_INFO_DEVICE_TYPE_BUILT_IN;
+        camera_metadata_ro_entry_t entry = staticInfo.find(ANDROID_INFO_DEVICE_TYPE);
+        if (entry.count > 0) {
+            deviceType = entry.data.u8[0];
+        } else {
+            auto levelEntry = staticInfo.find(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL);
+            bool isExternalLevel = levelEntry.count > 0 &&
+                levelEntry.data.u8[0] == ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL;
+            if (isExternalLevel) {
+                deviceType = ANDROID_INFO_DEVICE_TYPE_EXTERNAL;
+            }
+        }
+
+        res = resultMetadata.update(ANDROID_INFO_DEVICE_TYPE, &deviceType, 1);
+        if (res != OK) {
+            ALOGE("%s: Failed to update ANDROID_INFO_DEVICE_TYPE: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+            return res;
+        }
+    }
+    return res;
+}
+
 void correctMeteringRegions(camera_metadata_t *meta) {
     if (meta == nullptr) return;
 
@@ -443,12 +470,19 @@ void sendCaptureResult(
         }
     }
 
-    // Fix up autoframing metadata
+    // Fix up autoframing and device type metadata
     res = fixupAutoframingTags(captureResult.mMetadata);
     if (res != OK) {
         SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
             "Failed to set autoframing defaults in result metadata: %s (%d)",
                 strerror(-res), res);
+        return;
+    }
+    res = fixupDeviceTypeTag(states.deviceInfo, captureResult.mMetadata);
+    if (res != OK) {
+        SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+            "Failed to set device type in result metadata: %s (%d)",
+            strerror(-res), res);
         return;
     }
     for (auto& physicalMetadata : captureResult.mPhysicalMetadatas) {
@@ -458,6 +492,14 @@ void sendCaptureResult(
             SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
                 "Failed to set autoframing defaults in physical result metadata: %s (%d)",
                     strerror(-res), res);
+            return;
+        }
+        res = fixupDeviceTypeTag(states.deviceInfo, physicalMetadata.mCameraMetadataInfo.
+            get<CameraMetadataInfo::metadata>());
+        if (res != OK) {
+            SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+                "Failed to set device type in physical result metadata: %s (%d)",
+                strerror(-res), res);
             return;
         }
     }
@@ -821,7 +863,21 @@ void processCaptureResult(CaptureOutputStates& states, const camera_capture_resu
             size_t expectedPhysicalCameraMetadataCount =
                     getExpectedPhysicalMetadataCount(request.physicalCameraIds,
                                                      states.activePhysicalId);
-            if (expectedPhysicalCameraMetadataCount != result->num_physcam_metadata) {
+            bool logicalMultiCameraAdditionalResults = false;
+            camera_metadata_ro_entry entry;
+            if (flags::logical_multi_camera_additional_results()) {
+                if (find_camera_metadata_ro_entry(result->result,
+                    ANDROID_LOGICAL_MULTI_CAMERA_ADDITIONAL_RESULTS, &entry) == OK &&
+                    entry.count > 0) {
+                    if (entry.data.u8[0] == ANDROID_LOGICAL_MULTI_CAMERA_ADDITIONAL_RESULTS_ON) {
+                            logicalMultiCameraAdditionalResults = true;
+                    }
+                    ALOGV("logical camera additional results value %d",
+                        logicalMultiCameraAdditionalResults);
+                }
+            }
+            if (!logicalMultiCameraAdditionalResults
+                && expectedPhysicalCameraMetadataCount != result->num_physcam_metadata) {
                 SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
                     "Expected physical Camera metadata count %d not equal to actual count %d",
                         expectedPhysicalCameraMetadataCount, result->num_physcam_metadata);
@@ -833,15 +889,17 @@ void processCaptureResult(CaptureOutputStates& states, const camera_capture_resu
                         frameNumber);
                 return;
             }
-            for (uint32_t i = 0; i < result->num_physcam_metadata; i++) {
-                const std::string physicalId = result->physcam_ids[i];
-                bool validPhysicalCameraMetadata =
-                        erasePhysicalCameraIdSet(request.physicalCameraIds, physicalId);
-                if (!validPhysicalCameraMetadata) {
-                    SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
-                        "Unexpected total result for frame %d camera %s",
-                            frameNumber, physicalId.c_str());
-                    return;
+            if (!logicalMultiCameraAdditionalResults) {
+                for (uint32_t i = 0; i < result->num_physcam_metadata; i++) {
+                    const std::string physicalId = result->physcam_ids[i];
+                    bool validPhysicalCameraMetadata =
+                            erasePhysicalCameraIdSet(request.physicalCameraIds, physicalId);
+                    if (!validPhysicalCameraMetadata) {
+                        SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+                            "Unexpected total result for frame %d camera %s",
+                                frameNumber, physicalId.c_str());
+                        return;
+                    }
                 }
             }
             if (states.usePartialResult &&
@@ -1045,6 +1103,18 @@ void finishReturningOutputBuffers(const std::vector<BufferToReturn> &returnableB
         if (res == NO_INIT || res == DEAD_OBJECT) {
             ALOGV("Can't return buffer to its stream: %s (%d)", strerror(-res), res);
             sessionStatsBuilder.stopCounter(streamId);
+        } else if (flags::seamless_transitions() && (res == UNKNOWN_TRANSACTION)) {
+            ALOGE("Buffer cancelled on non-registered surface: %s (%d)", strerror(-res), res);
+            dropped = true;
+            camera_stream_buffer_t sb = b.buffer;
+            sb.status = CAMERA_BUFFER_STATUS_ERROR;
+            if (listener != nullptr) {
+                CaptureResultExtras extras = b.resultExtras;
+                extras.errorStreamId = streamId;
+                listener->notifyError(
+                        hardware::camera2::ICameraDeviceCallbacks::ERROR_CAMERA_BUFFER,
+                        extras);
+            }
         } else if (res != OK) {
             ALOGE("Can't return buffer to its stream: %s (%d)", strerror(-res), res);
             dropped = true;
@@ -1168,6 +1238,7 @@ void notifyShutter(CaptureOutputStates& states, const camera_shutter_msg_t &msg)
                 r.resultExtras.hasReadoutTimestamp = true;
                 r.resultExtras.readoutTimestamp = msg.readout_timestamp;
             }
+            r.resultExtras.multiResConcurrentReadersStart = msg.multi_res_concurrent_readers_msg;
             if (r.minExpectedDuration != states.minFrameDuration ||
                     r.isFixedFps != states.isFixedFps) {
                 for (size_t i = 0; i < states.outputStreams.size(); i++) {
@@ -1360,20 +1431,14 @@ void notifyError(CaptureOutputStates& states, const camera_error_msg_t &msg) {
     }
 }
 
-void notify(CaptureOutputStates& states, const camera_notify_msg *msg) {
-    switch (msg->type) {
-        case CAMERA_MSG_ERROR: {
-            notifyError(states, msg->message.error);
-            break;
-        }
-        case CAMERA_MSG_SHUTTER: {
-            notifyShutter(states, msg->message.shutter);
-            break;
-        }
-        default:
-            SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
-                "Unknown notify message from HAL: %d",
-                    msg->type);
+void notify(CaptureOutputStates& states, const camera_notify_msg_t *msg) {
+    if (std::holds_alternative<camera_error_msg_t>(*msg)) {
+        notifyError(states, get<camera_error_msg_t>(*msg));
+     } else if (std::holds_alternative<camera_shutter_msg_t>(*msg)) {
+        notifyShutter(states, get<camera_shutter_msg_t>(*msg));
+     } else {
+        SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+            "Unknown notify message from HAL");
     }
 }
 

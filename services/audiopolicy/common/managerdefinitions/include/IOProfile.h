@@ -186,26 +186,20 @@ public:
     bool routesToDevice(const sp<DeviceDescriptor> &device) const;
 
     bool devicesSupportEncodedFormats(DeviceTypeSet deviceTypes) const
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     {
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         if (deviceTypes.empty()) {
             return true; // required for getOffloadSupport() check
         }
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         DeviceVector deviceList =
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
             mSupportedDevices.getDevicesFromTypes(deviceTypes);
         for (const auto& device : deviceList) {
             if (device->hasCurrentEncodedFormat()) {
                 return true;
             }
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
         }
         return false;
     }
 
-// QTI_END: 2019-01-20: Audio: audiopolicy: Add support for hybrid mode on A2DP
     bool containsSingleDeviceSupportingEncodedFormats(const sp<DeviceDescriptor>& device) const;
 
     void clearSupportedDevices() { mSupportedDevices.clear(); }

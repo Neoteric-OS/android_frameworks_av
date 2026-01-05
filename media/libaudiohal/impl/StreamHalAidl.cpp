@@ -33,9 +33,7 @@
 #include <Utils.h>
 #include <utils/Log.h>
 
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 #include "AidlUtils.h"
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 #include "DeviceHalAidl.h"
 #include "EffectHalAidl.h"
 #include "StreamHalAidl.h"
@@ -51,9 +49,7 @@ using ::aidl::android::hardware::audio::core::MmapBufferDescriptor;
 using ::aidl::android::hardware::audio::core::StreamDescriptor;
 using ::aidl::android::hardware::audio::core::VendorParameter;
 using ::aidl::android::media::audio::common::MicrophoneDynamicInfo;
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 using ::aidl::android::hardware::audio::core::VendorParameter;
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 using ::aidl::android::media::audio::IHalAdapterVendorExtension;
 
 /**
@@ -123,17 +119,13 @@ std::shared_ptr<IStreamCommon> StreamHalAidl::getStreamCommon(const std::shared_
     return streamCommon;
 }
 
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 StreamHalAidl::StreamHalAidl(std::string_view className, bool isInput, const audio_config& config,
                              int32_t nominalLatency, StreamContextAidl&& context,
                              const std::shared_ptr<IStreamCommon>& stream,
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                              const std::shared_ptr<IHalAdapterVendorExtension>& vext,
                              const sp<StreamCloseHandler>& streamCloseHandler)
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     : ConversionHelperAidl(className, std::string(isInput ? "in" : "out") + "|ioHandle:" +
             std::to_string(context.getIoHandle())),
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
           mIsInput(isInput),
           mConfig(configToBase(config)),
           mStreamCloseHandler(streamCloseHandler),
@@ -141,10 +133,8 @@ StreamHalAidl::StreamHalAidl(std::string_view className, bool isInput, const aud
           mStream(stream),
           mVendorExt(vext),
           mLastReplyLifeTimeNs(
-// QTI_BEGIN: 2024-06-18: Audio: libaudiohal: Decrease mLastReplyLifeTimeNs to update the reply more often
                   std::min(static_cast<size_t>(20),
                            mContext.getBufferDurationMs(mConfig.sample_rate))
-// QTI_END: 2024-06-18: Audio: libaudiohal: Decrease mLastReplyLifeTimeNs to update the reply more often
                   * NANOS_PER_MILLISECOND)
 {
     AUGMENT_LOG(D);
@@ -212,9 +202,7 @@ status_t StreamHalAidl::getBufferSize(size_t *size) {
         return NO_INIT;
     }
     *size = mContext.getBufferSizeBytes();
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG(I, "size: %zu", *size);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     return OK;
 }
 
@@ -233,23 +221,15 @@ status_t StreamHalAidl::setParameters(const String8& kvPairs) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
     AudioParameter parameters(kvPairs);
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG(D, "parameters: %s", parameters.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 
     (void)VALUE_OR_RETURN_STATUS(filterOutAndProcessParameter<int>(
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             parameters, String8(AudioParameter::keyStreamHwAvSync), [&](int hwAvSyncId) {
                 return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
                         serializeCall(mStream, &Stream::updateHwAvSyncId, hwAvSyncId));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             }));
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 
     return parseAndSetVendorParameters(parameters);
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 }
 
 status_t StreamHalAidl::getParameters(const String8& keys __unused, String8 *values) {
@@ -261,9 +241,7 @@ status_t StreamHalAidl::getParameters(const String8& keys __unused, String8 *val
     }
     AudioParameter parameterKeys(keys), result;
     *values = result.toString();
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
     return parseAndGetVendorParameters(parameterKeys, values);
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 }
 
 status_t StreamHalAidl::getFrameSize(size_t *size) {
@@ -286,12 +264,8 @@ status_t StreamHalAidl::addEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::addEffect, aidlEffect->getIEffect()));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamHalAidl::removeEffect(sp<EffectHalInterface> effect) {
@@ -302,12 +276,8 @@ status_t StreamHalAidl::removeEffect(sp<EffectHalInterface> effect) {
         return BAD_VALUE;
     }
     auto aidlEffect = sp<effect::EffectHalAidl>::cast(effect);
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::removeEffect, aidlEffect->getIEffect()));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamHalAidl::standby() {
@@ -323,15 +293,11 @@ status_t StreamHalAidl::standby() {
             RETURN_STATUS_IF_ERROR(pause(&reply));
             if (reply.state != StreamDescriptor::State::PAUSED &&
                     reply.state != StreamDescriptor::State::DRAIN_PAUSED &&
-// QTI_BEGIN: 2024-11-06: Audio: libaudiohal: Fix Standby sequence
                     reply.state != StreamDescriptor::State::TRANSFER_PAUSED &&
                     (state != StreamDescriptor::State::DRAINING ||
                         reply.state != StreamDescriptor::State::IDLE)) {
-// QTI_END: 2024-11-06: Audio: libaudiohal: Fix Standby sequence
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected PAUSED)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             FALLTHROUGH_INTENDED;
@@ -341,10 +307,8 @@ status_t StreamHalAidl::standby() {
             if (mIsInput) return flush();
             RETURN_STATUS_IF_ERROR(flush(&reply));
             if (reply.state != StreamDescriptor::State::IDLE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected IDLE)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             FALLTHROUGH_INTENDED;
@@ -352,20 +316,16 @@ status_t StreamHalAidl::standby() {
             RETURN_STATUS_IF_ERROR(sendCommand(makeHalCommand<HalCommand::Tag::standby>(),
                             &reply, true /*safeFromNonWorkerThread*/));
             if (reply.state != StreamDescriptor::State::STANDBY) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected STANDBY)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             FALLTHROUGH_INTENDED;
         case StreamDescriptor::State::STANDBY:
             return OK;
         default:
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "not supported from %s stream state %s", mIsInput ? "input" : "output",
                         toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return INVALID_OPERATION;
     }
 }
@@ -427,10 +387,8 @@ status_t StreamHalAidl::start() {
             RETURN_STATUS_IF_ERROR(
                     sendCommand(makeHalCommand<HalCommand::Tag::start>(), &reply, true));
             if (reply.state != StreamDescriptor::State::IDLE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected IDLE)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             FALLTHROUGH_INTENDED;
@@ -438,10 +396,8 @@ status_t StreamHalAidl::start() {
             RETURN_STATUS_IF_ERROR(
                     sendCommand(makeHalCommand<HalCommand::Tag::burst>(0), &reply, true));
             if (reply.state != StreamDescriptor::State::ACTIVE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected ACTIVE)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             FALLTHROUGH_INTENDED;
@@ -451,10 +407,8 @@ status_t StreamHalAidl::start() {
             RETURN_STATUS_IF_ERROR(
                     sendCommand(makeHalCommand<HalCommand::Tag::start>(), &reply, true));
             if (reply.state != StreamDescriptor::State::ACTIVE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected ACTIVE)",
                             toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             return OK;
@@ -477,10 +431,8 @@ status_t StreamHalAidl::start() {
             }
             FALLTHROUGH_INTENDED;
         default:
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "not supported from %s stream state %s", mIsInput ? "input" : "output",
                         toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return INVALID_OPERATION;
     }
 }
@@ -528,10 +480,8 @@ status_t StreamHalAidl::stop() {
         return flush();
     } else if (state != StreamDescriptor::State::IDLE &&
             state != StreamDescriptor::State::STANDBY) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(E, "not supported from %s stream state %s", mIsInput ? "input" : "output",
                     toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         return INVALID_OPERATION;
     }
     return OK;
@@ -543,11 +493,9 @@ status_t StreamHalAidl::getLatency(uint32_t *latency) {
     StreamDescriptor::Reply reply;
     RETURN_STATUS_IF_ERROR(updateCountersIfNeeded(&reply));
     *latency = std::clamp(std::max<int32_t>(0, reply.latencyMs), 1, 3000);
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG_IF(W, reply.latencyMs != static_cast<int32_t>(*latency),
                    "Suspicious latency value reported by HAL: %d, clamped to %u", reply.latencyMs,
                    *latency);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     return OK;
 }
 
@@ -616,10 +564,8 @@ status_t StreamHalAidl::transfer(void *buffer, size_t bytes, size_t *transferred
         StreamDescriptor::Reply reply;
         RETURN_STATUS_IF_ERROR(sendCommand(makeHalCommand<HalCommand::Tag::start>(), &reply));
         if (reply.state != StreamDescriptor::State::IDLE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "failed to get the stream out of standby, actual state: %s",
                         toString(reply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return INVALID_OPERATION;
         }
     }
@@ -630,9 +576,7 @@ status_t StreamHalAidl::transfer(void *buffer, size_t bytes, size_t *transferred
             StreamDescriptor::Command::make<StreamDescriptor::Command::Tag::burst>(bytes);
     if (!mIsInput) {
         if (!mContext.getDataMQ()->write(static_cast<const int8_t*>(buffer), bytes)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "failed to write %zu bytes to data MQ", bytes);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return NOT_ENOUGH_DATA;
         }
     }
@@ -645,9 +589,7 @@ status_t StreamHalAidl::transfer(void *buffer, size_t bytes, size_t *transferred
                 __func__, *transferred, bytes);
         if (auto toRead = mContext.getDataMQ()->availableToRead();
                 toRead != 0 && !mContext.getDataMQ()->read(static_cast<int8_t*>(buffer), toRead)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "failed to read %zu bytes to data MQ", toRead);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return NOT_ENOUGH_DATA;
         }
     } else if (*transferred > bytes) {
@@ -663,20 +605,13 @@ status_t StreamHalAidl::pause(StreamDescriptor::Reply* reply) {
     AUGMENT_LOG(D);
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
 
     if (const auto state = getState(); isInPlayOrRecordState(state)) {
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
-// QTI_BEGIN: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
         StreamDescriptor::Reply localReply{};
         StreamDescriptor::Reply* innerReply = reply ?: &localReply;
         auto status = sendCommand(
                 makeHalCommand<HalCommand::Tag::pause>(), innerReply,
-// QTI_END: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
                 true /*safeFromNonWorkerThread*/);  // The workers stops its I/O activity first.
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
-// QTI_BEGIN: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
         if (status == STATUS_INVALID_OPERATION &&
                 !isInPlayOrRecordState(innerReply->state)) {
             /**
@@ -691,26 +626,15 @@ status_t StreamHalAidl::pause(StreamDescriptor::Reply* reply) {
             AUGMENT_LOG(D,
                         "HAL failed to handle the 'pause' command, but stream state is in one of"
                         " the PAUSED kind of states, current state: %s",
-// QTI_END: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
-// QTI_BEGIN: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
                         toString(innerReply->state).c_str());
-// QTI_END: 2025-01-21: Audio: liaudiohal@aidl: Fix state in the log message
-// QTI_BEGIN: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
             return OK;
         }
         return status;
-// QTI_END: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
     } else {
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(D, "already stream in one of the PAUSED kind of states, current state: %s",
                 toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
         return OK;
     }
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
 }
 
 status_t StreamHalAidl::resume(StreamDescriptor::Reply* reply) {
@@ -728,40 +652,48 @@ status_t StreamHalAidl::resume(StreamDescriptor::Reply* reply) {
             RETURN_STATUS_IF_ERROR(
                     sendCommand(makeHalCommand<HalCommand::Tag::burst>(0), innerReply));
             if (innerReply->state != StreamDescriptor::State::ACTIVE) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 AUGMENT_LOG(E, "unexpected stream state: %s (expected ACTIVE)",
                             toString(innerReply->state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                 return INVALID_OPERATION;
             }
             return OK;
-// QTI_BEGIN: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
         } else if (isInPausedState(state)) {
-// QTI_END: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
             return sendCommand(makeHalCommand<HalCommand::Tag::start>(), reply);
-// QTI_BEGIN: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
         } else if (isInPlayOrRecordState(state)) {
-// QTI_END: 2024-10-08: Audio: libaudiohal@aidl: Fix 'pause' handling
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(D, "already in stream state: %s", toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-// QTI_BEGIN: 2024-06-25: Audio: libaudiohal@aidl: allow ACTIVE,TRANSFERRING,DRAINING for resume
             return OK;
-// QTI_END: 2024-06-25: Audio: libaudiohal@aidl: allow ACTIVE,TRANSFERRING,DRAINING for resume
         } else {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "unexpected stream state: %s (expected IDLE or one of *PAUSED states)",
                         toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return INVALID_OPERATION;
         }
     }
 }
 
-status_t StreamHalAidl::drain(bool earlyNotify, StreamDescriptor::Reply* reply) {
+status_t StreamHalAidl::drain(bool earlyNotify, StreamDescriptor::Reply* reply, bool* sendCb) {
     AUGMENT_LOG(D);
     TIME_CHECK();
     if (!mStream) return NO_INIT;
+    if (sendCb != nullptr) {
+        bool skip = false;
+        std::lock_guard l(mLock);
+        if (mContext.hasClipTransitionSupport() &&
+                mLastReply.state == StreamDescriptor::State::DRAINING) {
+            *sendCb = mStatePositions.drainState != StatePositions::DrainState::EN_RECEIVED;
+            if (!*sendCb) {
+                mStatePositions.continueDrainRequests++;
+                AUGMENT_LOG(D, "scheduled drain after the current clip ends (%d)",
+                            mStatePositions.continueDrainRequests);
+            }
+            skip = true;
+        } else if (isInDrainedState(mLastReply.state)) {
+            *sendCb = skip = true;
+        }
+        if (skip) {
+            AUGMENT_LOG(D, "stream already in %s state", toString(mLastReply.state).c_str());
+            return OK;
+        }
+    }
     return sendCommand(makeHalCommand<HalCommand::Tag::drain>(
                     mIsInput ? StreamDescriptor::DrainMode::DRAIN_UNSPECIFIED :
                     earlyNotify ? StreamDescriptor::DrainMode::DRAIN_EARLY_NOTIFY :
@@ -778,30 +710,22 @@ status_t StreamHalAidl::flush(StreamDescriptor::Reply* reply) {
         RETURN_STATUS_IF_ERROR(pause(reply));
     }
 
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
     if (const auto state = getState(); isInPausedState(state)) {
         return sendCommand(
                 makeHalCommand<HalCommand::Tag::flush>(), reply,
                 true /*safeFromNonWorkerThread*/);  // The workers stops its I/O activity first.
     } else {
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
         AUGMENT_LOG(D, "already stream in one of the flushed state: current state: %s",
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
                     toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-// QTI_BEGIN: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
         return OK;
     }
-// QTI_END: 2024-08-14: Audio: libaudiohal@aidl: adjust pause and flush for a stream
 }
 
 status_t StreamHalAidl::exit() {
     AUGMENT_LOG(D);
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     return statusTFromBinderStatus(serializeCall(mStream, &Stream::prepareToClose));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 void StreamHalAidl::onAsyncTransferReady() {
@@ -813,8 +737,15 @@ void StreamHalAidl::onAsyncTransferReady() {
         state = getState();
     }
     bool isCallbackExpected = false;
+    int continueDrainRequests = 0;
     if (state == StreamDescriptor::State::TRANSFERRING) {
         isCallbackExpected = true;
+        if (mContext.hasClipTransitionSupport()) {
+            std::lock_guard l(mLock);
+            if (mStatePositions.continueDrainRequests > 0) {
+                continueDrainRequests = mStatePositions.continueDrainRequests--;
+            }
+        }
     } else if (mContext.hasClipTransitionSupport() && state == StreamDescriptor::State::DRAINING) {
         std::lock_guard l(mLock);
         isCallbackExpected = mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED;
@@ -823,18 +754,24 @@ void StreamHalAidl::onAsyncTransferReady() {
         }
     }
     if (isCallbackExpected) {
-        // Retrieve the current state together with position counters unconditionally
-        // to ensure that the state on our side gets updated.
-        sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
-                nullptr, true /*safeFromNonWorkerThread */);
+        if (!continueDrainRequests) {
+            // Retrieve the current state together with position counters unconditionally
+            // to ensure that the state on our side gets updated.
+            sendCommand(makeHalCommand<HalCommand::Tag::getStatus>(),
+                    nullptr, true /*safeFromNonWorkerThread */);
+        } else {
+            AUGMENT_LOG(D, "executing scheduled drain after clip end (%d)", continueDrainRequests);
+            /* We know this can only be true for an output stream. */
+            reinterpret_cast<StreamOutHalAidl*>(this)->drain(true /*earlyNotify*/);
+        }
     } else {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(W, "unexpected onTransferReady in the state %s", toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     }
 }
 
-void StreamHalAidl::onAsyncDrainReady() {
+bool StreamHalAidl::onAsyncDrainReady() {
+    bool propagateToFramework = true;
+    int continueDrainRequests = 0;
     StreamDescriptor::State state;
     {
         // Use 'mCommandReplyLock' to ensure that 'sendCommand' has finished updating the state
@@ -857,24 +794,36 @@ void StreamHalAidl::onAsyncDrainReady() {
                 (!mContext.hasClipTransitionSupport() ||
                         (mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED
                                 || mStatePositions.drainState == StatePositions::DrainState::ALL))) {
-            AUGMENT_LOG(D, "setting position %lld as clip end",
-                    (long long)mLastReply.observable.frames);
+            AUGMENT_LOG(D, "setting position %lld as clip end, stream state: %s",
+                    (long long)mLastReply.observable.frames, toString(mLastReply.state).c_str());
             mStatePositions.observable.framesAtFlushOrDrain = mLastReply.observable.frames;
+            if (mContext.hasClipTransitionSupport() &&
+                    mStatePositions.drainState == StatePositions::DrainState::EN_RECEIVED) {
+                // The second 'onDrainReady' for 'drain(early_notify)' is not propagated
+                // for compatibility with HIDL.
+                propagateToFramework = false;
+                if (mLastReply.state == StreamDescriptor::State::IDLE &&
+                        mStatePositions.continueDrainRequests > 0) {
+                    continueDrainRequests = mStatePositions.continueDrainRequests--;
+                }
+            }
         }
         mStatePositions.drainState = mStatePositions.drainState == StatePositions::DrainState::EN ?
                 StatePositions::DrainState::EN_RECEIVED : StatePositions::DrainState::NONE;
     } else {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(W, "unexpected onDrainReady in the state %s", toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     }
+    if (continueDrainRequests) {
+        AUGMENT_LOG(D, "executing scheduled drain after clip end (%d)", continueDrainRequests);
+        /* We know this can only be true for an output stream. */
+        reinterpret_cast<StreamOutHalAidl*>(this)->drain(true /*earlyNotify*/);
+    }
+    return propagateToFramework;
 }
 
 void StreamHalAidl::onAsyncError() {
     std::lock_guard l(mLock);
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG(W, "received in the state %s", toString(mLastReply.state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     mLastReply.state = StreamDescriptor::State::ERROR;
 }
 
@@ -942,7 +891,6 @@ status_t StreamHalAidl::legacyReleaseAudioPatch() {
     return INVALID_OPERATION;
 }
 
-// QTI_BEGIN: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t StreamHalAidl::parseAndGetVendorParameters(const AudioParameter& parameterKeys,
                                                     String8* values) {
     std::vector<std::string> vendorParameterIds;
@@ -976,7 +924,6 @@ status_t StreamHalAidl::parseAndSetVendorParameters(const AudioParameter& parame
     return OK;
 }
 
-// QTI_END: 2025-04-23: Audio: libaudiohal@aidl: serialize IStreamCommon::[get|set]VendorParameters APIs
 status_t StreamHalAidl::sendCommand(
         const ::aidl::android::hardware::audio::core::StreamDescriptor::Command& command,
         ::aidl::android::hardware::audio::core::StreamDescriptor::Reply* reply,
@@ -1003,18 +950,14 @@ status_t StreamHalAidl::sendCommand(
     {
         std::lock_guard l(mCommandReplyLock);
         if (!mContext.getCommandMQ()->writeBlocking(&command, 1)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "failed to write command %s to MQ", command.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return NOT_ENOUGH_DATA;
         }
         if (reply == nullptr) {
             reply = &localReply;
         }
         if (!mContext.getReplyMQ()->readBlocking(reply, 1)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "failed to read from reply MQ, command %s", command.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return NOT_ENOUGH_DATA;
         }
         {
@@ -1044,12 +987,16 @@ status_t StreamHalAidl::sendCommand(
                         mStatePositions.hardware.framesAtFlushOrDrain = reply->hardware.frames;
                     } // for asynchronous drain, the frame count is saved in 'onAsyncDrainReady'
                 }
-                if (mContext.isAsynchronous() &&
-                        command.getTag() == StreamDescriptor::Command::drain) {
-                    mStatePositions.drainState =
-                            command.get<StreamDescriptor::Command::drain>() ==
-                            StreamDescriptor::DrainMode::DRAIN_ALL ?
-                            StatePositions::DrainState::ALL : StatePositions::DrainState::EN;
+                if (mContext.isAsynchronous()) {
+                    if (command.getTag() == StreamDescriptor::Command::drain) {
+                        mStatePositions.drainState =
+                                command.get<StreamDescriptor::Command::drain>() ==
+                                StreamDescriptor::DrainMode::DRAIN_ALL ?
+                                StatePositions::DrainState::ALL : StatePositions::DrainState::EN;
+                    } else if (command.getTag() == StreamDescriptor::Command::flush) {
+                        mStatePositions.continueDrainRequests = 0;
+                        AUGMENT_LOG(D, "reset scheduled drain requests");
+                    }
                 }
             }
             if (statePositions != nullptr) {
@@ -1063,10 +1010,8 @@ status_t StreamHalAidl::sendCommand(
         case STATUS_INVALID_OPERATION: return INVALID_OPERATION;
         case STATUS_NOT_ENOUGH_DATA: return NOT_ENOUGH_DATA;
         default:
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "unexpected status %d returned for command %s", reply->status,
                         command.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return INVALID_OPERATION;
     }
 }
@@ -1135,14 +1080,10 @@ status_t StreamOutHalAidl::setParameters(const String8& kvPairs) {
     if (!mStream) return NO_INIT;
 
     AudioParameter parameters(kvPairs);
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG(D, "parameters: \"%s\"", parameters.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
 
     if (status_t status = filterAndUpdateOffloadMetadata(parameters); status != OK) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(W, "filtering or updating offload metadata failed: %d", status);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     }
 
     return StreamHalAidl::setParameters(parameters.toString());
@@ -1153,14 +1094,10 @@ status_t StreamOutHalAidl::getLatency(uint32_t *latency) {
 }
 
 status_t StreamOutHalAidl::setVolume(float left, float right) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     AUGMENT_LOG(V, "left %f right %f", left, right);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2024-05-02: Audio: av: Fix volume count sent to HAL
     size_t channelCount = audio_channel_count_from_out_mask(mConfig.channel_mask);
-// QTI_END: 2024-05-02: Audio: av: Fix volume count sent to HAL
     if (channelCount == 0) channelCount = 2;
     std::vector<float> volumes(channelCount);
     if (channelCount == 1) {
@@ -1172,20 +1109,23 @@ status_t StreamOutHalAidl::setVolume(float left, float right) {
             volumes[i] = (left + right) / 2;
         }
     }
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     return statusTFromBinderStatus(serializeCall(mStream, &Stream::setHwVolume, volumes));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::selectPresentation(int presentationId, int programId) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-    return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
-            serializeCall(mStream, &Stream::selectPresentation, presentationId, programId));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
+    if (getAidlInterfaceVersion() <= kAidlVersion3) {
+        // selectPresentation was not used by AudioTrack on <= Android 16 (AIDL v3 launch devices)
+        // and lower. For backwards compatibility, use setParameters which was used.
+        AudioParameter parameters;
+        parameters.addInt(String8(AudioParameter::keyPresentationId), presentationId);
+        parameters.addInt(String8(AudioParameter::keyProgramId), programId);
+        return setParameters(parameters.toString());
+    } else {
+        return statusTFromBinderStatus(
+                serializeCall(mStream, &Stream::selectPresentation, presentationId, programId));
+    }
 }
 
 status_t StreamOutHalAidl::write(const void *buffer, size_t bytes, size_t *written) {
@@ -1224,9 +1164,7 @@ status_t StreamOutHalAidl::setCallback(wp<StreamOutHalInterfaceCallback> callbac
     TIME_CHECK();
     if (!mStream) return NO_INIT;
     if (!mContext.isAsynchronous()) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(E, "the callback is intended for asynchronous streams only");
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         return INVALID_OPERATION;
     }
     mClientCallback = callback;
@@ -1262,24 +1200,15 @@ status_t StreamOutHalAidl::supportsDrain(bool *supportsDrain) {
 }
 
 status_t StreamOutHalAidl::drain(bool earlyNotify) {
-// QTI_BEGIN: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
     if (!mStream) return NO_INIT;
 
-// QTI_END: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-    if (const auto state = getState();
-            state == StreamDescriptor::State::DRAINING || isInDrainedState(state)) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-        AUGMENT_LOG(D, "stream already in %s state", toString(state).c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-        if (mContext.isAsynchronous() && isInDrainedState(state)) {
-            onDrainReady();
-        }
-// QTI_BEGIN: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-        return OK;
+    StreamDescriptor::Reply reply;
+    bool sendCallback = false;
+    RETURN_STATUS_IF_ERROR(StreamHalAidl::drain(earlyNotify, &reply, &sendCallback));
+    if (sendCallback && mContext.isAsynchronous()) {
+        sendOnDrainReadyToClients();
     }
-
-// QTI_END: 2024-07-16: Audio: libaudiohal@aidl: fix drain as per HIDL
-    return StreamHalAidl::drain(earlyNotify);
+    return OK;
 }
 
 status_t StreamOutHalAidl::flush() {
@@ -1319,12 +1248,8 @@ status_t StreamOutHalAidl::updateSourceMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SourceMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SourceMetadata(sourceMetadata));
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::getDualMonoMode(audio_dual_mono_mode_t* mode) {
@@ -1334,12 +1259,8 @@ status_t StreamOutHalAidl::getDualMonoMode(audio_dual_mono_mode_t* mode) {
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getDualMonoMode, &aidlMode)));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     *mode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioDualMonoMode_audio_dual_mono_mode_t(aidlMode));
     return OK;
@@ -1350,12 +1271,8 @@ status_t StreamOutHalAidl::setDualMonoMode(audio_dual_mono_mode_t mode) {
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioDualMonoMode aidlMode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_dual_mono_mode_t_AudioDualMonoMode(mode));
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setDualMonoMode, aidlMode));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::getAudioDescriptionMixLevel(float* leveldB) {
@@ -1364,23 +1281,15 @@ status_t StreamOutHalAidl::getAudioDescriptionMixLevel(float* leveldB) {
     if (leveldB == nullptr) {
         return BAD_VALUE;
     }
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getAudioDescriptionMixLevel, leveldB));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::setAudioDescriptionMixLevel(float leveldB) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setAudioDescriptionMixLevel, leveldB));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::getPlaybackRateParameters(audio_playback_rate_t* playbackRate) {
@@ -1390,12 +1299,8 @@ status_t StreamOutHalAidl::getPlaybackRateParameters(audio_playback_rate_t* play
         return BAD_VALUE;
     }
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getPlaybackRateParameters, &aidlRate)));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     *playbackRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::aidl2legacy_AudioPlaybackRate_audio_playback_rate_t(aidlRate));
     return OK;
@@ -1406,12 +1311,8 @@ status_t StreamOutHalAidl::setPlaybackRateParameters(const audio_playback_rate_t
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioPlaybackRate aidlRate = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_playback_rate_t_AudioPlaybackRate(playbackRate));
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setPlaybackRateParameters, aidlRate));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamOutHalAidl::setEventCallback(
@@ -1429,9 +1330,7 @@ status_t StreamOutHalAidl::setLatencyMode(audio_latency_mode_t mode) {
     if (!mStream) return NO_INIT;
     ::aidl::android::media::audio::common::AudioLatencyMode aidlMode = VALUE_OR_RETURN_STATUS(
             ::aidl::android::legacy2aidl_audio_latency_mode_t_AudioLatencyMode(mode));
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     return statusTFromBinderStatus(serializeCall(mStream, &Stream::setLatencyMode, aidlMode));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 };
 
 status_t StreamOutHalAidl::getRecommendedLatencyModes(std::vector<audio_latency_mode_t> *modes) {
@@ -1441,12 +1340,8 @@ status_t StreamOutHalAidl::getRecommendedLatencyModes(std::vector<audio_latency_
         return BAD_VALUE;
     }
     std::vector<::aidl::android::media::audio::common::AudioLatencyMode> aidlModes;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getRecommendedLatencyModes, &aidlModes)));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     *modes = VALUE_OR_RETURN_STATUS(
             ::aidl::android::convertContainer<std::vector<audio_latency_mode_t>>(
                     aidlModes,
@@ -1477,16 +1372,21 @@ void StreamOutHalAidl::onWriteReady() {
 }
 
 void StreamOutHalAidl::onDrainReady() {
-    onAsyncDrainReady();
-    if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
-        clientCb->onDrainReady();
-    }
+    if (!onAsyncDrainReady()) return;
+    sendOnDrainReadyToClients();
 }
 
 void StreamOutHalAidl::onError(bool isHardError) {
     onAsyncError();
     if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
         clientCb->onError(isHardError);
+    }
+}
+
+void StreamOutHalAidl::sendOnDrainReadyToClients() {
+    AUGMENT_LOG(D, "sending onDrainReady to framework");
+    if (auto clientCb = mClientCallback.load().promote(); clientCb != nullptr) {
+        clientCb->onDrainReady();
     }
 }
 
@@ -1541,19 +1441,11 @@ status_t StreamOutHalAidl::filterAndUpdateOffloadMetadata(AudioParameter &parame
         updateMetadata = true;
     }
     if (updateMetadata) {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         AUGMENT_LOG(D, "set offload metadata %s", mOffloadMetadata.toString().c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
         if (status_t status = statusTFromBinderStatus(
                     serializeCall(mStream, &Stream::updateOffloadMetadata, mOffloadMetadata));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
             status != OK) {
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "updateOffloadMetadata failed %d", status);
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             return status;
         }
     }
@@ -1591,9 +1483,7 @@ status_t StreamInHalAidl::setGain(float gain) {
     if (!mStream) return NO_INIT;
     const size_t channelCount = audio_channel_count_from_in_mask(mConfig.channel_mask);
     std::vector<float> gains(channelCount != 0 ? channelCount : 1, gain);
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     return statusTFromBinderStatus(serializeCall(mStream, &Stream::setHwGain, gains));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamInHalAidl::read(void *buffer, size_t bytes, size_t *read) {
@@ -1631,12 +1521,8 @@ status_t StreamInHalAidl::getActiveMicrophones(std::vector<media::MicrophoneInfo
     auto staticInfo = micInfoProvider->getMicrophoneInfo();
     if (!staticInfo) return INVALID_OPERATION;
     std::vector<MicrophoneDynamicInfo> dynamicInfo;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     RETURN_STATUS_IF_ERROR(statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::getActiveMicrophones, &dynamicInfo)));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
     std::vector<media::MicrophoneInfoFw> result;
     result.reserve(dynamicInfo.size());
     for (const auto& d : dynamicInfo) {
@@ -1653,9 +1539,7 @@ status_t StreamInHalAidl::getActiveMicrophones(std::vector<media::MicrophoneInfo
             // Note: info.portId is not filled because it's a bit of framework info.
             result.push_back(std::move(info));
         } else {
-// QTI_BEGIN: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
             AUGMENT_LOG(E, "no static info for active microphone with id '%s'", d.id.c_str());
-// QTI_END: 2024-08-21: Audio: libaudiohal: Modify logging in DeviceHalAidl/Hal2AidlMapper/StreamHalAidl
         }
     }
     *microphones = std::move(result);
@@ -1668,12 +1552,8 @@ status_t StreamInHalAidl::updateSinkMetadata(
     if (!mStream) return NO_INIT;
     ::aidl::android::hardware::audio::common::SinkMetadata aidlMetadata =
               VALUE_OR_RETURN_STATUS(legacy2aidl_SinkMetadata(sinkMetadata));
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::updateMetadata, aidlMetadata));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamInHalAidl::setPreferredMicrophoneDirection(audio_microphone_direction_t direction) {
@@ -1683,23 +1563,15 @@ status_t StreamInHalAidl::setPreferredMicrophoneDirection(audio_microphone_direc
               VALUE_OR_RETURN_STATUS(
                       ::aidl::android::legacy2aidl_audio_microphone_direction_t_MicrophoneDirection(
                               direction));
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneDirection, aidlDirection));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamInHalAidl::setPreferredMicrophoneFieldDimension(float zoom) {
     TIME_CHECK();
     if (!mStream) return NO_INIT;
-// QTI_BEGIN: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
     return statusTFromBinderStatus(
-// QTI_END: 2025-02-12: Audio: libaudiohal@aidl: serialize IStream[Common|Out|In]
-// QTI_BEGIN: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
             serializeCall(mStream, &Stream::setMicrophoneFieldDimension, zoom));
-// QTI_END: 2025-02-16: Audio: libaudiohal@aidl: refactor serialization of IStream[Common|Out|In]
 }
 
 status_t StreamInHalAidl::dump(int fd, const Vector<String16>& args) {

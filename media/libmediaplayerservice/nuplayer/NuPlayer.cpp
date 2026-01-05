@@ -924,15 +924,11 @@ void NuPlayer::onMessageReceived(const sp<AMessage> &msg) {
             readFromAMessage(msg, &rate);
             status_t err = OK;
             if (mRenderer != NULL) {
-// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                 // AudioSink allows only 1.f and 0.f for offload and direct modes.
                 // For other speeds, restart audio to fallback to supported paths
-// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                 bool audioDirectOutput = (mAudioSink->getFlags() & AUDIO_OUTPUT_FLAG_DIRECT) != 0;
                 if ((mOffloadAudio || audioDirectOutput) &&
-// QTI_BEGIN: 2018-03-22: Audio: add support to enable track offload using direct output
                         ((rate.mSpeed != 0.f && rate.mSpeed != 1.f) || rate.mPitch != 1.f)) {
-// QTI_END: 2018-03-22: Audio: add support to enable track offload using direct output
                     int64_t currentPositionUs;
                     if (getCurrentPosition(&currentPositionUs) != OK) {
                         currentPositionUs = mPreviousSeekTimeUs;
@@ -2018,11 +2014,9 @@ void NuPlayer::restartAudio(
     closeAudioSink();
     mRenderer->flush(true /* audio */, false /* notifyComplete */);
     if (mVideoDecoder != NULL) {
-// QTI_BEGIN: 2018-05-13: Video: nuplayer: call video flush on audio teardown
         mDeferredActions.push_back(
                 new FlushDecoderAction(FLUSH_CMD_NONE /* audio */,
                                        FLUSH_CMD_FLUSH /* video */));
-// QTI_END: 2018-05-13: Video: nuplayer: call video flush on audio teardown
         mDeferredActions.push_back(
                 new SeekAction(currentPositionUs,
                 MediaPlayerSeekMode::SEEK_PREVIOUS_SYNC /* mode */));
@@ -2187,10 +2181,8 @@ status_t NuPlayer::instantiateDecoder(
         if (mOffloadAudio) {
             mSource->setOffloadAudio(true /* offload */);
 
-// QTI_BEGIN: 2015-04-02: Audio: nuplayer: Has video hint for offload
             const bool hasVideo = (mSource->getFormat(false /*audio */) != NULL);
             format->setInt32("has-video", hasVideo);
-// QTI_END: 2015-04-02: Audio: nuplayer: Has video hint for offload
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             *decoder = AVNuFactory::get()->createPassThruDecoder(notify, mSource, mRenderer);
             ALOGV("instantiateDecoder audio DecoderPassThrough hasVideo: %d", hasVideo);
@@ -2253,9 +2245,7 @@ status_t NuPlayer::instantiateDecoder(
             }
         }
 
-// QTI_BEGIN: 2019-05-03: Video: NuPlayer: Set playback-speed in instantiate decoder
         params->setFloat("playback-speed", mPlaybackSettings.mSpeed);
-// QTI_END: 2019-05-03: Video: NuPlayer: Set playback-speed in instantiate decoder
         if (params->countEntries() > 0) {
             (*decoder)->setParameters(params);
         }
@@ -3000,7 +2990,6 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
         case Source::kWhatRTCPByeReceived:
         {
             ALOGV("notify the client that Bye message is received");
@@ -3008,7 +2997,6 @@ void NuPlayer::onSourceNotify(const sp<AMessage> &msg) {
             break;
         }
 
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
         default:
             TRESPASS();
     }

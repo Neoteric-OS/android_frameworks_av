@@ -569,10 +569,8 @@ const detail::AudioDevicePairs& getAudioDevicePairs() {
                 AudioDeviceType::IN_BUS, AudioDeviceType::OUT_BUS);
         append_AudioDeviceDescription(pairs,
                 AUDIO_DEVICE_IN_PROXY, AUDIO_DEVICE_OUT_PROXY,
-// QTI_BEGIN: 2023-11-16: Audio: media: Add connection types for Proxy.
                 AudioDeviceType::IN_AFE_PROXY, AudioDeviceType::OUT_AFE_PROXY,
                 GET_DEVICE_DESC_CONNECTION(VIRTUAL));
-// QTI_END: 2023-11-16: Audio: media: Add connection types for Proxy.
         append_AudioDeviceDescription(pairs,
                 AUDIO_DEVICE_IN_USB_HEADSET, AUDIO_DEVICE_OUT_USB_HEADSET,
                 AudioDeviceType::IN_HEADSET, AudioDeviceType::OUT_HEADSET,
@@ -1846,6 +1844,10 @@ aidl2legacy_AudioUsage_audio_usage_t(AudioUsage aidl) {
             return AUDIO_USAGE_ANNOUNCEMENT;
         case AudioUsage::SPEAKER_CLEANUP:
             return AUDIO_USAGE_SPEAKER_CLEANUP;
+        case AudioUsage::NOTIFICATION_VIBRATION:
+            return AUDIO_USAGE_NOTIFICATION_VIBRATION;
+        case AudioUsage::RINGTONE_VIBRATION:
+            return AUDIO_USAGE_RINGTONE_VIBRATION;
     }
     return unexpected(BAD_VALUE);
 }
@@ -1899,6 +1901,10 @@ legacy2aidl_audio_usage_t_AudioUsage(audio_usage_t legacy) {
             return AudioUsage::ANNOUNCEMENT;
         case AUDIO_USAGE_SPEAKER_CLEANUP:
             return AudioUsage::SPEAKER_CLEANUP;
+        case AUDIO_USAGE_NOTIFICATION_VIBRATION:
+            return AudioUsage::NOTIFICATION_VIBRATION;
+        case AUDIO_USAGE_RINGTONE_VIBRATION:
+            return AudioUsage::RINGTONE_VIBRATION;
     }
     return unexpected(BAD_VALUE);
 }

@@ -5,13 +5,7 @@
 package: "com.android.media.audio"
 container: "system"
 
-flag {
-    name: "alarm_min_volume_zero"
-    namespace: "media_audio"
-    description: "Support configuring alarm min vol to zero"
-    bug: "296884402"
-}
-
+# go/keep-sorted start block=yes newline_separated=yes by_regex=name:\s*"([^"]+)"
 flag {
     name: "abs_volume_prioritizes_abs_device"
     namespace: "media_audio"
@@ -28,10 +22,17 @@ flag {
 }
 
 flag {
-    name: "as_device_connection_failure"
+    name: "alarm_min_volume_zero"
     namespace: "media_audio"
-    description: "AudioService handles device connection failures."
-    bug: "326597760"
+    description: "Support configuring alarm min vol to zero"
+    bug: "296884402"
+}
+
+flag {
+    name: "audio_eraser_effect"
+    namespace: "media_audio"
+    description: "Enable audio eraser effect"
+    bug: "367667349"
 }
 
 flag {
@@ -42,10 +43,10 @@ flag {
 }
 
 flag {
-    name: "audio_eraser_effect"
+    name: "camera_shutter_sound"
     namespace: "media_audio"
-    description: "Enable audio eraser effect"
-    bug: "367667349"
+    description: "Manage camera sound depending on locale and sim"
+    bug: "440483480"
 }
 
 flag {
@@ -75,21 +76,21 @@ flag {
 }
 
 flag {
-    name: "equal_sco_lea_vc_index_range"
-    namespace: "media_audio"
-    description:
-        "Introduce the same index range for voice calls over SCO and "
-        "LE audio"
-    bug: "364364777"
-}
-
-flag {
     name: "equal_sco_ha_vc_index_range"
     namespace: "media_audio"
     description:
         "Introduce the same index range for voice calls over SCO and "
         "hearing aids"
     bug: "416418971"
+}
+
+flag {
+    name: "equal_sco_lea_vc_index_range"
+    namespace: "media_audio"
+    description:
+        "Introduce the same index range for voice calls over SCO and "
+        "LE audio"
+    bug: "364364777"
 }
 
 flag {
@@ -201,3 +202,4 @@ flag {
     description: "Refactor the audio volume internal architecture logic"
     bug: "324152869"
 }
+# go/keep-sorted end

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-// QTI_BEGIN: 2022-12-15: Audio: Add libaudiousecasevalidation library
 #ifndef MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASELOOKUP_H_
 #define MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASELOOKUP_H_
 
@@ -82,4 +81,3 @@ class UsecaseLookup {
 }  // namespace android
 
 #endif  // MEDIA_LIBAUDIOUSECASEVALIDATION_INCLUDE_MEDIA_USECASELOOKUP_H_
-// QTI_END: 2022-12-15: Audio: Add libaudiousecasevalidation library

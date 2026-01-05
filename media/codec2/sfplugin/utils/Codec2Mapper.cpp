@@ -333,10 +333,8 @@ ALookup<C2Config::pcm_encoding_t, int32_t> sPcmEncodings = {
     { C2Config::PCM_8, kAudioEncodingPcm8bit },
     { C2Config::PCM_16, kAudioEncodingPcm16bit },
     { C2Config::PCM_FLOAT, kAudioEncodingPcmFloat },
-// QTI_BEGIN: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
     { C2Config::PCM_24, kAudioEncodingPcm24bitPacked },
     { C2Config::PCM_32, kAudioEncodingPcm32bit },
-// QTI_END: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
 };
 
 ALookup<C2Config::level_t, int32_t> sVp9Levels = {
@@ -420,10 +418,17 @@ ALookup<C2Config::profile_t, int32_t> sAv1Profiles = {
     { C2Config::PROFILE_AV1_0, AV1ProfileMain10 },
     { C2Config::PROFILE_AV1_0, AV1ProfileMain10HDR10 },
     { C2Config::PROFILE_AV1_0, AV1ProfileMain10HDR10Plus },
+    { C2Config::PROFILE_AV1_1, AV1ProfileHigh8 },
+    { C2Config::PROFILE_AV1_1, AV1ProfileHigh10 },
+    { C2Config::PROFILE_AV1_2, AV1ProfileProfessional8 },
+    { C2Config::PROFILE_AV1_2, AV1ProfileProfessional10 },
+    { C2Config::PROFILE_AV1_2, AV1ProfileProfessional12 },
 };
 
 ALookup<C2Config::profile_t, int32_t> sAv1TenbitProfiles = {
     { C2Config::PROFILE_AV1_0, AV1ProfileMain10 },
+    { C2Config::PROFILE_AV1_1, AV1ProfileHigh10 },
+    { C2Config::PROFILE_AV1_2, AV1ProfileProfessional10 },
 };
 
 ALookup<C2Config::profile_t, int32_t> sAv1HdrProfiles = {
@@ -1016,11 +1021,9 @@ C2Mapper::GetProfileLevelMapper(std::string mediaType) {
         return std::make_shared<DolbyVisionProfileLevelMapper>();
     } else if (mediaType == MIMETYPE_VIDEO_H263) {
         return std::make_shared<H263ProfileLevelMapper>();
-// QTI_BEGIN: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
     } else if (mediaType == MIMETYPE_VIDEO_HEVC
-// QTI_END: 2024-09-12: Video: av: Map HEVC profiles for MVHEVC mimeType
-// QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
                 || mediaType == MIMETYPE_VIDEO_MVHEVC
+// QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
                 || mediaType == MIMETYPE_IMAGE_ANDROID_HEIC ) {
 // QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
         return std::make_shared<HevcProfileLevelMapper>();

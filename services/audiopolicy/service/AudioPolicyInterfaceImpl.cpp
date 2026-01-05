@@ -276,9 +276,7 @@ Status AudioPolicyService::setPhoneState(AudioMode stateAidl, int32_t uidAidl)
     mAudioPolicyManager->setPhoneState(state);
     mPhoneState = state;
     mPhoneStateOwnerUid = uid;
-// QTI_BEGIN: 2021-04-14: Audio: audiopolicy: add update uid state after the change of phone mode
     updateUidStates_l();
-// QTI_END: 2021-04-14: Audio: audiopolicy: add update uid state after the change of phone mode
     return Status::ok();
 }
 
@@ -423,11 +421,10 @@ Status AudioPolicyService::getOutputForAttr(const media::audio::common::AudioAtt
         }
     }
 
-    //TODO this permission check should extend to all system usages
-    if (attr.usage == AUDIO_USAGE_SPEAKER_CLEANUP) {
+    if (audio_is_system_usage(attr.usage)) {
         if (!CHECK_PERM(MODIFY_AUDIO_ROUTING, attributionSource.uid)) {
-            ALOGE("%s: permission denied: SPEAKER_CLEANUP not allowed for uid %d pid %d",
-                    __func__, attributionSource.uid, attributionSource.pid);
+            ALOGE("%s: permission denied: Attribute %d not allowed for uid %d pid %d",
+                    __func__, attr.usage, attributionSource.uid, attributionSource.pid);
             return binderStatusFromStatusT(PERMISSION_DENIED);
         }
     }
@@ -600,9 +597,7 @@ Status AudioPolicyService::startOutput(
         _aidl_return->volume = volume;
         _aidl_return->muted = muted;
     }
-// QTI_BEGIN: 2025-08-07: Audio: audiopolicy: Align startOutput with AOSP
     return binderStatusFromStatusT(status);
-// QTI_END: 2025-08-07: Audio: audiopolicy: Align startOutput with AOSP
 }
 
 Status AudioPolicyService::stopOutput(int32_t portIdAidl)
@@ -2382,17 +2377,11 @@ Status AudioPolicyService::getHwOffloadFormatsSupportedForBluetoothMedia(
         std::vector<AudioFormatDescription>* _aidl_return) {
     std::vector<audio_format_t> formats;
 
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     if (mAudioPolicyManager == NULL) {
-// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
         return binderStatusFromStatusT(NO_INIT);
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     }
-// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     audio_utils::lock_guard _l(mMutex);
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     AutoCallerClear acc;
-// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
     audio_devices_t device = VALUE_OR_RETURN_BINDER_STATUS(
             aidl2legacy_AudioDeviceDescription_audio_devices_t(deviceAidl));
     RETURN_IF_BINDER_ERROR(binderStatusFromStatusT(
@@ -2402,10 +2391,8 @@ Status AudioPolicyService::getHwOffloadFormatsSupportedForBluetoothMedia(
                     formats,
                     legacy2aidl_audio_format_t_AudioFormatDescription));
     return Status::ok();
-// QTI_BEGIN: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 }
 
-// QTI_END: 2019-01-20: Audio: audiopolicy: Implement API for querying A2DP offload formats
 Status AudioPolicyService::setSurroundFormatEnabled(
         const AudioFormatDescription& audioFormatAidl, bool enabled) {
     audio_format_t audioFormat = VALUE_OR_RETURN_BINDER_STATUS(

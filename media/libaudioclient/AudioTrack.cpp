@@ -272,13 +272,14 @@ AudioTrack::AudioTrack(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect,
         float maxRequiredSpeed,
-        audio_port_handle_t selectedDeviceId)
+        audio_port_handle_t selectedDeviceId,
+        const std::string& codecProvenance)
 {
     mSetParams = std::make_unique<SetParams>(
         streamType, sampleRate, format, channelMask, frameCount, flags, callback,
         notificationFrames, nullptr /*sharedBuffer*/, false /*threadCanCallJava*/,
         sessionId, transferType, offloadInfo, attributionSource, pAttributes,
-        doNotReconnect, maxRequiredSpeed, selectedDeviceId);
+        doNotReconnect, maxRequiredSpeed, selectedDeviceId, codecProvenance);
 }
 
 AudioTrack::AudioTrack(
@@ -306,7 +307,8 @@ AudioTrack::AudioTrack(
             new SetParams{streamType, sampleRate, format, channelMask, 0 /*frameCount*/, flags,
                           callback, notificationFrames, sharedBuffer, false /*threadCanCallJava*/,
                           sessionId, transferType, offloadInfo, attributionSource, pAttributes,
-                          doNotReconnect, maxRequiredSpeed, AUDIO_PORT_HANDLE_NONE}};
+                          doNotReconnect, maxRequiredSpeed, AUDIO_PORT_HANDLE_NONE,
+                          "" /*codecProvenance*/}};
 }
 
 void AudioTrack::onFirstRef() {
@@ -461,7 +463,8 @@ status_t AudioTrack::set(
         const audio_attributes_t* pAttributes,
         bool doNotReconnect,
         float maxRequiredSpeed,
-        audio_port_handle_t selectedDeviceId)
+        audio_port_handle_t selectedDeviceId,
+        const std::string& codecProvenance)
 {
     LOG_ALWAYS_FATAL_IF(mInitialized, "%s: should not be called twice", __func__);
     mInitialized = true;
@@ -497,6 +500,7 @@ status_t AudioTrack::set(
     mOriginalSampleRate = sampleRate;
     mAttributes = pAttributes != nullptr ? *pAttributes : AUDIO_ATTRIBUTES_INITIALIZER;
     mPlaybackRate = AUDIO_PLAYBACK_RATE_DEFAULT;
+    mCodecProvenance = codecProvenance;
 
     // update format and flags before storing them in mFormat, mOrigFlags and mFlags
     if (pAttributes != NULL) {
@@ -654,10 +658,8 @@ status_t AudioTrack::set(
         mOffloadInfoCopy.sample_rate = sampleRate;
         mOffloadInfoCopy.channel_mask = channelMask;
         mOffloadInfoCopy.stream_type = streamType;
-// QTI_BEGIN: 2025-01-31: Audio: av: Initialize offload info properly
         mOffloadInfoCopy.usage = mAttributes.usage;
         mOffloadInfoCopy.bit_width = audio_bytes_per_sample(format) * 8;
-// QTI_END: 2025-01-31: Audio: av: Initialize offload info properly
     }
 
     mVolume[AUDIO_INTERLEAVE_LEFT] = 1.0f;
@@ -1685,9 +1687,7 @@ status_t AudioTrack::getPosition(uint32_t *position)
             if (AudioSystem::getRenderPosition(mOutput, &halFrames, &dspFrames) != NO_ERROR) {
                 *position = 0;
                 return NO_ERROR;
-// QTI_BEGIN: 2018-03-22: Audio: add support for error handling of dsp SSR
             }
-// QTI_END: 2018-03-22: Audio: add support for error handling of dsp SSR
         }
         *position = dspFrames;
     } else {
@@ -1771,18 +1771,14 @@ status_t AudioTrack::setOutputDevice(audio_port_handle_t deviceId) {
         mSelectedDeviceId = deviceId;
         if (mStatus == NO_ERROR) {
             if (isOffloadedOrDirect_l()) {
-// QTI_BEGIN: 2024-04-30: Audio: av: Support restore track for offload/direct track
                 if (isPlaying_l()) {
-// QTI_END: 2024-04-30: Audio: av: Support restore track for offload/direct track
                     ALOGW("%s(%d). Offloaded or Direct track is not STOPPED or FLUSHED. "
                           "State: %s.",
                             __func__, mPortId, stateToString(mState));
                     result = INVALID_OPERATION;
-// QTI_BEGIN: 2024-04-30: Audio: av: Support restore track for offload/direct track
                 } else {
                     ALOGD("%s(%d): creating a new AudioTrack", __func__, mPortId);
                     result = restoreTrack_l("setOutputDevice", true /* forceRestore */);
-// QTI_END: 2024-04-30: Audio: av: Support restore track for offload/direct track
                 }
             } else {
                 // allow track invalidation when track is not playing to propagate
@@ -1852,7 +1848,6 @@ audio_stream_type_t AudioTrack::streamType() const
     return mStreamType;
 }
 
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 uint32_t AudioTrack::latency()
 {
     AutoMutex lock(mLock);
@@ -1860,27 +1855,20 @@ uint32_t AudioTrack::latency()
     return mLatency;
 }
 
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 // -------------------------------------------------------------------------
 
 // must be called with mLock held
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 void AudioTrack::updateLatency_l()
 {
     status_t status = AudioSystem::getLatency(mOutput, &mAfLatency);
     if (status != NO_ERROR) {
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
         ALOGW("%s(%d): getLatency(%d) failed status %d", __func__, mPortId, mOutput, status);
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     } else {
         // FIXME don't believe this lie
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
         mLatency = mAfLatency + (1000LL * mFrameCount) / mSampleRate;
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     }
 }
 
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 // TODO Move this macro to a common header file for enum to string conversion in audio framework.
 #define MEDIA_CASE_ENUM(name) case name: return #name
 const char * AudioTrack::convertTransferToText(transfer_type transferType) {
@@ -3117,13 +3105,9 @@ Modulo<uint32_t> AudioTrack::updateAndGetPosition_l()
     return mPosition;
 }
 
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
 bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed)
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 {
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     updateLatency_l();
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
     // applicable for mixing tracks only (not offloaded or direct)
     if (mStaticProxy != 0) {
         return true; // static tracks do not have issues with buffer sizing.
@@ -3131,23 +3115,15 @@ bool AudioTrack::isSampleRateSpeedAllowed_l(uint32_t sampleRate, float speed)
     const size_t minFrameCount =
             AudioSystem::calculateMinFrameCount(mAfLatency, mAfFrameCount, mAfSampleRate,
                                             sampleRate, speed /*, 0 mNotificationsPerBufferReq*/);
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     const bool allowed = mFrameCount >= minFrameCount;
     ALOGD_IF(!allowed,
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             "%s(%d): denied "
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             "mAfLatency:%u  mAfFrameCount:%zu  mAfSampleRate:%u  sampleRate:%u  speed:%f "
             "mFrameCount:%zu < minFrameCount:%zu",
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             __func__, mPortId,
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
             mAfLatency, mAfFrameCount, mAfSampleRate, sampleRate, speed,
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
             mFrameCount, minFrameCount);
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
     return allowed;
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
 }
 
 status_t AudioTrack::setParameters(const String8& keyValuePairs)
@@ -3161,14 +3137,9 @@ status_t AudioTrack::setParameters(const String8& keyValuePairs)
 status_t AudioTrack::selectPresentation(int presentationId, int programId)
 {
     AutoMutex lock(mLock);
-    AudioParameter param = AudioParameter();
-    param.addInt(String8(AudioParameter::keyPresentationId), presentationId);
-    param.addInt(String8(AudioParameter::keyProgramId), programId);
-    ALOGV("%s(%d): PresentationId/ProgramId[%s]",
-            __func__, mPortId, param.toString().c_str());
-
+    ALOGV("%s(%d): PresentationId:%d ProgramId:%d", __func__, mPortId, presentationId, programId);
     status_t status;
-    mAudioTrack->setParameters(param.toString().c_str(), &status);
+    mAudioTrack->selectPresentation(presentationId, programId, &status);
     return status;
 }
 
@@ -3325,9 +3296,7 @@ status_t AudioTrack::getTimestamp_l(AudioTimestamp& timestamp)
     // To avoid a race, read the presented frames first.  This ensures that presented <= consumed.
 
     status_t status;
-// QTI_BEGIN: 2024-04-23: Audio: av: Fix timestamp for direct flags
     if (isOffloadedOrDirect_l()) {
-// QTI_END: 2024-04-23: Audio: av: Fix timestamp for direct flags
         // use Binder to get timestamp
         media::AudioTimestampInternal ts;
         mAudioTrack->getTimestamp(&ts, &status);
@@ -3348,9 +3317,7 @@ status_t AudioTrack::getTimestamp_l(AudioTimestamp& timestamp)
             status = ets.getBestTimestamp(&timestamp, &location);
 
             if (status == OK) {
-// QTI_BEGIN: 2017-05-30: Audio: Output latency update in Audio Track
                 updateLatency_l();
-// QTI_END: 2017-05-30: Audio: Output latency update in Audio Track
                 // It is possible that the best location has moved from the kernel to the server.
                 // In this case we adjust the position from the previous computed latency.
                 if (location == ExtendedTimestamp::LOCATION_SERVER) {
@@ -3446,9 +3413,7 @@ status_t AudioTrack::getTimestamp_l(AudioTimestamp& timestamp)
         ALOGV_IF(status != WOULD_BLOCK, "%s(%d): getTimestamp error:%#x", __func__, mPortId, status);
         return status;
     }
-// QTI_BEGIN: 2024-04-23: Audio: av: Fix timestamp for direct flags
     if (isOffloadedOrDirect_l()) {
-// QTI_END: 2024-04-23: Audio: av: Fix timestamp for direct flags
         if (isOffloaded_l() && (mState == STATE_PAUSED || mState == STATE_PAUSED_STOPPING)) {
             // use cached paused position in case another offloaded track is running.
             timestamp.mPosition = mPausedPosition;
@@ -3665,8 +3630,8 @@ status_t AudioTrack::dump(int fd, const Vector<String16>& args __unused) const
     result.appendFormat("  stream type(%d), left - right volume(%f, %f)\n",
                             mStreamType,
                         mVolume[AUDIO_INTERLEAVE_LEFT], mVolume[AUDIO_INTERLEAVE_RIGHT]);
-    result.appendFormat("  format(%#x), channel mask(%#x), channel count(%u)\n",
-                  mFormat, mChannelMask, mChannelCount);
+    result.appendFormat("  format(%#x), channel mask(%#x), channel count(%u), codec(%s)\n",
+                  mFormat, mChannelMask, mChannelCount, mCodecProvenance.c_str());
     result.appendFormat("  sample rate(%u), original sample rate(%u), speed(%f)\n",
                   mSampleRate, mOriginalSampleRate, mPlaybackRate.mSpeed);
     result.appendFormat("  frame count(%zu), req. frame count(%zu)\n",

@@ -48,9 +48,7 @@ static const int kDumpLockSleepUs = 20000;
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #include "mediaplayerservice/AVNuExtensions.h"
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 #include "mediaplayerservice/AVMediaServiceExtensions.h"
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
 
 namespace android {
 
@@ -761,13 +759,11 @@ status_t NuPlayerDriver::reset() {
         notifyListener_l(MEDIA_STOPPED);
     }
 
-// QTI_BEGIN: 2018-04-09: Video: media: Print Stats when application stops playback
     if (property_get_bool("persist.debug.sf.stats", false)) {
         Vector<String16> args;
         dump(-1, args);
     }
 
-// QTI_END: 2018-04-09: Video: media: Print Stats when application stops playback
     mState = STATE_RESET_IN_PROGRESS;
     mPlayer->resetAsync();
 
@@ -923,10 +919,8 @@ status_t NuPlayerDriver::getMetadata(
             Metadata::kSeekAvailable,
             mPlayerFlags & NuPlayer::Source::FLAG_CAN_SEEK);
 
-// QTI_BEGIN: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     AVMediaServiceUtils::get()->appendMeta(&meta);
 
-// QTI_END: 2018-04-12: Video: RTSP: add default implementations in NuPlayer for rtsp changes
     return OK;
 }
 
@@ -996,11 +990,9 @@ void NuPlayerDriver::notifySeekComplete_l() {
 
 status_t NuPlayerDriver::dump(
         int fd, const Vector<String16> & /* args */) const {
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     Vector<sp<AMessage> > trackStats;
     mPlayer->getStats(&trackStats);
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     AString logString(" NuPlayer\n");
     char buf[256] = {0};
@@ -1026,36 +1018,27 @@ status_t NuPlayerDriver::dump(
         logString.append(buf);
     }
 
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
     for (size_t i = 0; i < trackStats.size(); ++i) {
         const sp<AMessage> &stats = trackStats.itemAt(i);
 
         AString mime;
         if (stats->findString("mime", &mime)) {
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "  mime(%s)\n", mime.c_str());
             logString.append(buf);
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
 
         AString name;
         if (stats->findString("component-name", &name)) {
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "    decoder(%s)\n", name.c_str());
             logString.append(buf);
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         if (mime.startsWith("video/")) {
             int32_t width, height;
             if (stats->findInt32("width", &width)
                     && stats->findInt32("height", &height)) {
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
                 snprintf(buf, sizeof(buf), "    resolution(%d x %d)\n", width, height);
                 logString.append(buf);
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             }
 
             int64_t numFramesTotal = 0;
@@ -1063,20 +1046,15 @@ status_t NuPlayerDriver::dump(
 
             stats->findInt64("frames-total", &numFramesTotal);
             stats->findInt64("frames-dropped-output", &numFramesDropped);
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             snprintf(buf, sizeof(buf), "    numFramesTotal(%lld), numFramesDropped(%lld), "
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
                      "percentageDropped(%.2f%%)\n",
                      (long long)numFramesTotal,
                      (long long)numFramesDropped,
                      numFramesTotal == 0
                             ? 0.0 : (double)(numFramesDropped * 100) / numFramesTotal);
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
             logString.append(buf);
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
         }
     }
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
 
     ALOGI("%s", logString.c_str());
 

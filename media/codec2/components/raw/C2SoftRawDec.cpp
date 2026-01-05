@@ -87,11 +87,9 @@ public:
                 .withFields({C2F(mPcmEncodingInfo, value).oneOf({
                      C2Config::PCM_16,
                      C2Config::PCM_8,
-// QTI_BEGIN: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
                      C2Config::PCM_FLOAT,
                      C2Config::PCM_24,
                      C2Config::PCM_32})
-// QTI_END: 2021-04-23: Audio: codec2: Add support for 24 and 32 bit formats
                 })
                 .withSetter((Setter<decltype(*mPcmEncodingInfo)>::StrictValueWithNoDeps))
                 .build());

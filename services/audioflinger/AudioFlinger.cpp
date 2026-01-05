@@ -617,10 +617,6 @@ status_t AudioFlinger::openMmapStreamImpl(bool isOutput,
         }
     }
     if (ret != NO_ERROR) {
-        if (!isOutput) {
-            audio_utils::lock_guard _l(mutex());
-            setHasAlreadyCaptured_l(adjAttributionSource.uid);
-        }
         return ret;
     }
 
@@ -641,6 +637,10 @@ status_t AudioFlinger::openMmapStreamImpl(bool isOutput,
         config->channel_mask = thread->channelMask();
         config->format = thread->format();
         interface = IAfMmapThread::createMmapStreamInterfaceAdapter(thread);
+
+        if (!isOutput) {
+            setHasAlreadyCaptured_l(adjAttributionSource.uid);
+        }
     } else {
         l.unlock();
         if (isOutput) {
@@ -1072,9 +1072,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
     } else if (audio_unique_id_get_use(sessionId) != AUDIO_UNIQUE_ID_USE_SESSION) {
         lStatus = BAD_VALUE;
         goto Exit;
-// QTI_BEGIN: 2016-05-23: Audio: audioflinger: Pass pid of process creating track or opening record
     }
-// QTI_END: 2016-05-23: Audio: audioflinger: Pass pid of process creating track or opening record
 
     output.sessionId = sessionId;
     output.outputId = AUDIO_IO_HANDLE_NONE;
@@ -1157,9 +1155,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
                                       callingPid, adjAttributionSource, input.clientInfo.clientTid,
                                       &lStatus, portId, input.audioTrackCallback, isSpatialized,
                                       isBitPerfect, &output.afTrackFlags);
-// QTI_BEGIN: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (track == 0));
-// QTI_END: 2014-01-30: Audio: audioflinger: Fix for a deadlock in track creation
         // we don't abort yet if lStatus != NO_ERROR; there is still work to be done regardless
 
         output.afFrameCount = thread->frameCount();

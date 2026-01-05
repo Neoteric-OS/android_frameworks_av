@@ -530,8 +530,6 @@ struct Codec2Client::Component : public Codec2Client::Configurable {
             const std::list<std::unique_ptr<C2Work>>& workList);
 
     c2_status_t initApexHandler(
-            ApexCodec_ComponentStore *store,
-            const C2String &name,
             const std::shared_ptr<Listener> &listener,
             const std::shared_ptr<Component> &comp);
 
@@ -657,6 +655,10 @@ struct Codec2Client::InputSurfaceConnection {
 
     // signal Eos to the connected video encoder.
     c2_status_t signalEos();
+
+    // media.c2 V2 interface
+    // Whether InputBufferDone is notified to the client or not.
+    c2_status_t notifiesInputBufferDoneToClient(bool* inputBufferDone);
 
     // base cannot be null.
     InputSurfaceConnection(const std::shared_ptr<Base>& base);

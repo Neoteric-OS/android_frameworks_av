@@ -101,10 +101,8 @@ public:
 
     /**
      * Returns a file descriptor that can be used to wait for this fence in a select system call.
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * \note If there are multiple file descriptors in fence then a file descriptor for merged fence
      *  would be returned
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * \note The returned file descriptor, if valid, must be closed by the caller.
      *
      * This can be used in e.g. poll() system calls. This file becomes readable (POLLIN) when the
@@ -123,7 +121,6 @@ public:
      */
     bool isHW() const;
 
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Returns a native handle that can be used to send this fence
      * \note The returned handle, if valid, must be closed and deleted by the caller.
@@ -132,7 +129,6 @@ public:
      */
     C2Handle *handle() const;
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Null-fence. A fence that has fired.
      */
@@ -143,9 +139,7 @@ private:
     std::shared_ptr<Impl> mImpl;
     C2Fence(std::shared_ptr<Impl> impl);
     friend struct _C2FenceFactory;
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     friend std::vector<int> ExtractFdsFromCodec2SyncFence(const C2Fence& fence);
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 };
 
 /**

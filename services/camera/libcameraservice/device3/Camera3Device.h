@@ -184,7 +184,7 @@ class Camera3Device :
             const std::unordered_set<int32_t> &sensorPixelModesUsed,
             std::vector<int> *surfaceIds = nullptr,
             int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
-            bool isShared = false, bool isMultiResolution = false,
+            bool isShared = false, int multiResMode = OutputConfiguration::MULTI_RES_OFF,
             uint64_t consumerUsage = 0,
             int64_t dynamicRangeProfile =
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
@@ -202,7 +202,7 @@ class Camera3Device :
             const std::unordered_set<int32_t> &sensorPixelModesUsed,
             std::vector<int> *surfaceIds = nullptr,
             int streamSetId = camera3::CAMERA3_STREAM_SET_ID_INVALID,
-            bool isShared = false, bool isMultiResolution = false,
+            bool isShared = false, int multiResMode = OutputConfiguration::MULTI_RES_OFF,
             uint64_t consumerUsage = 0,
             int64_t dynamicRangeProfile =
             ANDROID_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD,
@@ -309,7 +309,9 @@ class Camera3Device :
     status_t updateStream(int streamId, const std::vector<SurfaceHolder> &newSurfaces,
             const std::vector<OutputStreamInfo> &outputInfo,
             const std::vector<size_t> &removedSurfaceIds,
-            KeyedVector<sp<Surface>, size_t> *outputMap/*out*/);
+            bool modifyRequests,
+            KeyedVector<sp<Surface>, size_t> *outputMap/*out*/,
+            int64_t* lastFrameNumber = nullptr) override;
 
     /**
      * Drop buffers for stream of streamId if dropping is true. If dropping is false, do not
@@ -563,6 +565,8 @@ class Camera3Device :
         void getInflightRequestBufferKeys(std::vector<uint64_t>* out);
 
         void onStreamReConfigured(int streamId);
+
+        void clearUnusedBufferCaches(int streamId);
 
       protected:
 
@@ -1035,6 +1039,18 @@ class Camera3Device :
          * Remove all queued and repeating requests, and pending triggers
          */
         status_t clear(/*out*/int64_t *lastFrameNumber = NULL);
+
+        /**
+         * Remove all queued and repeating requests, and pending triggers
+         * of a given list of surface Ids
+         */
+        status_t clearOutputs(int streamId, const std::vector<size_t>& surfaceIds,
+                /*out*/int64_t *lastFrameNumber = NULL);
+
+        static bool containsSurfaceIds(int streamId, const sp<CaptureRequest>& request,
+                const std::vector<size_t>& surfaceIds);
+        bool clearOutputList(int streamId, const std::vector<size_t>& surfaceIds,
+                RequestList& requestList, sp<NotificationListener> listener);
 
         /**
          * Flush all pending requests in HAL.
@@ -1530,7 +1546,8 @@ class Camera3Device :
     bool mUseHalBufManager = false;
     std::set<int32_t > mHalBufManagedStreamIds;
     bool mSessionHalBufManager = false;
-    // Lock to ensure requestStreamBuffers() callbacks are serialized
+    // Lock to ensure requestStreamBuffers() callbacks and request thread buffer allocations
+    // are serialized along with output surface updates
     std::mutex mRequestBufferInterfaceLock;
 
     // The state machine to control when requestStreamBuffers should allow

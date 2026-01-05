@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
-#pragma once
+#include <gtest/gtest.h>
 
-#include <cstddef>
-#include <functional>
-#include <sys/types.h>
+#include <ion/ion.h>
+#include "ion_test_fixture.h"
 
-// mmap / munmap function used by the allocation
-typedef std::function<void *(void *, size_t, int, int, int, off_t)> C2LinearMapFn;
-typedef std::function<int(void *, size_t)> C2LinearUnmapFn;
+class ModularHeapCheck : public IonTest {};
+
+TEST_F(ModularHeapCheck, ModularHeapCheckSimple) {
+    if (ion_is_using_modular_heaps(ionfd)) {
+        std::cout << "Heaps are modular." << std::endl;
+    } else {
+        std::cout << "Heaps are built-in." << std::endl;
+    }
+}

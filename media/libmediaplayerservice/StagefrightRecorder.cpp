@@ -18,10 +18,8 @@
 //#define LOG_NDEBUG 0
 // QTI_END: 2022-10-06: Video: Merge "Revert "Dynamic Video Framework Log Enablement"" into t-keystone-qcom-dev
 #define LOG_TAG "StagefrightRecorder"
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #define ATRACE_TAG ATRACE_TAG_VIDEO
 #include <utils/Trace.h>
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
 #include <inttypes.h>
 // TODO/workaround: including base logging now as it conflicts with ADebug.h
 // and it must be included first.
@@ -63,6 +61,7 @@
 #include <media/stagefright/MPEG4Writer.h>
 #include <media/stagefright/MediaCodecConstants.h>
 #include <media/stagefright/MediaDefs.h>
+#include <media/stagefright/MediaCodecList.h>
 #include <media/stagefright/MetaData.h>
 #include <media/stagefright/MediaCodecSource.h>
 // QTI_BEGIN: 2021-03-01: Audio: media: Set AAC profile key for CCodec based on encoder mode
@@ -650,6 +649,16 @@ status_t StagefrightRecorder::setParamVideoBitRateMode(int32_t bitRateMode) {
     return OK;
 }
 
+status_t StagefrightRecorder::setParamVideoEncodingQuality(int32_t quality) {
+    ALOGV("setParamVideoEncodingQuality: %d", quality);
+    if (quality < 0) {
+        ALOGE("Unsupported video encoding quality: %d", quality);
+        return BAD_VALUE;
+    }
+    mVideoEncodingQuality = quality;
+    return OK;
+}
+
 // Always rotate clockwise, and only support 0, 90, 180 and 270 for now.
 status_t StagefrightRecorder::setParamVideoRotation(int32_t degrees) {
     ALOGV("setParamVideoRotation: %d", degrees);
@@ -1072,6 +1081,12 @@ status_t StagefrightRecorder::setParameter(
         int32_t video_bitrate_mode;
         if (safe_strtoi32(value.c_str(), &video_bitrate_mode)) {
             return setParamVideoBitRateMode(video_bitrate_mode);
+        }
+    } else if (key == "video-param-encoding-quality"
+        && android::media::mediarecorder::quality_setting_support()) {
+        int32_t video_encoding_quality;
+        if (safe_strtoi32(value.c_str(), &video_encoding_quality)) {
+            return setParamVideoEncodingQuality(video_encoding_quality);
         }
     } else if (key == "video-param-rotation-angle-degrees") {
         int32_t degrees;
@@ -2012,9 +2027,7 @@ void StagefrightRecorder::clipVideoFrameHeight() {
 // Set up the appropriate MediaSource depending on the chosen option
 status_t StagefrightRecorder::setupMediaSource(
                       sp<MediaSource> *mediaSource) {
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     if (mVideoSource == VIDEO_SOURCE_DEFAULT
             || mVideoSource == VIDEO_SOURCE_CAMERA) {
 // QTI_BEGIN: 2023-06-26: Video: media: Added logs in MPEG4Writer and StagefrightRecorder.
@@ -2143,9 +2156,7 @@ status_t StagefrightRecorder::setupCameraSource(
 status_t StagefrightRecorder::setupVideoEncoder(
         const sp<MediaSource> &cameraSource,
         sp<MediaCodecSource> *source) {
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     source->clear();
 
     sp<AMessage> format = new AMessage();
@@ -2246,6 +2257,9 @@ status_t StagefrightRecorder::setupVideoEncoder(
         format->setInt32("rotation-degrees", mRotationDegrees);
     }
 
+    if (mVideoEncodingQuality != -1) {
+        format->setInt32("quality", mVideoEncodingQuality);
+    }
     format->setInt32("bitrate", mVideoBitRate);
     format->setInt32("bitrate-mode", mVideoBitRateMode);
     format->setInt32("frame-rate", mFrameRate);
@@ -2338,10 +2352,8 @@ status_t StagefrightRecorder::setupVideoEncoder(
 // QTI_BEGIN: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
         format->setInt32("vendor.qti-ext-enc-nal-length-bs.num-bytes", 4);
 // QTI_END: 2021-03-19: Video: libmediaplayerservice: Enable feature for AVC
-// QTI_BEGIN: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
     }
 
-// QTI_END: 2018-05-07: Video: libstagefirght: Add changes to handle multiple slices in writer
 // QTI_BEGIN: 2018-12-18: Videp: libmediaplayerservice: Add native recorder key
     // Will send this info to encoder component for custom optimizations
     format->setInt32("isNativeRecorder", 1);
@@ -2380,9 +2392,7 @@ status_t StagefrightRecorder::setupVideoEncoder(
 // QTI_BEGIN: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
 status_t StagefrightRecorder::setupAudioEncoder() {
 // QTI_END: 2021-12-19: Video: libmediaplayerservice: Parallelize Video and Audio Encoder setup am: dc072421d3
-// QTI_BEGIN: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     ATRACE_CALL();
-// QTI_END: 2021-09-06: Video: libmediaplayerservice: Trace point addition
     status_t status = BAD_VALUE;
     if (OK != (status = checkAudioEncoderCapabilities())) {
         return status;
@@ -2656,9 +2666,7 @@ status_t StagefrightRecorder::resume() {
 // QTI_BEGIN: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
         // 30 ms buffer to avoid timestamp overlap
 // QTI_END: 2018-05-04: Video: stagefright: add changes related to high-framerates in CameraSource
-// QTI_BEGIN: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
         mTotalPausedDurationUs += resumeStartTimeUs - mPauseStartTimeUs - 30000;
-// QTI_END: 2018-06-11: Video: media: correct time to 30ms buffer to avoid timestamp overlap
     }
     double timeOffset = -mTotalPausedDurationUs;
     if (mCaptureFpsEnable && (mVideoSource == VIDEO_SOURCE_CAMERA) &&
@@ -2816,6 +2824,7 @@ status_t StagefrightRecorder::reset() {
     mVideoBitRate  = 192000;
     // Following MediaCodec's default
     mVideoBitRateMode = BITRATE_MODE_VBR;
+    mVideoEncodingQuality = -1;
     mSampleRate    = 8000;
     mAudioChannels = 1;
     mAudioBitRate  = 12200;

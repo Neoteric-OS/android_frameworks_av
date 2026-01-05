@@ -39,9 +39,7 @@ cc_defaults {
         "libaudiopermission",
         "libaudiopolicy",
         "libaudiopolicycomponents",
-// QTI_BEGIN: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
         "libaudiopolicymanagerdefault",
-// QTI_END: 2021-02-05: Audio: audiopolicy: add support to load custom audiopolicymanager.
         "libaudiousecasevalidation",
         "libaudioutils",
         "libbinder",

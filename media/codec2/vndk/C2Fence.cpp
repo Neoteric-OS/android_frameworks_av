@@ -19,14 +19,10 @@
 #include <poll.h>
 
 #include <android-base/unique_fd.h>
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 #include <cutils/native_handle.h>
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 #include <utils/Log.h>
 #include <utils/SystemClock.h>
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 #include <ui/Fence.h>
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 
 #include <C2FenceFactory.h>
 #include <C2SurfaceSyncObj.h>
@@ -55,10 +51,8 @@ public:
         SYNC_FENCE_DEPRECATED_MAGIC     = 3,
         SYNC_FENCE_UNORDERED_MAGIC      = '\302fsu',
         SYNC_FENCE_MAGIC                = '\302fso',
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     };
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual c2_status_t wait(c2_nsecs_t timeoutNs) = 0;
 
     virtual bool valid() const = 0;
@@ -69,10 +63,8 @@ public:
 
     virtual bool isHW() const = 0;
 
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual type_t type() const = 0;
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Create a native handle for the fence so it can be marshalled.
      * All native handles must store fence type in the last integer.
@@ -151,7 +143,6 @@ bool C2Fence::isHW() const {
     return false;
 }
 
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 C2Handle *C2Fence::handle() const {
     native_handle_t* h = nullptr;
 
@@ -184,7 +175,6 @@ C2Handle *C2Fence::handle() const {
     return reinterpret_cast<C2Handle*>(h);
 }
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 /**
  * Fence implementation for C2BufferQueueBlockPool based block allocation.
  * The implementation supports all C2Fence interface except fd().
@@ -223,12 +213,10 @@ public:
         return false;
     }
 
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual type_t type() const {
         return SURFACE_FENCE;
     }
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual native_handle_t *createNativeHandle() const {
         ALOGD("Cannot create native handle from surface fence");
         return nullptr;
@@ -262,11 +250,9 @@ C2Fence _C2FenceFactory::CreateSurfaceFence(
     }
     return C2Fence();
 }
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 
 using namespace android;
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 /**
  * Implementation for a sync fence.
  *
@@ -315,16 +301,11 @@ using namespace android;
  *   int[0]  - magic (SYNC_FENCE_MAGIC (='\302fso'))
  */
 class _C2FenceFactory::SyncFenceImpl : public C2Fence::Impl {
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 public:
     virtual c2_status_t wait(c2_nsecs_t timeoutNs) {
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         int64_t timeoutMs = timeoutNs / 1000000;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         if (timeoutMs > INT_MAX) {
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
             timeoutMs = INT_MAX;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         }
         switch (mFence->wait((int)timeoutMs)) {
             case NO_ERROR:
@@ -337,11 +318,7 @@ public:
     }
 
     virtual bool valid() const {
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         return (mFence && (mFence->getStatus() != Fence::Status::Invalid));
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     }
 
     virtual bool ready() const {
@@ -352,43 +329,32 @@ public:
         return mFence->dup();
     }
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * Returns a duped list of fds used when creating this fence. It will
      * not return the internally created merged fence fd.
      */
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     std::vector<int> fds() const {
         std::vector<int> retFds;
         for (int index = 0; index < mListFences.size(); index++) {
             retFds.push_back(mListFences[index]->dup());
         }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         // ensure that at least one fd is returned
         if (mListFences.empty()) {
             retFds.push_back(mFence->dup());
         }
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         return retFds;
     }
 
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual bool isHW() const {
         return true;
     }
 
     virtual type_t type() const {
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         return SYNC_FENCE;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     }
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     virtual native_handle_t *createNativeHandle() const {
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         std::vector<int> nativeFds = fds();
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         int32_t magic = SYNC_FENCE_MAGIC;
 
         // Also parcel the singular fence if it is not already part of the list.
@@ -401,24 +367,18 @@ public:
             }
         }
 
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         native_handle_t* nh = native_handle_create(nativeFds.size(), 1);
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         if (!nh) {
             ALOGE("Failed to allocate native handle for sync fence");
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             for (int fd : nativeFds) {
                 close(fd);
             }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             return nullptr;
         }
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
         for (int i = 0; i < nativeFds.size(); i++) {
             nh->data[i] = nativeFds[i];
         }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         nh->data[nativeFds.size()] = magic;
         return nh;
     }
@@ -432,11 +392,9 @@ public:
      * \param fenceFd the fence fd to create the SyncFenceImpl from.
      */
     SyncFenceImpl(int fenceFd) :
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         mFence(sp<Fence>::make(fenceFd)) {
     }
 
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     SyncFenceImpl(const sp<Fence> &fence) :
         mFence(fence) {
     }
@@ -451,9 +409,7 @@ public:
     SyncFenceImpl(const std::vector<sp<Fence>>& fences, const sp<Fence> &finalFence) :
         mListFences(fences),
         mFence(finalFence) {
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
     /**
      * Creates a SyncFenceImpl from a native handle.
@@ -480,9 +436,7 @@ public:
             return nullptr;
         }
         std::vector<sp<Fence>> fences;
-// QTI_BEGIN: 2024-02-22: Video: codec2-vndk: Adjust the loop correctly
         for (int i = 0; i < nh->numFds; i++) {
-// QTI_END: 2024-02-22: Video: codec2-vndk: Adjust the loop correctly
             int fd = nh->data[i];
             if (!takeOwnership && fd >= 0) {
                 fd = dup(fd);
@@ -495,9 +449,7 @@ public:
                     ALOGW("Failed to create fence from fd %d", fd);
                 }
             }
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
         std::shared_ptr<SyncFenceImpl> p;
         if (fences.size() == 0) {
@@ -524,36 +476,27 @@ public:
             } else {
                 // Use the last fence as the standalone fence.
                 p = std::make_shared<SyncFenceImpl>(fences, fences.back());
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         }
 
         ALOGE_IF(!p, "Failed to allocate sync fence impl");
         return p;
     }
 
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 private:
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     /**
      * The list of fences in case of a multi-fence sync fence. Otherwise, this
      * list is empty.
      */
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     std::vector<sp<Fence>> mListFences;
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
     /**
      * The singular fence for this sync fence. For multi-fence sync fences,
      * this could be a merged fence, or simply the final fence.
      */
     sp<Fence> mFence;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 };
 
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 std::vector<int> ExtractFdsFromCodec2SyncFence(const C2Fence& fence) {
     std::vector<int> retFds;
     if ((fence.mImpl) && (fence.mImpl->type() == C2Fence::Impl::SYNC_FENCE)) {
@@ -562,25 +505,18 @@ std::vector<int> ExtractFdsFromCodec2SyncFence(const C2Fence& fence) {
     return retFds;
 }
 
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 C2Fence _C2FenceFactory::CreateSyncFence(int fenceFd, bool validate) {
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     std::shared_ptr<C2Fence::Impl> p;
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     if (fenceFd >= 0) {
         p = std::make_shared<_C2FenceFactory::SyncFenceImpl>(fenceFd);
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         if (!p) {
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             ALOGE("Failed to allocate sync fence impl");
             close(fenceFd);
         } else if (validate && (!p->valid() || p->ready())) {
             // don't create a fence object if the sync fd already signaled or is invalid
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             p.reset();
         }
     } else {
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         ALOGV("Won't create sync fence from invalid fd");
     }
     return C2Fence(p);
@@ -648,9 +584,7 @@ C2Fence _C2FenceFactory::CreateUnorderedMultiSyncFence(
         return C2Fence();
     }
 
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     std::shared_ptr<C2Fence::Impl> p;
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
     if (fences.size() == 1) {
         // We have a single sync fd. We don't need the merged fence, which is
@@ -696,13 +630,9 @@ C2Fence _C2FenceFactory::CreateMultiSyncFence(
         if (fence == nullptr) {
             if (status) {
                 *status = C2_NO_MEMORY;
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
             break;
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         fences.push_back(fence);
     }
 
@@ -717,13 +647,9 @@ C2Fence _C2FenceFactory::CreateMultiSyncFence(
     if (fences.size() == 1) {
         // We have a single sync fd, this is a simple sync fence.
         p = std::make_shared<_C2FenceFactory::SyncFenceImpl>(fences[0]);
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     } else {
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
         p = std::make_shared<_C2FenceFactory::SyncFenceImpl>(fences, fences.back());
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
     if (!p) {
         ALOGE("Failed to allocate sync fence impl closing FDs");
@@ -732,15 +658,11 @@ C2Fence _C2FenceFactory::CreateMultiSyncFence(
             *status = C2_NO_MEMORY;
         }
         return C2Fence();
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     }
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     return C2Fence(p);
 }
 
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 /**
  * Fence implementation for notifying # of events available based on
  * file descriptors created by pipe()/pipe2(). The writing end of the
@@ -907,38 +829,26 @@ native_handle_t* _C2FenceFactory::CreateNativeHandle(const C2Fence& fence) {
 C2Fence _C2FenceFactory::CreateFromNativeHandle(
         const native_handle_t* handle, bool takeOwnership) {
     if (!handle) {
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         return C2Fence();
     }
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     C2Fence::Impl::type_t type = C2Fence::Impl::GetTypeFromNativeHandle(handle);
     std::shared_ptr<C2Fence::Impl> p;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     switch (type) {
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         case C2Fence::Impl::SYNC_FENCE:
             p = SyncFenceImpl::CreateFromNativeHandle(handle, takeOwnership);
             break;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
         default:
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
-// QTI_BEGIN: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
             ALOGV("Unsupported fence type %d", type);
-// QTI_END: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
             // Still close the handle here if taking ownership.
             if (takeOwnership) {
                 (void) native_handle_close(handle);
             }
             // return a null-fence in this case
             break;
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     }
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
     if (p && !p->valid()) {
         p.reset();
     }
     return C2Fence(p);
-// QTI_BEGIN: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 }
-// QTI_END: 2022-04-19: Video: codec2: Add android fence implementation for C2Fence
 

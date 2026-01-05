@@ -451,12 +451,10 @@ sp<ConstGraphicBlockBuffer> ConstGraphicBlockBuffer::AllocateEmpty(
         }
     }
     sp<ABuffer> aBuffer(alloc(align(width, 16) * align(height, 16) * bpp / 8));
-// QTI_BEGIN: 2020-12-01: Video: codec2: fix issue in allocating too many 8k buffers
     if (aBuffer == nullptr) {
         ALOGD("%s: failed to allocate buffer", __func__);
         return nullptr;
     }
-// QTI_END: 2020-12-01: Video: codec2: fix issue in allocating too many 8k buffers
     return new ConstGraphicBlockBuffer(
             format,
             aBuffer,

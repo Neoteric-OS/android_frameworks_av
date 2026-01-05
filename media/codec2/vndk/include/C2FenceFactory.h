@@ -22,28 +22,22 @@
 
 #include <android-base/unique_fd.h>
 
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 /*
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
  * Extract a list of sync fence fds from a potentially multi-sync C2Fence.
  * This will return dupped file descriptors of the fences used to creating the
  * sync fence. Specifically, for an unordered mult-sync fence, the merged
  * singular fence will not be returned even though it is created aspart of
  * constructing the C2Fence object. On the other hand, for a single fd sync
  * fence, the returned list will contain the sole file descriptor.
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
  *
  * \param fence   C2Fence object from which associated
  *                file descriptors need to be extracted
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
  * \return a vector of sync fence fds. This will be a vector of size 0 if C2Fence
  *         is not a sync fence. The caller is responsible for closing the
  *         fds in the returned vector.
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
  */
 std::vector<int> ExtractFdsFromCodec2SyncFence(const C2Fence& fence);
 
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
 class C2SurfaceSyncMemory;
 
 /**
@@ -81,21 +75,15 @@ struct _C2FenceFactory {
 // QTI_END: 2024-09-19: Video: Codec2: Fence cleanup change
     static C2Fence CreateSyncFence(int fenceFd);
 
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     /*
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * Create C2Fence from list of sync fence fds, while also merging them to
      * create a singular fence, which can be used as a backward compatible sync
      * fence.
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      *
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      * \param fenceFds   Vector of sync fence file descriptors.
      *                   All file descriptors will be owned (and closed) by
      *                   the returned fence object.
-// QTI_BEGIN: 2023-06-05: Core: codec2: change to support multiple fences for single output.
      */
-// QTI_END: 2023-06-05: Core: codec2: change to support multiple fences for single output.
     [[deprecated("Use CreateUnorderedMultiSyncFence instead.")]]
     static C2Fence CreateMultipleFdSyncFence(const std::vector<int>& fenceFds) {
         return CreateUnorderedMultiSyncFence(fenceFds);

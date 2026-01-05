@@ -95,10 +95,8 @@ bool HeicEncoderInfoManager::isSizeSupported(int32_t width, int32_t height, bool
             // The "measured-frame-rate-WIDTHxHEIGHT-range" key is optional.
             // Hardcode to some default value (3.33ms * tile count) based on resolution.
             *stall = 3333333LL * width * height / (kGridWidth * kGridHeight);
-// QTI_BEGIN: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
             *useHeic = chooseHeic;
             *useGrid = enableGrid;
-// QTI_END: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
             return true;
         }
 
@@ -283,10 +281,8 @@ bool HeicEncoderInfoManager::getHevcCodecDetails(
             ALOGE("%s: Failed to get codec info for %s", __FUNCTION__, mime);
             break;
         }
-// QTI_BEGIN: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
         ALOGV("%s: [%s] codec found", __FUNCTION__,
                 info->getCodecName());
-// QTI_END: 2020-03-06: Camera: Intialize useGrid and chooseHeic variables
 
         if (!allowSWCodec) {
             // Filter out software ones as they may be too slow

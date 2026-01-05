@@ -215,6 +215,9 @@ c2_status_t GetC2Status(const ::ndk::ScopedAStatus &transStatus, const char *met
             c2_status_t status = static_cast<c2_status_t>(transStatus.getServiceSpecificError());
             LOG(DEBUG) << method << " -- call failed: " << status << ".";
             return status;
+        } else if (transStatus.getExceptionCode() == EX_UNSUPPORTED_OPERATION) {
+            LOG(DEBUG) << method << " -- call failed: EX_UNSUPPORTED_OPERATION.";
+            return C2_OMITTED;
         } else {
             LOG(ERROR) << method << " -- transaction failed.";
             return C2_TRANSACTION_FAILED;
@@ -696,13 +699,9 @@ c2_status_t Codec2ConfigurableClient::AidlImpl::query(
                 status = C2_BAD_INDEX;
                 continue;
             }
-// QTI_BEGIN: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
             if (stackParams[i++]->updateFrom(*paramPointer)) {
-// QTI_END: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
                 ++numQueried;
-// QTI_BEGIN: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
             } else {
-// QTI_END: 2024-04-09: Video: Revert "Revert "Merge changes from topic "c2-aidl-test" into main am: 0f41381a6f am: 8ff37c0d06 am: 7daa172e3b""
                 LOG(WARNING) << "query -- param update failed: "
                                 "index = "
                              << paramPointer->index() << ".";
@@ -1446,16 +1445,12 @@ struct Codec2Client::Component::AidlListener : public c2_aidl::BnComponentListen
 // Codec2Client::Component::ApexHandler
 class Codec2Client::Component::ApexHandler {
 public:
-    ApexHandler(ApexCodec_ComponentStore *apexStore,
-                ApexCodec_Component *apexComponent,
-                const C2String &name,
+    ApexHandler(ApexCodec_Component *apexComponent,
                 const std::shared_ptr<Listener> &listener,
                 const std::shared_ptr<Component> &comp)
-          : mApexStore(apexStore),
-            mApexComponent(apexComponent),
+          : mApexComponent(apexComponent),
             mListener(listener),
             mComponent(comp),
-            mComponentName(name),
             mStopped(false),
             mPendingFlush(false),
             mOutputBufferType(APEXCODEC_BUFFER_TYPE_EMPTY),
@@ -1621,7 +1616,7 @@ private:
             if (!workItem->input.buffers.empty()) {
                 buffer = workItem->input.buffers[0];
             }
-            if (!fillMemory(buffer, input, &linearView, flags, frameIndex, timestampUs)) {
+            if (!FillMemory(buffer, input, &linearView, flags, frameIndex, timestampUs)) {
                 LOG(ERROR) << "handleWork -- failed to map input";
                 listener->onError(mComponent, C2_CORRUPTED);
                 return;
@@ -1849,18 +1844,7 @@ private:
                         LOG(ERROR) << "allocOutputBuffer -- failed to fetch linearBlock";
                         return;
                     }
-                    if (__builtin_available(android 37, *)) {
-                        ApexCodec_MapFn mapFn = ::mmap;
-                        ApexCodec_UnmapFn unmapFn = ::munmap;
-                        if (android::media::codec::provider_->in_process_sw_codec_lfi()) {
-                            mapFn = ApexCodec_GetMapFn(mApexStore, mComponentName.c_str());
-                            unmapFn = ApexCodec_GetUnmapFn(mApexStore, mComponentName.c_str());
-                        }
-                        linearView->emplace(_C2BlockFactory::MapLinearWithMapper(
-                                *linearBlock, mapFn, unmapFn).get());
-                    } else {
-                        linearView->emplace((*linearBlock)->map().get());
-                    }
+                    linearView->emplace((*linearBlock)->map().get());
                     if ((*linearView)->error() != C2_OK) {
                         LOG(ERROR) << "allocOutputBuffer -- failed to map linearView";
                         return;
@@ -1937,7 +1921,7 @@ private:
         }
     }
 
-    bool fillMemory(
+    static bool FillMemory(
             const std::shared_ptr<C2Buffer>& buffer,
             ApexCodec_Buffer* apexBuffer,
             std::optional<C2ReadView>* linearView,
@@ -1966,26 +1950,13 @@ private:
                            buffer->data().linearBlocks().front().size() == 0) {
                     ApexCodec_Status status = ApexCodec_Buffer_setLinearBuffer(apexBuffer, nullptr);
                     if (status != APEXCODEC_STATUS_OK) {
-                        LOG(ERROR) << "fillMemory -- failed to set linear buffer";
+                        LOG(ERROR) << "FillMemory -- failed to set linear buffer";
                         return false;
                     }
                     ApexCodec_Buffer_setBufferInfo(apexBuffer, flags, frameIndex, timestampUs);
                     return true;
                 }
-                C2ConstLinearBlock linearBlock =
-                        buffer->data().linearBlocks().front();
-                if (__builtin_available(android 37, *)) {
-                    ApexCodec_MapFn mapFn = ::mmap;
-                    ApexCodec_UnmapFn unmapFn = ::munmap;
-                    if (android::media::codec::provider_->in_process_sw_codec_lfi()) {
-                        mapFn = ApexCodec_GetMapFn(mApexStore, mComponentName.c_str());
-                        unmapFn = ApexCodec_GetUnmapFn(mApexStore, mComponentName.c_str());
-                    }
-                    linearView->emplace(_C2BlockFactory::MapConstLinearWithMapper(
-                            linearBlock, mapFn, unmapFn).get());
-                } else {
-                    linearView->emplace(linearBlock.map().get());
-                }
+                linearView->emplace(buffer->data().linearBlocks().front().map().get());
                 if ((*linearView)->error() != C2_OK) {
                     return false;
                 }
@@ -1994,7 +1965,7 @@ private:
                 linear.size = (*linearView)->capacity();
                 ApexCodec_Status status = ApexCodec_Buffer_setLinearBuffer(apexBuffer, &linear);
                 if (status != APEXCODEC_STATUS_OK) {
-                    LOG(ERROR) << "fillMemory -- failed to set linear buffer";
+                    LOG(ERROR) << "FillMemory -- failed to set linear buffer";
                     return false;
                 }
                 ApexCodec_Buffer_setBufferInfo(apexBuffer, flags, frameIndex, timestampUs);
@@ -2004,7 +1975,7 @@ private:
                     ApexCodec_Status status = ApexCodec_Buffer_setGraphicBuffer(
                             apexBuffer, nullptr);
                     if (status != APEXCODEC_STATUS_OK) {
-                        LOG(ERROR) << "fillMemory -- failed to set graphic buffer";
+                        LOG(ERROR) << "FillMemory -- failed to set graphic buffer";
                         return false;
                     }
                     ApexCodec_Buffer_setBufferInfo(apexBuffer, flags, frameIndex, timestampUs);
@@ -2029,7 +2000,7 @@ private:
                 ApexCodec_Status status = ApexCodec_Buffer_setGraphicBuffer(
                         apexBuffer, hardwareBuffer);
                 if (status != APEXCODEC_STATUS_OK) {
-                    LOG(ERROR) << "fillMemory -- failed to set graphic buffer";
+                    LOG(ERROR) << "FillMemory -- failed to set graphic buffer";
                     return false;
                 }
                 ApexCodec_Buffer_setBufferInfo(apexBuffer, flags, frameIndex, timestampUs);
@@ -2039,11 +2010,9 @@ private:
         return false;
     }
 
-    ApexCodec_ComponentStore *mApexStore;
     ApexCodec_Component *mApexComponent;
     std::weak_ptr<Listener> mListener;
     std::weak_ptr<Component> mComponent;
-    C2String mComponentName;
 
     std::thread mThread;
     std::mutex mMutex;
@@ -2262,7 +2231,7 @@ c2_status_t Codec2Client::createComponent_apex(
             return (c2_status_t)status;
         }
         *component = std::make_shared<Codec2Client::Component>(apexComponent, name);
-        (*component)->initApexHandler(mApexBase, name, listener, *component);
+        (*component)->initApexHandler(listener, *component);
         return C2_OK;
     } else {
         return C2_OMITTED;
@@ -3903,17 +3872,12 @@ Codec2Client::Component::AidlDeathManager *Codec2Client::Component::GetAidlDeath
 }
 
 c2_status_t Codec2Client::Component::initApexHandler(
-            ApexCodec_ComponentStore *store,
-            const C2String &name,
             const std::shared_ptr<Listener> &listener,
             const std::shared_ptr<Component> &comp) {
     if (!mApexBase) {
         return C2_BAD_STATE;
     }
-    if (!store) {
-        return C2_BAD_VALUE;
-    }
-    mApexHandler = std::make_unique<ApexHandler>(store, comp->mApexBase, name, listener, comp);
+    mApexHandler = std::make_unique<ApexHandler>(mApexBase, listener, comp);
     return C2_OK;
 }
 
@@ -4048,6 +4012,17 @@ c2_status_t Codec2Client::InputSurfaceConnection::signalEos() {
     }
     ::ndk::ScopedAStatus transResult = mBase->signalEndOfStream();
     return GetC2Status(transResult, "InputSurfaceConnection::signalEndOfStream");
+}
+
+c2_status_t Codec2Client::InputSurfaceConnection::notifiesInputBufferDoneToClient(
+        bool* inputBufferDone) {
+    if (!mBase) {
+        LOG(ERROR)
+                << "InputSurfaceConnection:notifiesInputBufferDoneToClient failed, no valid base";
+        return C2_CORRUPTED;
+    }
+    ::ndk::ScopedAStatus transResult = mBase->notifiesInputBufferDoneToClient(inputBufferDone);
+    return GetC2Status(transResult, "InputSurfaceConnection::notifiesInputBufferDoneToClient");
 }
 
 }  // namespace android

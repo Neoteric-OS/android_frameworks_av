@@ -42,9 +42,7 @@ NuPlayer::DecoderBase::DecoderBase(const sp<AMessage> &notify)
        mRequestInputBufferDelay(10 * 1000LL),
 // QTI_END: 2019-11-06: Video: Nuplayer: Update request input buffer delay as per fps
        mPaused(false),
-// QTI_BEGIN: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
        mStats(new AMessage),
-// QTI_END: 2015-06-10: Video: NuPlayer: Enhance dumpsys statistics
        mRequestInputBuffersPending(false) {
     // Every decoder has its own looper because MediaCodec operations
     // are blocking, but NuPlayer needs asynchronous operations.

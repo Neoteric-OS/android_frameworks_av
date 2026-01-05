@@ -16,15 +16,11 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "ICameraRecordingProxy"
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <camera/CameraUtils.h>
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <camera/ICameraRecordingProxy.h>
 #include <binder/IMemory.h>
 #include <binder/Parcel.h>
-// QTI_BEGIN: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <media/hardware/HardwareAPI.h>
-// QTI_END: 2016-01-26: Camera: Add support to pass native handles across binders
 #include <stdint.h>
 #include <utils/Log.h>
 
