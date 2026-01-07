@@ -2622,6 +2622,7 @@ sp<IAfPatchTrack> IAfPatchTrack::create(
         void* buffer,
         size_t bufferSize,
         audio_output_flags_t flags,
+        audio_port_handle_t portId,
         const Timeout& timeout,
         size_t frameCountToBeReady, /** Default behaviour is to start
                                          *  as soon as possible to have
@@ -2639,6 +2640,7 @@ sp<IAfPatchTrack> IAfPatchTrack::create(
             buffer,
             bufferSize,
             flags,
+            portId,
             timeout,
             frameCountToBeReady,
             speed);
@@ -2653,6 +2655,7 @@ PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
                                                      void *buffer,
                                                      size_t bufferSize,
                                                      audio_output_flags_t flags,
+                                                     audio_port_handle_t portId,
                                                      const Timeout& timeout,
                                                      size_t frameCountToBeReady,
                                                      float speed)
@@ -2666,7 +2669,7 @@ PatchTrack::PatchTrack(IAfPlaybackThread* playbackThread,
               sampleRate, format, channelMask, frameCount,
               buffer, bufferSize, nullptr /* sharedBuffer */,
               AUDIO_SESSION_NONE, getpid(), audioServerAttributionSource(getpid()), flags,
-              TYPE_PATCH, AUDIO_PORT_HANDLE_NONE, frameCountToBeReady, speed,
+              TYPE_PATCH, portId, frameCountToBeReady, speed,
               false /*isSpatialized*/, false /*isBitPerfect*/),
         PatchTrackBase(mCblk ? new AudioTrackClientProxy(mCblk, mBuffer, frameCount, mFrameSize,
                         true /*clientInServer*/) : nullptr,
