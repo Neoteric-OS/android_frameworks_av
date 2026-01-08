@@ -94,6 +94,7 @@ using media::IEffectClient;
 using media::audio::common::AudioMMapPolicyInfo;
 using media::audio::common::AudioMMapPolicyType;
 using media::audio::common::AudioMode;
+using media::audio::common::FlushFromFrameSupport;
 using android::content::AttributionSourceState;
 using android::detail::AudioHalVersionInfo;
 using com::android::media::permission::INativePermissionController;
@@ -242,6 +243,7 @@ BINDER_METHOD_ENTRY(getSoundDoseInterface) \
 BINDER_METHOD_ENTRY(getAudioPolicyConfig) \
 BINDER_METHOD_ENTRY(getAudioMixPort) \
 BINDER_METHOD_ENTRY(resetReferencesForTest) \
+BINDER_METHOD_ENTRY(getFlushFromFrameSupport) \
 
 // singleton for Binder Method Statistics for IAudioFlinger
 static auto& getIAudioFlingerStatistics() {
@@ -3912,7 +3914,10 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
         const audio_output_flags_t outputFlags =
                 (audio_output_flags_t)(track->getOutputFlags() & ~kIncompatiblePatchTrackFlags);
         const AudioPlaybackRate playbackRate = track->audioTrackServerProxy()->getPlaybackRate();
-        sp<IAfPatchTrack> patchTrack = IAfPatchTrack::create(secondaryThread,
+        sp<IAfPatchTrack> patchTrack;
+        {
+            audio_utils::lock_guard l(secondaryThread->mutex());
+            patchTrack = IAfPatchTrack::create(secondaryThread,
                                                        track->streamType(),
                                                        track->sampleRate(),
                                                        track->channelMask(),
@@ -3921,9 +3926,11 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
                                                        patchRecord->buffer(),
                                                        patchRecord->bufferSize(),
                                                        outputFlags,
+                                                       AUDIO_PORT_HANDLE_NONE,
                                                        0ns /* timeout */,
                                                        frameCountToBeReady,
                                                        playbackRate.mSpeed);
+        }
         status = patchTrack->initCheck();
         if (status != NO_ERROR) {
             ALOGE("Secondary output patchTrack init failed: %d", status);
@@ -5019,6 +5026,22 @@ status_t AudioFlinger::resetReferencesForTest() {
     return NO_ERROR;
 }
 
+status_t AudioFlinger::getFlushFromFrameSupport(
+        int module, const media::audio::common::AudioPortConfig& config,
+        FlushFromFrameSupport* support) {
+    if (support == nullptr) {
+        return BAD_VALUE;
+    }
+    audio_module_handle_t legacyModule =
+            VALUE_OR_RETURN_STATUS(aidl2legacy_int32_t_audio_module_handle_t(module));
+    audio_utils::lock_guard _l(mutex());
+    AudioHwDevice *device = findSuitableHwDev_l(legacyModule, AUDIO_DEVICE_NONE);
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+    return device->getFlushFromFrameSupport(config, support);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t AudioFlinger::onTransactWrapper(TransactionCode code,
@@ -5054,6 +5077,7 @@ status_t AudioFlinger::onTransactWrapper(TransactionCode code,
         case TransactionCode::SET_TRACKS_INTERNAL_MUTE:
         case TransactionCode::RESET_REFERENCES_FOR_TEST:
         case TransactionCode::SET_PORTS_VOLUME:
+        case TransactionCode::GET_FLUSH_FROM_FRAME_SUPPORT:
             ALOGW("%s: transaction %d received from PID %d",
                   __func__, static_cast<int>(code), IPCThreadState::self()->getCallingPid());
             // return status only for non void methods

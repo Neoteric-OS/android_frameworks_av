@@ -521,6 +521,12 @@ public:
                 media::audio::common::AudioMMapPolicyType policyType,
                 media::audio::common::AudioMMapPolicyInfo *policyInfo) override;
 
+        status_t getFlushFromFrameSupport(
+                const audio_config_base_t& config,
+                const audio_attributes_t& attr,
+                audio_output_flags_t flags,
+                media::audio::common::FlushFromFrameSupport* support) const override;
+
         status_t initialize();
 
 protected:
@@ -927,7 +933,7 @@ protected:
                                           audio_format_t format,
                                           audio_channel_mask_t channelMask,
                                           audio_output_flags_t flags,
-                                          bool directOnly);
+                                          bool directOnly) const;
         /**
         * Same as getProfileForOutput, but it looks for an MSD profile
         */
@@ -1462,10 +1468,10 @@ protected:
                                             audio_format_t format,
                                             audio_channel_mask_t channelMask,
                                             audio_output_flags_t flags,
-                                            bool directOnly);
+                                            bool directOnly) const;
 
         // Filters only the relevant flags for getProfileForOutput
-        audio_output_flags_t getRelevantFlags (audio_output_flags_t flags, bool directOnly);
+        audio_output_flags_t getRelevantFlags (audio_output_flags_t flags, bool directOnly) const;
 
         status_t getDevicesForAttributes(const audio_attributes_t &attr,
                                          DeviceVector &devices,

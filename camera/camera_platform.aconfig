@@ -322,6 +322,7 @@ flag {
 flag {
     namespace: "camera_platform"
     name: "multi_resolution_concurrent_readers"
+    is_exported: true
     description: "Support concurrent readers in multi-resolution outputs"
     bug: "447659256"
     metadata {
@@ -332,6 +333,7 @@ flag {
 flag {
     namespace: "camera_platform"
     name: "camera_raw14_format"
+    is_exported: true
     description: "Add new RAW14 image format"
     bug: "446724373"
     metadata {

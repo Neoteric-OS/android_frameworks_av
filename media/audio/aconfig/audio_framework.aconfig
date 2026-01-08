@@ -65,6 +65,7 @@ flag {
     namespace: "media_audio"
     description: "Add devices for BLE peripheral mode"
     bug: "423053144"
+    is_exported: true
 }
 
 flag {
@@ -204,15 +205,6 @@ flag {
     description: "Flag for fusing telecom route/mode changes into a single api surface"
     bug: "458830736"
     # is_exported: true
-}
-
-flag {
-    name: "guard_stream_volume_apis"
-    namespace: "media_audio"
-    description:
-        "Guards getStreamVolume and getStreamMaxVolume APIs with permission."
-    bug: "417787833"
-    is_exported: true
 }
 
 flag {
