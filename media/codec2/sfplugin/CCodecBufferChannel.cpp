@@ -2259,6 +2259,7 @@ status_t CCodecBufferChannel::start(
                 ALOGD("[%s] start: max output delay %u", mName, output->maxDequeueBuffers);
 // QTI_END: 2021-04-27: Video: CCodec: Revert Codec2 buffer count optimizations
                 (void)SurfaceCallbackHandler::GetInstance();
+                output->surface->setDequeueTimeout(kDequeueTimeoutNs);
                 output->surface->setMaxDequeuedBufferCount(output->maxDequeueBuffers);
             }
             outputGeneration = output->generation;
