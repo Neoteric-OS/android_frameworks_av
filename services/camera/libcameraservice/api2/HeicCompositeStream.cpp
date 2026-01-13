@@ -178,9 +178,7 @@ status_t HeicCompositeStream::createInternalStreams(const std::vector<SurfaceHol
         const std::unordered_set<int32_t>& sensorPixelModesUsed,
         std::vector<int>* surfaceIds,
         int /*streamSetId*/, bool /*isShared*/, int32_t colorSpace,
-// QTI_BEGIN: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
         int64_t dynamicProfile, int64_t /*streamUseCase*/, bool useReadoutTimestamp, int dataspace) {
-// QTI_END: 2025-03-20: Camera: Enable P010 with HLG10 for HEIC format
     sp<CameraDeviceBase> device = mDevice.promote();
     if (!device.get()) {
         ALOGE("%s: Invalid camera device!", __FUNCTION__);
