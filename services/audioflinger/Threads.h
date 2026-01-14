@@ -1306,9 +1306,7 @@ public:
                     mDownStreamPatch = *patch;
                 }
 
-    bool hasMixer() const final {
-                    return mType == MIXER || mType == DUPLICATING || mType == SPATIALIZER;
-                }
+    bool hasMixer() const override { return false; }
 
     status_t setRequestedLatencyMode(
             audio_latency_mode_t /* mode */) override { return INVALID_OPERATION; }
@@ -1771,6 +1769,7 @@ private:
 
                 std::atomic_bool mMasterMono;
 public:
+    bool hasMixer() const final { return true; }
     virtual     bool        hasFastMixer() const { return mFastMixer != 0; }
     virtual     FastTrackUnderruns getFastTrackUnderruns(size_t fastIndex) const {
                               ALOG_ASSERT(fastIndex < FastMixerState::sMaxFastTracks);
