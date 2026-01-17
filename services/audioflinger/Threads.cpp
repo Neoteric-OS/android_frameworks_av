@@ -2371,10 +2371,14 @@ void PlaybackThread::onFirstRef()
         // discouraged, see comments in system/core/libutils/include/utils/RefBase.h.
         // Even if a function takes a weak pointer, it is possible that it will
         // need to convert it to a strong pointer down the line.
-        if (mOutput->flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING &&
-                mOutput->stream->setCallback(this) == OK) {
-            mUseAsyncWrite = true;
+        if (mOutput->flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING) {
             mCallbackThread = sp<AsyncCallbackThread>::make(this);
+            mUseAsyncWrite = true;
+            if (mOutput->stream->setCallback(this) != OK) {
+                ALOGE("%s: Failed to add async callback", __func__);
+                mCallbackThread.clear();
+                mUseAsyncWrite = false;
+            }
         }
 
         if (mOutput->stream->setEventCallback(this) != OK) {
@@ -2503,7 +2507,8 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
         const sp<media::IAudioTrackCallback>& callback,
         bool isSpatialized,
         bool isBitPerfect,
-        audio_output_flags_t *afTrackFlags)
+        audio_output_flags_t *afTrackFlags,
+        const std::string& codecProvenance)
 {
     size_t frameCount = *pFrameCount;
     size_t notificationFrameCount = *pNotificationFrameCount;
@@ -2832,7 +2837,7 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
                           nullptr /* buffer */, (size_t)0 /* bufferSize */, sharedBuffer,
                           sessionId, creatorPid, attributionSource, trackFlags,
                           IAfTrackBase::TYPE_DEFAULT, portId, SIZE_MAX /*frameCountToBeReady*/,
-                          speed, isSpatialized, isBitPerfect);
+                          speed, isSpatialized, isBitPerfect, codecProvenance);
 
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
@@ -11559,6 +11564,13 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
         volume = 0;
     }
 
+    const auto amn = mAfThreadCallback->getAudioManagerNative();
+    for (const auto& track : mActiveMmapTracksView) {
+        if (amn) {
+            track->maybeLogPlaybackHardening(*amn);
+        }
+    }
+
     if (volume != mHalVolFloat) {
         // Convert volumes from float to 8.24
         uint32_t vol = (uint32_t)(volume * (1 << 24));
@@ -11589,7 +11601,6 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
                 }
             }
         }
-        const auto amn = mAfThreadCallback->getAudioManagerNative();
         for (const auto& track : mActiveMmapTracksView) {
             track->setMetadataHasChanged();
             if (amn) {
@@ -11603,8 +11614,6 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
                                    false /*muteFromVolumeShaper*/,
                                    track->getPortMute(),
                                    shouldMutePlaybackHardening});
-
-                track->maybeLogPlaybackHardening(*amn);
             }
         }
     }
