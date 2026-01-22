@@ -262,6 +262,8 @@ ALookup<C2Config::profile_t, int32_t> sHevcProfiles = {
     { C2Config::PROFILE_HEVC_MAIN, HEVCProfileMain },
     { C2Config::PROFILE_HEVC_MAIN_10, HEVCProfileMain10 },
     { C2Config::PROFILE_HEVC_MAIN_STILL, HEVCProfileMainStill },
+    { C2Config::PROFILE_HEVC_MONO, HEVCProfileMain400 },
+    { C2Config::PROFILE_HEVC_MAIN_444, HEVCProfileMain444 },
 // QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
     { C2Config::PROFILE_HEVC_MAIN_10_STILL, HEVCProfileMain10Still},
 // QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
