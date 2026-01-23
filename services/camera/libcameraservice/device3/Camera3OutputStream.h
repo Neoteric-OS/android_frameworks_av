@@ -54,6 +54,8 @@ struct StreamInfo {
     bool isConfigured;
     int multiResMode;
     std::vector<GraphicBufferAllocator::AdditionalOptions> additionalOptions;
+    bool useReadoutTimestamp;
+    int timestampBase;
 
     explicit StreamInfo(int id = CAMERA3_STREAM_ID_INVALID,
             int setId = CAMERA3_STREAM_SET_ID_INVALID,
@@ -65,7 +67,9 @@ struct StreamInfo {
             size_t bufferCount = 0,
             bool configured = false,
             int multiRMode = OutputConfiguration::MULTI_RES_OFF,
-            const std::vector<gui::AdditionalOptions>& options = {}) :
+            const std::vector<gui::AdditionalOptions>& options = {},
+            bool timestampIsReadout = false,
+            int timeBase = OutputConfiguration::TIMESTAMP_BASE_DEFAULT) :
                 streamId(id),
                 streamSetId(setId),
                 width(w),
@@ -75,7 +79,9 @@ struct StreamInfo {
                 combinedUsage(usage),
                 totalBufferCount(bufferCount),
                 isConfigured(configured),
-                multiResMode(multiRMode) {
+                multiResMode(multiRMode),
+                useReadoutTimestamp(timestampIsReadout),
+                timestampBase(timeBase) {
               for (const auto& option : options) {
                 additionalOptions.push_back({.name = option.name.c_str(), .value = option.value});
               }
@@ -255,6 +261,9 @@ class Camera3OutputStream :
             const std::vector<size_t> &removedSurfaceIds,
             KeyedVector<sp<Surface>, size_t> *outputMap/*out*/);
 
+    virtual status_t updateInternalStream(
+            KeyedVector<sp<Surface>, size_t> * /*outputMap out*/) override;
+
     /**
      * Set the batch size for buffer operations. The output stream will request
      * buffers from buffer queue on a batch basis. Currently only video streams
@@ -278,6 +287,11 @@ class Camera3OutputStream :
      * Modify stream use case
      */
     virtual void setStreamUseCase(int64_t streamUseCase) override;
+
+    /**
+     * Get timestamp offset between different timestamp bases.
+     */
+    virtual nsecs_t getTimestampOffset() const override { return mTimestampOffset; }
 
     /**
      * Apply ZSL related consumer usage quirk.

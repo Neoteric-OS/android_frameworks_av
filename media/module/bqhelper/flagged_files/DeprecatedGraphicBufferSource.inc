@@ -35,6 +35,9 @@
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
 #include <gui/bufferqueue/1.0/WGraphicBufferProducer.h>
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
+#include <gui/bufferqueue/2.0/B2HGraphicBufferProducer.h>
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IGraphicBufferConsumer.h>
 #include <media/hardware/HardwareAPI.h>
@@ -405,6 +408,14 @@ GraphicBufferSource::getHGraphicBufferProducer_V1_0() const {
     return new TWGraphicBufferProducer(getIGraphicBufferProducer());
 }
 
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
+sp<::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer>
+GraphicBufferSource::getHGraphicBufferProducer() const {
+    return new ::android::hardware::graphics::bufferqueue::V2_0::utils::
+                    B2HGraphicBufferProducer(getIGraphicBufferProducer());
+}
+
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 status_t GraphicBufferSource::start() {
     Mutex::Autolock autoLock(mMutex);
     ALOGV("--> start; available=%zu, submittable=%zd",
@@ -560,10 +571,15 @@ status_t GraphicBufferSource::onInputBufferEmptied(codec_buffer_id bufferId, int
 
     if (haveAvailableBuffers_l()) {
         // Fill this codec buffer.
-        CHECK(!mEndOfStreamSent);
-        ALOGV("onInputBufferEmptied: buffer freed, feeding codec (available=%zu+%d, eos=%d)",
-                mAvailableBuffers.size(), mNumAvailableUnacquiredBuffers, mEndOfStream);
-        fillCodecBuffer_l();
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
+        if (!mEndOfStreamSent) {
+            ALOGV("onInputBufferEmptied: buffer freed, feeding codec (available=%zu+%d, eos=%d)",
+                    mAvailableBuffers.size(), mNumAvailableUnacquiredBuffers, mEndOfStream);
+            fillCodecBuffer_l();
+        } else {
+            releaseAllAvailableBuffers_l();
+        }
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     } else if (mEndOfStream && mStopTimeUs == -1) {
         // No frames available, but EOS is pending and no stop time, so use this buffer to
         // send that.
@@ -804,7 +820,9 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
 
     if (mCaptureFps > 0.
             && (mFps > 2 * mCaptureFps
-            || mCaptureFps > 2 * mFps)) {
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
+            || mCaptureFps > mFps)) {
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
         // Time lapse or slow motion mode
         if (mPrevCaptureUs < 0LL) {
             // first capture
@@ -1387,6 +1405,11 @@ status_t GraphicBufferSource::setTimeLapseConfig(double fps, double captureFps) 
     if (captureFps > fps) {
         mSnapTimestamps = 1 == base::GetIntProperty(
                 "debug.stagefright.snap_timestamps", int64_t(0));
+//  QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
+    } else if (fps > 2 * captureFps) {
+        // Timelapse mode
+        mSnapTimestamps = true;
+//  QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     } else {
         mSnapTimestamps = false;
     }

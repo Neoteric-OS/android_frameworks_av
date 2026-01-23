@@ -111,7 +111,7 @@ static CodecBucket getCodecBucket(bool isEncoder, MediaResourceSubType codecType
 static std::string getLogMessage(const std::string& firstKey, const long& firstValue,
                                  const std::string& secondKey, const long& secondValue) {
 
-    std::stringstream logMsg;
+    std::ostringstream logMsg;
     if (firstValue > 0) {
         logMsg << firstKey << firstValue;
     }
@@ -419,7 +419,7 @@ void ResourceManagerMetrics::pushCodecUsageMetrics(int32_t pid, uid_t uid, int e
     }
     std::string peakPixelsLog("Peak Pixels: " + std::to_string(peakPixels));
 
-    std::stringstream peakCodecLog;
+    std::ostringstream peakCodecLog;
     peakCodecLog << "Peak { ";
     std::string logMsg;
     logMsg = getLogMessage(" HW: ", peakHwAudioEncoderCount, " SW: ", peakSwAudioEncoderCount);
@@ -592,26 +592,48 @@ void ResourceManagerMetrics::pushReclaimAtom(const ClientInfoParcel& clientInfo,
     }
 }
 
+inline void fillResourceVectors(
+        const std::vector<MediaResourceParcel>& resources,
+        std::vector<int32_t>& ids,
+        std::vector<int32_t>& values,
+        size_t maxElements = kMaxElements) {
+
+    ids.clear();
+    values.clear();
+    ids.reserve(resources.size());
+    values.reserve(resources.size());
+
+    // To limit the number of resources added to the metric atom, use this
+    // counter. Once this exceeds maxElements, end the loop.
+    size_t items = 1;
+    for (const auto& res : resources) {
+        ids.push_back(static_cast<int32_t>(res.type));
+        values.push_back(res.value);
+        if (++items > maxElements) {
+            break;
+        }
+    }
+}
+
 void ResourceManagerMetrics::pushResourceStatusAtom(
         const ClientInfoParcel& clientInfo,
         bool isCodecStarted,
-        bool isResourcesAvailable) {
-    bool isResourceTrackingMatches = false;
-    if (isCodecStarted) {
-        // If the codec has started, we expect resource to be available.
-        if (isResourcesAvailable) {
-            isResourceTrackingMatches = true;
-        }
-    } else {
-        // If the codec failed to start, we expect resource to be unavailable.
-        if (!isResourcesAvailable) {
-            isResourceTrackingMatches = true;
-        }
-    }
+        bool isResourcesAvailable,
+        bool doesResourceTrackingMatch,
+        const std::vector<MediaResourceParcel>& resourcesAvailable,
+        const std::vector<MediaResourceParcel>& resourcesInRequest) {
+
+    // Log resource info as two parallel vectors 2.
+    std::vector<int32_t> availableResIDs;
+    std::vector<int32_t> availableResValues;
+    std::vector<int32_t> inRequestResIDs;
+    std::vector<int32_t> inRequestResValues;
+    fillResourceVectors(resourcesAvailable, availableResIDs, availableResValues);
+    fillResourceVectors(resourcesInRequest, inRequestResIDs, inRequestResValues);
 
     // Track these metrics.
     ++mTotalResourceTrackedEvents;
-    if (isResourceTrackingMatches) {
+    if (doesResourceTrackingMatch) {
         ++mTotalSuccessfulResourceTracking;
     }
 
@@ -621,17 +643,22 @@ void ResourceManagerMetrics::pushResourceStatusAtom(
         isCodecStarted,
         isResourcesAvailable,
         mTotalResourceTrackedEvents,
-        mTotalSuccessfulResourceTracking);
+        mTotalSuccessfulResourceTracking,
+        clientInfo.name.c_str(),
+        availableResIDs, availableResValues,
+        inRequestResIDs, inRequestResValues);
 
-    ALOGI("%s: Client ID: %lld isCodecStarted: %s isResourcesAvailable: %s "
-          "Does Resource Availability Matches: %s "
-          "Total Codecs started: %d TotalSuccessfulResourceTracking: %d "
-          "result: %d", __func__, (long long) clientInfo.id,
-          isCodecStarted ? "Yes" : "No",
-          isResourcesAvailable ? "Yes" : "No",
-          isResourceTrackingMatches ? "Yes" : "No",
-          mTotalResourceTrackedEvents, mTotalSuccessfulResourceTracking, result);
+    std::ostringstream logMsg;
+    logMsg << "MEDIA_CODEC_RESOURCE_TRACKED Atom Pushed with"
+           << " Client[ID: " << clientInfo.id << " Name: " << clientInfo.name << "]"
+           << " Codec: " << (isCodecStarted ? "Started" : "Not Started")
+           << " Resources: " << (isResourcesAvailable ? "Available" : "Not Available")
+           << " Resource Availability: " << (doesResourceTrackingMatch ? "Predicted" : "Mismatched")
+           << " Total Codecs started: " << mTotalResourceTrackedEvents
+           << " Total Successful Resource Tracking: " <<  mTotalSuccessfulResourceTracking
+           << " stats_write result: " << result;
 
+    ALOGI("%s: %s", __func__, logMsg.str().c_str());
 }
 
 void ResourceManagerMetrics::increaseConcurrentCodecs(int32_t pid,
@@ -790,7 +817,7 @@ static std::string getConcurrentInstanceCount(const std::map<std::string, int>& 
     if (resourceMap.empty()) {
         return "";
     }
-    std::stringstream concurrentInstanceInfo;
+    std::ostringstream concurrentInstanceInfo;
     for (const auto& [name, count] : resourceMap) {
         if (count > 0) {
             concurrentInstanceInfo << "      Name: " << name << " Instances: " << count << "\n";
@@ -808,7 +835,7 @@ static std::string getAppsPixelCount(const std::map<int32_t, PixelCount>& pixelM
     if (pixelMap.empty()) {
         return "";
     }
-    std::stringstream pixelInfo;
+    std::ostringstream pixelInfo;
     for (const auto& [pid, pixelCount] : pixelMap) {
         std::string logMsg = getLogMessage(" Current Pixels: ", pixelCount.mCurrent,
                                            " Peak Pixels: ", pixelCount.mPeak);
@@ -833,7 +860,7 @@ static std::string getCodecUsageMetrics(const ConcurrentCodecsMap& codecsMap) {
     int peakSwVideoDecoderCount = codecsMap[SwVideoDecoder];
     int peakSwImageEncoderCount = codecsMap[SwImageEncoder];
     int peakSwImageDecoderCount = codecsMap[SwImageDecoder];
-    std::stringstream usageMetrics;
+    std::ostringstream usageMetrics;
     std::string logMsg;
     logMsg = getLogMessage(" HW: ", peakHwAudioEncoderCount, " SW: ", peakSwAudioEncoderCount);
     if (!logMsg.empty()) {
@@ -868,7 +895,7 @@ static std::string getAppsCodecUsageMetrics(
     if (processCodecsMap.empty()) {
         return "";
     }
-    std::stringstream codecUsage;
+    std::ostringstream codecUsage;
     std::string info;
     for (const auto& [pid, codecMap] : processCodecsMap) {
         codecUsage << "      PID[" << pid << "]: ";

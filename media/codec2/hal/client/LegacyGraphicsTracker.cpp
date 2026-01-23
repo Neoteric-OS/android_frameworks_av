@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-//#define LOG_NDEBUG 0
-#define LOG_TAG "GraphicsTracker"
+// #define LOG_NDEBUG 0
+#define LOG_TAG "LegacyGraphicsTracker"
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -27,7 +27,7 @@
 
 #include <C2AllocatorGralloc.h>
 #include <C2BlockInternal.h>
-#include <codec2/aidl/GraphicsTracker.h>
+#include <codec2/aidl/LegacyGraphicsTracker.h>
 
 namespace aidl::android::hardware::media::c2::implementation {
 
@@ -39,13 +39,13 @@ static constexpr int kMaxDequeueMax = ::android::BufferQueueDefs::NUM_BUFFER_SLO
 // Just some delay for HAL to receive the stop()/release() request.
 static constexpr int kAllocateDirectDelayUs = 16666;
 
-c2_status_t retrieveAHardwareBufferId(const C2ConstGraphicBlock &blk, uint64_t *bid) {
+c2_status_t retrieveAHardwareBufferId(const C2ConstGraphicBlock& blk, uint64_t* bid) {
     std::shared_ptr<const _C2BlockPoolData> bpData = _C2BlockFactory::GetGraphicBlockPoolData(blk);
     if (!bpData || bpData->getType() != _C2BlockPoolData::TYPE_AHWBUFFER) {
         return C2_BAD_VALUE;
     }
     if (__builtin_available(android __ANDROID_API_T__, *)) {
-        AHardwareBuffer *pBuf;
+        AHardwareBuffer* pBuf;
         if (!_C2BlockFactory::GetAHardwareBuffer(bpData, &pBuf)) {
             return C2_CORRUPTED;
         }
@@ -60,8 +60,8 @@ c2_status_t retrieveAHardwareBufferId(const C2ConstGraphicBlock &blk, uint64_t *
 }
 
 // Create a GraphicBuffer object from a graphic block.
-sp<GraphicBuffer> createGraphicBuffer(
-        const C2ConstGraphicBlock& block, uint32_t toGeneration, uint64_t toUsage) {
+sp<GraphicBuffer> createGraphicBuffer(const C2ConstGraphicBlock& block, uint32_t toGeneration,
+                                      uint64_t toUsage) {
     uint32_t width;
     uint32_t height;
     uint32_t format;
@@ -70,39 +70,36 @@ sp<GraphicBuffer> createGraphicBuffer(
     uint32_t generation;
     uint64_t bqId;
     int32_t bqSlot;
-    ::android::_UnwrapNativeCodec2GrallocMetadata(
-            block.handle(), &width, &height, &format, &usage,
-            &stride, &generation, &bqId, reinterpret_cast<uint32_t*>(&bqSlot));
+    ::android::_UnwrapNativeCodec2GrallocMetadata(block.handle(), &width, &height, &format, &usage,
+                                                  &stride, &generation, &bqId,
+                                                  reinterpret_cast<uint32_t*>(&bqSlot));
 
     // android::UnwrapNativCodec2GrallocHandle() returns
     // a new native_handle_t with undup'ed fds.
-    native_handle_t *grallocHandle =
-            ::android::UnwrapNativeCodec2GrallocHandle(block.handle());
+    native_handle_t* grallocHandle = ::android::UnwrapNativeCodec2GrallocHandle(block.handle());
     if (grallocHandle == nullptr) {
         return nullptr;
     }
     sp<GraphicBuffer> graphicBuffer =
-            new GraphicBuffer(grallocHandle,
-                              GraphicBuffer::CLONE_HANDLE,
-                              width, height, format,
-                              1, (usage | toUsage), stride);
+            new GraphicBuffer(grallocHandle, GraphicBuffer::CLONE_HANDLE, width, height, format, 1,
+                              (usage | toUsage), stride);
     graphicBuffer->setGenerationNumber(toGeneration);
     native_handle_delete(grallocHandle);
     return graphicBuffer;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
-using ::android::BufferQueue;
 using ::android::BufferItemConsumer;
+using ::android::BufferQueue;
 using ::android::ConsumerListener;
 using ::android::IConsumerListener;
-using ::android::IGraphicBufferProducer;
 using ::android::IGraphicBufferConsumer;
+using ::android::IGraphicBufferProducer;
 using ::android::Surface;
 
-class GraphicsTracker::PlaceHolderSurface {
-public:
+class LegacyGraphicsTracker::PlaceHolderSurface {
+  public:
     static const int kMaxAcquiredBuffer = 2;
     // Enough number to allocate in stop/release status.
     static const int kMaxDequeuedBuffer = 16;
@@ -118,9 +115,8 @@ public:
         }
     }
 
-    c2_status_t allocate(uint32_t width, uint32_t height,
-            uint32_t format, uint64_t usage,
-            AHardwareBuffer **pBuf, sp<Fence> *fence) {
+    c2_status_t allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
+                         AHardwareBuffer** pBuf, sp<Fence>* fence) {
         std::unique_lock<std::mutex> l(mLock);
         if (mInit == C2_NO_INIT) {
             mInit = init();
@@ -150,7 +146,7 @@ public:
         return C2_OK;
     }
 
-private:
+  private:
     uint64_t mUsage;
     sp<Surface> mSurface;
     sp<BufferItemConsumer> mBufferItemConsumer;
@@ -169,15 +165,14 @@ private:
     }
 };
 
-
-GraphicsTracker::BufferItem::BufferItem(
-        uint32_t generation, int slot, const sp<GraphicBuffer>& buf, const sp<Fence>& fence) :
-        mInit{false}, mGeneration{generation}, mSlot{slot} {
+LegacyGraphicsTracker::BufferItem::BufferItem(uint32_t generation, int slot,
+                                              const sp<GraphicBuffer>& buf, const sp<Fence>& fence)
+    : mInit{false}, mGeneration{generation}, mSlot{slot} {
     if (!buf) {
         return;
     }
     if (__builtin_available(android __ANDROID_API_T__, *)) {
-        AHardwareBuffer *pBuf = AHardwareBuffer_from_GraphicBuffer(buf.get());
+        AHardwareBuffer* pBuf = AHardwareBuffer_from_GraphicBuffer(buf.get());
         int ret = AHardwareBuffer_getId(pBuf, &mId);
         if (ret != ::android::OK) {
             return;
@@ -190,11 +185,14 @@ GraphicsTracker::BufferItem::BufferItem(
     }
 }
 
-GraphicsTracker::BufferItem::BufferItem(
-        uint32_t generation, AHardwareBuffer *pBuf, uint64_t usage) :
-        mInit{true}, mGeneration{generation}, mSlot{-1},
-        mBuf{pBuf}, mUsage{usage},
-        mFence{Fence::NO_FENCE} {
+LegacyGraphicsTracker::BufferItem::BufferItem(uint32_t generation, AHardwareBuffer* pBuf,
+                                              uint64_t usage)
+    : mInit{true},
+      mGeneration{generation},
+      mSlot{-1},
+      mBuf{pBuf},
+      mUsage{usage},
+      mFence{Fence::NO_FENCE} {
     if (__builtin_available(android __ANDROID_API_T__, *)) {
         int ret = AHardwareBuffer_getId(mBuf, &mId);
         if (ret != ::android::OK) {
@@ -206,14 +204,13 @@ GraphicsTracker::BufferItem::BufferItem(
     AHardwareBuffer_acquire(mBuf);
 }
 
-GraphicsTracker::BufferItem::~BufferItem() {
+LegacyGraphicsTracker::BufferItem::~BufferItem() {
     if (mInit) {
         AHardwareBuffer_release(mBuf);
     }
 }
 
-
-std::shared_ptr<GraphicsTracker::BufferItem> GraphicsTracker::BufferItem::migrateBuffer(
+std::shared_ptr<LegacyGraphicsTracker::BufferItem> LegacyGraphicsTracker::BufferItem::migrateBuffer(
         uint64_t newUsage, uint32_t newGeneration) {
     if (!mInit) {
         return nullptr;
@@ -225,15 +222,14 @@ std::shared_ptr<GraphicsTracker::BufferItem> GraphicsTracker::BufferItem::migrat
     // TODO: we need well-established buffer migration features from graphics.
     // (b/273776738)
     desc.usage = ahbUsage;
-    const native_handle_t *handle = AHardwareBuffer_getNativeHandle(mBuf);
+    const native_handle_t* handle = AHardwareBuffer_getNativeHandle(mBuf);
     if (!handle) {
         return nullptr;
     }
 
-    AHardwareBuffer *newBuf;
-    int err = AHardwareBuffer_createFromHandle(&desc, handle,
-                                     AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE,
-                                     &newBuf);
+    AHardwareBuffer* newBuf;
+    int err = AHardwareBuffer_createFromHandle(
+            &desc, handle, AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE, &newBuf);
     if (err != ::android::NO_ERROR) {
         return nullptr;
     }
@@ -244,11 +240,11 @@ std::shared_ptr<GraphicsTracker::BufferItem> GraphicsTracker::BufferItem::migrat
     return newBuffer;
 }
 
-sp<GraphicBuffer> GraphicsTracker::BufferItem::getGraphicBuffer() {
+sp<GraphicBuffer> LegacyGraphicsTracker::BufferItem::getGraphicBuffer() {
     if (!mInit) {
         return nullptr;
     }
-    GraphicBuffer *gb = ::android::AHardwareBuffer_to_GraphicBuffer(mBuf);
+    GraphicBuffer* gb = ::android::AHardwareBuffer_to_GraphicBuffer(mBuf);
     if (!gb) {
         return nullptr;
     }
@@ -256,54 +252,62 @@ sp<GraphicBuffer> GraphicsTracker::BufferItem::getGraphicBuffer() {
     return gb;
 }
 
-GraphicsTracker::BufferCache::~BufferCache() {
+LegacyGraphicsTracker::BufferCache::~BufferCache() {
     ALOGV("BufferCache destruction: generation(%d), igbp(%d)", mGeneration, (bool)mIgbp);
 }
 
-void GraphicsTracker::BufferCache::waitOnSlot(int slot) {
+void LegacyGraphicsTracker::BufferCache::waitOnSlot(int slot) {
     // TODO: log
     CHECK(0 <= slot && slot < kNumSlots);
-    BlockedSlot *p = &mBlockedSlots[slot];
+    BlockedSlot* p = &mBlockedSlots[slot];
     std::unique_lock<std::mutex> l(p->l);
     while (p->blocked) {
         p->cv.wait(l);
     }
 }
 
-void GraphicsTracker::BufferCache::blockSlot(int slot) {
+void LegacyGraphicsTracker::BufferCache::blockSlot(int slot) {
     CHECK(0 <= slot && slot < kNumSlots);
     ALOGV("block slot %d", slot);
-    BlockedSlot *p = &mBlockedSlots[slot];
+    BlockedSlot* p = &mBlockedSlots[slot];
     std::unique_lock<std::mutex> l(p->l);
     p->blocked = true;
 }
 
-void GraphicsTracker::BufferCache::unblockSlot(int slot) {
+void LegacyGraphicsTracker::BufferCache::unblockSlot(int slot) {
     CHECK(0 <= slot && slot < kNumSlots);
     ALOGV("unblock slot %d", slot);
-    BlockedSlot *p = &mBlockedSlots[slot];
+    BlockedSlot* p = &mBlockedSlots[slot];
     std::unique_lock<std::mutex> l(p->l);
     p->blocked = false;
     l.unlock();
     p->cv.notify_one();
 }
 
-GraphicsTracker::GraphicsTracker(int maxDequeueCount)
-    : mBufferCache(new BufferCache()), mNumDequeueing{0}, mMaxDequeue{maxDequeueCount},
-    mMaxDequeueCommitted{maxDequeueCount},
-    mDequeueable{maxDequeueCount},
-    mTotalDequeued{0}, mTotalCancelled{0}, mTotalDropped{0}, mTotalReleased{0},
-    mInConfig{false}, mStopped{false}, mStopRequested{false}, mAllocAfterStopRequested{0} {
+LegacyGraphicsTracker::LegacyGraphicsTracker(int maxDequeueCount)
+    : mBufferCache(new BufferCache()),
+      mNumDequeueing{0},
+      mMaxDequeue{maxDequeueCount},
+      mMaxDequeueCommitted{maxDequeueCount},
+      mDequeueable{maxDequeueCount},
+      mTotalDequeued{0},
+      mTotalCancelled{0},
+      mTotalDropped{0},
+      mTotalReleased{0},
+      mInConfig{false},
+      mStopped{false},
+      mStopRequested{false},
+      mAllocAfterStopRequested{0} {
     if (maxDequeueCount < kMaxDequeueMin) {
         mMaxDequeue = kMaxDequeueMin;
         mMaxDequeueCommitted = kMaxDequeueMin;
         mDequeueable = kMaxDequeueMin;
-    } else if(maxDequeueCount > kMaxDequeueMax) {
+    } else if (maxDequeueCount > kMaxDequeueMax) {
         mMaxDequeue = kMaxDequeueMax;
         mMaxDequeueCommitted = kMaxDequeueMax;
         mDequeueable = kMaxDequeueMax;
     }
-    int pipefd[2] = { -1, -1};
+    int pipefd[2] = {-1, -1};
     int ret = ::pipe2(pipefd, O_CLOEXEC | O_NONBLOCK);
 
     mReadPipeFd.reset(pipefd[0]);
@@ -315,11 +319,11 @@ GraphicsTracker::GraphicsTracker(int maxDequeueCount)
     CHECK(ret >= 0);
 }
 
-GraphicsTracker::~GraphicsTracker() {
+LegacyGraphicsTracker::~LegacyGraphicsTracker() {
     stop();
 }
 
-bool GraphicsTracker::adjustDequeueConfLocked(bool *updateDequeue) {
+bool LegacyGraphicsTracker::adjustDequeueConfLocked(bool* updateDequeue) {
     // TODO: can't we adjust during config? not committing it may safe?
     *updateDequeue = false;
     if (!mInConfig && mMaxDequeueRequested.has_value() && mMaxDequeueRequested < mMaxDequeue) {
@@ -347,8 +351,8 @@ bool GraphicsTracker::adjustDequeueConfLocked(bool *updateDequeue) {
     return false;
 }
 
-c2_status_t GraphicsTracker::configureGraphics(
-        const sp<IGraphicBufferProducer>& igbp, uint32_t generation) {
+c2_status_t LegacyGraphicsTracker::configureGraphics(const sp<IGraphicBufferProducer>& igbp,
+                                                     uint32_t generation) {
     // TODO: wait until operations to previous IGBP is completed.
     std::shared_ptr<BufferCache> prevCache;
     int prevDequeueRequested = 0;
@@ -377,11 +381,10 @@ c2_status_t GraphicsTracker::configureGraphics(
             (void)igbp->getConsumerUsage(&bqUsage);
         }
     }
-    if (ret != ::android::OK ||
-            prevCache->mGeneration == generation) {
+    if (ret != ::android::OK || prevCache->mGeneration == generation) {
         ALOGE("new surface configure fail due to wrong or same bqId or same generation:"
-              "igbp(%d:%llu -> %llu), gen(%lu -> %lu)", (bool)igbp,
-              (unsigned long long)prevCache->mBqId, (unsigned long long)bqId,
+              "igbp(%d:%llu -> %llu), gen(%lu -> %lu)",
+              (bool)igbp, (unsigned long long)prevCache->mBqId, (unsigned long long)bqId,
               (unsigned long)prevCache->mGeneration, (unsigned long)generation);
         std::unique_lock<std::mutex> l(mLock);
         mInConfig = false;
@@ -402,8 +405,8 @@ c2_status_t GraphicsTracker::configureGraphics(
             return C2_CORRUPTED;
         }
     }
-    ALOGD("new surface configured with id:%llu gen:%lu maxDequeue:%d",
-          (unsigned long long)bqId, (unsigned long)generation, prevDequeueCommitted);
+    ALOGD("new surface configured with id:%llu gen:%lu maxDequeue:%d", (unsigned long long)bqId,
+          (unsigned long)generation, prevDequeueCommitted);
     std::shared_ptr<BufferCache> newCache =
             std::make_shared<BufferCache>(bqId, bqUsage, generation, igbp);
     {
@@ -420,8 +423,8 @@ c2_status_t GraphicsTracker::configureGraphics(
         if (newDequeueable < 0) {
             // This will not happen.
             // But if this happens, we respect the value and try to continue.
-            ALOGE("calculated new dequeueable is negative: %d max(%d),dequeued(%d)",
-                  newDequeueable, prevDequeueCommitted, dequeued);
+            ALOGE("calculated new dequeueable is negative: %d max(%d),dequeued(%d)", newDequeueable,
+                  prevDequeueCommitted, dequeued);
         }
 
         if (mMaxDequeueRequested.has_value() && mMaxDequeueRequested == prevDequeueCommitted) {
@@ -435,14 +438,14 @@ c2_status_t GraphicsTracker::configureGraphics(
         } else if (delta < 0) {
             drainDequeueableLocked(-delta);
         }
-        ALOGV("new surfcace dequeueable %d(delta %d), maxDequeue %d",
-              newDequeueable, delta, mMaxDequeue);
+        ALOGV("new surfcace dequeueable %d(delta %d), maxDequeue %d", newDequeueable, delta,
+              mMaxDequeue);
         mDequeueable = newDequeueable;
     }
     return C2_OK;
 }
 
-c2_status_t GraphicsTracker::configureMaxDequeueCount(int maxDequeueCount) {
+c2_status_t LegacyGraphicsTracker::configureMaxDequeueCount(int maxDequeueCount) {
     std::shared_ptr<BufferCache> cache;
 
     if (maxDequeueCount < kMaxDequeueMin || maxDequeueCount > kMaxDequeueMax) {
@@ -502,12 +505,12 @@ c2_status_t GraphicsTracker::configureMaxDequeueCount(int maxDequeueCount) {
         std::unique_lock<std::mutex> l(mLock);
         mInConfig = false;
         oldMaxDequeue = mMaxDequeue;
-        mMaxDequeue = maxDequeueToCommit; // we already drained dequeueable
+        mMaxDequeue = maxDequeueToCommit;  // we already drained dequeueable
         if (committed) {
             clearCacheIfNecessaryLocked(cache, maxDequeueToCommit);
             mMaxDequeueCommitted = maxDequeueToCommit;
             if (mMaxDequeueRequested == mMaxDequeueCommitted &&
-                  mMaxDequeueRequested == mMaxDequeue) {
+                mMaxDequeueRequested == mMaxDequeue) {
                 mMaxDequeueRequested.reset();
             }
             if (mMaxDequeueRequested.has_value()) {
@@ -520,8 +523,8 @@ c2_status_t GraphicsTracker::configureMaxDequeueCount(int maxDequeueCount) {
             }
         }
     }
-    ALOGD("maxDqueueCount change %d -> %d: pending: %d",
-          oldMaxDequeue, maxDequeueToCommit, requested);
+    ALOGD("maxDqueueCount change %d -> %d: pending: %d", oldMaxDequeue, maxDequeueToCommit,
+          requested);
 
     if (!committed) {
         return C2_CORRUPTED;
@@ -529,7 +532,7 @@ c2_status_t GraphicsTracker::configureMaxDequeueCount(int maxDequeueCount) {
     return C2_OK;
 }
 
-void GraphicsTracker::updateDequeueConf() {
+void LegacyGraphicsTracker::updateDequeueConf() {
     std::shared_ptr<BufferCache> cache;
     int dequeueCommit;
     ALOGV("trying to update max dequeue count");
@@ -571,8 +574,8 @@ void GraphicsTracker::updateDequeueConf() {
     }
 }
 
-void GraphicsTracker::clearCacheIfNecessaryLocked(const std::shared_ptr<BufferCache> &cache,
-                                            int maxDequeueCommitted) {
+void LegacyGraphicsTracker::clearCacheIfNecessaryLocked(const std::shared_ptr<BufferCache>& cache,
+                                                        int maxDequeueCommitted) {
     int cleared = 0;
     size_t origCacheSize = cache->mBuffers.size();
     if (cache->mIgbp && maxDequeueCommitted < mMaxDequeueCommitted) {
@@ -588,18 +591,18 @@ void GraphicsTracker::clearCacheIfNecessaryLocked(const std::shared_ptr<BufferCa
             }
         }
     }
-    ALOGD("Cache size %zu -> %zu: maybe_cleared(%d), dequeued(%zu)",
-          origCacheSize, cache->mBuffers.size(), cleared, mDequeued.size());
+    ALOGD("Cache size %zu -> %zu: maybe_cleared(%d), dequeued(%zu)", origCacheSize,
+          cache->mBuffers.size(), cleared, mDequeued.size());
 }
 
-int GraphicsTracker::getCurDequeueable() {
+int LegacyGraphicsTracker::getCurDequeueable() {
     std::unique_lock<std::mutex> l(mLock);
     return mDequeueable;
 }
 
-void GraphicsTracker::stop() {
-   // TODO: wait until all operation to current IGBP
-   // being completed.
+void LegacyGraphicsTracker::stop() {
+    // TODO: wait until all operation to current IGBP
+    // being completed.
     std::unique_lock<std::mutex> l(mLock);
     if (mStopped) {
         return;
@@ -611,7 +614,7 @@ void GraphicsTracker::stop() {
     }
 }
 
-void GraphicsTracker::onRequestStop() {
+void LegacyGraphicsTracker::onRequestStop() {
     std::unique_lock<std::mutex> l(mLock);
     if (mStopped) {
         return;
@@ -626,10 +629,10 @@ void GraphicsTracker::onRequestStop() {
     writeIncDequeueableLocked(kMaxDequeueMax - 1);
 }
 
-void GraphicsTracker::writeIncDequeueableLocked(int inc) {
+void LegacyGraphicsTracker::writeIncDequeueableLocked(int inc) {
     CHECK(inc > 0 && inc < kMaxDequeueMax);
     thread_local char buf[kMaxDequeueMax];
-    if (mStopped) { // reading end closed;
+    if (mStopped) {  // reading end closed;
         return;
     }
     int writeFd = mWritePipeFd.get();
@@ -651,7 +654,7 @@ void GraphicsTracker::writeIncDequeueableLocked(int inc) {
     CHECK(ret == inc);
 }
 
-void GraphicsTracker::drainDequeueableLocked(int dec) {
+void LegacyGraphicsTracker::drainDequeueableLocked(int dec) {
     CHECK(dec > 0 && dec < kMaxDequeueMax);
     thread_local char buf[kMaxDequeueMax];
     if (mStopped) {
@@ -667,7 +670,7 @@ void GraphicsTracker::drainDequeueableLocked(int dec) {
     CHECK(ret == dec);
 }
 
-c2_status_t GraphicsTracker::getWaitableFd(int *pipeFd) {
+c2_status_t LegacyGraphicsTracker::getWaitableFd(int* pipeFd) {
     *pipeFd = ::dup(mReadPipeFd.get());
     if (*pipeFd < 0) {
         if (mReadPipeFd.get() < 0) {
@@ -680,7 +683,7 @@ c2_status_t GraphicsTracker::getWaitableFd(int *pipeFd) {
     return C2_OK;
 }
 
-c2_status_t GraphicsTracker::requestAllocateLocked(std::shared_ptr<BufferCache> *cache) {
+c2_status_t LegacyGraphicsTracker::requestAllocateLocked(std::shared_ptr<BufferCache>* cache) {
     if (mDequeueable > 0) {
         char buf[1];
         int ret = ::read(mReadPipeFd.get(), buf, 1);
@@ -712,9 +715,11 @@ c2_status_t GraphicsTracker::requestAllocateLocked(std::shared_ptr<BufferCache> 
 // If {@code cached} is {@code true}, {@code pBuffer} should be read from the
 // current cached status. Otherwise, {@code pBuffer} should be written to
 // current caches status.
-void GraphicsTracker::commitAllocate(c2_status_t res, const std::shared_ptr<BufferCache> &cache,
-                    bool cached, int slot, const sp<Fence> &fence,
-                    std::shared_ptr<BufferItem> *pBuffer, bool *updateDequeue) {
+void LegacyGraphicsTracker::commitAllocate(c2_status_t res,
+                                           const std::shared_ptr<BufferCache>& cache, bool cached,
+                                           int slot, const sp<Fence>& fence,
+                                           std::shared_ptr<BufferItem>* pBuffer,
+                                           bool* updateDequeue) {
     std::unique_lock<std::mutex> l(mLock);
     mNumDequeueing--;
     if (res == C2_OK) {
@@ -737,8 +742,8 @@ void GraphicsTracker::commitAllocate(c2_status_t res, const std::shared_ptr<Buff
         auto mapRet = mDequeued.emplace(bid, *pBuffer);
         CHECK(mapRet.second);
     } else {
-        ALOGD("allocate error(%d): Dequeued(%zu), Dequeuable(%d)",
-              (int)res, mDequeued.size(), mDequeueable + 1);
+        ALOGD("allocate error(%d): Dequeued(%zu), Dequeuable(%d)", (int)res, mDequeued.size(),
+              mDequeueable + 1);
         if (adjustDequeueConfLocked(updateDequeue)) {
             return;
         }
@@ -747,18 +752,15 @@ void GraphicsTracker::commitAllocate(c2_status_t res, const std::shared_ptr<Buff
     }
 }
 
-
 // if a buffer is newly allocated, {@code cached} is {@code false},
 // and the buffer is in the {@code buffer}
 // otherwise, {@code cached} is {@code false} and the buffer should be
 // retrieved by commitAllocate();
-c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache,
-                                      uint32_t width, uint32_t height, PixelFormat format,
-                                      uint64_t usage,
-                                      bool *cached,
-                                      int *rSlotId,
-                                      sp<Fence> *rFence,
-                                      std::shared_ptr<BufferItem> *buffer) {
+c2_status_t LegacyGraphicsTracker::_allocate(const std::shared_ptr<BufferCache>& cache,
+                                             uint32_t width, uint32_t height, PixelFormat format,
+                                             uint64_t usage, bool* cached, int* rSlotId,
+                                             sp<Fence>* rFence,
+                                             std::shared_ptr<BufferItem>* buffer) {
     ::android::sp<IGraphicBufferProducer> igbp = cache->mIgbp;
     uint32_t generation = cache->mGeneration;
     if (!igbp) {
@@ -772,7 +774,7 @@ c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache
         desc.rfu0 = 0;
         desc.rfu1 = 0;
 
-        AHardwareBuffer *buf;
+        AHardwareBuffer* buf;
         int ret = AHardwareBuffer_allocate(&desc, &buf);
         if (ret != ::android::OK) {
             ALOGE("direct allocation of AHB failed(%d)", ret);
@@ -782,8 +784,8 @@ c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache
         *rSlotId = -1;
         *rFence = Fence::NO_FENCE;
         *buffer = std::make_shared<BufferItem>(generation, buf, usage);
-        AHardwareBuffer_release(buf); // remove an acquire count from
-                                      // AHwb_allocate().
+        AHardwareBuffer_release(buf);  // remove an acquire count from
+                                       // AHwb_allocate().
         if (!*buffer) {
             ALOGE("direct allocation of AHB successful, but failed to create BufferItem");
             return C2_NO_MEMORY;
@@ -801,8 +803,8 @@ c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache
     uint64_t outBufferAge;
     sp<Fence> fence;
 
-    ::android::status_t status = igbp->dequeueBuffer(
-            &slotId, &fence, width, height, format, usage, &outBufferAge, nullptr);
+    ::android::status_t status = igbp->dequeueBuffer(&slotId, &fence, width, height, format, usage,
+                                                     &outBufferAge, nullptr);
     if (status < ::android::OK) {
         if (status == ::android::TIMED_OUT || status == ::android::WOULD_BLOCK) {
             ALOGW("BQ might not be ready for dequeueBuffer()");
@@ -834,8 +836,7 @@ c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache
         sp<GraphicBuffer> realloced;
         status = igbp->requestBuffer(slotId, &realloced);
         if (status != ::android::OK) {
-            ALOGE("allocate by dequeueBuffer() successful, but requestBuffer() failed %d",
-                  status);
+            ALOGE("allocate by dequeueBuffer() successful, but requestBuffer() failed %d", status);
             igbp->cancelBuffer(slotId, fence);
             // This might be due to life-cycle end and/or surface switching.
             return C2_BLOCKING;
@@ -856,16 +857,15 @@ c2_status_t GraphicsTracker::_allocate(const std::shared_ptr<BufferCache> &cache
     } else {
         *cached = true;
     }
-    ALOGV("allocate: a new allocated buffer from igbp cached %d, slot: %d",
-          *cached, slotId);
+    ALOGV("allocate: a new allocated buffer from igbp cached %d, slot: %d", *cached, slotId);
     *rSlotId = slotId;
     *rFence = fence;
     return C2_OK;
 }
 
-c2_status_t GraphicsTracker::_allocateDirect(
-        uint32_t width, uint32_t height, PixelFormat format, uint64_t usage,
-        AHardwareBuffer **buf, sp<Fence> *rFence) {
+c2_status_t LegacyGraphicsTracker::_allocateDirect(uint32_t width, uint32_t height,
+                                                   PixelFormat format, uint64_t usage,
+                                                   AHardwareBuffer** buf, sp<Fence>* rFence) {
     AHardwareBuffer_Desc desc;
     desc.width = width;
     desc.height = height;
@@ -889,9 +889,9 @@ c2_status_t GraphicsTracker::_allocateDirect(
     return C2_OK;
 }
 
-c2_status_t GraphicsTracker::allocate(
-        uint32_t width, uint32_t height, PixelFormat format, uint64_t usage,
-        AHardwareBuffer **buf, sp<Fence> *rFence) {
+c2_status_t LegacyGraphicsTracker::allocate(uint32_t width, uint32_t height, PixelFormat format,
+                                            uint64_t usage, AHardwareBuffer** buf,
+                                            sp<Fence>* rFence) {
     if (mStopped.load() == true) {
         ALOGE("cannot allocate due to being stopped");
         return C2_BAD_STATE;
@@ -929,8 +929,8 @@ c2_status_t GraphicsTracker::allocate(
     res = _allocate(cache, width, height, format, usage, &cached, &slotId, &fence, &buffer);
     commitAllocate(res, cache, cached, slotId, fence, &buffer, &updateDequeue);
     if (res == C2_OK) {
-        ALOGV("allocated a buffer width:%u height:%u pixelformat:%d usage:%llu",
-              width, height, format, (unsigned long long)usage);
+        ALOGV("allocated a buffer width:%u height:%u pixelformat:%d usage:%llu", width, height,
+              format, (unsigned long long)usage);
         *buf = buffer->mBuf;
         *rFence = buffer->mFence;
         // *buf should be valid even if buffer is dtor-ed.
@@ -942,10 +942,10 @@ c2_status_t GraphicsTracker::allocate(
     return res;
 }
 
-c2_status_t GraphicsTracker::requestDeallocate(uint64_t bid, const sp<Fence> &fence,
-                                              bool *completed, bool *updateDequeue,
-                                              std::shared_ptr<BufferCache> *cache, int *slotId,
-                                              sp<Fence> *rFence) {
+c2_status_t LegacyGraphicsTracker::requestDeallocate(uint64_t bid, const sp<Fence>& fence,
+                                                     bool* completed, bool* updateDequeue,
+                                                     std::shared_ptr<BufferCache>* cache,
+                                                     int* slotId, sp<Fence>* rFence) {
     std::unique_lock<std::mutex> l(mLock);
     if (mDeallocating.find(bid) != mDeallocating.end()) {
         ALOGE("Tries to deallocate a buffer which is already deallocating or rendering");
@@ -963,12 +963,12 @@ c2_status_t GraphicsTracker::requestDeallocate(uint64_t bid, const sp<Fence> &fe
         CHECK(it != mBufferCache->mBuffers.end() && it->second.get() == buffer.get());
         *cache = mBufferCache;
         *slotId = buffer->mSlot;
-        *rFence = ( fence == Fence::NO_FENCE) ? buffer->mFence : fence;
+        *rFence = (fence == Fence::NO_FENCE) ? buffer->mFence : fence;
         // mark this deallocating
         mDeallocating.emplace(bid);
         mBufferCache->blockSlot(buffer->mSlot);
         *completed = false;
-    } else { // buffer is not from the current underlying Graphics.
+    } else {  // buffer is not from the current underlying Graphics.
         mDequeued.erase(bid);
         *completed = true;
         if (adjustDequeueConfLocked(updateDequeue)) {
@@ -980,8 +980,8 @@ c2_status_t GraphicsTracker::requestDeallocate(uint64_t bid, const sp<Fence> &fe
     return C2_OK;
 }
 
-void GraphicsTracker::commitDeallocate(
-        std::shared_ptr<BufferCache> &cache, int slotId, uint64_t bid, bool *updateDequeue) {
+void LegacyGraphicsTracker::commitDeallocate(std::shared_ptr<BufferCache>& cache, int slotId,
+                                             uint64_t bid, bool* updateDequeue) {
     std::unique_lock<std::mutex> l(mLock);
     size_t del1 = mDequeued.erase(bid);
     size_t del2 = mDeallocating.erase(bid);
@@ -996,8 +996,7 @@ void GraphicsTracker::commitDeallocate(
     writeIncDequeueableLocked(1);
 }
 
-
-c2_status_t GraphicsTracker::deallocate(uint64_t bid, const sp<Fence> &fence) {
+c2_status_t LegacyGraphicsTracker::deallocate(uint64_t bid, const sp<Fence>& fence) {
     bool completed;
     bool updateDequeue;
     std::shared_ptr<BufferCache> cache;
@@ -1007,8 +1006,8 @@ c2_status_t GraphicsTracker::deallocate(uint64_t bid, const sp<Fence> &fence) {
         ALOGE("cannot deallocate due to being stopped");
         return C2_BAD_STATE;
     }
-    c2_status_t res = requestDeallocate(bid, fence, &completed, &updateDequeue,
-                                        &cache, &slotId, &rFence);
+    c2_status_t res =
+            requestDeallocate(bid, fence, &completed, &updateDequeue, &cache, &slotId, &rFence);
     if (res != C2_OK) {
         return res;
     }
@@ -1030,11 +1029,11 @@ c2_status_t GraphicsTracker::deallocate(uint64_t bid, const sp<Fence> &fence) {
     return C2_OK;
 }
 
-c2_status_t GraphicsTracker::requestAttachForRender(const C2ConstGraphicBlock& blk,
-        const sp<Fence> &fence,
-        std::shared_ptr<BufferCache> *pCache,
-        std::shared_ptr<BufferItem> *pBuffer,
-        bool *updateDequeue) {
+c2_status_t LegacyGraphicsTracker::requestAttachForRender(const C2ConstGraphicBlock& blk,
+                                                          const sp<Fence>& fence,
+                                                          std::shared_ptr<BufferCache>* pCache,
+                                                          std::shared_ptr<BufferItem>* pBuffer,
+                                                          bool* updateDequeue) {
     if (mStopped.load() == true) {
         ALOGE("cannot requestAttachForRender due to being stopped");
         return C2_BAD_STATE;
@@ -1099,10 +1098,9 @@ c2_status_t GraphicsTracker::requestAttachForRender(const C2ConstGraphicBlock& b
     return res;
 }
 
-c2_status_t GraphicsTracker::requestRender(uint64_t bid, std::shared_ptr<BufferCache> *cache,
-                                          std::shared_ptr<BufferItem> *pBuffer,
-                                          bool *fromCache,
-                                          bool *updateDequeue) {
+c2_status_t LegacyGraphicsTracker::requestRender(uint64_t bid, std::shared_ptr<BufferCache>* cache,
+                                                 std::shared_ptr<BufferItem>* pBuffer,
+                                                 bool* fromCache, bool* updateDequeue) {
     std::unique_lock<std::mutex> l(mLock);
     if (mDeallocating.find(bid) != mDeallocating.end()) {
         ALOGE("Tries to render a buffer which is already deallocating or rendering");
@@ -1140,11 +1138,10 @@ c2_status_t GraphicsTracker::requestRender(uint64_t bid, std::shared_ptr<BufferC
     return C2_OK;
 }
 
-void GraphicsTracker::commitRender(const std::shared_ptr<BufferCache> &cache,
-                                  const std::shared_ptr<BufferItem> &buffer,
-                                  const std::shared_ptr<BufferItem> &oldBuffer,
-                                  bool bufferReplaced,
-                                  bool *updateDequeue) {
+void LegacyGraphicsTracker::commitRender(const std::shared_ptr<BufferCache>& cache,
+                                         const std::shared_ptr<BufferItem>& buffer,
+                                         const std::shared_ptr<BufferItem>& oldBuffer,
+                                         bool bufferReplaced, bool* updateDequeue) {
     std::unique_lock<std::mutex> l(mLock);
     uint64_t origBid = oldBuffer ? oldBuffer->mId : buffer->mId;
 
@@ -1172,9 +1169,9 @@ void GraphicsTracker::commitRender(const std::shared_ptr<BufferCache> &cache,
     }
 }
 
-c2_status_t GraphicsTracker::render(const C2ConstGraphicBlock& blk,
-                                   const IGraphicBufferProducer::QueueBufferInput &input,
-                                   IGraphicBufferProducer::QueueBufferOutput *output) {
+c2_status_t LegacyGraphicsTracker::render(const C2ConstGraphicBlock& blk,
+                                          const IGraphicBufferProducer::QueueBufferInput& input,
+                                          IGraphicBufferProducer::QueueBufferOutput* output) {
     std::shared_ptr<BufferCache> cache;
     std::shared_ptr<BufferItem> buffer;
     uint64_t bid;
@@ -1189,8 +1186,7 @@ c2_status_t GraphicsTracker::render(const C2ConstGraphicBlock& blk,
         // This might be a block directly created by gralloc allocator.
         // So we need to attach the block to the surface before render.
         fromCache = true;
-        c2_status_t res = requestAttachForRender(
-                blk, input.fence, &cache, &buffer, &updateDequeue);
+        c2_status_t res = requestAttachForRender(blk, input.fence, &cache, &buffer, &updateDequeue);
         if (res != C2_OK) {
             if (updateDequeue) {
                 updateDequeueConf();
@@ -1221,9 +1217,8 @@ c2_status_t GraphicsTracker::render(const C2ConstGraphicBlock& blk,
         // The buffer is needed to be migrated(attached).
         uint64_t newUsage = 0ULL;
 
-        (void) cache->mIgbp->getConsumerUsage(&newUsage);
-        std::shared_ptr<BufferItem> newBuffer =
-                buffer->migrateBuffer(newUsage, cache->mGeneration);
+        (void)cache->mIgbp->getConsumerUsage(&newUsage);
+        std::shared_ptr<BufferItem> newBuffer = buffer->migrateBuffer(newUsage, cache->mGeneration);
         sp<GraphicBuffer> gb = newBuffer ? newBuffer->getGraphicBuffer() : nullptr;
 
         if (!gb) {
@@ -1254,7 +1249,7 @@ c2_status_t GraphicsTracker::render(const C2ConstGraphicBlock& blk,
     if (renderRes != ::android::OK) {
         CHECK(renderRes != ::android::BAD_VALUE);
         ALOGE("render: failed to queueBuffer() err = %d", renderRes);
-        (void) cache->mIgbp->cancelBuffer(buffer->mSlot, input.fence);
+        (void)cache->mIgbp->cancelBuffer(buffer->mSlot, input.fence);
         commitDeallocate(cache, buffer->mSlot, bid, &updateDequeue);
         if (updateDequeue) {
             updateDequeueConf();
@@ -1269,7 +1264,7 @@ c2_status_t GraphicsTracker::render(const C2ConstGraphicBlock& blk,
     return C2_OK;
 }
 
-void GraphicsTracker::pollForRenderedFrames(FrameEventHistoryDelta* delta) {
+void LegacyGraphicsTracker::pollForRenderedFrames(FrameEventHistoryDelta* delta) {
     sp<IGraphicBufferProducer> igbp;
     {
         std::unique_lock<std::mutex> l(mLock);
@@ -1282,7 +1277,7 @@ void GraphicsTracker::pollForRenderedFrames(FrameEventHistoryDelta* delta) {
     }
 }
 
-void GraphicsTracker::onReleased(uint32_t generation) {
+void LegacyGraphicsTracker::onReleased(uint32_t generation) {
     bool updateDequeue = false;
     {
         std::unique_lock<std::mutex> l(mLock);
@@ -1303,7 +1298,7 @@ void GraphicsTracker::onReleased(uint32_t generation) {
     }
 }
 
-void GraphicsTracker::onAttached(uint32_t generation) {
+void LegacyGraphicsTracker::onAttached(uint32_t generation) {
     std::unique_lock<std::mutex> l(mLock);
     if (mBufferCache->mGeneration == generation) {
         ALOGV("buffer attached");
@@ -1311,4 +1306,4 @@ void GraphicsTracker::onAttached(uint32_t generation) {
     }
 }
 
-} // namespace aidl::android::hardware::media::c2::implementation
+}  // namespace aidl::android::hardware::media::c2::implementation

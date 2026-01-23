@@ -43,8 +43,10 @@ int mediaserverwrapper(){
     bool MediaServer_PathSelect = property_get_bool("ro.mediaserver.64b.enable", false);
     const char *mediapath;
 // QTI_END: 2021-06-09: Core: Mediaserver Wrapper Implementation
+// QTI_BEGIN: 2021-08-26: Core: mediaserver: Fix mediaserver wrapper launch
     const char *processName = "/system/bin/mediaserver";
     ALOGI("Mediaserver Wrapper Has been started");
+// QTI_END: 2021-08-26: Core: mediaserver: Fix mediaserver wrapper launch
 // QTI_BEGIN: 2021-06-09: Core: Mediaserver Wrapper Implementation
     if (MediaServer_PathSelect){
         mediapath= "/system/bin/mediaserver64";
@@ -54,7 +56,9 @@ int mediaserverwrapper(){
         mediapath= "/system/bin/mediaserver";
     }
 // QTI_END: 2021-06-09: Core: Mediaserver Wrapper Implementation
+// QTI_BEGIN: 2021-08-26: Core: mediaserver: Fix mediaserver wrapper launch
     status = execl(mediapath,processName,NULL,NULL);
+// QTI_END: 2021-08-26: Core: mediaserver: Fix mediaserver wrapper launch
 // QTI_BEGIN: 2021-06-09: Core: Mediaserver Wrapper Implementation
     return status;
 }
