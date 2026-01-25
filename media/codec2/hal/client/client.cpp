@@ -2661,16 +2661,14 @@ std::shared_ptr<C2ParamReflector> Codec2Client::getParamReflector() {
             addStructDescriptor((C2ComponentDomainSetting *)nullptr);
             addStructDescriptor((C2ComponentAttributesSetting *)nullptr);
             addStructDescriptor((C2ComponentTimeStretchTuning *)nullptr);
+            addStructDescriptor((C2StreamProfileLevelInfo *)nullptr);
             addStructDescriptor((C2PortMediaTypeSetting *)nullptr);
             addStructDescriptor((C2StreamBufferTypeSetting *)nullptr);
             addStructDescriptor((C2PortRequestedDelayTuning *)nullptr);
             addStructDescriptor((C2StreamMaxReferenceAgeTuning *)nullptr);
             addStructDescriptor((C2StreamMaxReferenceCountTuning *)nullptr);
             addStructDescriptor((C2MaxPrivateBufferCountTuning *)nullptr);
-            addStructDescriptor((C2MaxPrivateBufferCountTuning *)nullptr);
             addStructDescriptor((C2PortStreamCountTuning *)nullptr);
-            addStructDescriptor((C2SubscribedParamIndicesTuning *)nullptr);
-            addStructDescriptor((C2SubscribedParamIndicesTuning *)nullptr);
             addStructDescriptor((C2SubscribedParamIndicesTuning *)nullptr);
             addStructDescriptor((C2PortAllocatorsTuning *)nullptr);
             addStructDescriptor((C2PortBlockPoolsTuning *)nullptr);
@@ -2683,6 +2681,18 @@ std::shared_ptr<C2ParamReflector> Codec2Client::getParamReflector() {
             addStructDescriptor((C2StreamMaxChannelCountInfo *)nullptr);
             addStructDescriptor((C2StreamChannelMaskInfo *)nullptr);
             addStructDescriptor((C2StreamPcmEncodingInfo *)nullptr);
+            addStructDescriptor((C2StreamAacPackagingInfo *)nullptr);
+            addStructDescriptor((C2StreamAacSbrModeTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcCompressionModeTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcTargetReferenceLevelTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcEncodedTargetLevelTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcBoostFactorTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcAttenuationFactorTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcEffectTypeTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcAlbumModeTuning *)nullptr);
+            addStructDescriptor((C2StreamDrcOutputLoudnessTuning *)nullptr);
+            addStructDescriptor((C2StreamAudioFrameSizeInfo *)nullptr);
+            addStructDescriptor((C2AudioPresentationIdTuning *)nullptr);
         }
     };
     if (mApexBase) {
@@ -3690,25 +3700,17 @@ c2_status_t Codec2Client::Component::setOutputSurface(
         return ret ? C2_OK : C2_CORRUPTED;
     }
     uint64_t bqId = 0;
-    sp<IGraphicBufferProducer> nullIgbp;
-    sp<HGraphicBufferProducer2> nullHgbp;
-
-    sp<HGraphicBufferProducer2> igbp = surface ?
-            surface->getHalInterface<HGraphicBufferProducer2>() : nullHgbp;
-    if (surface && !igbp) {
-        igbp = new B2HGraphicBufferProducer2(surface);
-    }
 
     std::scoped_lock lock(mOutputMutex);
     std::shared_ptr<SurfaceSyncObj> syncObj;
 
     if (!surface) {
-        mOutputBufferQueue->configure(nullIgbp, generation, 0, maxDequeueCount, nullptr);
+        mOutputBufferQueue->configure(nullptr, generation, 0, maxDequeueCount, nullptr);
     } else if (surface->getUniqueId(&bqId) != OK) {
         LOG(ERROR) << "setOutputSurface -- "
                    "cannot obtain bufferqueue id.";
         bqId = 0;
-        mOutputBufferQueue->configure(nullIgbp, generation, 0, maxDequeueCount, nullptr);
+        mOutputBufferQueue->configure(nullptr, generation, 0, maxDequeueCount, nullptr);
     } else {
         mOutputBufferQueue->configure(surface, generation, bqId, maxDequeueCount,
                                       mHidlBase1_2 ? &syncObj : nullptr);
@@ -3718,13 +3720,11 @@ c2_status_t Codec2Client::Component::setOutputSurface(
     ALOGD("setOutputSurface -- generation=%u consumer usage=%#llx%s",
           generation, (long long)consumerUsage, syncObj ? " sync" : "");
 
-    Return<c2_hidl::Status> transStatus = syncObj ?
-            mHidlBase1_2->setOutputSurfaceWithSyncObj(
-                    static_cast<uint64_t>(blockPoolId),
-                    bqId == 0 ? nullHgbp : igbp, *syncObj) :
-            mHidlBase1_0->setOutputSurface(
-                    static_cast<uint64_t>(blockPoolId),
-                    bqId == 0 ? nullHgbp : igbp);
+    sp<HGraphicBufferProducer2> hgbp = bqId == 0 ? nullptr : mOutputBufferQueue->getHgbp();
+    Return<c2_hidl::Status> transStatus =
+            syncObj ? mHidlBase1_2->setOutputSurfaceWithSyncObj(static_cast<uint64_t>(blockPoolId),
+                                                                hgbp, *syncObj)
+                    : mHidlBase1_0->setOutputSurface(static_cast<uint64_t>(blockPoolId), hgbp);
 
     mOutputBufferQueue->expireOldWaiters();
 

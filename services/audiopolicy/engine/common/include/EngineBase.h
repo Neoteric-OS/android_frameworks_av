@@ -59,8 +59,8 @@ public:
     android::status_t setDeviceConnectionState(const sp<DeviceDescriptor> /*devDesc*/,
                                                audio_policy_dev_state_t /*state*/) override;
 
-    product_strategy_t getProductStrategyForAttributes(
-            const audio_attributes_t &attr, bool fallbackOnDefault = true) const override;
+    product_strategy_t getProductStrategyForAttributes(const audio_attributes_t &attr,
+            uid_t uid = 0, bool fallbackOnDefault = true) const override;
 
     audio_stream_type_t getStreamTypeForAttributes(const audio_attributes_t &attr) const override;
 
@@ -73,6 +73,12 @@ public:
     StrategyVector getOrderedProductStrategies() const override;
 
     status_t listAudioProductStrategies(AudioProductStrategyVector &strategies) const override;
+
+    status_t setProductStrategiesZoneIdForUserId(userid_t userId, int zoneId) override;
+
+    status_t resetProductStrategiesZoneIdForUserId(userid_t userId) override;
+
+    userid_t getUserIdForProductStrategy(product_strategy_t strategy) const override;
 
     VolumeCurves *getVolumeCurvesForAttributes(const audio_attributes_t &attr) const override;
 
@@ -89,8 +95,8 @@ public:
     VolumeGroupVector getVolumeGroups() const override;
     audio_attributes_t getAttributesForVolumeGroup(
             volume_group_t group, bool fallbackOnDefault = true) const override;
-    volume_group_t getVolumeGroupForAttributes(
-            const audio_attributes_t &attr, bool fallbackOnDefault = true) const override;
+    volume_group_t getVolumeGroupForAttributes(const audio_attributes_t &attr,
+            uid_t uid, bool fallbackOnDefault = true) const override;
 
     volume_group_t getVolumeGroupForStreamType(
             audio_stream_type_t stream, bool fallbackOnDefault = true) const override;
@@ -201,6 +207,7 @@ protected:
             const DeviceVector& availableInputDevices, audio_source_t inputSource) const;
     DeviceVector getDisabledDevicesForProductStrategy(
         const DeviceVector& availableOutputDevices, product_strategy_t strategy) const;
+    int getZoneIdForUserId(userid_t userId) const;
 
 private:
     engineConfig::ParsingResult processParsingResult(engineConfig::ParsingResult&& rawResult);
@@ -238,6 +245,8 @@ private:
 // QTI_END: 2019-03-29: Audio: audiopolicy: allow dp device selection for voice usecases
     /** current forced use configuration. */
     audio_policy_forced_cfg_t mForceUse[AUDIO_POLICY_FORCE_USE_CNT] = {};
+
+    std::unordered_map <userid_t, int> mUserIdZoneCriteria;
 
 protected:
     /**

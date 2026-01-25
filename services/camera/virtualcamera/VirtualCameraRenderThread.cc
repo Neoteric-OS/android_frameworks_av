@@ -151,17 +151,16 @@ bool allowFrameDuplication(const RequestSettings& requestSettings) {
 
 std::chrono::nanoseconds getMaxFrameDuration(
     const RequestSettings& requestSettings, bool isFirstFrameDrawn) {
+  // If we should not duplicate frames, wait as much as we can.
+  if (!allowFrameDuplication(requestSettings)) {
+    return kMaxWaitNoDuplication;
+  }
+
   // If it's not the first frame and the request specify a FPS, return the minFps
   if (isFirstFrameDrawn && requestSettings.fpsRange.has_value()) {
     return std::chrono::nanoseconds(static_cast<uint64_t>(
         kWaitFrameRelaxationCoefficient * kOneSecondInNanos /
         std::max(1, requestSettings.fpsRange->minFps)));
-  }
-
-  // If the request does not specify a FPS and we should not duplicate frames,
-  // wait as much as we can
-  if (!allowFrameDuplication(requestSettings)) {
-    return kMaxWaitNoDuplication;
   }
 
   // If we can duplicate frame but nothing has been drawn on the suface yet, we

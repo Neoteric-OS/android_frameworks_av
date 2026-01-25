@@ -986,15 +986,14 @@ status_t MPEG4Writer::start(MetaData *param) {
      */
     int32_t fileSizeBits = fpathconf(mFd, _PC_FILESIZEBITS);
     ALOGD("fpathconf _PC_FILESIZEBITS:%" PRId32, fileSizeBits);
-// QTI_BEGIN: 2022-02-17: Video: stagefright: error handling during file size limit set
-
     if (fileSizeBits < 0) {
-        ALOGE("fpathconf(%d) failed: %d, %s", mFd, fileSizeBits, strerror(errno));
-        return UNKNOWN_ERROR;
+        ALOGW("fpathconf(%d) failed with err: %s. Defaulting to 4GB.", mFd, strerror(errno));
+        // Fallback to 32-bit (4GB) limit to prevent data corruption on FAT32 if the
+        // filesystem capabilities cannot be determined.
+        fileSizeBits = 32;
+    } else {
+        fileSizeBits = std::min(fileSizeBits, 52 /* cap it below 4 peta bytes */);
     }
-
-// QTI_END: 2022-02-17: Video: stagefright: error handling during file size limit set
-    fileSizeBits = std::min(fileSizeBits, 52 /* cap it below 4 peta bytes */);
     int64_t maxFileSizeBytes = ((int64_t)1 << fileSizeBits) - 1;
     if (mMaxFileSizeLimitBytes > maxFileSizeBytes) {
         mMaxFileSizeLimitBytes = maxFileSizeBytes;
