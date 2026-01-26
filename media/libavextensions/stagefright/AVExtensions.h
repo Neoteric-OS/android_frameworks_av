@@ -89,9 +89,7 @@ struct AVFactory {
             pid_t clientPid,
             Size videoSize,
             int32_t frameRate,
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             const sp<SurfaceType>& surface,
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             bool storeMetaDataInVideoBuffers = true);
 
     virtual CameraSourceTimeLapse *CreateCameraSourceTimeLapseFromCamera(
@@ -103,30 +101,22 @@ struct AVFactory {
             pid_t clientPid,
             Size videoSize,
             int32_t videoFrameRate,
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
             const sp<Surface>& surface,
 #else
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             const sp<IGraphicBufferProducer>& surface,
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #endif
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             int64_t timeBetweenFrameCaptureUs,
             bool storeMetaDataInVideoBuffers = true);
     virtual AudioSource* createAudioSource(
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             const audio_attributes_t *attr,
             const content::AttributionSourceState& attributionSource,
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             uint32_t sampleRate,
             uint32_t channels,
             uint32_t outSampleRate = 0,
-// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             audio_port_handle_t selectedDeviceId = AUDIO_PORT_HANDLE_NONE,
             audio_microphone_direction_t selectedMicDirection = MIC_DIRECTION_UNSPECIFIED,
             float selectedMicFieldDimension = MIC_FIELD_DIMENSION_NORMAL);
-// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     virtual MPEG4Writer *CreateMPEG4Writer(int fd);
 
     // ----- NO TRESSPASSING BEYOND THIS LINE ------
