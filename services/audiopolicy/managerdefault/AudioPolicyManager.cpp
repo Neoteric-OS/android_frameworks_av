@@ -4916,7 +4916,9 @@ status_t AudioPolicyManager::setDevicesRoleForStrategy(product_strategy_t strate
     ALOGV("%s() strategy=%d role=%d %s", __func__, strategy, role,
             dumpAudioDeviceTypeAddrVector(devices).c_str());
 
-    if (!areAllDevicesSupported(devices, audio_is_output_device, __func__)) {
+    if (!areAllDevicesSupported(
+            devices, audio_is_output_device, __func__, false /*matchAddress*/)) {
+        ALOGE("%s, failed due to not all devices are supported", __func__);
         return BAD_VALUE;
     }
     status_t status = mEngine->setDevicesRoleForStrategy(strategy, role, devices);
@@ -5011,6 +5013,7 @@ AudioPolicyManager::removeDevicesRoleForStrategy(product_strategy_t strategy,
 
     if (!areAllDevicesSupported(
             devices, audio_is_output_device, __func__, /*matchAddress*/false)) {
+        ALOGE("%s, failed due to not all devices are supported", __func__);
         return BAD_VALUE;
     }
     status_t status = mEngine->removeDevicesRoleForStrategy(strategy, role, devices);
@@ -5076,7 +5079,9 @@ status_t AudioPolicyManager::setDevicesRoleForCapturePreset(
     ALOGV("%s() audioSource=%d role=%d %s", __func__, audioSource, role,
             dumpAudioDeviceTypeAddrVector(devices).c_str());
 
-    if (!areAllDevicesSupported(devices, audio_call_is_input_device, __func__)) {
+    if (!areAllDevicesSupported(
+            devices, audio_call_is_input_device, __func__, false /*matchAddress*/)) {
+        ALOGE("%s, failed due to not all devices are supported", __func__);
         return BAD_VALUE;
     }
     status_t status = mEngine->setDevicesRoleForCapturePreset(audioSource, role, devices);
@@ -5096,7 +5101,9 @@ status_t AudioPolicyManager::addDevicesRoleForCapturePreset(
     ALOGV("%s() audioSource=%d role=%d %s", __func__, audioSource, role,
             dumpAudioDeviceTypeAddrVector(devices).c_str());
 
-    if (!areAllDevicesSupported(devices, audio_call_is_input_device, __func__)) {
+    if (!areAllDevicesSupported(
+            devices, audio_call_is_input_device, __func__, false /*matchAddress*/)) {
+        ALOGE("%s, failed due to not all devices are supported", __func__);
         return BAD_VALUE;
     }
     status_t status = mEngine->addDevicesRoleForCapturePreset(audioSource, role, devices);
@@ -5119,6 +5126,7 @@ status_t AudioPolicyManager::removeDevicesRoleForCapturePreset(
 
     if (!areAllDevicesSupported(
             devices, audio_call_is_input_device, __func__, /*matchAddress*/false)) {
+        ALOGE("%s, failed due to not all devices are supported", __func__);
         return BAD_VALUE;
     }
 
@@ -9305,10 +9313,20 @@ status_t AudioPolicyManager::checkAndSetVolume(IVolumeCurves &curves,
     outputDesc->setVolume(volumeDb, muted, volumeSource, curves.getStreamTypes(),
             deviceTypes, delayMs, force, isVoiceVolSrc);
 
+
     if (outputDesc == mPrimaryOutput && (isVoiceVolSrc || isBtScoVolSrc)) {
-        bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
-                !isSingleDeviceType(deviceTypes, audio_is_ble_out_device);
-        setVoiceVolume(index, curves, voiceVolumeManagedByHost, delayMs);
+        bool callRxConnectedToDevice = true;
+        if (mCallRxSourceClient != nullptr && mCallRxSourceClient->isConnected()) {
+            callRxConnectedToDevice =
+                    Volume::getDeviceForVolume({mCallRxSourceClient->sinkDevice()->type()}) ==
+                                  Volume::getDeviceForVolume(deviceTypes);
+        }
+        if (callRxConnectedToDevice) {
+            bool voiceVolumeManagedByHost = !isBtScoVolSrc &&
+                                            !isSingleDeviceType(deviceTypes,
+                                                                audio_is_ble_out_device);
+            setVoiceVolume(index, curves, voiceVolumeManagedByHost, delayMs);
+        }
     }
     return NO_ERROR;
 }
