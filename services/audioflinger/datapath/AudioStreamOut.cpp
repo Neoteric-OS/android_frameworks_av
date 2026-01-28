@@ -75,13 +75,17 @@ status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timesp
         return status;
     }
 
-    if (audioflinger::EffectConfiguration::isHidl() &&
-        mHalFormatHasProportionalFrames &&
+    if (mHalFormatHasProportionalFrames &&
             (flags & AUDIO_OUTPUT_FLAG_DIRECT) == AUDIO_OUTPUT_FLAG_DIRECT) {
-        // For DirectTrack reset position to 0 on standby.
-        const uint64_t adjustedPosition = (halPosition <= mFramesWrittenAtStandby) ?
-                0 : (halPosition - mFramesWrittenAtStandby);
-        // Scale from HAL sample rate to application rate.
+        uint64_t adjustedPosition;
+        if (audioflinger::EffectConfiguration::isHidl()) {
+            // For DirectTrack reset position to 0 on standby.
+            adjustedPosition = (halPosition <= mFramesWrittenAtStandby) ?
+                    0 : (halPosition - mFramesWrittenAtStandby);
+        } else {
+            adjustedPosition = halPosition;
+        }
+        // IEC61937 may require scale from HAL sample rate to application rate.
         *frames = adjustedPosition / mRateMultiplier;
     } else {
         // For offloaded MP3 and other compressed formats, and linear PCM.
