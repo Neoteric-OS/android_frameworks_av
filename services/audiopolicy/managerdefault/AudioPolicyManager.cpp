@@ -8116,10 +8116,12 @@ const unsigned int routingLatency = property_get_int32(
             "audio.sys.routing.latency", DEFAULT_ROUTING_LATENCY_MS);
 
 // QTI_END: 2019-09-18: Audio: Optimize device switching time for playback
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
 bool AudioPolicyManager::isInvalidationOfMusicStreamNeeded(const audio_attributes_t &attr, uid_t uid)
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
 {
+// QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
     if (followsSameRouting(uid, attr, uid, attributes_initializer(AUDIO_USAGE_MEDIA))) {
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         for (size_t i = 0; i < mOutputs.size(); i++) {
             sp<SwAudioOutputDescriptor> newOutputDesc = mOutputs.valueAt(i);
             if (newOutputDesc->getFormat() == AUDIO_FORMAT_DSD)
@@ -8134,8 +8136,8 @@ void AudioPolicyManager::checkOutputForStrategy(const product_strategy_t psId)
     auto user = mEngine->getUserIdForProductStrategy(psId);
     auto uid = multiuser_get_uid(user, /* app_id=*/ 0);
     auto attr = mEngine->getAllAttributesForProductStrategy(psId).front();
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
     if (!isInvalidationOfMusicStreamNeeded(attr, uid))
+// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         return;
 // QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
     auto oldDevices = mEngine->getOutputDevicesForStrategy(psId, 0, true /*fromCache*/);

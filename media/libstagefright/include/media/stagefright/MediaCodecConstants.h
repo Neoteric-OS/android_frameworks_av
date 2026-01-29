@@ -445,9 +445,7 @@ inline constexpr int32_t HEVCProfileMain10      = 0x02;
 inline constexpr int32_t HEVCProfileMainStill   = 0x04;
 inline constexpr int32_t HEVCProfileMain400     = 0x08;
 inline constexpr int32_t HEVCProfileMain444     = 0x10;
-// QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
 inline constexpr int32_t HEVCProfileMain10Still = 0x20;
-// QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
 inline constexpr int32_t HEVCProfileMain10HDR10 = 0x1000;
 inline constexpr int32_t HEVCProfileMain10HDR10Plus = 0x2000;
 

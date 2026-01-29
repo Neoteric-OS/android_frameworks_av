@@ -845,9 +845,7 @@ protected:
          * Must be called before updateDevicesAndOutputs()
          * @param psId strategy id to be considered
          */
-// QTI_BEGIN: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
         virtual void checkOutputForStrategy(const product_strategy_t psId);
-// QTI_END: 2019-03-25: Audio: audiopolicy: apm: virtual declaration to override by custom policy.
 
         /**
          * @brief checkAudioSourceForStrategy checks if any AudioSource following the same routing
@@ -859,10 +857,8 @@ protected:
          */
         void checkAudioSourceForStrategy(const product_strategy_t psId);
 
-// QTI_BEGIN: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         bool isInvalidationOfMusicStreamNeeded(const audio_attributes_t &attr, uid_t uid);
 
-// QTI_END: 2021-02-23: Audio: audiopolicy: update invalidation logic.
         bool followsSameRouting(uid_t luid, const audio_attributes_t &lAttr,
                                 uid_t ruid, const audio_attributes_t &rAttr) const;
 
