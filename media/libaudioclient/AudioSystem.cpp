@@ -944,12 +944,14 @@ status_t AudioSystem::AudioFlingerClient::removeSupportedLatencyModesCallback(
 }
 
 /* static */ uintptr_t AudioSystem::addErrorCallback(audio_error_callback cb) {
+    LOG_ALWAYS_FATAL_IF(cb == nullptr, "%s: null callback not permitted", __func__);
     std::lock_guard _l(gErrorCallbacksMutex);
     gAudioErrorCallbacks.insert(cb);
     return reinterpret_cast<uintptr_t>(cb);
 }
 
 /* static */ void AudioSystem::removeErrorCallback(uintptr_t cb) {
+    LOG_ALWAYS_FATAL_IF(cb == 0, "%s: null callback not permitted", __func__);
     std::lock_guard _l(gErrorCallbacksMutex);
     gAudioErrorCallbacks.erase(reinterpret_cast<audio_error_callback>(cb));
 }
@@ -2012,6 +2014,7 @@ status_t AudioSystem::setAudioPortConfig(const struct audio_port_config* config)
 }
 
 status_t AudioSystem::addAudioPortCallback(const sp<AudioPortCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = getAudioPolicyClient();
@@ -2027,6 +2030,7 @@ status_t AudioSystem::addAudioPortCallback(const sp<AudioPortCallback>& callback
 
 /*static*/
 status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = AudioSystem::getAudioPolicyClient();
@@ -2042,6 +2046,7 @@ status_t AudioSystem::removeAudioPortCallback(const sp<AudioPortCallback>& callb
 
 status_t AudioSystem::addAudioVolumeGroupCallback(
         const sp<media::INativeAudioVolumeGroupCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = AudioSystem::getAudioPolicyClient();
@@ -2057,6 +2062,7 @@ status_t AudioSystem::addAudioVolumeGroupCallback(
 
 status_t AudioSystem::removeAudioVolumeGroupCallback(
         const sp<media::INativeAudioVolumeGroupCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<IAudioPolicyService> aps = get_audio_policy_service();
     if (aps == nullptr) return AudioPolicyServiceTraits::getError();
     const auto apc = AudioSystem::getAudioPolicyClient();
@@ -2073,6 +2079,7 @@ status_t AudioSystem::removeAudioVolumeGroupCallback(
 status_t AudioSystem::addAudioDeviceCallback(
         const wp<AudioDeviceCallback>& callback, audio_io_handle_t audioIo,
         audio_port_handle_t portId) {
+    LOG_ALWAYS_FATAL_IF(callback == nullptr, "%s: null callback not permitted", __func__);
     const sp<AudioFlingerClient> afc = getAudioFlingerClient();
     if (afc == 0) {
         return NO_INIT;
@@ -2090,6 +2097,7 @@ status_t AudioSystem::addAudioDeviceCallback(
 status_t AudioSystem::removeAudioDeviceCallback(
         const wp<AudioDeviceCallback>& callback, audio_io_handle_t audioIo,
         audio_port_handle_t portId) {
+    LOG_ALWAYS_FATAL_IF(callback == nullptr, "%s: null callback not permitted", __func__);
     const sp<AudioFlingerClient> afc = getAudioFlingerClient();
     if (afc == 0) {
         return NO_INIT;
@@ -2099,6 +2107,7 @@ status_t AudioSystem::removeAudioDeviceCallback(
 
 status_t AudioSystem::addSupportedLatencyModesCallback(
         const sp<SupportedLatencyModesCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<AudioFlingerClient> afc = getAudioFlingerClient();
     if (afc == 0) {
         return NO_INIT;
@@ -2108,6 +2117,7 @@ status_t AudioSystem::addSupportedLatencyModesCallback(
 
 status_t AudioSystem::removeSupportedLatencyModesCallback(
         const sp<SupportedLatencyModesCallback>& callback) {
+    LOG_ALWAYS_FATAL_IF(!callback, "%s: null callback not permitted", __func__);
     const sp<AudioFlingerClient> afc = getAudioFlingerClient();
     if (afc == 0) {
         return NO_INIT;
