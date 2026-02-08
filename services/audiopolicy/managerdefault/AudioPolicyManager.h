@@ -1391,7 +1391,8 @@ protected:
         status_t createAudioPatchInternal(const struct audio_patch *patch,
                                           audio_patch_handle_t *handle,
                                           uid_t uid, uint32_t delayMs,
-                                          const sp<SourceClientDescriptor>& sourceDesc);
+                                          const sp<SourceClientDescriptor>& sourceDesc,
+                                          bool secondarySourcePatch = false);
         /**
          * @brief releaseAudioPatchInternal internal function to remove an audio patch
          * @param[in] handle of the patch to be removed
