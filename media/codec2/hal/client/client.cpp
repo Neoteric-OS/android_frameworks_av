@@ -1513,6 +1513,7 @@ public:
     void queue(std::list<std::unique_ptr<C2Work>>& workItems) {
         std::unique_lock<std::mutex> l(mMutex);
         mWorkQueue.splice(mWorkQueue.end(), workItems);
+        LOG(VERBOSE) << "queue: mWorkQueue size=" << mWorkQueue.size();
         mCondition.notify_all();
     }
 
@@ -1532,18 +1533,22 @@ public:
 
     void flush(std::list<std::unique_ptr<C2Work>>* const flushedWork) {
         std::unique_lock<std::mutex> l(mMutex);
-        if (flushedWork) {
-            flushedWork->swap(mWorkQueue);
-        } else {
-            mWorkQueue.clear();
-        }
         mPendingFlush = true;
         mCondition.notify_all();
         mCondition.wait(l, [this]() {
             return !mPendingFlush || mStopped;
         });
         if (flushedWork) {
+            LOG(VERBOSE) << "flush: with flushedWork, returning work size=" << mFlushedWork.size();
             flushedWork->swap(mFlushedWork);
+        } else {
+            LOG(VERBOSE) << "flush: without flushedWork, onWorkDone size=" << mFlushedWork.size();
+            std::shared_ptr<Listener> listener = mListener.lock();
+            if (listener) {
+                listener->onWorkDone(mComponent, mFlushedWork);
+            } else {
+                LOG(WARNING) << "flush: listener is not available";
+            }
         }
         mFlushedWork.clear();
     }
@@ -1578,6 +1583,7 @@ private:
                     LOG(VERBOSE) << "ApexHandler::run -- processing pending flush";
                     ApexCodec_Component_flush(mApexComponent);
                     for (auto& [frameIndex, workItem] : mWorkMap) {
+                        LOG(VERBOSE) << "flushed #" << frameIndex;
                         if (workItem) {
                             for (std::unique_ptr<C2Worklet> &worklet : workItem->worklets) {
                                 worklet->output.configUpdate.clear();
@@ -1587,6 +1593,7 @@ private:
                             mFlushedWork.push_back(std::move(workItem));
                         }
                     }
+                    LOG(VERBOSE) << "flushed work queue size=" << mWorkQueue.size();
                     mFlushedWork.splice(mFlushedWork.end(), mWorkQueue);
                     mWorkQueue.clear();
                     mWorkMap.clear();
