@@ -3308,8 +3308,8 @@ static void loadCodecProperties(mediaformatshaper::shaperHandle_t shaperHandle,
                     // separate that, so setMap() sees the triple  kind, key, value
                     const char *kind = &mapSrc[mappingPrefixLen];
                     const char *sep = strchr(kind, '-');
-                    const char *key = sep+1;
                     if (sep != NULL) {
+                        const char *key = sep+1;
                          std::string xkind = std::string(kind, sep-kind);
                         (void)(sShaperOps->setMap)(shaperHandle, xkind.c_str(),
                                                    key, target.c_str());
