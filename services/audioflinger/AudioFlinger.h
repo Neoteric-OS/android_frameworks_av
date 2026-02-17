@@ -364,6 +364,10 @@ private:
     void updateOutDevicesForRecordThreads_l(const DeviceDescriptorBaseVector& devices) final
             REQUIRES(mutex());
 
+    IAfRecordThread* getRecordThreadForDevice_l(audio_devices_t deviceType,
+                                                const String8& address) const final
+            REQUIRES(mutex());
+
     // ---- end of IAfPatchPanelCallback interface
 
     // ----- begin IAfThreadCallback interface
@@ -425,7 +429,7 @@ private:
 
     const ::com::android::media::permission::IPermissionProvider& getPermissionProvider() final;
 
-    bool isHardeningOverrideEnabled() const final;
+    media::IAudioPolicyService::HardeningOverride getHardeningOverride() const final;
 
     bool hasAlreadyCaptured(uid_t uid) const final {
         const std::lock_guard _l(mCapturingClientsMutex);

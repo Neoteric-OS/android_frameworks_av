@@ -443,9 +443,9 @@ inline static const char *asString_AV1Level(int32_t i, const char *def = "??") {
 inline constexpr int32_t HEVCProfileMain        = 0x01;
 inline constexpr int32_t HEVCProfileMain10      = 0x02;
 inline constexpr int32_t HEVCProfileMainStill   = 0x04;
-// QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
-inline constexpr int32_t HEVCProfileMain10Still = 0x08;
-// QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
+inline constexpr int32_t HEVCProfileMain400     = 0x08;
+inline constexpr int32_t HEVCProfileMain444     = 0x10;
+inline constexpr int32_t HEVCProfileMain10Still = 0x20;
 inline constexpr int32_t HEVCProfileMain10HDR10 = 0x1000;
 inline constexpr int32_t HEVCProfileMain10HDR10Plus = 0x2000;
 
@@ -454,6 +454,8 @@ inline static const char *asString_HEVCProfile(int32_t i, const char *def = "??"
         case HEVCProfileMain:               return "Main";
         case HEVCProfileMain10:             return "Main10";
         case HEVCProfileMainStill:          return "MainStill";
+        case HEVCProfileMain400:            return "Main400";
+        case HEVCProfileMain444:            return "Main444";
 // QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
         case HEVCProfileMain10Still:        return "Main10Still";
 // QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
@@ -1178,9 +1180,11 @@ inline constexpr char KEY_CREATE_INPUT_SURFACE_SUSPENDED[] = "create-input-buffe
 inline constexpr char KEY_DURATION[] = "durationUs";
 inline constexpr char KEY_FEATURE_[] = "feature-";
 inline constexpr char KEY_FLAC_COMPRESSION_LEVEL[] = "flac-compression-level";
+inline constexpr char KEY_HORIZONTAL_FLIP[] = "horizontal-flip";
 inline constexpr char KEY_FRAME_RATE[] = "frame-rate";
 inline constexpr char KEY_GRID_COLUMNS[] = "grid-cols";
 inline constexpr char KEY_GRID_ROWS[] = "grid-rows";
+inline constexpr char KEY_HDR_ST2094_50_INFO[] = "hdr-st2094-50-info";
 inline constexpr char KEY_HDR_STATIC_INFO[] = "hdr-static-info";
 inline constexpr char KEY_HDR10_PLUS_INFO[] = "hdr10-plus-info";
 inline constexpr char KEY_HEIGHT[] = "height";
@@ -1281,6 +1285,20 @@ inline constexpr int32_t INFO_OUTPUT_FORMAT_CHANGED  = -2;
 inline constexpr int32_t INFO_TRY_AGAIN_LATER        = -1;
 inline constexpr int32_t VIDEO_SCALING_MODE_SCALE_TO_FIT               = 1;
 inline constexpr int32_t VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING = 2;
+
+inline constexpr int32_t SECURITY_MODEL_SANDBOXED = 0;
+inline constexpr int32_t SECURITY_MODEL_MEMORY_SAFE = 1;
+inline constexpr int32_t SECURITY_MODEL_TRUSTED_CONTENT_ONLY = 2;
+
+inline static const char *asString_SecurityModel(int32_t i, const char *def = "??") {
+    switch (i) {
+        case SECURITY_MODEL_SANDBOXED:            return "Sandboxed";
+        case SECURITY_MODEL_MEMORY_SAFE:          return "MemorySafe";
+        case SECURITY_MODEL_TRUSTED_CONTENT_ONLY: return "TrustedContentOnly";
+        default:                                  return def;
+    }
+}
+
 inline constexpr char PARAMETER_KEY_OFFSET_TIME[] = "time-offset-us";
 inline constexpr char PARAMETER_KEY_REQUEST_SYNC_FRAME[] = "request-sync";
 inline constexpr char PARAMETER_KEY_SUSPEND[] = "drop-input-frames";

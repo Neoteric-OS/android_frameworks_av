@@ -262,6 +262,8 @@ ALookup<C2Config::profile_t, int32_t> sHevcProfiles = {
     { C2Config::PROFILE_HEVC_MAIN, HEVCProfileMain },
     { C2Config::PROFILE_HEVC_MAIN_10, HEVCProfileMain10 },
     { C2Config::PROFILE_HEVC_MAIN_STILL, HEVCProfileMainStill },
+    { C2Config::PROFILE_HEVC_MONO, HEVCProfileMain400 },
+    { C2Config::PROFILE_HEVC_MAIN_444, HEVCProfileMain444 },
 // QTI_BEGIN: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
     { C2Config::PROFILE_HEVC_MAIN_10_STILL, HEVCProfileMain10Still},
 // QTI_END: 2025-03-13: Video: frameworks/av: introduce HEVCMain10Still profile
@@ -468,6 +470,7 @@ ALookup<C2Config::level_t, int32_t> sVvcLevels = {
     { C2Config::LEVEL_VVC_MAIN_6_0,    VVCMainTierLevel60 },
     { C2Config::LEVEL_VVC_MAIN_6_1,    VVCMainTierLevel61 },
     { C2Config::LEVEL_VVC_MAIN_6_2,    VVCMainTierLevel62 },
+    { C2Config::LEVEL_VVC_MAIN_6_3,    VVCMainTierLevel63 },
 
     { C2Config::LEVEL_VVC_HIGH_4_0,    VVCHighTierLevel40 },
     { C2Config::LEVEL_VVC_HIGH_4_1,    VVCHighTierLevel41 },
@@ -477,6 +480,7 @@ ALookup<C2Config::level_t, int32_t> sVvcLevels = {
     { C2Config::LEVEL_VVC_HIGH_6_0,    VVCHighTierLevel60 },
     { C2Config::LEVEL_VVC_HIGH_6_1,    VVCHighTierLevel61 },
     { C2Config::LEVEL_VVC_HIGH_6_2,    VVCHighTierLevel62 },
+    { C2Config::LEVEL_VVC_HIGH_6_3,    VVCHighTierLevel63 },
 };
 
 ALookup<C2Config::profile_t, int32_t> sVvcProfiles = {

@@ -315,6 +315,7 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.media.omx@1.0",
+        "libaconfig_storage_read_api_cc",
         "libbinder",
         "liblog",
         "libmedia_codeclist_capabilities",
@@ -441,6 +442,7 @@ cc_library {
         "framework-permission-aidl-cpp",
         "resourcemanager_aidl_interface-ndk",
         "libguiflags",
+        "android.media.codec-aconfig-cc",
     ],
 
     export_static_lib_headers: [

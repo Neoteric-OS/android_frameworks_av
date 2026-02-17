@@ -3828,8 +3828,9 @@ typedef enum acamera_metadata_tag {
      * <li>Processed (but stalling): any non-RAW format with a stallDurations &gt; 0.
      *   Typically {@link AIMAGE_FORMAT_JPEG JPEG format}.</li>
      * <li>Raw formats: {@link AIMAGE_FORMAT_RAW16 RAW_SENSOR},
-     *   {@link AIMAGE_FORMAT_RAW10 RAW10}, or
-     *   {@link AIMAGE_FORMAT_RAW12 RAW12}.</li>
+     *   {@link AIMAGE_FORMAT_RAW10 RAW10},
+     *   {@link AIMAGE_FORMAT_RAW12 RAW12}, or
+     *   {@link AIMAGE_FORMAT_RAW12 RAW14}</li>
      * <li>Processed (but not-stalling): any non-RAW format without a stall duration.  Typically
      *   {@link AIMAGE_FORMAT_YUV_420_888 YUV_420_888},
      *   <a href="https://developer.android.com/reference/android/graphics/ImageFormat.html#NV21">NV21</a>, <a href="https://developer.android.com/reference/android/graphics/ImageFormat.html#YV12">YV12</a>, or {@link AIMAGE_FORMAT_Y8 Y8} .</li>
@@ -4463,6 +4464,7 @@ typedef enum acamera_metadata_tag {
      * <li>{@link AIMAGE_FORMAT_YUV_420_888 }</li>
      * <li>{@link AIMAGE_FORMAT_RAW10 }</li>
      * <li>{@link AIMAGE_FORMAT_RAW12 }</li>
+     * <li>{@link AIMAGE_FORMAT_RAW14 }</li>
      * <li>{@link AIMAGE_FORMAT_Y8 }</li>
      * </ul>
      * <p>All other formats may or may not have an allowed stall duration on
@@ -10469,7 +10471,7 @@ typedef enum acamera_metadata_enum_acamera_request_available_capabilities {
      * less than 24 megapixels. Also the ACAMERA_CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES entry
      * lists at least one FPS range where the minimum FPS is &gt;= 1 / minimumFrameDuration
      * for the largest YUV_420_888 size.</p>
-     * <p>If the device supports the {@link AIMAGE_FORMAT_RAW10 }, {@link AIMAGE_FORMAT_RAW12 }, {@link AIMAGE_FORMAT_Y8 }, then those can also be
+     * <p>If the device supports the {@link AIMAGE_FORMAT_RAW10 }, {@link AIMAGE_FORMAT_RAW12 }, {@link AIMAGE_FORMAT_RAW14 }, {@link AIMAGE_FORMAT_Y8 }, then those can also be
      * captured at the same rate as the maximum-size YUV_420_888 resolution is.</p>
      * <p>In addition, the ACAMERA_SYNC_MAX_LATENCY field is guaranteed to have a value between 0
      * and 4, inclusive. ACAMERA_CONTROL_AE_LOCK_AVAILABLE and ACAMERA_CONTROL_AWB_LOCK_AVAILABLE
@@ -10878,21 +10880,23 @@ typedef enum acamera_metadata_enum_acamera_request_available_dynamic_range_profi
     /**
      * <p>8-bit profile with additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_STANDARD_SMPTE_2094_50
                                                                       = 0x2000,
 
     /**
      * <p>10-bit pixel samples encoded using the Hybrid log-gamma transfer function with
      * additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10_AGTM  = 0x4000,
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HLG10_SMPTE_2094_50
+                                                                      = 0x4000,
 
     /**
      * <p>10-bit pixel samples encoded using the SMPTE ST 2084 transfer function.
      * This profile utilizes internal static metadata to increase the quality
      * of the capture and also includes SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HDR10_AGTM  = 0x8000,
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HDR10_SMPTE_2094_50
+                                                                      = 0x8000,
 
     /**
      * <p>10-bit pixel samples encoded using the SMPTE ST 2084 transfer function.
@@ -10900,7 +10904,7 @@ typedef enum acamera_metadata_enum_acamera_request_available_dynamic_range_profi
      * to further enhance the quality of the capture and includes
      * additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HDR10_PLUS_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_HDR10_PLUS_SMPTE_2094_50
                                                                       = 0x10000,
 
     /**
@@ -10909,14 +10913,14 @@ typedef enum acamera_metadata_enum_acamera_request_available_dynamic_range_profi
      * might want to tune for a consumer optimized Dolby Vision general capture and
      * also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_REF_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_REF_SMPTE_2094_50
                                                                       = 0x20000,
 
     /**
      * <p>This is the power optimized mode for 10-bit Dolby Vision HDR Reference Mode
      * with additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_REF_PO_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_REF_PO_SMPTE_2094_50
                                                                       = 0x40000,
 
     /**
@@ -10926,42 +10930,42 @@ typedef enum acamera_metadata_enum_acamera_request_available_dynamic_range_profi
      * that each specific device would have a different look for their default
      * Dolby Vision capture and also include additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_OEM_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_OEM_SMPTE_2094_50
                                                                       = 0x80000,
 
     /**
      * <p>This is the power optimized mode for 10-bit Dolby Vision HDR device specific
      * capture Mode and also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_OEM_PO_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_10B_HDR_OEM_PO_SMPTE_2094_50
                                                                       = 0x100000,
 
     /**
      * <p>This is the 8-bit version of the Dolby Vision reference capture mode optimized
      * for scene accuracy and also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_REF_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_REF_SMPTE_2094_50
                                                                       = 0x200000,
 
     /**
      * <p>This is the power optimized mode for 8-bit Dolby Vision HDR Reference Mode and
      * also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_REF_PO_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_REF_PO_SMPTE_2094_50
                                                                       = 0x400000,
 
     /**
      * <p>This is the 8-bit version of device specific tuned and optimized Dolby Vision
      * capture mode and also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_OEM_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_OEM_SMPTE_2094_50
                                                                       = 0x800000,
 
     /**
      * <p>This is the power optimized mode for 8-bit Dolby Vision HDR device specific
      * capture Mode and also includes additional SMPTE 2094-50 per-frame metadata.</p>
      */
-    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_OEM_PO_AGTM
+    ACAMERA_REQUEST_AVAILABLE_DYNAMIC_RANGE_PROFILES_MAP_DOLBY_VISION_8B_HDR_OEM_PO_SMPTE_2094_50
                                                                       = 0x1000000,
 
     /**
@@ -11265,6 +11269,7 @@ typedef enum acamera_metadata_enum_acamera_scaler_available_stream_use_cases {
      * <li>{@link AIMAGE_FORMAT_RAW16 RAW_SENSOR}</li>
      * <li>{@link AIMAGE_FORMAT_RAW10 RAW10}</li>
      * <li>{@link AIMAGE_FORMAT_RAW12 RAW12}</li>
+     * <li>{@link AIMAGE_FORMAT_RAW14 RAW14}</li>
      * </ul>
      * <p>session configuration is not guaranteed to succeed.</p>
      * <p>This stream use case may not be supported on some devices.</p>

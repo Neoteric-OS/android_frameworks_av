@@ -26,6 +26,7 @@
 #include <C2BqBufferPriv.h>
 #include <C2Component.h>
 #include <C2Config.h>
+#include <C2HandleIonInternal.h>
 #include <C2IgbaBufferPriv.h>
 #include <C2IgbaInterface.h>
 #include <C2PlatformStorePluginLoader.h>
@@ -1273,6 +1274,7 @@ C2PlatformComponentStore::C2PlatformComponentStore()
     // TODO: move this also into a .so so it can be updated
     emplace("libcodec2_soft_aacdec.so");
     emplace("libcodec2_soft_aacenc.so");
+    emplace("libcodec2_soft_xheaacenc.so");
     emplace("libcodec2_soft_amrnbdec.so");
     emplace("libcodec2_soft_amrnbenc.so");
     emplace("libcodec2_soft_amrwbdec.so");
@@ -1439,6 +1441,10 @@ std::shared_ptr<C2ComponentStore> GetCodec2PlatformComponentStore() {
         platformStore = store;
     }
     return store;
+}
+
+bool C2HandleIon::IsUsed() {
+    return using_ion();
 }
 
 // For testing only

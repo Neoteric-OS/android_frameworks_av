@@ -24,9 +24,9 @@
 #include <binder/Status.h>
 #include <media/AudioContainers.h>
 #include <media/AudioResamplerPublic.h>
-#include <media/AudioSystem.h>
 #include <media/PlayerBase.h>
 #include <media/VolumeShaper.h>
+#include <mediautils/SingleThreadExecutor.h>
 #include <utility/AAudioUtilities.h>
 #include <utility/MonotonicCounter.h>
 #include <utils/StrongPointer.h>
@@ -54,13 +54,15 @@ constexpr pid_t        CALLBACK_THREAD_NONE = 0;
 /**
  * AAudio audio stream.
  */
-// By extending AudioDeviceCallback, we also inherit from RefBase.
-class AudioStream : public android::AudioSystem::AudioDeviceCallback {
+class AudioStream : public virtual android::RefBase {
 public:
 
     AudioStream();
 
     virtual ~AudioStream();
+
+    static AAudio_FlushFromFrameSupport getFlushFromFrameSupport(
+            const AAudioStreamOpenRequest& request);
 
 protected:
 
@@ -456,9 +458,14 @@ public:
      */
     virtual bool collidesWithCallback() const;
 
-    // Implement AudioDeviceCallback
-    void onAudioDeviceUpdate(audio_io_handle_t audioIo [[maybe_unused]],
-            const android::DeviceIdVector& deviceIds [[maybe_unused]]) override {};
+    AAudioStream_routingChangedCallback getRoutingChangedCallback() const {
+        return mRoutingChangedCallbackProc;
+    }
+    void* getRoutingChangedCallbackUserData() const {
+        return mRoutingChangedCallbackUserData;
+    }
+
+    void maybeSignalRoutingChangedCallback();
 
     // ============== I/O ===========================
     // A Stream will only implement read() or write() depending on its direction.
@@ -808,6 +815,8 @@ protected:
 
     const android::sp<MyPlayerBase>   mPlayerBase;
 
+    std::optional<android::mediautils::SingleThreadExecutor> mEventExecutor;
+
 private:
 
     /**
@@ -876,6 +885,9 @@ private:
     AAudioStream_errorCallback  mErrorCallbackProc = nullptr;
     void                       *mErrorCallbackUserData = nullptr;
     std::atomic<pid_t>          mErrorCallbackThread{CALLBACK_THREAD_NONE};
+
+    AAudioStream_routingChangedCallback mRoutingChangedCallbackProc = nullptr;
+    void                               *mRoutingChangedCallbackUserData = nullptr;
 
     // background thread ----------------------------------
     // Use mHasThread to prevent joining twice, which has undefined behavior.

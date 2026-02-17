@@ -411,17 +411,44 @@ static void parseHevcProfileLevelFromHvcc(const uint8_t *ptr, size_t size, sp<AM
         { 2, HEVCProfileMain10 },
         // use Main for Main Still Picture decoding
         { 3, HEVCProfileMain },
+        // HEVCProfileMain400 and HEVCProfileMain444 share profile_idc 4
+        // and need further parsing of other bits to differentiate.
     };
 
     // set profile & level if they are recognized
     int32_t codecProfile;
     int32_t codecLevel;
     if (!profiles.map(profile, &codecProfile)) {
+        // check the general compatibility flags
         if (ptr[2] & 0x40 /* general compatibility flag 1 */) {
             // Note that this case covers Main Still Picture too
             codecProfile = HEVCProfileMain;
         } else if (ptr[2] & 0x20 /* general compatibility flag 2 */) {
             codecProfile = HEVCProfileMain10;
+        } else if (profile == 4 /* Format Range Extensions */
+                 && com::android::media::extractor::flags::extractor_mp4_enable_hevc_400_444()) {
+             // Detect 4:0:0 (monochrome) and 4:4:4 profiles
+
+             // Format Range Extensions (profile 4) contain chroma_format_idc at offset 16,
+             // bitDepthLuma at 17, and bitDepthChroma at 18
+             if (size < 19) {
+                 return;
+             }
+
+             // chroma_format_idc is the lower 2 bits of the byte at offset 16
+             // 0: Monochrome, 1: 4:2:0, 2: 4:2:2, 3: 4:4:4
+             const uint8_t chromaFormatIdc = ptr[16] & 0x03;
+             // Also need to check bit depth to rule out higher-bit profiles
+             const uint8_t bitDepthLumaMinus8 = ptr[17] & 0x07;
+             const uint8_t bitDepthChromaMinus8 = ptr[18] & 0x07;
+             if (chromaFormatIdc == 0 && bitDepthLumaMinus8 == 0) {
+                 codecProfile = HEVCProfileMain400;
+             } else if (chromaFormatIdc == 3
+                     && bitDepthLumaMinus8 == 0 && bitDepthChromaMinus8 == 0) {
+                 codecProfile = HEVCProfileMain444;
+             } else {
+                 return;
+             }
         } else {
             return;
         }
@@ -1137,6 +1164,11 @@ status_t convertMetaDataToMessage(
     const char *lang;
     if (meta->findCString(kKeyMediaLanguage, &lang)) {
         msg->setString("language", lang);
+    }
+
+    int32_t programNumber;
+    if (meta->findInt32(kKeyProgramNumber, &programNumber)) {
+        msg->setInt32("program-number", programNumber);
     }
 
     if (!strncasecmp("video/", mime, 6) ||
@@ -2124,6 +2156,11 @@ status_t convertMessageToMetaData(const sp<AMessage> &msg, sp<MetaData> &meta) {
     int32_t isBackgroundMode;
     if (msg->findInt32("android._background-mode", &isBackgroundMode) && isBackgroundMode != 0) {
         meta->setInt32(isBackgroundMode, 1);
+    }
+
+    int32_t programNumber;
+    if (msg->findInt32("program-number", &programNumber)) {
+        meta->setInt32(kKeyProgramNumber, programNumber);
     }
 
     int32_t avgBitrate = 0;

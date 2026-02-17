@@ -17,6 +17,13 @@ flag {
 }
 
 flag {
+    name: "capture_offloaded_audio"
+    namespace: "media_audio"
+    description: "Supports capturing audio which are playing in PCM offload or MMAP."
+    bug: "460856210"
+}
+
+flag {
     name: "effect_chain_callback_improve"
     namespace: "media_audio"
     description: "Improve effect chain callback mutex logic."
@@ -37,14 +44,6 @@ flag {
         "Fix the audio policy logic that decides to reuse or close "
         "input streams when resources are exhausted"
     bug: "338446410"
-}
-
-flag {
-    name: "mmap_pcm_offload_support"
-    namespace: "media_audio"
-    description:
-        "Add pcm offload support on mmap path."
-    bug: "409798445"
 }
 
 flag {

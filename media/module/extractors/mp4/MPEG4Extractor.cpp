@@ -2820,14 +2820,17 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
 
             if (mLastTrack == NULL)
                 return ERROR_MALFORMED;
-
+// TODO(b/476115172) remove when the build bug is fixed
+#if defined(__riscv)
+            ALOGE("VVC support not available on RISCV platform");
+#else
             if (__builtin_available(android 37, *)) {
                 AMediaFormat_setBuffer(mLastTrack->meta, AMEDIAFORMAT_KEY_CSD_VVC,
                                    buffer.get(), chunk_data_size);
             } else {
                 ALOGE("VVC support not available");
             }
-
+#endif
             *offset += chunk_size;
             break;
         }
@@ -5082,6 +5085,11 @@ MediaTrackHelper *MPEG4Extractor::getTrack(size_t index) {
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_VVC)) {
         void *data;
         size_t size;
+// TODO(b/476115172) remove when the build bug is fixed
+#if defined(__riscv)
+        ALOGE("VVC support not available on RISCV platform");
+        return NULL;
+#else
         if (__builtin_available(android 37, *)) {
             if (!AMediaFormat_getBuffer(track->meta, AMEDIAFORMAT_KEY_CSD_VVC, &data, &size)) {
                 return NULL;
@@ -5089,7 +5097,7 @@ MediaTrackHelper *MPEG4Extractor::getTrack(size_t index) {
         } else {
             return NULL;
         }
-
+#endif
         const uint8_t *ptr = (const uint8_t *)data;
 
         if (size < 5 || U32_AT(ptr) != 0) {  // version == 0
@@ -5154,6 +5162,11 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
             return ERROR_MALFORMED;
         }
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_VVC)) {
+// TODO(b/476115172) remove when the build bug is fixed
+#if defined(__riscv)
+        ALOGE("VVC support not available on RISCV platform");
+        return ERROR_MALFORMED;
+#else
         if (__builtin_available(android 37, *)) {
             if (!AMediaFormat_getBuffer(track->meta, AMEDIAFORMAT_KEY_CSD_VVC, &data, &size)) {
                 return ERROR_MALFORMED;
@@ -5161,6 +5174,7 @@ status_t MPEG4Extractor::verifyTrack(Track *track) {
         } else {
             return ERROR_MALFORMED;
         }
+#endif
     } else if (!strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG4)
             || !strcasecmp(mime, MEDIA_MIMETYPE_VIDEO_MPEG2)
             || !strcasecmp(mime, MEDIA_MIMETYPE_AUDIO_AAC)) {

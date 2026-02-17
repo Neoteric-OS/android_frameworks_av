@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <android/media/IAudioPolicyService.h>
 #include <android/media/IAudioTrackCallback.h>
 #include <android/media/IEffectClient.h>
 #include <android/media/audio/common/AudioPlaybackRate.h>
@@ -125,7 +126,7 @@ public:
     virtual const ::com::android::media::permission::IPermissionProvider&
             getPermissionProvider() = 0;
 
-    virtual bool isHardeningOverrideEnabled() const = 0;
+    virtual media::IAudioPolicyService::HardeningOverride getHardeningOverride() const = 0;
 
     virtual bool hasAlreadyCaptured(uid_t uid) const = 0;
 };
@@ -387,7 +388,7 @@ public:
     virtual void stopMelComputation_l()
             REQUIRES(audio_utils::AudioFlinger_Mutex) = 0;
 
-    virtual product_strategy_t getStrategyForStream(audio_stream_type_t stream) const
+    virtual product_strategy_t getStrategyForStream(audio_stream_type_t stream, uid_t uid) const
             EXCLUDES_AUDIO_ALL = 0;
 
     virtual void setEffectSuspended_l(
@@ -511,7 +512,8 @@ public:
             const sp<media::IAudioTrackCallback>& callback,
             bool isSpatialized,
             bool isBitPerfect,
-            audio_output_flags_t* afTrackFlags)
+            audio_output_flags_t* afTrackFlags,
+            const std::string& codecProvenance)
             REQUIRES(audio_utils::AudioFlinger_Mutex) = 0;
 
     virtual status_t addTrack_l(const sp<IAfTrack>& track) REQUIRES(mutex()) = 0;

@@ -2083,7 +2083,7 @@ status_t StagefrightRecorder::setupCameraSource(
         sp<Surface> surface = new Surface(mPreviewSurface);
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
-                videoSize, mFrameRate, mediaflagtools::mediaSurfaceToCameraSurfaceType(surface),
+                videoSize, mFrameRate, mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface),
                 std::llround(1e6 / mCaptureFps));
 #else
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
@@ -2110,7 +2110,7 @@ status_t StagefrightRecorder::setupCameraSource(
 // QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate,
-                mediaflagtools::mediaSurfaceToCameraSurfaceType(surface));
+                mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
 #else
         *cameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,

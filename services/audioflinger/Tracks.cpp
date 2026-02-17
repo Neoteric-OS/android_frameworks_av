@@ -28,6 +28,7 @@
 #include "IAfThread.h"
 #include "ResamplerBufferProvider.h"
 
+#include <android/media/IAudioPolicyService.h>
 #include <audio_utils/StringUtils.h>
 #include <audio_utils/minifloat.h>
 #include <com_android_media_audio.h>
@@ -46,6 +47,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <chrono>
 #include <linux/futex.h>
 #include <math.h>
 #include <sys/syscall.h>
@@ -64,8 +66,6 @@
 #else
 #define ALOGVV(a...) do { } while(0)
 #endif
-
-namespace audioserver_flags = com::android::media::audioserver;
 
 namespace android {
 
@@ -103,7 +103,8 @@ TrackBase::TrackBase(
             const alloc_type alloc,
             track_type type,
             audio_port_handle_t portId,
-            std::string metricsId)
+            std::string metricsId,
+            const std::string& codecProvenance)
     :
         mThread(thread),
         mAllocType(alloc),
@@ -118,6 +119,7 @@ TrackBase::TrackBase(
         mChannelCount(isOut ?
                 audio_channel_count_from_out_mask(channelMask) :
                 audio_channel_count_from_in_mask(channelMask)),
+        mCodecProvenance(codecProvenance),
         mFrameSize(audio_bytes_per_frame(mChannelCount, format)),
         mFrameCount(frameCount),
         mSessionId(sessionId),
@@ -858,7 +860,8 @@ sp<IAfTrack> IAfTrack::create(
         size_t frameCountToBeReady,
         float speed,
         bool isSpatialized,
-        bool isBitPerfect) {
+        bool isBitPerfect,
+        const std::string& codecProvenance) {
     // Note: sp<>::make does not propagate thread safety analysis, so use "new" here.
     return new Track(thread,
             client,
@@ -880,7 +883,8 @@ sp<IAfTrack> IAfTrack::create(
             frameCountToBeReady,
             speed,
             isSpatialized,
-            isBitPerfect);
+            isBitPerfect,
+            codecProvenance);
 }
 
 // Track constructor must be called with AudioFlinger::mLock and ThreadBase::mLock held
@@ -905,7 +909,8 @@ Track::Track(
             size_t frameCountToBeReady,
             float speed,
             bool isSpatialized,
-            bool isBitPerfect)
+            bool isBitPerfect,
+            const std::string& codecProvenance)
     :
     AfPlaybackCommon(*this, *thread,
                      attr, attributionSource, thread->isOffloadOrMmap(), type != TYPE_PATCH),
@@ -921,7 +926,8 @@ Track::Track(
                   (type == TYPE_PATCH) ? ( buffer == NULL ? ALLOC_LOCAL : ALLOC_NONE) : ALLOC_CBLK,
                   type,
                   portId,
-                  std::string(AMEDIAMETRICS_KEY_PREFIX_AUDIO_TRACK) + std::to_string(portId)),
+                  std::string(AMEDIAMETRICS_KEY_PREFIX_AUDIO_TRACK) + std::to_string(portId),
+                  codecProvenance),
     mFillingStatus(FS_INVALID),
     // mRetryCount initialized later when needed
     mSharedBuffer(sharedBuffer),
@@ -1835,6 +1841,13 @@ void Track::copyMetadataTo(MetadataInserter& backInserter) const
     }
     strncpy(metadata.tags, tagStr.c_str(), AUDIO_ATTRIBUTES_TAGS_MAX_SIZE);
     metadata.tags[AUDIO_ATTRIBUTES_TAGS_MAX_SIZE - 1] = '\0';
+    if (mCodecProvenance.size() >= AUDIO_ATTRIBUTES_CODEC_PROVENANCE_MAX_SIZE) {
+        ALOGW("%s: mCodecProvenance truncated, size %zu >= %d", __func__,
+              mCodecProvenance.size(), AUDIO_ATTRIBUTES_CODEC_PROVENANCE_MAX_SIZE);
+    }
+    strncpy(metadata.codec_provenance, mCodecProvenance.c_str(),
+            AUDIO_ATTRIBUTES_CODEC_PROVENANCE_MAX_SIZE);
+    metadata.codec_provenance[AUDIO_ATTRIBUTES_CODEC_PROVENANCE_MAX_SIZE - 1] = '\0';
     *backInserter++ = metadata;
 }
 
@@ -3691,14 +3704,21 @@ void PassthruPatchRecord::releaseBuffer(
     buffer->raw = nullptr;
 }
 
+#undef LOG_TAG
+#define LOG_TAG "AF::AfPlaybackCommon"
+
 // ----------------------------------------------------------------------------
 // AfPlaybackCommon
 
 static AfPlaybackCommon::EnforcementLevel getOpControlEnforcementLevel(audio_usage_t usage,
         IAfThreadCallback& cb) {
     using enum AfPlaybackCommon::EnforcementLevel;
-    if (cb.isHardeningOverrideEnabled()) {
+    using enum media::IAudioPolicyService::HardeningOverride;
+    const auto overrided = cb.getHardeningOverride();
+    if (overrided == ENABLE) {
         return FULL;
+    } else if (overrided == DISABLE) {
+        return NONE;
     }
     if (usage == AUDIO_USAGE_VIRTUAL_SOURCE || media::permission::isSystemUsage(usage)) {
         return NONE;
@@ -3723,9 +3743,10 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
                                    bool shouldPlaybackHarden)
     : mSelf(self),
       mEnforcementLevel(getOpControlEnforcementLevel(attr.usage, *thread.afThreadCallback())) {
-    ALOGI("creating track with enforcement level %d", mEnforcementLevel);
-    using AppOpsManager::OP_CONTROL_AUDIO_PARTIAL;
+    ALOGI("creating track with enforcement level %d shouldHarden %d", mEnforcementLevel,
+              shouldPlaybackHarden);
     using AppOpsManager::OP_CONTROL_AUDIO;
+    using AppOpsManager::OP_CONTROL_AUDIO_PARTIAL;
     using media::permission::Ops;
     using media::permission::skipOpsForUid;
     using media::permission::ValidatedAttributionSourceState;
@@ -3743,6 +3764,7 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
                     mHasOpControlPartial.store(isPermitted, std::memory_order_release);
                     if (isOffloadOrMmap) {
                         mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(40));
                             auto thread = thread_wp.promote();
                             if (thread != nullptr) {
                                 audio_utils::lock_guard l {thread->mutex()};
@@ -3760,6 +3782,7 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
                     mHasOpControlFull.store(isPermitted, std::memory_order_release);
                     if (isOffloadOrMmap) {
                         mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(40));
                             auto thread = thread_wp.promote();
                             if (thread != nullptr) {
                                 audio_utils::lock_guard l {thread->mutex()};

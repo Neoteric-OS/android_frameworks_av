@@ -25,18 +25,17 @@
 
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
+#include <future>
 #include <memory>
+#include <mutex>
 
 #include "VirtualCameraCaptureRequest.h"
 #include "VirtualCameraImageHandler.h"
 #include "VirtualCameraSessionContext.h"
 #include "aidl/android/companion/virtualcamera/Format.h"
-#include "aidl/android/hardware/camera/device/CameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CaptureResult.h"
 #include "aidl/android/hardware/camera/device/Stream.h"
-#include "aidl/android/hardware/camera/device/StreamBuffer.h"
 #include "android/binder_auto_utils.h"
 #include "util/Util.h"
 
@@ -82,9 +81,16 @@ class VirtualCameraImagePassthroughHandler : public VirtualCameraImageHandler {
   void onFrameAvailable();
 
  private:
+  void resetFrameAvailableSignalingMechanism();
+
   VirtualCameraSessionContext& mSessionContext;
   ::aidl::android::companion::virtualcamera::Format mImageFormat;
   std::function<void(void)> mOnFrameAvailable;
+
+  std::mutex mFrameAvailableCallbackMutex;
+  bool mFrameAvailablePromiseSignalled;
+  std::unique_ptr<std::promise<bool>> mFrameAvailablePromise;
+  std::unique_ptr<std::future<bool>> mFrameAvailableFuture;
 
   bool mIsFirstFrameDrawn;
 

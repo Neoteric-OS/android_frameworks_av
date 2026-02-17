@@ -13,7 +13,7 @@ flag {
     namespace: "media_audio"
     description: "Add API support for ambisonics audio."
     bug: "446025781"
-    # is_exported: true
+    is_exported: true
 }
 
 flag {
@@ -47,6 +47,14 @@ flag {
 }
 
 flag {
+    name: "audio_policy_builders_api"
+    namespace: "media_audio"
+    description: "Expand the creation APIs for AudioTrack source and AudioRecord sink with Builders"
+    bug: "416965224"
+    is_exported: true
+}
+
+flag {
     name: "auto_public_volume_api_hardening"
     namespace: "media_audio"
     description: "On AAOS, make volume and ringer SDK APIs in AudioManager no-ops."
@@ -58,6 +66,7 @@ flag {
     namespace: "media_audio"
     description: "Add BLE hearing aid device category"
     bug: "443740527"
+    is_exported: true
 }
 
 flag {
@@ -81,7 +90,7 @@ flag {
     namespace: "media_audio"
     description: "Expose BT device categories to mainline modules"
     bug: "460462975"
-    # is_exported: true
+    is_exported: true
 }
 
 flag {
@@ -204,7 +213,7 @@ flag {
     namespace: "media_audio"
     description: "Flag for fusing telecom route/mode changes into a single api surface"
     bug: "458830736"
-    # is_exported: true
+    is_exported: true
 }
 
 flag {
@@ -293,6 +302,7 @@ flag {
             "callback APIs"
     bug: "402502314"
     is_fixed_read_only: true
+    is_exported: true
 }
 
 flag {
@@ -308,6 +318,7 @@ flag{
     namespace: "media_audio"
     description: "System APIs for ringtone vibration utils."
     bug: "399265235"
+    is_exported: true
 }
 
 flag {
@@ -353,6 +364,7 @@ flag {
     description: "360 Reality Audio MPEG-H 3D Format"
     is_fixed_read_only: true
     bug: "238402306"
+    is_exported: true
 }
 
 flag {
@@ -408,6 +420,13 @@ flag {
     namespace: "media_audio"
     description: "Surface new API method AudioManager.getSupportedDeviceTypes()"
     bug: "307537538"
+}
+
+flag {
+    name: "tv_volume_key_batching_during_long_press"
+    namespace: "media_audio"
+    description: "Allow batching volume keys on TV during long presses"
+    bug: "469499166"
 }
 
 flag {

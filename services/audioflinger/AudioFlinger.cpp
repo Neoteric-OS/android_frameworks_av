@@ -1156,7 +1156,7 @@ status_t AudioFlinger::createTrack(const media::CreateTrackRequest& _input,
                                       input.sharedBuffer, sessionId, &output.flags,
                                       callingPid, adjAttributionSource, input.clientInfo.clientTid,
                                       &lStatus, portId, input.audioTrackCallback, isSpatialized,
-                                      isBitPerfect, &output.afTrackFlags);
+                                      isBitPerfect, &output.afTrackFlags, input.codecProvenance);
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (track == 0));
         // we don't abort yet if lStatus != NO_ERROR; there is still work to be done regardless
 
@@ -1723,6 +1723,18 @@ void AudioFlinger::updateDownStreamPatches_l(const struct audio_patch *patch,
     }
 }
 
+IAfRecordThread* AudioFlinger::getRecordThreadForDevice_l(audio_devices_t deviceType,
+                                            const String8& address) const {
+    AudioDeviceTypeAddr ada(deviceType, address.c_str());
+
+    const auto& it = std::find_if(mRecordThreads.begin(), mRecordThreads.end(),
+            [ada](const auto& iter) {
+                return ada.equals(iter.second->inDeviceTypeAddr());
+            });
+
+    return (it != mRecordThreads.end()) ? it->second.get() : nullptr;
+}
+
 // Filter reserved keys from setParameters() before forwarding to audio HAL or acting upon.
 // Some keys are used for audio routing and audio path configuration and should be reserved for use
 // by audio policy and audio flinger for functional, privacy and security reasons.
@@ -2174,10 +2186,10 @@ const IPermissionProvider& AudioFlinger::getPermissionProvider() {
     return mAudioPolicyServiceLocal.load()->getPermissionProvider();
 }
 
-bool AudioFlinger::isHardeningOverrideEnabled() const {
+media::IAudioPolicyService::HardeningOverride AudioFlinger::getHardeningOverride() const {
     // This is inited as part of service construction, prior to binder registration,
     // so it should always be non-null.
-    return mAudioPolicyServiceLocal.load()->isHardeningOverrideEnabled();
+    return mAudioPolicyServiceLocal.load()->getHardeningOverride();
 }
 
 // removeClient_l() must be called with AudioFlinger::clientMutex() held

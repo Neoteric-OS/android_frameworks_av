@@ -1003,6 +1003,10 @@ String8 channelMaskToString(audio_channel_mask_t mask, bool output) {
     case AUDIO_CHANNEL_REPRESENTATION_INDEX:
         s.appendFormat("index mask, bits:%#x", audio_channel_mask_get_bits(mask));
         return s;
+    case AUDIO_CHANNEL_REPRESENTATION_ACN:
+        s.appendFormat("ACN mask, %s channels:%d", audio_acn_mask_is_horizontal(mask) ? "H" : "F",
+            audio_channel_count_from_acn_mask(mask));
+        return s;
     default:
         s.appendFormat("unknown mask, representation:%d  bits:%#x",
                 representation, audio_channel_mask_get_bits(mask));
@@ -2126,12 +2130,12 @@ NO_THREAD_SAFETY_ANALYSIS
     item->selfrecord();
 }
 
-product_strategy_t ThreadBase::getStrategyForStream(audio_stream_type_t stream) const
+product_strategy_t ThreadBase::getStrategyForStream(audio_stream_type_t stream, uid_t uid) const
 {
     if (!mAfThreadCallback->isAudioPolicyReady()) {
         return PRODUCT_STRATEGY_NONE;
     }
-    return AudioSystem::getStrategyForStream(stream);
+    return AudioSystem::getStrategyForStream(stream, uid);
 }
 
 // startMelComputation_l() must be called with AudioFlinger::mutex() held
@@ -2371,10 +2375,14 @@ void PlaybackThread::onFirstRef()
         // discouraged, see comments in system/core/libutils/include/utils/RefBase.h.
         // Even if a function takes a weak pointer, it is possible that it will
         // need to convert it to a strong pointer down the line.
-        if (mOutput->flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING &&
-                mOutput->stream->setCallback(this) == OK) {
-            mUseAsyncWrite = true;
+        if (mOutput->flags & AUDIO_OUTPUT_FLAG_NON_BLOCKING) {
             mCallbackThread = sp<AsyncCallbackThread>::make(this);
+            mUseAsyncWrite = true;
+            if (mOutput->stream->setCallback(this) != OK) {
+                ALOGE("%s: Failed to add async callback", __func__);
+                mCallbackThread.clear();
+                mUseAsyncWrite = false;
+            }
         }
 
         if (mOutput->stream->setEventCallback(this) != OK) {
@@ -2503,7 +2511,8 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
         const sp<media::IAudioTrackCallback>& callback,
         bool isSpatialized,
         bool isBitPerfect,
-        audio_output_flags_t *afTrackFlags)
+        audio_output_flags_t *afTrackFlags,
+        const std::string& codecProvenance)
 {
     size_t frameCount = *pFrameCount;
     size_t notificationFrameCount = *pNotificationFrameCount;
@@ -2800,10 +2809,11 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
         // all tracks in same audio session must share the same routing strategy otherwise
         // conflicts will happen when tracks are moved from one output to another by audio policy
         // manager
-        product_strategy_t strategy = getStrategyForStream(streamType);
+        uid_t uid =  static_cast<uid_t>(attributionSource.uid);
+        product_strategy_t strategy = getStrategyForStream(streamType, uid);
         for (const auto& t : mPlaybackTracksView) {
             if (t != 0 && t->isExternalTrack()) {
-                product_strategy_t actual = getStrategyForStream(t->streamType());
+                product_strategy_t actual = getStrategyForStream(t->streamType(), uid);
                 if (sessionId == t->sessionId() && strategy != actual) {
                     ALOGE("createTrack_l() mismatched strategy; expected %u but found %u",
                             strategy, actual);
@@ -2832,7 +2842,7 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
                           nullptr /* buffer */, (size_t)0 /* bufferSize */, sharedBuffer,
                           sessionId, creatorPid, attributionSource, trackFlags,
                           IAfTrackBase::TYPE_DEFAULT, portId, SIZE_MAX /*frameCountToBeReady*/,
-                          speed, isSpatialized, isBitPerfect);
+                          speed, isSpatialized, isBitPerfect, codecProvenance);
 
         lStatus = track != 0 ? track->initCheck() : (status_t) NO_MEMORY;
         if (lStatus != NO_ERROR) {
@@ -2850,9 +2860,8 @@ sp<IAfTrack> PlaybackThread::createTrack_l(
 
         sp<IAfEffectChain> chain = getEffectChain_l(sessionId);
         if (chain != 0) {
-            ALOGV("createTrack_l() setting main buffer %p", chain->inBuffer());
             track->setMainBuffer(chain->inBuffer());
-            chain->setStrategy(getStrategyForStream(track->streamType()));
+            chain->setStrategy(getStrategyForStream(track->streamType(), uid));
             chain->incTrackCnt();
         }
 
@@ -3515,19 +3524,18 @@ status_t PlaybackThread::getRenderPosition(
     }
 }
 
-product_strategy_t PlaybackThread::getStrategyForSession_l(audio_session_t sessionId) const
-{
+product_strategy_t PlaybackThread::getStrategyForSession_l(audio_session_t sessionId) const {
     // session AUDIO_SESSION_OUTPUT_MIX is placed in same strategy as MUSIC stream so that
     // it is moved to correct output by audio policy manager when A2DP is connected or disconnected
     if (sessionId == AUDIO_SESSION_OUTPUT_MIX) {
-        return getStrategyForStream(AUDIO_STREAM_MUSIC);
+        return getStrategyForStream(AUDIO_STREAM_MUSIC, /* uid= */ 0);
     }
     for (const auto& track : mPlaybackTracksView) {
         if (sessionId == track->sessionId() && !track->isInvalid()) {
-            return getStrategyForStream(track->streamType());
+            return getStrategyForStream(track->streamType(), track->uid());
         }
     }
-    return getStrategyForStream(AUDIO_STREAM_MUSIC);
+    return getStrategyForStream(AUDIO_STREAM_MUSIC, /* uid= */ 0);
 }
 
 AudioStreamOut* PlaybackThread::clearOutput_l()
@@ -10871,7 +10879,7 @@ status_t MmapThread::start(const AudioClient& client,
     mActiveTracks.add(track);
     sp<IAfEffectChain> chain = getEffectChain_l(mSessionId);
     if (chain != 0) {
-        chain->setStrategy(getStrategyForStream(streamType_l()));
+        chain->setStrategy(getStrategyForStream(streamType_l(), track->uid()));
         chain->incTrackCnt();
         chain->incActiveTrackCnt();
     }
@@ -11559,6 +11567,13 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
         volume = 0;
     }
 
+    const auto amn = mAfThreadCallback->getAudioManagerNative();
+    for (const auto& track : mActiveMmapTracksView) {
+        if (amn) {
+            track->maybeLogPlaybackHardening(*amn);
+        }
+    }
+
     if (volume != mHalVolFloat) {
         // Convert volumes from float to 8.24
         uint32_t vol = (uint32_t)(volume * (1 << 24));
@@ -11589,7 +11604,6 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
                 }
             }
         }
-        const auto amn = mAfThreadCallback->getAudioManagerNative();
         for (const auto& track : mActiveMmapTracksView) {
             track->setMetadataHasChanged();
             if (amn) {
@@ -11603,8 +11617,6 @@ NO_THREAD_SAFETY_ANALYSIS // access of track->processMuteEvent
                                    false /*muteFromVolumeShaper*/,
                                    track->getPortMute(),
                                    shouldMutePlaybackHardening});
-
-                track->maybeLogPlaybackHardening(*amn);
             }
         }
     }

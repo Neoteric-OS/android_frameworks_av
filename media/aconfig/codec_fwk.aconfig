@@ -5,6 +5,21 @@ container: "system"
 
 # go/keep-sorted start block=yes newline_separated=yes by_regex=name:\s*"([^"]+)"
 flag {
+  name: "agtm_metadata"
+  is_exported: true
+  namespace: "codec_fwk"
+  description: "Feature flag for AGTM metadata support"
+  bug: "467136864"
+}
+
+flag {
+  name: "ahardware_buffer_fetch_flag"
+  namespace: "codec_fwk"
+  description: "Feature flag to enabling ahardwarebuffer graphic buffer fetch"
+  bug: "456253311"
+}
+
+flag {
   name: "aidl_hal_input_surface"
   is_exported: true
   namespace: "codec_fwk"
@@ -115,6 +130,7 @@ flag {
 
 flag {
   name: "flip_support"
+  is_exported: true
   namespace: "codec_fwk"
   description: "Support flip for MediaCodec"
   bug: "395095742"
@@ -122,6 +138,7 @@ flag {
 
 flag {
   name: "format_400_444_support"
+  is_exported: true
   namespace: "codec_fwk"
   description: "Feature flag for pixel format 4:0:0 and 4:4:4 support."
   bug: "465510587"
@@ -165,6 +182,13 @@ flag {
   metadata {
     purpose: PURPOSE_BUGFIX
   }
+}
+
+flag {
+  name: "internal_block_pool"
+  namespace: "codec_fwk"
+  description: "Feature flag for internal block pool support"
+  bug: "447658020"
 }
 
 flag {
@@ -330,6 +354,14 @@ flag {
   namespace: "codec_fwk"
   description: "Feature flag for Android support for VVC Content"
   bug: "426238242"
+  is_exported: true
+}
+
+flag {
+  name: "xhe_aac_encoder"
+  namespace: "codec_fwk"
+  description: "Feature flag for xHE-AAC encoder APIs"
+  bug: "449005879"
   is_exported: true
 }
 # go/keep-sorted end
