@@ -401,6 +401,10 @@ static void dumpCodecDetails(int fd, const sp<IMediaCodecList> &codecList, bool 
                             ? asString_AV1Profile(pl.mProfile) :
                         mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_DOLBY_VISION)
                             ? asString_DolbyVisionProfile(pl.mProfile) :
+                        mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_MVHEVC)
+                            ? asString_HEVCProfile(pl.mProfile) :
+                        mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_APV)
+                            ? asString_APVProfile(pl.mProfile)  :
                         mediaType.equalsIgnoreCase(MIMETYPE_AUDIO_AC4)
                             ? asString_AC4Profile(pl.mProfile) : "??";
                     const char *niceLevel =
@@ -420,6 +424,10 @@ static void dumpCodecDetails(int fd, const sp<IMediaCodecList> &codecList, bool 
                             ? asString_VP9Level(pl.mLevel) :
                         mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_AV1)
                             ? asString_AV1Level(pl.mLevel) :
+                        mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_MVHEVC)
+                            ? asString_HEVCTierLevel(pl.mLevel) :
+                        mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_APV)
+                            ? asString_APVBandLevel(pl.mLevel) :
                         mediaType.equalsIgnoreCase(MIMETYPE_VIDEO_DOLBY_VISION)
                             ? asString_DolbyVisionLevel(pl.mLevel) :
                         mediaType.equalsIgnoreCase(MIMETYPE_AUDIO_AC4)
