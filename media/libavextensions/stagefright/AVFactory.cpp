@@ -61,12 +61,16 @@ CameraSource* AVFactory::CreateCameraSourceFromCamera(
             pid_t clientPid,
             Size videoSize,
             int32_t frameRate,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             const sp<SurfaceType>& surface,
             // TODO(b/168051781) review removal of storeMetaDataInVideoBuffers
             // parameter from CreateFromCamera API.
             bool /*storeMetaDataInVideoBuffers*/) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return CameraSource::CreateFromCamera(camera, proxy, cameraId,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             clientName, clientUid, clientPid, videoSize, frameRate, surface);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 
 CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
@@ -78,16 +82,22 @@ CameraSourceTimeLapse* AVFactory::CreateCameraSourceTimeLapseFromCamera(
         pid_t clientPid,
         Size videoSize,
         int32_t videoFrameRate,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 #if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
         const sp<Surface>& surface,
 #else
         const sp<IGraphicBufferProducer>& surface,
 #endif
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         int64_t timeBetweenFrameCaptureUs,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         bool /*storeMetaDataInVideoBuffers*/) {
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     return CameraSourceTimeLapse::CreateFromCamera(camera, proxy, cameraId,
             clientName, clientUid, clientPid, videoSize, videoFrameRate, surface,
+// QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
             timeBetweenFrameCaptureUs);
+// QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
 }
 
 MPEG4Writer* AVFactory::CreateMPEG4Writer(int fd) {
