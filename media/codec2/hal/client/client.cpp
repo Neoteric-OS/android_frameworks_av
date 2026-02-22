@@ -1540,7 +1540,7 @@ public:
         });
         if (flushedWork) {
             LOG(VERBOSE) << "flush: with flushedWork, returning work size=" << mFlushedWork.size();
-            flushedWork->swap(mFlushedWork);
+            flushedWork->splice(flushedWork->end(), mFlushedWork);
         } else {
             LOG(VERBOSE) << "flush: without flushedWork, onWorkDone size=" << mFlushedWork.size();
             std::shared_ptr<Listener> listener = mListener.lock();
@@ -1690,7 +1690,7 @@ private:
                 bool ownedByClient = false;
                 ApexCodec_LinearBuffer outputConfigUpdates;
                 std::vector<C2Param*> outputConfigUpdatePtrs;
-                ApexCodec_BufferFlags outputFlags;
+                ApexCodec_BufferFlags outputFlags = (ApexCodec_BufferFlags)0;
 
                 ApexCodec_Status status = ApexCodec_Component_process(
                         mApexComponent, input, output, &consumed, &produced);
@@ -1785,6 +1785,7 @@ private:
                         outputWorkItem = std::make_unique<C2Work>();
                         outputWorkItem->input.ordinal.frameIndex = outputFrameIndex;
                         outputWorkItem->input.ordinal.timestamp = outputTimestampUs;
+                        outputWorkItem->input.flags = (C2FrameData::flags_t)outputFlags;
                         outputWorkItem->worklets.emplace_back(new C2Worklet);
                     }
                     if (outputWorkItem) {
@@ -1845,8 +1846,7 @@ private:
                         if (inputBuffer.size == 0) {
                             if ((flags & APEXCODEC_FLAG_END_OF_STREAM)
                                     && !(outputFlags & APEXCODEC_FLAG_END_OF_STREAM)) {
-                                LOG(ERROR) << "handleWork -- not draining input buffer"
-                                           << "because EOS is not set in output";
+                                LOG(VERBOSE) << "handleWork -- draining...";
                             } else {
                                 inputDrained = true;
                             }
@@ -1854,6 +1854,10 @@ private:
                     }
                 } else if (inputType == APEXCODEC_BUFFER_TYPE_GRAPHIC) {
                     inputDrained = (consumed > 0);
+                }
+                if ((outputFlags & APEXCODEC_FLAG_END_OF_STREAM) ||
+                    (inputDrained && (flags & APEXCODEC_FLAG_END_OF_STREAM))) {
+                    inputDrained = true;
                 }
             }
 
