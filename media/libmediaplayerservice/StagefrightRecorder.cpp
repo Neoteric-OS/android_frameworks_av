@@ -2073,56 +2073,24 @@ status_t StagefrightRecorder::setupCameraSource(
         }
 
 // QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-         if (!mPreviewSurface) {
-            // `Surface(...)` below does not support nullptr in its ctor
-            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
-            return INVALID_OPERATION;
-        }
-
-        sp<Surface> surface = new Surface(mPreviewSurface);
-        mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
-                mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
-// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-                videoSize, mFrameRate, mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface),
-// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-                std::llround(1e6 / mCaptureFps));
-#else
         mCameraSourceTimeLapse = AVFactory::get()->CreateCameraSourceTimeLapseFromCamera(
 // QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid, videoSize, mFrameRate,
                 mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface),
                 std::llround(1e6 / mCaptureFps));
 // QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-#endif
 // QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         *cameraSource = mCameraSourceTimeLapse;
     } else {
 // QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-#if WB_LIBCAMERASERVICE_WITH_DEPENDENCIES
-        if (!mPreviewSurface) {
-            // `Surface(...)` below does not support nullptr in its ctor
-            ALOGE("mPreviewSurface is null. Forgot to call setPreviewSurface?");
-            return INVALID_OPERATION;
-        }
-
-        sp<Surface> surface = new Surface(mPreviewSurface);
 // QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
         *cameraSource = CameraSource::CreateFromCamera(
 // QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
                 videoSize, mFrameRate,
-// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
                 mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
-// QTI_BEGIN: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
-#else
-        *cameraSource = AVFactory::get()->CreateCameraSourceFromCamera(
-               mCamera, mCameraProxy, mCameraId, clientName, uid, pid,
-               videoSize, mFrameRate,
-               mediaflagtools::mediaSurfaceToCameraSurfaceType(mPreviewSurface));
-#endif
-// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
     }
+// QTI_END: 2025-09-22: Video: av: Conflict Resolution for changes done as part of IGBP replacement.
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     AVUtils::get()->cacheCaptureBuffers(mCamera, mVideoEncoder);
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
@@ -2156,6 +2124,7 @@ status_t StagefrightRecorder::setupCameraSource(
 
     return OK;
 }
+
 
 status_t StagefrightRecorder::setupVideoEncoder(
         const sp<MediaSource> &cameraSource,
