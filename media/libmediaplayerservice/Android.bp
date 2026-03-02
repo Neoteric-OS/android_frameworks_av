@@ -84,6 +84,7 @@ cc_defaults {
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
         "libstagefright_omx",
 // QTI_END: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
+        "libui",
         "libutils",
         "packagemanager_aidl-cpp",
         "server_configurable_flags",

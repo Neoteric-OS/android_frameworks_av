@@ -53,6 +53,11 @@
 #define ATRACE_TAG ATRACE_TAG_AUDIO
 #include <utils/Trace.h>
 
+#include <gui/SurfaceComposerClient.h>
+#include <gui/DisplayInfo.h>
+#include <ui/StaticDisplayInfo.h>
+#include <ui/DynamicDisplayInfo.h>
+
 #include <android-base/stringprintf.h>
 using ::android::base::StringPrintf;
 
@@ -408,6 +413,65 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     // set flag to drop frame with corrupt flag
     format->setInt32("vendor.qti-ext-dec-drop-corrupt.value", 1);
 // QTI_END: 2020-09-24: Video: media: drop frame with corrupt flag
+
+    // Set downscaler extension for qti video decoders based on display resolution
+    if (!mIsAudio) {
+        // Get primary display information
+        std::vector<PhysicalDisplayId> displayIds = SurfaceComposerClient::getPhysicalDisplayIds();
+
+        if (!displayIds.empty()) {
+            // Get the primary display (first in list)
+            PhysicalDisplayId primaryDisplayId = displayIds[0];
+
+            // Get dynamic display info (contains resolution)
+            ui::DynamicDisplayInfo dynamicInfo;
+            status_t result = SurfaceComposerClient::getDynamicDisplayInfoFromId(
+                primaryDisplayId.value, &dynamicInfo);
+
+            if (result == NO_ERROR) {
+                // Get the active display mode to access resolution
+                std::optional<ui::DisplayMode> activeMode = dynamicInfo.getActiveDisplayMode();
+
+                if (activeMode.has_value()
+                        && activeMode->resolution.width > 0
+                        && activeMode->resolution.height > 0) {
+                    int32_t displayWidth = 0;
+                    int32_t displayHeight = 0;
+
+                    // Get video source dimensions: To confirm if the video is playing in portrait mode or landscape mode.
+                    int32_t videoWidth = 0, videoHeight = 0;
+                    if (format->findInt32("width", &videoWidth)
+                            && format->findInt32("height", &videoHeight)
+                            && videoWidth > 0 && videoHeight > 0) {
+                        int32_t rotation = 0;
+                        format->findInt32("rotation-degrees", &rotation);
+                        bool videoIsPortrait = ((rotation == 90 || rotation == 270)) ? (videoWidth > videoHeight): (videoHeight > videoWidth);
+                        bool displayIsPortrait = (activeMode->resolution.height > activeMode->resolution.width);
+                        bool needsSwap = (videoIsPortrait != displayIsPortrait);
+                        if (needsSwap) {
+                            displayWidth = activeMode->resolution.height;
+                            displayHeight = activeMode->resolution.width;
+                        }
+                        else {
+                            displayWidth = activeMode->resolution.width;
+                            displayHeight = activeMode->resolution.height;
+                        }
+                        // Add displayWidth and displayHeight to vendor extension.
+                        if(videoWidth > displayWidth || videoHeight > displayHeight){
+                            format->setInt32("vendor.qti-ext-down-scalar.output-width", displayWidth);
+                            format->setInt32("vendor.qti-ext-down-scalar.output-height", displayHeight);
+                        }
+                    }
+                } else {
+                    ALOGW("NuPlayerDecoder: No active display mode found");
+                }
+            } else {
+                ALOGW("NuPlayerDecoder: Failed to get display info, result=%d", result);
+            }
+        } else {
+            ALOGW("NuPlayerDecoder: No physical displays found");
+        }
+    }
 
     err = mCodec->configure(
             format, mSurface, crypto, 0 /* flags */);
