@@ -545,6 +545,10 @@ public:
     }
     mutable audio_utils::mutex mMutex{audio_utils::MutexOrder::kThreadBase_Mutex};
 
+    // Freeze handling, override on a thread basis.
+    void onClientUnfrozen(pid_t pid __unused) override EXCLUDES_ThreadBase_Mutex {}
+    void onClientFrozen(pid_t pid __unused) override EXCLUDES_ThreadBase_Mutex {}
+
     void onEffectEnable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
     void onEffectDisable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
 
@@ -873,6 +877,8 @@ protected:
                 SimpleLog mLocalLog {/* maxLogLines= */ 120};  // locked internally
 
     ActiveTracks mActiveTracks GUARDED_BY(mutex()) {&mLocalLog};
+
+    sp<IAfTrackBase> getActiveTrackById_l(audio_port_handle_t portId) REQUIRES(mutex());
 
         // The Tracks class manages tracks added and removed from the Thread.
 
@@ -2283,10 +2289,6 @@ private:
             // If a fast capture is present, the Pipe as IMemory, otherwise clear
             sp<IMemory>                         mPipeMemory;
 
-            // TODO: add comment and adjust size as needed
-            static const size_t                 kFastCaptureLogSize = 4 * 1024;
-            sp<NBLog::Writer>                   mFastCaptureNBLogWriter;
-
             bool                                mFastTrackAvail;    // true if fast track available
             // common state to all record threads
             std::atomic_bool                    mBtNrecSuspended;
@@ -2342,10 +2344,13 @@ class MmapThread : public ThreadBase, public virtual IAfMmapThread
             EXCLUDES_ThreadBase_Mutex;
     status_t getMmapPosition(struct audio_mmap_position* position) const override
             EXCLUDES_ThreadBase_Mutex;
-    status_t start(const AudioClient& client,
-                   const audio_attributes_t *attr,
-            audio_port_handle_t* handle) final EXCLUDES_ThreadBase_Mutex;
-    status_t stop(audio_port_handle_t handle) final EXCLUDES_ThreadBase_Mutex;
+    status_t createTrack(const AudioClient& client,
+                         const audio_attributes_t& attr,
+                         audio_port_handle_t* portId,
+                         audio_io_handle_t* ioHandle) final EXCLUDES_ThreadBase_Mutex;
+    status_t startTrack(audio_port_handle_t portId) final EXCLUDES_ThreadBase_Mutex;
+    status_t stopTrack(audio_port_handle_t portId) final EXCLUDES_ThreadBase_Mutex;
+    status_t releaseTrack(audio_port_handle_t portId) final EXCLUDES_ThreadBase_Mutex;
     status_t standby() final EXCLUDES_ThreadBase_Mutex;
     status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;
