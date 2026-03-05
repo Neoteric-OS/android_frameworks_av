@@ -336,9 +336,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
 
             long ret = syscall(__NR_futex, &cblk->mFutex,
                     mClientInServer ? FUTEX_WAIT_PRIVATE : FUTEX_WAIT, old & ~CBLK_FUTEX_WAKE, ts);
-// QTI_BEGIN: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             status_t error = ret == -1 ? errno : 0; // clock_gettime can affect errno
-// QTI_END: 2015-12-18: Audio: libmedia: Preserve futex return status in client obtainBuffer
             ALOGD_IF(ret == -1 && error == 0, "%s: futex failed but no error set.", __func__);
             // update total elapsed time spent waiting
             if (measure) {
