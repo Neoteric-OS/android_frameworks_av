@@ -7,14 +7,6 @@ container: "system"
 
 # go/keep-sorted start block=yes newline_separated=yes by_regex=name:\s*"([^"]+)"
 flag {
-    name: "abs_volume_prioritizes_abs_device"
-    namespace: "media_audio"
-    description: "When receiving a volume command from an absolute volume device we "
-                 "prioritize selecting the available absolute device for volume change"
-    bug: "399307939"
-}
-
-flag {
     name: "abs_volume_stream_always_max"
     namespace: "media_audio"
     description: "The stream that drives the absolute volume should always have the highest index"
@@ -87,6 +79,16 @@ flag {
 }
 
 flag {
+    name: "hardening_bfgs"
+    namespace: "media_audio"
+    description: "Flag for bfgs capability constraint"
+    bug: "475914478"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+flag {
     name: "hardening_partial"
     is_exported: true
     namespace: "media_audio"
@@ -107,6 +109,16 @@ flag {
     namespace: "media_audio"
     description: "Flag for strict enforcement (deny access) of hardening"
     bug: "376480814"
+}
+
+flag {
+    name: "hardening_usage"
+    namespace: "media_audio"
+    description: "Flag for usage validation"
+    bug: "451793120"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
 }
 
 flag {

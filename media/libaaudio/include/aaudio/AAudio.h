@@ -1100,7 +1100,26 @@ typedef enum AAudio_DeviceType : int32_t {
     /**
      * A device type describing the audio device associated with a dock using an analog connection.
      */
-    AAUDIO_DEVICE_DOCK_ANALOG = 31
+    AAUDIO_DEVICE_DOCK_ANALOG = 31,
+
+    /**
+     * A Bluetooth LE Hearing Aid
+     * Introduced in API 37.
+     */
+    AAUDIO_DEVICE_BLE_HEARING_AID = 32,
+
+    /**
+     * A device corresponding to the receive or transmit path in an android implementation
+     * operating in a Bluetooth LE Audio peripheral mode.
+     * Introduced in API 37.
+     */
+    AAUDIO_DEVICE_BLE_CENTRAL = 33,
+    /**
+     * A device corresponding to the receive path in an android implementation
+     * operating in a Bluetooth LE Audio peripheral mode part of a broadcast group.
+     * Introduced in API 37.
+     */
+    AAUDIO_DEVICE_BLE_CENTRAL_BROADCAST = 34
 } AAudio_DeviceType;
 
 /**

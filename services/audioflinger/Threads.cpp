@@ -3260,6 +3260,7 @@ NO_THREAD_SAFETY_ANALYSIS
         LOG_FATAL("HAL format %#x not supported for mixed output",
                 mFormat);
     }
+    const auto oldFrameSize = mFrameSize;
     mFrameSize = mOutput->getFrameSize();
     result = mOutput->stream->getBufferSize(&mBufferSize);
     LOG_ALWAYS_FATAL_IF(result != OK,
@@ -3354,7 +3355,15 @@ NO_THREAD_SAFETY_ANALYSIS
     // Originally this was int16_t[] array, need to remove legacy implications.
     free(mSinkBuffer);
     mSinkBuffer = NULL;
-
+    if (mBytesRemaining > 0) {
+        // Consume any existing data (not copy) to ensure
+        // we don't access "remaining" bytes from the new, different buffer.
+        // Note: oldFrameSize should be nonzero if we get here.
+        mBytesWritten += mBytesRemaining;
+        mFramesWritten += mBytesRemaining / oldFrameSize;
+        mBytesRemaining = 0;
+        mCurrentWriteLength = 0;
+    }
     // For sink buffer size, we use the frame size from the downstream sink to avoid problems
     // with non PCM formats for compressed music, e.g. AAC, and Offload threads.
     const size_t sinkBufferSize = mNormalFrameCount * mFrameSize;
@@ -6830,7 +6839,10 @@ void DirectOutputThread::processVolume_l(const sp<IAfTrack>& track, bool lastTra
 
     const auto amn = mAfThreadCallback->getAudioManagerNative();
 
-    if (mMasterMute || track->isPlaybackRestricted()) {
+    if (mMasterMute || (com_android_media_audio_ring_my_car() ?
+            (!track->canBypassMute()
+              && (track->isPlaybackRestricted() || track->getPortMute()))
+            : track->isPlaybackRestricted())) {
         left = right = 0;
     } else {
         float typeVolume = track->getPortVolume();

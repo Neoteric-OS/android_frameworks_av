@@ -805,6 +805,12 @@ audio_devices_t AAudioConvert_aaudioToAndroidDeviceType(AAudio_DeviceType device
                 return AUDIO_DEVICE_IN_HDMI_ARC;
             case AAUDIO_DEVICE_HDMI_EARC:
                 return AUDIO_DEVICE_IN_HDMI_EARC;
+            case AAUDIO_DEVICE_BLE_HEARING_AID:
+                return AUDIO_DEVICE_IN_BLE_HEARING_AID;
+            case AAUDIO_DEVICE_BLE_CENTRAL:
+                return AUDIO_DEVICE_IN_BLE_CENTRAL;
+            case AAUDIO_DEVICE_BLE_CENTRAL_BROADCAST:
+                return AUDIO_DEVICE_IN_BLE_CENTRAL_BROADCAST;
             default:
                 break;
         }
@@ -864,6 +870,10 @@ audio_devices_t AAudioConvert_aaudioToAndroidDeviceType(AAudio_DeviceType device
                 return AUDIO_DEVICE_OUT_BLE_SPEAKER;
             case AAUDIO_DEVICE_BLE_BROADCAST:
                 return AUDIO_DEVICE_OUT_BLE_BROADCAST;
+            case AAUDIO_DEVICE_BLE_HEARING_AID:
+                return AUDIO_DEVICE_OUT_BLE_HEARING_AID;
+            case AAUDIO_DEVICE_BLE_CENTRAL:
+                return AUDIO_DEVICE_OUT_BLE_CENTRAL;
             default:
                 break;
         }
