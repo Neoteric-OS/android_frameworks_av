@@ -303,7 +303,8 @@ status_t Camera3InputStream::getEndpointUsage(uint64_t *usage) {
     return OK;
 }
 
-void Camera3InputStream::onBufferFreed(const sp<GraphicBuffer>& buffer) {
+void Camera3InputStream::onBufferFreed(const wp<GraphicBuffer>& gb) {
+    const sp<GraphicBuffer> buffer = gb.promote();
     if (buffer != nullptr) {
         camera_stream_buffer streamBuffer =
                 {nullptr, &buffer->handle, CAMERA_BUFFER_STATUS_OK, -1, -1};
@@ -319,7 +320,7 @@ void Camera3InputStream::onBufferFreed(const sp<GraphicBuffer>& buffer) {
             callback->onBufferFreed(mId, buffer->handle);
         }
     } else {
-        ALOGE("%s: GraphicBuffer was null!", __FUNCTION__);
+        ALOGE("%s: GraphicBuffer is freed before onBufferFreed callback finishes!", __FUNCTION__);
     }
 }
 

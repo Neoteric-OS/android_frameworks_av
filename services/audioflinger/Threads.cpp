@@ -2076,8 +2076,7 @@ void ThreadBase::broadcast_l()
 // static
 audio_utils::CommandThread& ThreadBase::getAsyncCommandThread()
 {
-    [[clang::no_destroy]] static audio_utils::CommandThread commandThread{
-        audio_utils::nice_to_unified_priority(ANDROID_PRIORITY_URGENT_AUDIO)};
+    [[clang::no_destroy]] static audio_utils::CommandThread commandThread{};
     return commandThread;
 }
 
@@ -10922,14 +10921,10 @@ status_t MmapThread::startTrack(audio_port_handle_t portId)
         // force volume update when a new track is added
         mHalVolFloat = -1.0f;
     } else {
-        const bool silenced = isClientSilenced_l(portId);
-        track->asIAfMmapTrack()->setSilenced_l(silenced);
-        // Only invalidate silenced MMAP tracks when a non-silenced track is started.
-        if (!silenced) {
-            for (const auto& t : mActiveMmapTracksView) {
-                if (t->isSilenced_l() && t->uid() != track->uid()) {
-                    t->invalidate();
-                }
+        track->asIAfMmapTrack()->setSilenced_l(isClientSilenced_l(portId));
+        for (const auto& t : mActiveMmapTracksView) {
+            if (t->isSilenced_l() && t->uid() != track->uid()) {
+                t->invalidate();
             }
         }
     }

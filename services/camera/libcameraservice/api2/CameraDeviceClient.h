@@ -226,9 +226,6 @@ public:
             /*out*/
             std::vector<int>* offlineStreamIds);
 
-    void cleanUpStreamsLocked(const std::vector<int32_t>& newOutputStreamIds,
-                              int32_t newInputStreamId);
-
     /**
      * Interface used by CameraService
      */
