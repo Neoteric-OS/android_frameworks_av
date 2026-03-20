@@ -191,6 +191,11 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             status = DEAD_OBJECT;
             goto end;
         }
+        if (flags & CBLK_POISONED) {
+            ALOGV("Track poisoned");
+            status = PERMISSION_DENIED;
+            goto end;
+        }
         if (flags & CBLK_DISABLED) {
             ALOGV("Track disabled");
             status = NOT_ENOUGH_DATA;
@@ -313,7 +318,7 @@ status_t ClientProxy::obtainBuffer(Buffer* buffer, const struct timespec *reques
             break;
         }
 
-        int32_t old = android_atomic_and(~CBLK_FUTEX_WAKE, &cblk->mFutex);
+        int32_t old = android_atomic_and(~(CBLK_FUTEX_WAKE | CBLK_FUTEX_NOTIFY), &cblk->mFutex);
 
         // Check inactive to prevent waiting if the track has been disabled due to underrun
         // (or invalidated).  The subsequent call to obtainBufer will return NOT_ENOUGH_DATA
@@ -1039,7 +1044,7 @@ bool  AudioTrackServerProxy::setStreamEndDone() {
             (android_atomic_or(CBLK_STREAM_END_DONE, &cblk->mFlags) & CBLK_STREAM_END_DONE) != 0;
     if (!old) {
         (void) syscall(__NR_futex, &cblk->mFutex, mClientInServer ? FUTEX_WAKE_PRIVATE : FUTEX_WAKE,
-                1);
+                INT32_MAX);
     }
     return old;
 }

@@ -1229,7 +1229,7 @@ public:
             // FIXME enum is faster than strcmp() for parameter 'from'
             status_t restoreTrack_l(const char *from, bool forceRestore = false);
 
-            uint32_t    getUnderrunCount_l() const;
+            virtual uint32_t getUnderrunCount_l() const;
 
             bool     isOffloaded() const;
             bool     isDirect() const;
@@ -1510,6 +1510,9 @@ public:
     int64_t                mPauseTimeRealUs;
 
 // QTI_END: 2018-07-10: Audio: Create dummy track to avoid a2dp suspend
+
+    uint32_t mUnderrunFramesReported GUARDED_BY(mLock){0};
+
 private:
     class DeathNotifier : public IBinder::DeathRecipient {
     public:
@@ -1528,7 +1531,7 @@ private:
     audio_dual_mono_mode_t mDualMonoMode = AUDIO_DUAL_MONO_MODE_OFF;
     float mAudioDescriptionMixLeveldB = -std::numeric_limits<float>::infinity();
 
-private:
+protected:
     class MediaMetrics {
       public:
         MediaMetrics() : mMetricsItem(mediametrics::Item::create("audiotrack")) {

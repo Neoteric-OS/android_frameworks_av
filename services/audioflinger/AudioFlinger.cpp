@@ -2275,6 +2275,8 @@ AudioFlinger::NotificationClient::~NotificationClient()
 
 void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who __unused)
 {
+    audio_utils::set_priority_for_binder_callback(__func__);
+
     const auto keep = sp<NotificationClient>::fromExisting(this);
     mAudioFlinger->removeNotificationClient(mPid);
 }
@@ -2282,15 +2284,45 @@ void AudioFlinger::NotificationClient::binderDied(const wp<IBinder>& who __unuse
 void AudioFlinger::NotificationClient::onStateChanged(
         const android::wp<IBinder>& who __unused, State state)
 {
+    audio_utils::set_priority_for_binder_callback(__func__);
+
+    bool frozen;
+    const char* fstring;
     if (state == IBinder::FrozenStateChangeCallback::State::FROZEN) {
-        mFrozen = true;
-        mAudioFlinger->onClientFrozen(mPid);
+        frozen = true;
+        fstring = "frozen";
     } else if (state == IBinder::FrozenStateChangeCallback::State::UNFROZEN) {
-        mFrozen = false;
-        mAudioFlinger->onClientUnfrozen(mPid);
+        frozen = false;
+        fstring = "unfrozen";
+    } else {
+        ALOGW("%s: unknown state: %d", __func__, state);
+        return;
     }
-    ALOGW("%s: pid:%d  uid:%d  state:%s",
-          __func__, mPid, mUid, (mFrozen ? "frozen" : "unfrozen"));
+
+    mFrozen = frozen;
+
+    // Querying activeWhileFrozen from AudioPowerManager is lighter weight
+    // than locking the PlaybackThreads if those are active.
+    auto& apm = media::psh_utils::AudioPowerManager::getAudioPowerManager();
+    const bool activeWhileFrozen = apm.setFrozen(mPid, frozen);
+
+    if (activeWhileFrozen) {
+        // We only trigger AudioFlinger frozen state operations if there is legitimate
+        // audio activity for that pid.  This prevents unnecessary locking and unlocking of
+        // Threads which may be intrusive on performance.
+        //
+        // Note: in the future consider mediautils::UidInfo::getInfo(mUid)->package.c_str()
+        ALOGW("%s: pid:%d  uid:%d  new state:%s - active while frozen",
+                __func__, mPid, mUid, fstring);
+        if (frozen) {
+            mAudioFlinger->onClientFrozen(mPid);
+        } else {
+            mAudioFlinger->onClientUnfrozen(mPid);
+        }
+    } else {
+        ALOGD("%s: pid:%d  uid:%d  state:%s - no freeze activity", __func__, mPid, mUid, fstring);
+    }
+    ALOGV("%s: priority: %d", __func__, audio_utils::get_thread_priority(gettid()));
 }
 
 status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
@@ -3969,9 +4001,13 @@ void AudioFlinger::updateSecondaryOutputsForTrack_l(
         // TODO: We could check compatibility of the secondaryThread with the PatchTrack
         // for fast usage: thread has fast mixer, sample rate matches, etc.;
         // for now, we exclude fast tracks by removing the Fast flag.
-        constexpr audio_output_flags_t kIncompatiblePatchTrackFlags =
-                static_cast<audio_output_flags_t>(AUDIO_OUTPUT_FLAG_FAST
-                        | AUDIO_OUTPUT_FLAG_DIRECT | AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
+        const audio_output_flags_t kIncompatiblePatchTrackFlags =
+                com::android::media::audioserver::capture_offloaded_audio()
+                        ? static_cast<audio_output_flags_t>(AUDIO_OUTPUT_FLAG_FAST |
+                                                            AUDIO_OUTPUT_FLAG_DIRECT)
+                        : static_cast<audio_output_flags_t>(AUDIO_OUTPUT_FLAG_FAST |
+                                                            AUDIO_OUTPUT_FLAG_DIRECT |
+                                                            AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD);
 
         const audio_output_flags_t outputFlags =
                 (audio_output_flags_t)(track->getOutputFlags() & ~kIncompatiblePatchTrackFlags);
