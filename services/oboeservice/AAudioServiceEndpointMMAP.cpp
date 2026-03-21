@@ -37,6 +37,7 @@
 #include "AAudioServiceEndpointPlay.h"
 #include "AAudioServiceEndpointMMAP.h"
 
+#include <android_media_audio.h>
 #include <com_android_media_aaudio.h>
 
 #define AAUDIO_BUFFER_CAPACITY_MIN    (4 * 512)
@@ -592,10 +593,10 @@ void AAudioServiceEndpointMMAP::handleTearDownAsync(audio_port_handle_t portHand
 void AAudioServiceEndpointMMAP::onTearDown(audio_port_handle_t portHandle) {
     ALOGD("%s(portHandle = %d) called", __func__, portHandle);
     const android::sp<AAudioServiceEndpointMMAP> holdEndpoint(this);
-    std::thread asyncTask([holdEndpoint, portHandle]() {
+    AAudioThread::getAsyncCommandThread().add("EndpointMMAP::onTearDown",
+                                        [holdEndpoint, portHandle]() {
         holdEndpoint->handleTearDownAsync(portHandle);
     });
-    asyncTask.detach();
 }
 
 void AAudioServiceEndpointMMAP::onVolumeChanged(float volume) {
@@ -615,20 +616,33 @@ void AAudioServiceEndpointMMAP::onRoutingChanged(const android::DeviceIdVector& 
           android::toString(getDeviceIds()).c_str());
     if (!android::areDeviceIdsEqual(getDeviceIds(), deviceIds)) {
         if (!getDeviceIds().empty()) {
-            // When there is a routing changed, mmap stream should be disconnected. Set `mConnected`
-            // as false here so that there won't be a new stream connected to this endpoint.
-            mConnected.store(false);
-            const android::sp<AAudioServiceEndpointMMAP> holdEndpoint(this);
-            std::thread asyncTask([holdEndpoint, deviceIds]() {
-                ALOGD("onRoutingChanged() asyncTask launched");
-                // When routing changed, the stream is disconnected and cannot be used except for
-                // closing. In that case, it should be safe to release all registered streams.
-                // This can help release service side resource in case the client doesn't close
-                // the stream after receiving disconnect event.
-                holdEndpoint->releaseRegisteredStreams();
-                holdEndpoint->setDeviceIds(deviceIds);
-            });
-            asyncTask.detach();
+            if (android_media_audio_partial_flush_for_pcm_offload() &&
+                getPerformanceMode() == AAUDIO_PERFORMANCE_MODE_POWER_SAVING_OFFLOADED) {
+                // Just set the device ids if the performance mode is power saving offload instead
+                // of release all registered streams as there is nothing particular different for
+                // offload playback when device is changed. The client side will receive a routing
+                // changed callback and notify apps if they register a routing changed callback.
+                // Note for low latency mode, the HAL may be late reporting position which may cause
+                // the client side timeout on reading/writing and get disconnected from the client
+                // side.
+                setDeviceIds(deviceIds);
+            } else {
+                // When there is a routing changed, mmap stream should be disconnected. Set
+                // `mConnected` as false here so that there won't be a new stream connected
+                // to this endpoint.
+                mConnected.store(false);
+                const android::sp<AAudioServiceEndpointMMAP> holdEndpoint(this);
+                AAudioThread::getAsyncCommandThread().add("EndpointMMAP::onRoutingChanged",
+                                                    [holdEndpoint, deviceIds]() {
+                    ALOGD("onRoutingChanged() asyncTask launched");
+                    // When routing changed, the stream is disconnected and cannot be used except
+                    // for closing. In that case, it should be safe to release all registered
+                    // streams. This can help release service side resource in case the client
+                    // doesn't close the stream after receiving disconnect event.
+                    holdEndpoint->releaseRegisteredStreams();
+                    holdEndpoint->setDeviceIds(deviceIds);
+                });
+            }
         } else {
             setDeviceIds(deviceIds);
         }
@@ -653,11 +667,11 @@ void AAudioServiceEndpointMMAP::onWakeUp(android::audio_utils::TimerQueue::handl
         // called close and it has gone. It was previously pending to drain all written data.
         // Here, a thread is spawned to release the stream to avoid dead lock.
         const android::sp<AAudioServiceEndpointMMAP> holdEndpoint(this);
-        std::thread asyncTask([holdEndpoint]() {
+        AAudioThread::getAsyncCommandThread().add("EndpointMMAP::onWakeUp",
+                                            [holdEndpoint]() {
             ALOGD("onWakeUp() asyncTask to release client");
             holdEndpoint->releaseRegisteredStreams();
         });
-        asyncTask.detach();
     }
 }
 
