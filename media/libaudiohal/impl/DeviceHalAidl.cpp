@@ -384,7 +384,7 @@ status_t DeviceHalAidl::parseAndGetVendorParameters(const AudioParameter& parame
                                                     String8* values) {
     std::vector<std::string> vendorParameterIds;
     RETURN_STATUS_IF_ERROR(
-            fillVendorParameterIds(mVendorExt, getParameterScope(),
+            fillVendorParameterIds(mVendorExt, IHalAdapterVendorExtension::ParameterScope::MODULE,
                                    parameterKeys, vendorParameterIds));
     if (vendorParameterIds.empty()) {
         return OK;
@@ -396,7 +396,7 @@ status_t DeviceHalAidl::parseAndGetVendorParameters(const AudioParameter& parame
                 mModule->getVendorParameters(vendorParameterIds, &vendorParameters)));
     }
     RETURN_STATUS_IF_ERROR(fillKeyValuePairsFromVendorParameters(
-            mVendorExt, getParameterScope(), vendorParameters,
+            mVendorExt, IHalAdapterVendorExtension::ParameterScope::MODULE, vendorParameters,
             values));
     return OK;
 }
@@ -404,7 +404,7 @@ status_t DeviceHalAidl::parseAndGetVendorParameters(const AudioParameter& parame
 status_t DeviceHalAidl::parseAndSetVendorParameters(const AudioParameter& parameters) {
     std::vector<VendorParameter> syncParameters, asyncParameters;
     RETURN_STATUS_IF_ERROR(fillVendorParameters(mVendorExt,
-                                                getParameterScope(),
+                                                IHalAdapterVendorExtension::ParameterScope::MODULE,
                                                 parameters, syncParameters, asyncParameters));
     std::lock_guard l(mLock);
     if (!syncParameters.empty())
@@ -1592,11 +1592,6 @@ status_t DeviceHalAidl::filterAndUpdateTelephonyParameters(AudioParameter &param
         return statusTFromBinderStatus(mTelephony->setTelecomConfig(telConfig, &newTelConfig));
     }
     return OK;
-}
-
-IHalAdapterVendorExtension::ParameterScope DeviceHalAidl::getParameterScope() const {
-    return IHalAdapterVendorExtension::ParameterScope(
-            IHalAdapterVendorExtension::ScopeType::MODULE, getInstanceName());
 }
 
 void DeviceHalAidl::clearCallbacks(void* cookie) {

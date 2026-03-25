@@ -285,11 +285,11 @@ status_t AudioRecord::set(
 
     mTracker.reset(new RecordingActivityTracker());
 
-    if (auto binder = defaultServiceManager()->checkService(String16("audio")); binder != nullptr) {
+    sp<IBinder> binder = defaultServiceManager()->checkService(String16("audio"));
+    if (binder != nullptr) {
         // Barrier to ensure runtime permission update propagates to audioflinger
         // Must be client-side
-        interface_cast<IAudioManager>(binder)->getNativeInterface()->permissionUpdateBarrier(
-                /*forRecord=*/ true);
+        interface_cast<IAudioManager>(binder)->getNativeInterface()->permissionUpdateBarrier();
     }
 
     mSelectedDeviceId = selectedDeviceId;

@@ -57,7 +57,7 @@ interface IAudioManagerNative {
     /**
      * Block until AudioService synchronizes pending permission state with audioserver.
      */
-    void permissionUpdateBarrier(boolean forRecord);
+    void permissionUpdateBarrier();
 
     /**
      * Update mute state event for port

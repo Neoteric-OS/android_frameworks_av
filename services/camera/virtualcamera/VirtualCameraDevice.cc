@@ -1042,9 +1042,10 @@ void VirtualCameraDevice::closeSession(bool notifyError) {
   }
   if (session != nullptr) {
     if (notifyError) {
-      session->notifyDeviceError();
+      session->onSessionError();
+    } else {
+      session->close();
     }
-    session->close();
   }
 }
 

@@ -429,6 +429,7 @@ class AfPlaybackCommon : public virtual RefBase {
   private:
     const IAfTrackBase& mSelf;
 
+    std::optional<mediautils::SingleThreadExecutor> mExecutor;
     // TODO: atomic necessary if underneath thread lock?
     std::atomic<mute_state_t> mMuteState;
 

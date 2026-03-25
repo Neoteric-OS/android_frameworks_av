@@ -32,7 +32,6 @@ parcelable UidPackageState {
         @utf8InCpp String packageName;
         int targetSdk;
         boolean isPlaybackCaptureAllowed;
-        int pccId;
     }
     // Technically, an app-id for real packages, since the package is associated with an appId,
     // which is associated with a uid per user.

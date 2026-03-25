@@ -3746,9 +3746,6 @@ getHardeningDecision(audio_usage_t usage, IAfThreadCallback& cb, uid_t uid) {
     }
 
     if (hardening_strict()) {
-        if (pp.getHighestTargetSdkForUid(uid).value_or(1000) < 37) {
-            return {EnforcementLevel::PARTIAL, TARGET_SDK};
-        }
         if (hardening_usage()) {
             if (usage == AUDIO_USAGE_ALARM) {
                 if (pp.checkPermission(PermissionEnum::SCHEDULE_EXACT_ALARM, uid).value_or(false) ||
@@ -3796,23 +3793,25 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
 
     // Don't bother for trusted uids or tracks used for internal redirection
     if (!skipOpsForUid(attributionSource.uid) && shouldPlaybackHarden) {
-        // For Offload or MMap tracks, we issue asyncBroadcast to wake the Thread
-        // if there are no HW volume changes to update volume for the
-        // permission callback.
-        // We impose kBroadcastDelay to ensure that both partial and
-        // full permission callbacks can be received before the
-        // Thread wakeup.
-        constexpr auto kBroadcastDelay = std::chrono::milliseconds(40);
+        if (isOffloadOrMmap) {
+            mExecutor.emplace("AfCommonAppOps",
+                    audio_utils::nice_to_unified_priority(ANDROID_PRIORITY_AUDIO));
+        }
         auto thread_wp = wp<IAfThreadBase>::fromExisting(&thread);
         mOpControlPartialSession.emplace(
                 ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
                 Ops{.attributedOp = OP_CONTROL_AUDIO_PARTIAL},
-                [this, isOffloadOrMmap, thread_wp, kBroadcastDelay](bool isPermitted) {
+                [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
                     mHasOpControlPartial.store(isPermitted, std::memory_order_release);
                     if (isOffloadOrMmap) {
-                        if (const auto thread = thread_wp.promote()) {
-                            thread->asyncBroadcast(kBroadcastDelay);
-                        }
+                        mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(40));
+                            auto thread = thread_wp.promote();
+                            if (thread != nullptr) {
+                                audio_utils::lock_guard l {thread->mutex()};
+                                thread->broadcast_l();
+                            }
+                        }});
                     }
                 }
         );
@@ -3820,12 +3819,17 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
         mOpControlFullSession.emplace(
                 ValidatedAttributionSourceState::createFromTrustedSource(attributionSource),
                 Ops{.attributedOp = OP_CONTROL_AUDIO},
-                [this, isOffloadOrMmap, thread_wp, kBroadcastDelay](bool isPermitted) {
+                [this, isOffloadOrMmap, thread_wp](bool isPermitted) {
                     mHasOpControlFull.store(isPermitted, std::memory_order_release);
                     if (isOffloadOrMmap) {
-                        if (const auto thread = thread_wp.promote()) {
-                            thread->asyncBroadcast(kBroadcastDelay);
-                        }
+                        mExecutor->enqueue(mediautils::Runnable{[thread_wp]() {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(40));
+                            auto thread = thread_wp.promote();
+                            if (thread != nullptr) {
+                                audio_utils::lock_guard l {thread->mutex()};
+                                thread->broadcast_l();
+                            }
+                        }});
                     }
                 }
         );

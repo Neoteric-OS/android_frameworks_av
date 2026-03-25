@@ -218,7 +218,7 @@ class FakeBnSurfaceComposerClient : public gui::BnSurfaceComposerClient {
 
     MOCK_METHOD(binder::Status, mirrorSurface,
                 (const sp<IBinder>& mirrorFromHandle, const sp<IBinder>& stopAtHandle,
-                 const sp<IBinder>& cropByHandle, gui::CreateSurfaceResult* outResult),
+                 gui::CreateSurfaceResult* outResult),
                 (override));
 
     MOCK_METHOD(binder::Status, mirrorLayerStack,

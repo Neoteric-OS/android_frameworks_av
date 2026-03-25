@@ -29,14 +29,9 @@ import android.hardware.audio.core.VendorParameter;
  * @hide
  */
 interface IHalAdapterVendorExtension {
-    enum ScopeType {
+    enum ParameterScope {
         MODULE = 0,
         STREAM = 1,
-    }
-
-    parcelable ParameterScope {
-        ScopeType scope;
-        @utf8InCpp String instanceName;
     }
 
     /**
@@ -63,7 +58,7 @@ interface IHalAdapterVendorExtension {
      *                             and prefers to signal an error.
      */
     @utf8InCpp String[] parseVendorParameterIds(
-            in ParameterScope scope, in @utf8InCpp String rawKeys);
+            ParameterScope scope, in @utf8InCpp String rawKeys);
 
     /**
      * Parse raw parameter key-value pairs into vendor parameters.
@@ -92,7 +87,7 @@ interface IHalAdapterVendorExtension {
      *                             pairs and prefers to signal an error.
      */
     void parseVendorParameters(
-            in ParameterScope scope, in @utf8InCpp String rawKeysAndValues,
+            ParameterScope scope, in @utf8InCpp String rawKeysAndValues,
             out VendorParameter[] syncParameters, out VendorParameter[] asyncParameters);
 
     /**
@@ -139,5 +134,5 @@ interface IHalAdapterVendorExtension {
      *                             pairs and prefers to signal an error.
      */
     @utf8InCpp String processVendorParameters(
-            in ParameterScope scope, in VendorParameter[] parameters);
+            ParameterScope scope, in VendorParameter[] parameters);
 }

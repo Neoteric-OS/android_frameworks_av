@@ -108,7 +108,6 @@ private:
     std::mutex mMmapCbMutex;
     std::condition_variable mMmapCbCond;
     std::deque<CallbackEvent> mCbEvents GUARDED_BY(mMmapCbMutex);
-    bool mStoppingCallback GUARDED_BY(mMmapCbMutex){false};
 };
 
 } // namespace android

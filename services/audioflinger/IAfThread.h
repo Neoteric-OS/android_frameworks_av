@@ -38,7 +38,6 @@
 #include <utils/RefBase.h>
 #include <vibrator/ExternalVibration.h>
 
-#include <chrono>
 #include <optional>
 
 namespace com::android::media::permission {
@@ -64,7 +63,6 @@ class IAfTrack;
 class IAfTrackBase;
 class Client;
 class MelReporter;
-class AudioHwDevice;
 
 // Note this is exposed through IAfThreadBase::afThreadCallback()
 // and hence may be used by the Effect / Track framework.
@@ -130,8 +128,6 @@ public:
     virtual media::IAudioPolicyService::HardeningOverride getHardeningOverride() const = 0;
 
     virtual bool hasAlreadyCaptured(uid_t uid) const = 0;
-
-    virtual bool isPrimary(const AudioHwDevice* device) const = 0;
 };
 
 class IAfThreadBase : public virtual RefBase {
@@ -365,7 +361,7 @@ public:
     // asyncBroadcast() signals the Thread asynchronously via a separate thread.
     // It may be called without holding the ThreadBase mutex and is used to avoid
     // deadlocks in complex call stacks.
-    virtual void asyncBroadcast(std::chrono::nanoseconds delay = std::chrono::nanoseconds(0)) = 0;
+    virtual void asyncBroadcast() = 0;
 
     virtual bool isTimestampCorrectionEnabled_l() const REQUIRES(mutex()) = 0;
 

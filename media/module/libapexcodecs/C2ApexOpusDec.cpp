@@ -16,13 +16,12 @@
 
 //#define LOG_NDEBUG 0
 #define LOG_TAG "C2ApexOpusDec"
-#include <android-base/logging.h>
+#include <utils/Log.h>
 
-#include <mutex>
 #include <span>
+#include <sys/mman.h>
 
 #include <android-base/hex.h>
-#include <android-base/no_destructor.h>
 #include <android_media_codec.h>
 
 #include <apex/ApexCodecs.h>
@@ -34,7 +33,6 @@
 #include "C2ApexOpusDec.h"
 
 extern "C" {
-    #include "libopus_lfi_bin_box.h"
     #include <opus.h>
     #include <opus_multistream.h>
 }
@@ -67,48 +65,6 @@ static uint64_t ns_to_samples(uint64_t ns, int rate) {
 
 constexpr size_t kMaxOutputBufferSize =
     kMaxOpusOutputPacketSizeSamples * kMaxChannels * sizeof(int16_t);
-
-class LfiAlloc {
-public:
-    explicit LfiAlloc(size_t size) {
-        mPtr = libopus_lfi_bin_box_malloc(size);
-    }
-    ~LfiAlloc() {
-        if (mPtr) {
-            libopus_lfi_bin_box_free(mPtr);
-        }
-    }
-
-    void *get() { return mPtr; }
-private:
-    void *mPtr;
-};
-
-class SandboxInitializer {
-public:
-    static SandboxInitializer &Get() {
-        static ::android::base::NoDestructor<SandboxInitializer> sInstance;
-        return *sInstance;
-    }
-
-    bool ensure() {
-        std::unique_lock lk(mMutex);
-        if (mInit) {
-            LOG(INFO) << "ensure: sandbox is already initialized";
-            return true;
-        }
-        mInit = libopus_lfi_bin_box_init();
-        LOG(INFO) << "ensure: sandbox is" << (mInit ? "" : " not") << " initialized.";
-        return mInit;
-    }
-private:
-    SandboxInitializer() : mInit(false) {}
-
-    std::mutex mMutex;
-    bool mInit;
-
-    friend class ::android::base::NoDestructor<SandboxInitializer>;
-};
 
 }  // namespace
 
@@ -173,18 +129,13 @@ C2ApexOpusDec::C2ApexOpusDec(const std::shared_ptr<IntfImpl> &intfImpl)
             std::make_shared<SimpleC2Interface<IntfImpl>>(COMPONENT_NAME, 0, intfImpl))),
       mIntf(intfImpl),
       mDecoder(nullptr) {
-    mInit = SandboxInitializer::Get().ensure();
     initDecoderStates();
 }
 
 // static
 std::unique_ptr<ApexComponentIntf> C2ApexOpusDec::Create(
         const std::shared_ptr<C2ReflectorHelper> &helper) {
-    std::unique_ptr comp = std::make_unique<C2ApexOpusDec>(std::make_shared<IntfImpl>(helper));
-    if (!comp || !comp->valid()) {
-        return nullptr;
-    }
-    return comp;
+    return std::make_unique<C2ApexOpusDec>(std::make_shared<IntfImpl>(helper));
 }
 
 // static
@@ -206,12 +157,14 @@ std::shared_ptr<C2Component::Traits> C2ApexOpusDec::MakeTraits() {
 
 // static
 void *C2ApexOpusDec::Map(void *addr, size_t size, int prot, int flags, int fd, off_t offset) {
-    return ::libopus_lfi_bin_box_mmap(addr, size, prot, flags, fd, offset);
+    // TODO
+    return ::mmap(addr, size, prot, flags, fd, offset);
 }
 
 // static
 int C2ApexOpusDec::Unmap(void *addr, size_t size) {
-    return ::libopus_lfi_bin_box_munmap(addr, size);
+    // TODO
+    return ::munmap(addr, size);
 }
 
 void C2ApexOpusDec::initDecoderStates() {
@@ -225,20 +178,14 @@ void C2ApexOpusDec::initDecoderStates() {
 }
 
 ApexCodec_Status C2ApexOpusDec::start() {
-    if (!mInit) {
-        return APEXCODEC_STATUS_NO_INIT;
-    }
     initDecoderStates();
     return APEXCODEC_STATUS_OK;
 }
 
 ApexCodec_Status C2ApexOpusDec::flush() {
-    LOG(VERBOSE) << "flush";
-    if (!mInit) {
-        return APEXCODEC_STATUS_NO_INIT;
-    }
+    ALOGV("flush");
     if (mDecoder) {
-        LFI_CALL(opus_multistream_decoder_ctl, mDecoder, OPUS_RESET_STATE);
+        opus_multistream_decoder_ctl(mDecoder, OPUS_RESET_STATE);
         mSamplesToDiscard = mSeekPreRoll;
         mSignalledOutputEos = false;
     }
@@ -246,11 +193,8 @@ ApexCodec_Status C2ApexOpusDec::flush() {
 }
 
 ApexCodec_Status C2ApexOpusDec::reset() {
-    if (!mInit) {
-        return APEXCODEC_STATUS_NO_INIT;
-    }
     if (mDecoder) {
-        LFI_CALL(opus_multistream_decoder_destroy, mDecoder);
+        opus_multistream_decoder_destroy(mDecoder);
         mDecoder = nullptr;
     }
     initDecoderStates();
@@ -266,9 +210,6 @@ ApexCodec_Status C2ApexOpusDec::process(
         ApexCodec_Buffer *output,
         size_t *consumed,
         size_t *produced) {
-    if (!mInit) {
-        return APEXCODEC_STATUS_NO_INIT;
-    }
     if (__builtin_available(android 36, *)) {
         *consumed = 0;
         *produced = 0;
@@ -278,7 +219,7 @@ ApexCodec_Status C2ApexOpusDec::process(
         ApexCodec_Status err = ApexCodec_Buffer_getBufferInfo(
                 const_cast<ApexCodec_Buffer *>(input), &flags, &frameIndex, &timestamp);
         if (err != APEXCODEC_STATUS_OK) {
-            LOG(ERROR) << "process: getting buffer info from input failed: " << err;
+            ALOGE("process: getting buffer info from input failed: %d", err);
             return err;
         }
         bool eos = (flags & APEXCODEC_FLAG_END_OF_STREAM) != 0;
@@ -294,7 +235,7 @@ ApexCodec_Status C2ApexOpusDec::process(
         if (inSize == 0) {
             if (eos) {
                 mSignalledOutputEos = true;
-                LOG(VERBOSE) << "signalled EOS";
+                ALOGV("signalled EOS");
             }
             ApexCodec_Buffer_setBufferInfo(
                     output,
@@ -305,8 +246,8 @@ ApexCodec_Status C2ApexOpusDec::process(
             return APEXCODEC_STATUS_OK;
         }
 
-        LOG(VERBOSE) << "in buffer attr. size " << inSize << " timestamp "
-            << (int)timestamp << " frameindex " << (int)frameIndex;
+        ALOGV("in buffer attr. size %zu timestamp %d frameindex %d", inSize,
+            (int)timestamp, (int)frameIndex);
         const uint8_t *data = inputBuffer.data;
         if (mInputBufferCount < 3) {
             if (mInputBufferCount == 0) {
@@ -321,61 +262,44 @@ ApexCodec_Status C2ApexOpusDec::process(
                                         &opusHeadSize, &codecDelayBuf,
                                         &codecDelayBufSize, &seekPreRollBuf,
                                         &seekPreRollBufSize)) {
-                    LOG(ERROR) << __func__ << " encountered error in GetOpusHeaderBuffers";
+                    ALOGE("%s encountered error in GetOpusHeaderBuffers", __func__);
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
 
                 if (!ParseOpusHeader((uint8_t *)opusHeadBuf, opusHeadSize, &mHeader)) {
-                    LOG(ERROR) << __func__ << " Encountered error while Parsing Opus Header.";
+                    ALOGE("%s Encountered error while Parsing Opus Header.", __func__);
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
-                LfiAlloc lfiChannelMapping(kMaxChannels * sizeof(uint8_t));
-                uint8_t *channel_mapping = (uint8_t *)lfiChannelMapping.get();
-                if (!channel_mapping) {
-                    LOG(ERROR) << __func__
-                               << " failed to allocate memory in sandbox for channel_mapping";
-                    mSignalledError = true;
-                    return APEXCODEC_STATUS_CORRUPTED;
-                }
-                memset(channel_mapping, 0, kMaxChannels);
+                uint8_t channel_mapping[kMaxChannels] = {0};
                 if (mHeader.channels <= kMaxChannelsWithDefaultLayout) {
-                    memcpy(channel_mapping,
+                    memcpy(&channel_mapping,
                         kDefaultOpusChannelLayout,
                         kMaxChannelsWithDefaultLayout);
                 } else {
-                    memcpy(channel_mapping,
+                    memcpy(&channel_mapping,
                         mHeader.stream_map,
                         mHeader.channels);
                 }
-                LfiAlloc lfiStatus(sizeof(int));
-                int *status = (int *)lfiStatus.get();
-                if (!status) {
-                    LOG(ERROR) << __func__ << " failed to allocate memory in sandbox for status";
+                int status = OPUS_INVALID_STATE;
+                mDecoder = opus_multistream_decoder_create(kRate,
+                                                        mHeader.channels,
+                                                        mHeader.num_streams,
+                                                        mHeader.num_coupled,
+                                                        channel_mapping,
+                                                        &status);
+                if (!mDecoder || status != OPUS_OK) {
+                    ALOGE("opus_multistream_decoder_create failed status = %s",
+                        opus_strerror(status));
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
-                *status = OPUS_INVALID_STATE;
-                mDecoder = LFI_CALL(opus_multistream_decoder_create,
-                                    kRate,
-                                    mHeader.channels,
-                                    mHeader.num_streams,
-                                    mHeader.num_coupled,
-                                    channel_mapping,
-                                    status);
-                if (!mDecoder || *status != OPUS_OK) {
-                    LOG(ERROR) << "opus_multistream_decoder_create failed status = "
-                               << LFI_CALL(opus_strerror, *status);
-                    mSignalledError = true;
-                    return APEXCODEC_STATUS_CORRUPTED;
-                }
-                *status = LFI_CALL(opus_multistream_decoder_ctl,
-                                  mDecoder,
-                                  OPUS_SET_GAIN(mHeader.gain_db));
-                if (*status != OPUS_OK) {
-                    LOG(ERROR) << "Failed to set OPUS header gain; status = "
-                               << LFI_CALL(opus_strerror, *status);
+                status = opus_multistream_decoder_ctl(mDecoder,
+                                                    OPUS_SET_GAIN(mHeader.gain_db));
+                if (status != OPUS_OK) {
+                    ALOGE("Failed to set OPUS header gain; status = %s",
+                        opus_strerror(status));
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
@@ -395,7 +319,7 @@ ApexCodec_Status C2ApexOpusDec::process(
                 }
             } else {
                 if (inSize < 8) {
-                    LOG(ERROR) << "Input sample size is too small.";
+                    ALOGE("Input sample size is too small.");
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
@@ -413,8 +337,8 @@ ApexCodec_Status C2ApexOpusDec::process(
             std::vector<uint8_t> configUpdate;
             ++mInputBufferCount;
             if (mInputBufferCount == 3) {
-                LOG(INFO) << "Configuring decoder: " << kRate << " Hz, "
-                          << mHeader.channels << " channels";
+                ALOGI("Configuring decoder: %d Hz, %d channels",
+                    kRate, mHeader.channels);
                 C2StreamSampleRateInfo::output sampleRateInfo(0u, kRate);
                 C2StreamChannelCountInfo::output channelCountInfo(0u, mHeader.channels);
                 std::vector<std::unique_ptr<C2SettingResult>> failures;
@@ -426,14 +350,14 @@ ApexCodec_Status C2ApexOpusDec::process(
                     AppendParamsToVector(&configUpdate, &sampleRateInfo, &channelCountInfo);
                     output->setOwnedConfigUpdates(std::move(configUpdate));
                 } else {
-                    LOG(ERROR) << "Config Update failed";
+                    ALOGE("Config Update failed");
                     mSignalledError = true;
                     return APEXCODEC_STATUS_CORRUPTED;
                 }
             }
             if (eos) {
                 mSignalledOutputEos = true;
-                LOG(VERBOSE) << "signalled EOS";
+                ALOGV("signalled EOS");
             }
             ApexCodec_Buffer_setBufferInfo(
                     output,
@@ -473,17 +397,16 @@ ApexCodec_Status C2ApexOpusDec::process(
         // other timestamp).
         if (timestamp == uint64_t(0)) mSamplesToDiscard = mCodecDelay;
 
-        LOG(VERBOSE) << "data = " << (void*)data << ", inSize = " << inSize
-                     << ", outputBuffer.data = " << (void*)outputBuffer.data;
-        int numSamples = LFI_CALL(opus_multistream_decode,
-                                  mDecoder,
-                                  data,
-                                  inSize,
-                                  reinterpret_cast<int16_t *>(outputBuffer.data),
-                                  kMaxOpusOutputPacketSizeSamples,
-                                  0);
+        ALOGV("data = %p, inSize = %zu, outputBuffer.data = %p",
+              data, inSize, outputBuffer.data);
+        int numSamples = opus_multistream_decode(mDecoder,
+                                                data,
+                                                inSize,
+                                                reinterpret_cast<int16_t *>(outputBuffer.data),
+                                                kMaxOpusOutputPacketSizeSamples,
+                                                0);
         if (numSamples < 0) {
-            LOG(ERROR) << "opus_multistream_decode returned numSamples " << numSamples;
+            ALOGE("opus_multistream_decode returned numSamples %d", numSamples);
             numSamples = 0;
             mSignalledError = true;
             return APEXCODEC_STATUS_CORRUPTED;
@@ -504,7 +427,7 @@ ApexCodec_Status C2ApexOpusDec::process(
 
         if (numSamples) {
             int outSize = numSamples * sizeof(int16_t) * mHeader.channels;
-            LOG(VERBOSE) << "out buffer attr. offset " << outOffset << " size " << outSize;
+            ALOGV("out buffer attr. offset %d size %d ", outOffset, outSize);
 
             outputBuffer.data = outputBuffer.data + outOffset;
             *produced = outSize;
@@ -519,7 +442,7 @@ ApexCodec_Status C2ApexOpusDec::process(
         }
         if (eos) {
             mSignalledOutputEos = true;
-            LOG(VERBOSE) << "signalled EOS";
+            ALOGV("signalled EOS");
         }
         return APEXCODEC_STATUS_OK;
     } else {

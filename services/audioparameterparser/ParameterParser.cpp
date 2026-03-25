@@ -25,13 +25,12 @@ namespace vendor::audio::parserservice {
 
 using ::aidl::android::hardware::audio::core::VendorParameter;
 using ParameterScope = ::aidl::android::media::audio::IHalAdapterVendorExtension::ParameterScope;
-using ScopeType = ::aidl::android::media::audio::IHalAdapterVendorExtension::ScopeType;
 
 ::ndk::ScopedAStatus ParameterParser::parseVendorParameterIds(
-        const ParameterScope& in_scope, const std::string& in_rawKeys,
+        ParameterScope in_scope, const std::string& in_rawKeys,
         std::vector<std::string>* _aidl_return) {
-    LOG(DEBUG) << __func__ << ": scope: " << in_scope.toString() << ", keys: " << in_rawKeys;
-    if (in_scope.scope == ScopeType::MODULE) {
+    LOG(DEBUG) << __func__ << ": scope: " << toString(in_scope) << ", keys: " << in_rawKeys;
+    if (in_scope == ParameterScope::MODULE) {
         ::android::AudioParameter params(::android::String8(in_rawKeys.c_str()));
         if (params.containsKey(
                     ::android::String8(::android::AudioParameter::keyClipTransitionSupport))) {
@@ -41,11 +40,11 @@ using ScopeType = ::aidl::android::media::audio::IHalAdapterVendorExtension::Sco
     return ::ndk::ScopedAStatus::ok();
 }
 
-::ndk::ScopedAStatus ParameterParser::parseVendorParameters(const ParameterScope& in_scope,
+::ndk::ScopedAStatus ParameterParser::parseVendorParameters(ParameterScope in_scope,
                                                             const std::string& in_rawKeysAndValues,
                                                             std::vector<VendorParameter>*,
                                                             std::vector<VendorParameter>*) {
-    LOG(DEBUG) << __func__ << ": scope: " << in_scope.toString()
+    LOG(DEBUG) << __func__ << ": scope: " << toString(in_scope)
                << ", keys/values: " << in_rawKeysAndValues;
     return ::ndk::ScopedAStatus::ok();
 }
@@ -63,11 +62,11 @@ using ScopeType = ::aidl::android::media::audio::IHalAdapterVendorExtension::Sco
 }
 
 ::ndk::ScopedAStatus ParameterParser::processVendorParameters(
-        const ParameterScope& in_scope, const std::vector<VendorParameter>& in_parameters,
+        ParameterScope in_scope, const std::vector<VendorParameter>& in_parameters,
         std::string* _aidl_return) {
-    LOG(DEBUG) << __func__ << ": scope: " << in_scope.toString()
+    LOG(DEBUG) << __func__ << ": scope: " << toString(in_scope)
                << ", parameters: " << ::android::internal::ToString(in_parameters);
-    if (in_scope.scope == ScopeType::MODULE) {
+    if (in_scope == ParameterScope::MODULE) {
         ::android::AudioParameter result;
         for (const auto& param : in_parameters) {
             if (param.id == ::android::AudioParameter::keyClipTransitionSupport) {

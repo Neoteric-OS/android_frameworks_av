@@ -16,7 +16,6 @@
 */
 
 
-#include "system/audio.h"
 #define LOG_TAG "AudioFlinger"
 // #define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_AUDIO
@@ -41,7 +40,6 @@
 #include <cpustats/ThreadCpuUsage.h>
 #endif
 #include <audio_utils/channels.h>
-#include <audio_utils/clock.h>
 #include <audio_utils/format.h>
 #include <audio_utils/minifloat.h>
 #include <audio_utils/mono_blend.h>
@@ -174,27 +172,15 @@ static const uint32_t kMinThreadSleepTimeUs = 5000;
 // maximum divider applied to the active sleep time in the mixer thread loop
 static const uint32_t kMaxThreadSleepTimeShift = 2;
 
-// minimum playback period that allows the normal mixer to operate without a fast mixer,
-// expressed in milliseconds rather than frames
+// minimum normal sink buffer size, expressed in milliseconds rather than frames
 // FIXME This should be based on experimentally observed scheduling jitter
-static const uint32_t kNormalPlaybackPeriodMs =
-        property_get_int32("persist.audio.normal_playback_period_ms", 20);
-
-// minimum playback period that uses normal priority.
-static const uint32_t kNormalPriorityPlaybackPeriodMs =
-        property_get_int32("persist.audio.normal_priority_playback_period_ms", 20);
-
+static const uint32_t kMinNormalSinkBufferSizeMs = 20;
 // maximum normal sink buffer size
-static constexpr uint32_t kMaxNormalPlaybackPeriodMs = 24;
+static const uint32_t kMaxNormalSinkBufferSizeMs = 24;
 
 // minimum capture buffer size in milliseconds to _not_ need a fast capture thread
 // FIXME This should be based on experimentally observed scheduling jitter
-static const uint32_t kNormalCapturePeriodMs =
-        property_get_int32("persist.audio.normal_capture_period_ms", 12);
-
-// minimum capture buffer size for normal priority.
-static const uint32_t kNormalPriorityCapturePeriodMs =
-        property_get_int32("persist.audio.normal_priority_capture_period_ms", 12);
+static const uint32_t kMinNormalCaptureBufferSizeMs = 12;
 
 // Offloaded output thread standby delay: allows track transition without going to standby
 // QTI_BEGIN: 2018-07-24: Audio: AudioFlinger: Increase offload standby delay
@@ -245,9 +231,7 @@ static const enum {
     FastCapture_Static, // initialize if needed, then use all the time if initialized
 } kUseFastCapture = FastCapture_Static;
 
-// RT Priorities for requestPriority for Audio.
-static constexpr int kPriorityMinRT = 1;
-static constexpr int kPriorityMaxRT = 3;
+// Priorities for requestPriority
 static const int kPriorityAudioApp = 2;
 static const int kPriorityFastMixer = 3;
 static const int kPriorityFastCapture = 3;
@@ -2113,18 +2097,16 @@ audio_utils::CommandThread& ThreadBase::getAsyncCommandThread()
     return commandThread;
 }
 
-void ThreadBase::asyncBroadcast(std::chrono::nanoseconds delay)
+void ThreadBase::asyncBroadcast()
 {
     // Wake from a separate thread to avoid deadlock from the ThreadBase mutex.
-    // TODO: b/493288935 - Consider coalescing delayed asyncBroadcasts to the same Thread
-    // to the later time if they are close enough.
     getAsyncCommandThread().add(std::string("asyncBroadcast-").append(mThreadName),
         [wpThis = wp<ThreadBase>::fromExisting(this)]() {
             if (const auto thread = wpThis.promote()) {
                 audio_utils::lock_guard lg(thread->mutex());
                 thread->broadcast_l();
             }
-        }, delay);
+        });
 }
 
 // Call only from threadLoop() or when it is idle.
@@ -3378,10 +3360,8 @@ NO_THREAD_SAFETY_ANALYSIS
     // Note: mType == SPATIALIZER does not support FastMixer and DEEP is by definition not "fast"
     if (((mType == MIXER || isDup) && !(mOutput->flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER)) &&
             (kUseFastMixer == FastMixer_Static || kUseFastMixer == FastMixer_Dynamic)) {
-        size_t minNormalFrameCount = (kNormalPlaybackPeriodMs * mSampleRate)
-                / MILLIS_PER_SECOND;
-        size_t maxNormalFrameCount = (kMaxNormalPlaybackPeriodMs * mSampleRate)
-                / MILLIS_PER_SECOND;
+        size_t minNormalFrameCount = (kMinNormalSinkBufferSizeMs * mSampleRate) / 1000;
+        size_t maxNormalFrameCount = (kMaxNormalSinkBufferSizeMs * mSampleRate) / 1000;
 
         // round up minimum and round down maximum to nearest 16 frames to satisfy AudioMixer
         minNormalFrameCount = (minNormalFrameCount + 15) & ~15;
@@ -4075,18 +4055,12 @@ NO_THREAD_SAFETY_ANALYSIS  // manual locking of AudioFlinger
         // load.
         int32_t priority = property_get_int32("af.watch.thread.priority",
                 kPriorityWatchThread);
-        if (priority < kPriorityMinRT || priority > kPriorityMaxRT) {
-            ALOGW("%s: Invalid priority %d for watch thread, clamping to [%d, %d]",
-                  __func__, priority, kPriorityMinRT, kPriorityMaxRT);
-            priority = std::clamp(priority, kPriorityMinRT, kPriorityMaxRT);
+        if (priority < 1 || priority > 3) {
+            ALOGW("%s: Invalid priority %d for watch thread, clamping to [1, 3]",
+                  __func__, priority);
+            priority = std::clamp(priority, 1, 3);
         }
         boostThreadPriority(priority);
-    } else {
-        if (hasMixer() && mSampleRate > 0 &&
-                mNormalFrameCount * MILLIS_PER_SECOND
-                        / mSampleRate < kNormalPriorityPlaybackPeriodMs) {
-            boostThreadPriority(kPriorityMinRT);
-        }
     }
 
     std::vector<sp<IAfTrackBase>> tracksToRemove;
@@ -5079,13 +5053,6 @@ status_t PlaybackThread::createAudioPatch_l(const struct audio_patch *patch,
         status = mOutput->stream->legacyCreateAudioPatch(patch->sinks[0], std::nullopt, type);
         *handle = AUDIO_PATCH_HANDLE_NONE;
     }
-
-    // TODO(b/493682418) - Workaround for BT software HALs
-    if (isSuspended()) {
-        ALOGD("%s: restoring output with newly active patch", __func__);
-        restore();
-    }
-
     const std::string patchSinksAsString = patchSinksToString(patch);
 
     mThreadMetrics.logEndInterval();
@@ -5123,12 +5090,6 @@ status_t PlaybackThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
     status_t status = NO_ERROR;
 
     mPatch = audio_patch{};
-    const bool isAnyBt =
-            std::any_of(mOutDeviceTypeAddrs.begin(), mOutDeviceTypeAddrs.end(), [](const auto& x) {
-                return audio_is_a2dp_out_device(x.mType) || audio_is_ble_out_device(x.mType) ||
-                       audio_is_bluetooth_out_sco_device(x.mType);
-            });
-
     mOutDeviceTypeAddrs.clear();
 
 // QTI_BEGIN: 2022-10-06: Audio: audioflinger: Fix device routing metadata
@@ -5142,14 +5103,6 @@ status_t PlaybackThread::releaseAudioPatch_l(const audio_patch_handle_t handle)
         status = hwDevice->releaseAudioPatch(handle);
     } else {
         status = mOutput->stream->legacyReleaseAudioPatch();
-    }
-    // TODO(b/493682418) - Workaround for BT software HALs
-    if (!afThreadCallback()->isPrimary(mOutput->audioHwDev)
-            && hasMixer()
-            && isAnyBt
-            && !isSuspended()) {
-        ALOGD("%s: suspending output on released patch %d", __func__, handle);
-        suspend();
     }
 
     return status;
@@ -5251,10 +5204,10 @@ MixerThread::MixerThread(const sp<IAfThreadCallback>& afThreadCallback, AudioStr
             if (mType == MIXER && (output->flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER)) {
                 /* Do not init fast mixer on deep buffer, warn if buffers are confed too small */
                 initFastMixer = false;
-                ALOGW_IF(mFrameCount * MILLIS_PER_SECOND / mSampleRate < kNormalPlaybackPeriodMs,
-                         "HAL DEEP BUFFER Buffer (%lld ms) is smaller than set minimal buffer "
+                ALOGW_IF(mFrameCount * 1000 / mSampleRate < kMinNormalSinkBufferSizeMs,
+                         "HAL DEEP BUFFER Buffer (%zu ms) is smaller than set minimal buffer "
                          "(%u ms), seems like a configuration error",
-                         mFrameCount * MILLIS_PER_SECOND / mSampleRate, kNormalPlaybackPeriodMs);
+                         mFrameCount * 1000 / mSampleRate, kMinNormalSinkBufferSizeMs);
             } else {
                 initFastMixer = mFrameCount < mNormalFrameCount;
             }
@@ -7522,9 +7475,9 @@ status_t DirectOutputThread::getTimestamp_l(AudioTimestamp& timestamp)
 
 int64_t DirectOutputThread::computeWaitTimeNs_l() const {
     // If a VolumeShaper is active, we must wake up periodically to update volume.
-    return mVolumeShaperActive
-            ? kNormalPlaybackPeriodMs * NANOS_PER_MILLISECOND
-            : PlaybackThread::computeWaitTimeNs_l();
+    const int64_t NS_PER_MS = 1000000;
+    return mVolumeShaperActive ?
+            kMinNormalSinkBufferSizeMs * NS_PER_MS : PlaybackThread::computeWaitTimeNs_l();
 }
 
 // ----------------------------------------------------------------------------
@@ -8505,10 +8458,10 @@ RecordThread::RecordThread(const sp<IAfThreadCallback>& afThreadCallback,
     case FastCapture_Static:
         initFastCapture = !mIsMsdDevice // Disable fast capture for MSD BUS devices.
                 && audio_is_linear_pcm(mFormat)
-                && mFrameCount * MILLIS_PER_SECOND / mSampleRate < kNormalCapturePeriodMs;
+                && (mFrameCount * 1000) / mSampleRate < kMinNormalCaptureBufferSizeMs;
         ALOGV("%p kUseFastCapture = Static, format = 0x%x, (%lld * 1000) / %u vs %u, "
                 "initFastCapture = %d, mIsMsdDevice = %d", this, mFormat, (long long)mFrameCount,
-                mSampleRate, kNormalCapturePeriodMs, initFastCapture, mIsMsdDevice);
+                mSampleRate, kMinNormalCaptureBufferSizeMs, initFastCapture, mIsMsdDevice);
         break;
     // case FastCapture_Dynamic:
     }
@@ -8662,11 +8615,6 @@ void RecordThread::onClientFrozen(pid_t pid)
 bool RecordThread::threadLoop()
 {
     nsecs_t lastWarning = 0;
-
-    if (mType == RECORD && mSampleRate > 0 &&
-            mFrameCount * MILLIS_PER_SECOND / mSampleRate < kNormalPriorityCapturePeriodMs) {
-        boostThreadPriority(kPriorityMinRT);
-    }
 
     inputStandBy();
 
