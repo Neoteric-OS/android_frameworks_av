@@ -311,6 +311,10 @@ AudioTrack::AudioTrack(
                           "" /*codecProvenance*/}};
 }
 
+AudioTrack::AudioTrack(SetParams&& params) {
+    set(std::move(params));
+}
+
 void AudioTrack::onFirstRef() {
     if (mSetParams) {
         set(*mSetParams);
@@ -353,7 +357,7 @@ AudioTrack::~AudioTrack()
 
     stopAndJoinCallbacks(); // checks mStatus
 
-    if (mStatus == NO_ERROR) {
+    if (mStatus == NO_ERROR && mAudioTrack != nullptr) {
         IInterface::asBinder(mAudioTrack)->unlinkToDeath(mDeathNotifier, this);
         mAudioTrack.clear();
         mCblkMemory.clear();

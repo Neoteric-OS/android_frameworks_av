@@ -34,7 +34,6 @@
 #include <media/DeviceDescriptorBase.h>
 #include <media/MmapStreamInterface.h>
 #include <media/audiohal/StreamHalInterface.h>
-#include <media/nblog/NBLog.h>
 #include <timing/SyncEvent.h>
 #include <utils/RefBase.h>
 #include <vibrator/ExternalVibration.h>
@@ -359,6 +358,11 @@ public:
 
     virtual void broadcast_l() REQUIRES(mutex()) = 0;
 
+    // asyncBroadcast() signals the Thread asynchronously via a separate thread.
+    // It may be called without holding the ThreadBase mutex and is used to avoid
+    // deadlocks in complex call stacks.
+    virtual void asyncBroadcast() = 0;
+
     virtual bool isTimestampCorrectionEnabled_l() const REQUIRES(mutex()) = 0;
 
     virtual bool isMsdDevice() const = 0;
@@ -370,6 +374,9 @@ public:
 
     virtual audio_utils::mutex& mutex() const
             RETURN_CAPABILITY(audio_utils::ThreadBase_Mutex) = 0;
+
+    virtual void onClientUnfrozen(pid_t pid) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual void onClientFrozen(pid_t pid) EXCLUDES_ThreadBase_Mutex = 0;
 
     virtual void onEffectEnable(const sp<IAfEffectModule>& effect) EXCLUDES_ThreadBase_Mutex = 0;
     virtual void onEffectDisable(const sp<IAfEffectModule>& effect) EXCLUDES_ThreadBase_Mutex = 0;
@@ -699,10 +706,13 @@ public:
             EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t getMmapPosition(struct audio_mmap_position* position) const
             EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t start(
-            const AudioClient& client, const audio_attributes_t* attr,
-            audio_port_handle_t* handle) EXCLUDES_ThreadBase_Mutex = 0;
-    virtual status_t stop(audio_port_handle_t handle) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t createTrack(
+            const AudioClient& client, const audio_attributes_t& attr,
+            audio_port_handle_t* portId, audio_io_handle_t* ioHandle)
+            EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t startTrack(audio_port_handle_t portId) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t stopTrack(audio_port_handle_t portId) EXCLUDES_ThreadBase_Mutex = 0;
+    virtual status_t releaseTrack(audio_port_handle_t portId) EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t standby() EXCLUDES_ThreadBase_Mutex = 0;
     virtual status_t getObservablePosition(uint64_t* position, int64_t* timeNanos) const
             EXCLUDES_ThreadBase_Mutex = 0;

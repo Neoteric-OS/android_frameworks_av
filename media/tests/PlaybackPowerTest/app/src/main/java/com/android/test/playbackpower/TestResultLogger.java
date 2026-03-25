@@ -76,8 +76,8 @@ import org.json.JSONObject;
         }
     }
 
-    public void logSuccess() {
-        Log.i(mLogTag, "Succeeded");
+    public void logSuccess(String message) {
+        Log.i(mLogTag, "Succeeded " + message);
         if (mInitialChargeCounter != UNSET) {
             logEvent(mChargeCounterTimeMs, "charge_counter_end", mChargeCounter);
             long elapsedTimeSec = (mChargeCounterTimeMs - mInitialChargeCounterTimeMs) / 1000L;
@@ -91,6 +91,7 @@ import org.json.JSONObject;
                             elapsedTimeSec / 60,
                             elapsedTimeSec % 60));
         }
+        logEvent("success_summary", message);
         logFinalStatusAndWriteResultAsync("success");
     }
 
@@ -115,7 +116,7 @@ import org.json.JSONObject;
             JSONObject event = new JSONObject();
             event.put("timestamp_ms", timeMs);
             event.put(key, value);
-            mResult.accumulate("events", event);
+            mResult.append("events", event);
         } catch (JSONException e) {
             Log.e(mLogTag, "Failed to log event: " + key, e);
         }
