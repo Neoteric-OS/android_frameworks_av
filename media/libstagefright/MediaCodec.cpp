@@ -591,19 +591,8 @@ status_t MediaCodec::ResourceManagerServiceProxy::init() {
     return OK;
 }
 
-// Check whether the codec availability feature is on or off.
-inline bool IsCodecAvailabilityFeatureOn() {
-    if (android::media::codec::codec_availability() &&
-        android::media::codec::codec_availability_support()) {
-        return true;
-    }
-
-    return false;
-}
-
 inline bool IsCodecAvailabilityMetricsFeatureOn() {
-    if (IsCodecAvailabilityFeatureOn() &&
-        android::media::codec::codec_availability_metrics()) {
+    if (android::media::codec::codec_availability_metrics()) {
         return true;
     }
 
@@ -1477,7 +1466,7 @@ bool MediaCodec::getRequiredSystemResources() {
     std::vector<InstanceResourceInfo> oldResources;
     std::vector<InstanceResourceInfo> newResources;
 
-    if (IsCodecAvailabilityFeatureOn()) {
+    {
         Mutexed<std::vector<InstanceResourceInfo>>::Locked resourcesLocked(
                 mRequiredResourceInfo);
         // Make a copy of the previous required resources, if there were any.
@@ -1529,10 +1518,6 @@ std::vector<InstanceResourceInfo> MediaCodec::computeDynamicResources(
 //static
 status_t MediaCodec::getGloballyAvailableResources(std::vector<GlobalResourceInfo>& resources) {
     resources.clear();
-    // Make sure codec availability feature is on.
-    if (!IsCodecAvailabilityFeatureOn()) {
-        return ERROR_UNSUPPORTED;
-    }
 
     // Get binder interface to resource manager.
     ::ndk::SpAIBinder binder(AServiceManager_waitForService("media.resource_manager"));
@@ -3150,10 +3135,6 @@ status_t MediaCodec::configure(
 
 status_t MediaCodec::getRequiredResources(std::vector<InstanceResourceInfo>& resources) {
     resources.clear();
-    // Make sure codec availability feature is on.
-    if (!IsCodecAvailabilityFeatureOn()) {
-        return ERROR_UNSUPPORTED;
-    }
     // Make sure that the codec was configured already.
     if (mState != CONFIGURED && mState != STARTING && mState != STARTED &&
         mState != FLUSHING && mState != FLUSHED) {
@@ -5159,7 +5140,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
                         resources.push_back(
                                 MediaResource::GraphicMemoryResource(getGraphicBufferSize()));
                     }
-                    if (IsCodecAvailabilityFeatureOn()) {
+                    {
                         Mutexed<std::vector<InstanceResourceInfo>>::Locked resourcesLocked(
                                 mRequiredResourceInfo);
                         for (const InstanceResourceInfo& resource : *resourcesLocked) {
@@ -5483,7 +5464,7 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
 
                     // Remove the codec resources upon stop.
                     std::vector<MediaResourceParcel> resources;
-                    if (IsCodecAvailabilityFeatureOn()) {
+                    {
                         Mutexed<std::vector<InstanceResourceInfo>>::Locked resourcesLocked(
                                 mRequiredResourceInfo);
                         resources.reserve((*resourcesLocked).size());
