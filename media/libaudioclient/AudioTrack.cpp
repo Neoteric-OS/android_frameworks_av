@@ -1138,6 +1138,15 @@ void AudioTrack::pause()
 // QTI_END: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
 }
 
+status_t AudioTrack::flushFromFrame(
+        android::media::audio::common::FlushFromFrameAccuracy /*accuracy*/,
+        int64_t requestedPosition,
+        int64_t* actualFlushedPosition) {
+    // Dummy implementation. Need to call to the HAL.
+    *actualFlushedPosition = requestedPosition;
+    return NO_ERROR;
+}
+
 status_t AudioTrack::setVolume(float left, float right)
 {
     // This duplicates a test by AudioTrack JNI, but that is not the only caller
@@ -1938,7 +1947,8 @@ status_t AudioTrack::createTrack_l()
         }
     }
 
-    if (auto binder = defaultServiceManager()->checkService(String16("audio")); binder != nullptr) {
+    if (auto binder = defaultServiceManager()->checkService(String16("audio"));
+            binder != nullptr && mAttributes.usage == AUDIO_USAGE_ALARM) {
         // Barrier to ensure package/permission updates propagate to audioserver
         // Must be client-side
         interface_cast<IAudioManager>(binder)->getNativeInterface()->permissionUpdateBarrier(
