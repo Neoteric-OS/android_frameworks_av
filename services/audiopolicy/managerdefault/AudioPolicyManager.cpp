@@ -1470,9 +1470,11 @@ status_t AudioPolicyManager::getOutputForAttrInt(
                         audio_channel_count_from_out_mask(config->channel_mask));
         if (policyMixDevice != nullptr && (tryDirectForFlags || tryDirectForChannelMask)) {
             audio_io_handle_t newOutput;
+            audio_output_flags_t directFlags =
+                    static_cast<audio_output_flags_t>(*flags | AUDIO_OUTPUT_FLAG_DIRECT);
             status = openDirectOutput(
                     *stream, session, config,
-                    (audio_output_flags_t)(*flags | AUDIO_OUTPUT_FLAG_DIRECT),
+                    &directFlags,
                     DeviceVector(policyMixDevice), &newOutput, *resultAttr);
             if (status == NO_ERROR) {
                 policyDesc = mOutputs.valueFor(newOutput);
@@ -1725,7 +1727,7 @@ status_t AudioPolicyManager::getOutputForAttr(const audio_attributes_t *attr,
 status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
                                               audio_session_t session,
                                               const audio_config_t *config,
-                                              audio_output_flags_t flags,
+                                              audio_output_flags_t *flags,
                                               const DeviceVector &devices,
                                               audio_io_handle_t *output,
                                               audio_attributes_t attributes) {
@@ -1734,7 +1736,7 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
 
     // skip direct output selection if the request can obviously be attached to a mixed output
     // and not explicitly requested
-    if (((flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
+    if (((*flags & AUDIO_OUTPUT_FLAG_DIRECT) == 0) &&
             audio_is_linear_pcm(config->format) && config->sample_rate <= SAMPLE_RATE_HZ_MAX &&
             audio_channel_count_from_out_mask(config->channel_mask) <= 2) {
         return NAME_NOT_FOUND;
@@ -1743,19 +1745,18 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     // Reject flag combinations that do not make sense. Note that the requested flags might not
     // have the 'DIRECT' flag set, however once a direct-capable profile is found, it will
     // combine the requested flags with its own flags, yielding an unsupported combination.
-    if ((flags & AUDIO_OUTPUT_FLAG_DEEP_BUFFER) != 0) {
-        return NAME_NOT_FOUND;
-    }
+    audio_output_flags_t directFlags =
+            static_cast<audio_output_flags_t>(*flags & ~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
 
     // Do not allow offloading if one non offloadable effect is enabled or MasterMono is enabled.
     // This prevents creating an offloaded track and tearing it down immediately after start
     // when audioflinger detects there is an active non offloadable effect.
     sp<IOProfile> profile;
-    if (((flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
+    if (((directFlags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == 0) ||
             !(mEffects.isNonOffloadableEffectEnabled(session) || mMasterMono)) {
         profile = getProfileForOutput(
                 devices, config->sample_rate, config->format, config->channel_mask,
-                flags, true /* directOnly */);
+                directFlags, true /* directOnly */);
     }
 
     if (profile == nullptr) {
@@ -1816,13 +1817,13 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     releaseMsdOutputPatches(devices);
 
     status_t status =
-            outputDesc->open(config, nullptr /* mixerConfig */, devices, stream, &flags, output,
-                             attributes);
+            outputDesc->open(config, nullptr /* mixerConfig */, devices, stream, &directFlags,
+                             output, attributes);
 
     // only accept an output with the requested parameters, unless the format can be IEC61937
     // encapsulated and opened by AudioFlinger as wrapped IEC61937.
     const bool ignoreRequestedParametersCheck = audio_is_iec61937_compatible(config->format)
-            && (flags & AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO)
+            && (directFlags & AUDIO_OUTPUT_FLAG_IEC958_NONAUDIO)
             && audio_has_proportional_frames(outputDesc->getFormat());
     if (status != NO_ERROR ||
         (!ignoreRequestedParametersCheck &&
@@ -1856,6 +1857,7 @@ status_t AudioPolicyManager::openDirectOutput(audio_stream_type_t stream,
     mPreviousOutputs = mOutputs;
     ALOGV("%s returns new direct output %d", __func__, *output);
     mpClientInterface->onAudioPortListUpdate();
+    *flags = directFlags;
     return NO_ERROR;
 }
 
@@ -1893,9 +1895,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     if (stream != AUDIO_STREAM_MUSIC) {
         *flags = (audio_output_flags_t)(*flags &~AUDIO_OUTPUT_FLAG_DEEP_BUFFER);
     } else if (/* stream == AUDIO_STREAM_MUSIC && */
-            *flags == AUDIO_OUTPUT_FLAG_NONE && mConfig->useDeepBufferForMedia()
-            && audio_channel_count_from_out_mask(config->channel_mask) == 2
-            && config->sample_rate <= SAMPLE_RATE_HZ_MAX) {
+            *flags == AUDIO_OUTPUT_FLAG_NONE && mConfig->useDeepBufferForMedia()) {
         // use DEEP_BUFFER as default output for music stream type
         *flags = (audio_output_flags_t)AUDIO_OUTPUT_FLAG_DEEP_BUFFER;
     }
@@ -1933,7 +1933,7 @@ audio_io_handle_t AudioPolicyManager::getOutputForDevices(
     audio_config_t directConfig = *config;
     directConfig.channel_mask = channelMask;
 
-    status_t status = openDirectOutput(stream, session, &directConfig, *flags, devices, &output,
+    status_t status = openDirectOutput(stream, session, &directConfig, flags, devices, &output,
                                        *attr);
     if (status != NAME_NOT_FOUND) {
         return output;
