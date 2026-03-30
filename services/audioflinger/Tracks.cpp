@@ -2057,6 +2057,12 @@ status_t Track::setSyncEvent(
     return NO_ERROR;
 }
 
+void Track::poison()
+{
+    TrackBase::poison();
+    signalClientFlag(CBLK_POISONED);
+}
+
 void Track::invalidate()
 {
     TrackBase::invalidate();
@@ -2080,7 +2086,7 @@ void Track::signalClientFlag(int32_t flag)
     // FIXME should use proxy, and needs work
     audio_track_cblk_t* cblk = mCblk;
     android_atomic_or(flag, &cblk->mFlags);
-    android_atomic_release_store(0x40000000, &cblk->mFutex);
+    android_atomic_or(CBLK_FUTEX_NOTIFY, &cblk->mFutex);
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) syscall(__NR_futex, &cblk->mFutex, FUTEX_WAKE, INT_MAX);
 }
@@ -3155,7 +3161,7 @@ void RecordTrack::invalidate()
     // FIXME should use proxy, and needs work
     audio_track_cblk_t* cblk = mCblk;
     android_atomic_or(CBLK_INVALID, &cblk->mFlags);
-    android_atomic_release_store(0x40000000, &cblk->mFutex);
+    android_atomic_or(CBLK_FUTEX_NOTIFY, &cblk->mFutex);
     // client is not in server, so FUTEX_WAKE is needed instead of FUTEX_WAKE_PRIVATE
     (void) syscall(__NR_futex, &cblk->mFutex, FUTEX_WAKE, INT_MAX);
 }
@@ -3724,7 +3730,7 @@ getHardeningDecision(audio_usage_t usage, IAfThreadCallback& cb, uid_t uid) {
     using com::android::media::permission::PermissionEnum;
 
     const auto overrided = cb.getHardeningOverride();
-    if (overrided == ENABLE) {
+    if (overrided == ENABLE || overrided == THROW) {
         return {EnforcementLevel::FULL, NONE};
     } else if (overrided == DISABLE) {
         return {EnforcementLevel::NONE, OVERRIDE};
@@ -3734,16 +3740,16 @@ getHardeningDecision(audio_usage_t usage, IAfThreadCallback& cb, uid_t uid) {
     }
 
     const auto& pp = cb.getPermissionProvider();
-    if (pp.checkPermission(PermissionEnum::MODIFY_AUDIO_ROUTING, uid) ||
-        pp.checkPermission(PermissionEnum::MODIFY_PHONE_STATE, uid)) {
+    if (pp.checkPermission(PermissionEnum::MODIFY_AUDIO_ROUTING, uid).value_or(false) ||
+        pp.checkPermission(PermissionEnum::MODIFY_PHONE_STATE, uid).value_or(false)) {
         return {EnforcementLevel::NONE, PRIVILEGED_APP};
     }
 
     if (hardening_strict()) {
         if (hardening_usage()) {
             if (usage == AUDIO_USAGE_ALARM) {
-                if (pp.checkPermission(PermissionEnum::SCHEDULE_EXACT_ALARM, uid) ||
-                    pp.checkPermission(PermissionEnum::USE_EXACT_ALARM, uid)) {
+                if (pp.checkPermission(PermissionEnum::SCHEDULE_EXACT_ALARM, uid).value_or(false) ||
+                    pp.checkPermission(PermissionEnum::USE_EXACT_ALARM, uid).value_or(false)) {
                     return {EnforcementLevel::PARTIAL, ALARM};
                 }
             }
@@ -3788,7 +3794,8 @@ AfPlaybackCommon::AfPlaybackCommon(IAfTrackBase& self, IAfThreadBase& thread,
     // Don't bother for trusted uids or tracks used for internal redirection
     if (!skipOpsForUid(attributionSource.uid) && shouldPlaybackHarden) {
         if (isOffloadOrMmap) {
-            mExecutor.emplace();
+            mExecutor.emplace("AfCommonAppOps",
+                    audio_utils::nice_to_unified_priority(ANDROID_PRIORITY_AUDIO));
         }
         auto thread_wp = wp<IAfThreadBase>::fromExisting(&thread);
         mOpControlPartialSession.emplace(

@@ -20,6 +20,7 @@
 
 #include <android_companion_virtualdevice_flags.h>
 
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -32,12 +33,10 @@
 #include <vector>
 
 #include "VirtualCameraCaptureResult.h"
-#include "VirtualCameraDevice.h"
 #include "VirtualCameraImageHandler.h"
 #include "VirtualCameraImagePassthroughHandler.h"
 #include "VirtualCameraImageTransformingHandler.h"
 #include "VirtualCameraSessionContext.h"
-#include "aidl/android/hardware/camera/common/Status.h"
 #include "aidl/android/hardware/camera/device/BufferStatus.h"
 #include "aidl/android/hardware/camera/device/CameraMetadata.h"
 #include "aidl/android/hardware/camera/device/CaptureResult.h"
@@ -48,6 +47,7 @@
 #include "aidl/android/hardware/camera/device/StreamBuffer.h"
 #include "android-base/thread_annotations.h"
 #include "android/binder_auto_utils.h"
+#include "log/log_main.h"
 #include "system/camera_metadata.h"
 #include "ui/GraphicBuffer.h"
 #include "util/Util.h"
@@ -57,7 +57,6 @@ namespace companion {
 namespace virtualcamera {
 
 using ::aidl::android::companion::virtualcamera::Format;
-using ::aidl::android::hardware::camera::common::Status;
 using ::aidl::android::hardware::camera::device::BufferStatus;
 using ::aidl::android::hardware::camera::device::CameraMetadata;
 using ::aidl::android::hardware::camera::device::CaptureResult;
@@ -68,10 +67,7 @@ using ::aidl::android::hardware::camera::device::NotifyMsg;
 using ::aidl::android::hardware::camera::device::ShutterMsg;
 using ::aidl::android::hardware::camera::device::Stream;
 using ::aidl::android::hardware::camera::device::StreamBuffer;
-using ::aidl::android::hardware::graphics::common::PixelFormat;
 using ::android::base::ScopedLockAssertion;
-
-using ::android::hardware::camera::common::helper::ExifUtils;
 
 namespace {
 
@@ -187,6 +183,9 @@ const RequestSettings& ProcessCaptureRequestTask::getRequestSettings() const {
 void VirtualCameraRenderThread::requestTextureUpdate() {
   std::lock_guard<std::mutex> lock(mLock);
   ALOGV("%s", __func__);
+  if (mState == State::FLUSHING) {
+    return;
+  }
   // If queue is not empty, we don't need to set the mTextureUpdateRequested
   // flag, since the texture will be updated during ProcessCaptureRequestTask
   // processing anyway.
@@ -199,6 +198,20 @@ void VirtualCameraRenderThread::requestTextureUpdate() {
 void VirtualCameraRenderThread::enqueueTask(
     std::unique_ptr<ProcessCaptureRequestTask> task) {
   std::lock_guard<std::mutex> lock(mLock);
+  if (mState == State::FLUSHING) {
+    ALOGV("%s: Flushing, dropping task %d", __func__, task->getFrameNumber());
+    completeCaptureRequestWithError(*task);
+    return;
+  }
+
+  int lastFlushedFrame = mMaxFrameToFlush.load(std::memory_order_relaxed);
+  if (task->getFrameNumber() <= lastFlushedFrame) {
+    ALOGV("%s: Flushing up to frame:%d, dropping task for frame:%d", __func__,
+          lastFlushedFrame, task->getFrameNumber());
+    completeCaptureRequestWithError(*task);
+    return;
+  }
+
   // When enqueuing process capture request task, clear the
   // mTextureUpdateRequested flag. If this flag is set, the texture was not
   // yet updated and it will be updated when processing
@@ -208,14 +221,73 @@ void VirtualCameraRenderThread::enqueueTask(
   mTaskReadyCondVar.notify_one();
 }
 
-void VirtualCameraRenderThread::flush() {
-  std::lock_guard<std::mutex> lock(mLock);
+void VirtualCameraRenderThread::flush(int frameNumber) {
+  ALOGV("[%s] Flushing up to frame:%d", __func__, frameNumber);
+  std::unique_lock<std::mutex> lock(mLock);
+  ScopedLockAssertion lockAssertion(mLock);
+
+  ALOGV("[%s] State: %d, Queue size: %zu", __func__, mState,
+        mCaptureRequestQueue.size());
+  if (mState == State::IDLE && mCaptureRequestQueue.empty()) {
+    return;
+  }
+
+  bool waitForProcessingTask = false;
+  if (mState == State::PROCESSING) {
+    waitForProcessingTask = true;
+  }
+  setStateLocked(State::FLUSHING);
+
+  int flushFrame = std::max(
+      frameNumber, mProcessingFrameNumber.load(std::memory_order_relaxed));
+  mMaxFrameToFlush.store(flushFrame, std::memory_order_relaxed);
+
+  // First empty the queue to be sure that none of the queued
+  // request will be processed after the flush.
   while (!mCaptureRequestQueue.empty()) {
     std::unique_ptr<ProcessCaptureRequestTask> task =
         std::move(mCaptureRequestQueue.front());
     mCaptureRequestQueue.pop_front();
     completeCaptureRequestWithError(*task);
   }
+
+  // Then finish any pending processing.
+  mThrottlingCondVar.notify_all();
+  if (mImageHandler != nullptr) {
+    mImageHandler->interruptWait();
+  }
+  mTaskReadyCondVar.notify_all();
+
+  if (waitForProcessingTask) {
+    waitForStateLocked(State::IDLE, lock);
+  }
+}
+
+void VirtualCameraRenderThread::waitForState(State state) {
+  std::unique_lock<std::mutex> lock(mLock);
+  ScopedLockAssertion lockAssertion(mLock);
+  waitForStateLocked(state, lock);
+}
+
+void VirtualCameraRenderThread::waitForStateLocked(
+    State state, std::unique_lock<std::mutex>& lock) {
+  ALOGV("[%s] Waiting for state %d", __func__, state);
+  if (mState == state) {
+    return;
+  }
+  mStateCondVar.wait(
+      lock, [this, state]() REQUIRES(mLock) { return mState == state; });
+}
+
+void VirtualCameraRenderThread::setState(State state) {
+  std::lock_guard<std::mutex> lock(mLock);
+  setStateLocked(state);
+}
+
+void VirtualCameraRenderThread::setStateLocked(State state) {
+  ALOGV("[%s] Setting state to %d", __func__, state);
+  mState = state;
+  mStateCondVar.notify_all();
 }
 
 bool VirtualCameraRenderThread::start() {
@@ -229,7 +301,11 @@ void VirtualCameraRenderThread::stop() {
   {
     std::lock_guard<std::mutex> lock(mLock);
     mPendingExit = true;
-    mTaskReadyCondVar.notify_one();
+    if (mImageHandler != nullptr) {
+      mImageHandler->interruptWait();
+    }
+    mThrottlingCondVar.notify_all();
+    mTaskReadyCondVar.notify_all();
   }
 }
 
@@ -254,11 +330,15 @@ RenderThreadTask VirtualCameraRenderThread::dequeueTask() {
   // the lock is held in this scope, which is true, since it's only
   // released during waiting inside mCondVar.wait calls.
   ScopedLockAssertion lockAssertion(mLock);
+
   ALOGV("%s inputSurfaceIndex:%d, waiting on mTaskReadyCondVar", __func__,
         mInputSurfaceIndex);
   mTaskReadyCondVar.wait(lock, [this]() REQUIRES(mLock) {
-    ALOGV("dequeueTask inputSurfaceIndex:%d, notified mTaskReadyCondVar",
-          mInputSurfaceIndex);
+    ALOGV(
+        "dequeueTask inputSurfaceIndex:%d, notified mTaskReadyCondVar. "
+        "pendingExit:%s textureUpdateRequested:%s queueSize:%zu",
+        mInputSurfaceIndex, mPendingExit ? "true" : "false",
+        mTextureUpdateRequested ? "true" : "false", mCaptureRequestQueue.size());
     return mPendingExit || mTextureUpdateRequested ||
            !mCaptureRequestQueue.empty();
   });
@@ -267,6 +347,7 @@ RenderThreadTask VirtualCameraRenderThread::dequeueTask() {
     // Render thread task with null task signals render thread to terminate.
     return RenderThreadTask(nullptr);
   }
+
   if (mTextureUpdateRequested) {
     // If mTextureUpdateRequested, it's guaranteed the queue is empty, return
     // kUpdateTextureTask to signal we want render thread to update the
@@ -293,7 +374,9 @@ void VirtualCameraRenderThread::threadLoop() {
   while (RenderThreadTask task = dequeueTask()) {
     std::visit(
         overloaded{[this](const std::unique_ptr<ProcessCaptureRequestTask>& t) {
+                     setState(State::PROCESSING);
                      processCaptureRequest(*t);
+                     setState(State::IDLE);
                    },
                    [this](const UpdateTextureTask&) {
                      ALOGV("Idle update of the texture");
@@ -301,7 +384,6 @@ void VirtualCameraRenderThread::threadLoop() {
                    }},
         task);
   }
-
   mImageHandler.reset();
   mInputSurfaceFuture.get()->destroy();
   ALOGV("Render thread exiting. inputSurfaceIndex:%d", mInputSurfaceIndex);
@@ -309,31 +391,28 @@ void VirtualCameraRenderThread::threadLoop() {
 
 void VirtualCameraRenderThread::processCaptureRequest(
     const ProcessCaptureRequestTask& request) {
-  ALOGV("%s inputSurfaceIndex:%d, Request frame number: %d, capture intent %d",
-        __func__, mInputSurfaceIndex, request.getFrameNumber(),
+  mProcessingFrameNumber.store(request.getFrameNumber());
+  ALOGV("[%s] inputSurfaceIndex:%d, frameNumber:%d, captureIntent:%d", __func__,
+        mInputSurfaceIndex, request.getFrameNumber(),
         request.getRequestSettings().captureIntent);
+
+  if (isRequestInterrupted(request)) {
+    ALOGW("Render thread pending exit.");
+    completeCaptureRequestWithError(request);
+    return;
+  }
+
   std::chrono::nanoseconds deviceTime =
       std::chrono::duration_cast<std::chrono::nanoseconds>(
           std::chrono::steady_clock::now().time_since_epoch());
   const std::chrono::nanoseconds lastAcquisitionTimestamp(
       mLastAcquisitionTimestampNanoseconds.load(std::memory_order_relaxed));
 
-  ALOGV("lastAcquisitionTimestamp %lld", lastAcquisitionTimestamp.count());
+  ALOGV("lastAcquisitionTimestamp:%lld", lastAcquisitionTimestamp.count());
 
   // Calculate the maximal amount of time we can afford to wait for next frame.
   const bool isFirstFrameDrawn = mImageHandler->isFirstFrameDrawn();
   ALOGV("First Frame Drawn: %s", isFirstFrameDrawn ? "Yes" : "No");
-
-  bool pendingExit = false;
-  {
-    std::lock_guard<std::mutex> lock(mLock);
-    pendingExit = mPendingExit;
-  }
-  if (pendingExit) {
-    ALOGW("Render thread pending exit.");
-    completeCaptureRequestWithError(request);
-    return;
-  }
 
   if (!mImageHandler->waitForInputFrame(kWaitInputFrameTimeout)) {
     mWaitInputFrameTimeoutsCount++;
@@ -359,6 +438,11 @@ void VirtualCameraRenderThread::processCaptureRequest(
   // A frame was successfully received, reset the timeout counter.
   mWaitInputFrameTimeoutsCount = 0;
 
+  if (isRequestInterrupted(request)) {
+    completeCaptureRequestWithError(request);
+    return;
+  }
+
   // If the request has a maxFps, we throttle the rendering to make sure that
   // the requester receives the latest frame that was posted by the virtual
   // camera in the interval :
@@ -372,6 +456,10 @@ void VirtualCameraRenderThread::processCaptureRequest(
           request.getRequestSettings().fpsRange->maxFps);
     int maxFps = std::max(1, request.getRequestSettings().fpsRange->maxFps);
     throttleRendering(maxFps, lastAcquisitionTimestamp);
+    if (isRequestInterrupted(request)) {
+      completeCaptureRequestWithError(request);
+      return;
+    }
   }
 
   // Acquire new (most recent) image from the Surface.
@@ -475,7 +563,10 @@ void VirtualCameraRenderThread::throttleRendering(
     std::chrono::nanoseconds beforeSleep =
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch());
-    std::this_thread::sleep_for(sleepTime);
+    {
+      std::unique_lock<std::mutex> lock(mLock);
+      mThrottlingCondVar.wait_for(lock, sleepTime);
+    }
     std::chrono::nanoseconds after_sleep =
         std::chrono::duration_cast<std::chrono::nanoseconds>(
             std::chrono::steady_clock::now().time_since_epoch());
@@ -689,6 +780,30 @@ bool VirtualCameraRenderThread::initializeImageHandler() {
 
   mInputSurfacePromise.set_value(mImageHandler->getInputSurface());
   return true;
+}
+
+bool VirtualCameraRenderThread::isRequestInterrupted(
+    const ProcessCaptureRequestTask& request) {
+  int lastFlushedFrame = mMaxFrameToFlush.load();
+  if (request.getFrameNumber() <= lastFlushedFrame) {
+    ALOGI(
+        "Request interrupted because flushed happened during processing. "
+        "frameNumber:%d",
+        request.getFrameNumber());
+    return true;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(mLock);
+    if (mPendingExit || mState == State::FLUSHING) {
+      ALOGI("render request interrupted because of pending exit or flushing");
+      return true;
+    }
+  }
+
+  ALOGV("Request not interrupted. lastFlushedFrame:%d frameNumber:%d",
+        lastFlushedFrame, request.getFrameNumber());
+  return false;
 }
 
 }  // namespace virtualcamera
