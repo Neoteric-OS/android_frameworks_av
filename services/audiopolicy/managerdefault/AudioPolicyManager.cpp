@@ -2900,7 +2900,13 @@ status_t AudioPolicyManager::startSource(const sp<SwAudioOutputDescriptor>& outp
     outputDesc->setClientActive(client, true);
 
     if (client->hasPreferredDevice(true)) {
-        devices = getNewOutputDevices(outputDesc, false /*fromCache*/);
+        if (outputDesc->sameExclusivePreferredDevicesCount() > 0) {
+            // Preferred device may be exclusive, use only if no other active clients on this output
+            devices = DeviceVector(
+                        mAvailableOutputDevices.getDeviceFromId(client->preferredDeviceId()));
+        } else {
+            devices = getNewOutputDevices(outputDesc, false /*fromCache*/);
+        }
         if (devices != outputDesc->devices()) {
             checkStrategyRoute(clientStrategy, outputDesc->mIoHandle);
         }
@@ -5843,22 +5849,14 @@ status_t AudioPolicyManager::clearPreferredMixerAttributes(const audio_attribute
 
 status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
                                             audio_port_type_t type,
-                                            unsigned int *num_ports,
-                                            struct audio_port_v7 *ports,
+                                            std::vector<audio_port_v7>& ports,
                                             unsigned int *generation)
 {
-    if (num_ports == nullptr || (*num_ports != 0 && ports == nullptr) ||
-            generation == nullptr) {
+    if (generation == nullptr) {
         return BAD_VALUE;
     }
-    ALOGVV("listAudioPorts() role %d type %d num_ports %d ports %p", role, type, *num_ports, ports);
-    if (ports == nullptr) {
-        *num_ports = 0;
-    }
-
-    size_t portsWritten = 0;
-    size_t portsMax = *num_ports;
-    *num_ports = 0;
+    ALOGVV("listAudioPorts() role %d type %d", role, type);
+    ports.clear();
     if (type == AUDIO_PORT_TYPE_NONE || type == AUDIO_PORT_TYPE_DEVICE) {
         // do not report devices with type AUDIO_DEVICE_IN_STUB or AUDIO_DEVICE_OUT_STUB
         // as they are used by stub HALs by convention
@@ -5867,10 +5865,8 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
                 if (dev->type() == AUDIO_DEVICE_OUT_STUB) {
                     continue;
                 }
-                if (portsWritten < portsMax) {
-                    dev->toAudioPort(&ports[portsWritten++]);
-                }
-                (*num_ports)++;
+                ports.push_back(audio_port_v7{});
+                dev->toAudioPort(&ports.back());
             }
         }
         if (role == AUDIO_PORT_ROLE_SOURCE || role == AUDIO_PORT_ROLE_NONE) {
@@ -5878,36 +5874,32 @@ status_t AudioPolicyManager::listAudioPorts(audio_port_role_t role,
                 if (dev->type() == AUDIO_DEVICE_IN_STUB) {
                     continue;
                 }
-                if (portsWritten < portsMax) {
-                    dev->toAudioPort(&ports[portsWritten++]);
-                }
-                (*num_ports)++;
+                ports.push_back(audio_port_v7{});
+                dev->toAudioPort(&ports.back());
             }
         }
     }
     if (type == AUDIO_PORT_TYPE_NONE || type == AUDIO_PORT_TYPE_MIX) {
         if (role == AUDIO_PORT_ROLE_SINK || role == AUDIO_PORT_ROLE_NONE) {
-            for (size_t i = 0; i < mInputs.size() && portsWritten < portsMax; i++) {
-                mInputs[i]->toAudioPort(&ports[portsWritten++]);
+            for (size_t i = 0; i < mInputs.size(); i++) {
+                audio_port_v7 port;
+                mInputs[i]->toAudioPort(&port);
+                ports.push_back(port);
             }
-            *num_ports += mInputs.size();
         }
         if (role == AUDIO_PORT_ROLE_SOURCE || role == AUDIO_PORT_ROLE_NONE) {
-            size_t numOutputs = 0;
             for (size_t i = 0; i < mOutputs.size(); i++) {
                 if (!mOutputs[i]->isDuplicated()) {
-                    numOutputs++;
-                    if (portsWritten < portsMax) {
-                        mOutputs[i]->toAudioPort(&ports[portsWritten++]);
-                    }
+                    audio_port_v7 port;
+                    mOutputs[i]->toAudioPort(&port);
+                    ports.push_back(port);
                 }
             }
-            *num_ports += numOutputs;
         }
     }
 
     *generation = curAudioPortGeneration();
-    ALOGVV("listAudioPorts() got %zu ports needed %d", portsWritten, *num_ports);
+    ALOGVV("%s got %zu ports generation %u", __func__, ports.size(), *generation);
     return NO_ERROR;
 }
 
@@ -6488,15 +6480,16 @@ status_t AudioPolicyManager::releaseAudioPatchInternal(audio_patch_handle_t hand
     return NO_ERROR;
 }
 
-status_t AudioPolicyManager::listAudioPatches(unsigned int *num_patches,
-                                              struct audio_patch *patches,
+status_t AudioPolicyManager::listAudioPatches(std::vector<struct audio_patch>& patches,
                                               unsigned int *generation)
 {
-    if (generation == NULL) {
+    if (generation == nullptr) {
         return BAD_VALUE;
     }
     *generation = curAudioPortGeneration();
-    return mAudioPatches.listAudioPatches(num_patches, patches);
+    status_t status = mAudioPatches.listAudioPatches(patches);
+    ALOGVV("%s num patches %zu, generation %u", __func__, patches.size(), *generation);
+    return status;
 }
 
 status_t AudioPolicyManager::setAudioPortConfig(const struct audio_port_config *config)
@@ -10530,42 +10523,58 @@ status_t AudioPolicyManager::getFlushFromFrameSupport(
         const audio_attributes_t& attr,
         uid_t uid,
         audio_output_flags_t flags,
-        media::audio::common::FlushFromFrameSupport* support) const {
-        if (support == nullptr) {
-            // This must not happen as the framework should not pass in invalid pointer.
-            // Adding an extra track to avoid crash.
-            return BAD_VALUE;
-        }
-        // Currently, the `flushFromFrame` can only be supported by the PCM offload playback.
-        if (!audio_is_linear_pcm(config.format) ||
-            (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == AUDIO_OUTPUT_FLAG_NONE) {
-            *support = media::audio::common::FlushFromFrameSupport::UNSUPPORTED;
-            return NO_ERROR;
-        }
-        auto outputDevices = mEngine->getOutputDevicesForAttributes(
-                attr, uid, nullptr /*preferredDevice*/, false);
-        auto profile = getProfileForOutput(
-                outputDevices, config.sample_rate, config.format, config.channel_mask,
-                flags, true /*directOnly*/);
-        if (profile == nullptr) {
-            *support = media::audio::common::FlushFromFrameSupport::UNSUPPORTED;
-            return NO_ERROR;
-        }
+        media::audio::common::FlushFromFrameSupport* support) {
+    if (support == nullptr) {
+        // This must not happen as the framework should not pass in invalid pointer.
+        // Adding an extra track to avoid crash.
+        return BAD_VALUE;
+    }
+    // Currently, the `flushFromFrame` can only be supported by the PCM offload playback.
+    if (!audio_is_linear_pcm(config.format) ||
+        (flags & AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD) == AUDIO_OUTPUT_FLAG_NONE) {
+        *support = media::audio::common::FlushFromFrameSupport::UNSUPPORTED;
+        return NO_ERROR;
+    }
 
-        if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) != AUDIO_OUTPUT_FLAG_NONE) {
-            // For MMAP PCM offload, flushFromFrame is supported by the framework.
-            *support = media::audio::common::FlushFromFrameSupport::SUPPORTED;
-            return NO_ERROR;
-        }
-        // TODO: b/461579162 - consider if it can use the mmap offload as backend.
+    bool useMmapBackend = false;
+    if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) == AUDIO_OUTPUT_FLAG_NONE &&
+        useMmapForPcmOffload(&useMmapBackend) == NO_ERROR && useMmapBackend) {
+        // If using mmap as backend and the flag doesn't contain mmap, force use mmap offload
+        // flag for query.
+        static constexpr audio_output_flags_t kMmapOffloadFlags =
+                static_cast<audio_output_flags_t>(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD |
+                        AUDIO_OUTPUT_FLAG_MMAP_NOIRQ | AUDIO_OUTPUT_FLAG_DIRECT);
+        flags = kMmapOffloadFlags;
+    }
+    if (!useMmapBackend && (flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) == AUDIO_OUTPUT_FLAG_NONE) {
+        // Temporarily disable flushFromFrame support on classical PCM offload path.
+        *support = media::audio::common::FlushFromFrameSupport::UNSUPPORTED;
+        return NO_ERROR;
+    }
 
-        media::audio::common::AudioPortConfig portConfig;
-        portConfig.format = VALUE_OR_RETURN_STATUS(
-                legacy2aidl_audio_format_t_AudioFormatDescription(config.format));
-        portConfig.flags = AudioIoFlags::make<AudioIoFlags::Tag::output>(
-                VALUE_OR_RETURN_STATUS(legacy2aidl_audio_output_flags_t_int32_t_mask(flags)));
-        return mpClientInterface->getFlushFromFrameSupport(
-                profile->getModuleHandle(), portConfig, support);
+    auto outputDevices = mEngine->getOutputDevicesForAttributes(
+            attr, uid, nullptr /*preferredDevice*/, false);
+    auto profile = getProfileForOutput(
+            outputDevices, config.sample_rate, config.format, config.channel_mask,
+            flags, true /*directOnly*/);
+    if (profile == nullptr) {
+        *support = media::audio::common::FlushFromFrameSupport::UNSUPPORTED;
+        return NO_ERROR;
+    }
+
+    if ((flags & AUDIO_OUTPUT_FLAG_MMAP_NOIRQ) != AUDIO_OUTPUT_FLAG_NONE) {
+        // For MMAP PCM offload, flushFromFrame is supported by the framework.
+        *support = media::audio::common::FlushFromFrameSupport::SUPPORTED;
+        return NO_ERROR;
+    }
+
+    media::audio::common::AudioPortConfig portConfig;
+    portConfig.format = VALUE_OR_RETURN_STATUS(
+            legacy2aidl_audio_format_t_AudioFormatDescription(config.format));
+    portConfig.flags = AudioIoFlags::make<AudioIoFlags::Tag::output>(
+            VALUE_OR_RETURN_STATUS(legacy2aidl_audio_output_flags_t_int32_t_mask(flags)));
+    return mpClientInterface->getFlushFromFrameSupport(
+            profile->getModuleHandle(), portConfig, support);
 }
 
 status_t AudioPolicyManager::useMmapForPcmOffload(bool* result) {
