@@ -1231,7 +1231,7 @@ status_t StreamOutHalAidl::getPresentationPosition(uint64_t *frames, struct time
     RETURN_STATUS_IF_ERROR(getObservablePosition(&aidlFrames, &aidlTimestamp, &statePositions));
     // See the table at the start of 'StreamHalInterface'.
     if (!mContext.isAsynchronous() &&
-        !mContext.isDirect() &&
+        /* !mContext.isDirect() && For QC, direct PCM timestamp is reset at AudioFlinger */
         audio_has_proportional_frames(mConfig.format)) {
         *frames = aidlFrames;
     } else {
