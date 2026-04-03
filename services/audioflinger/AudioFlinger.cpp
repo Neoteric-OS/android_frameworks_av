@@ -32,6 +32,7 @@
 #include <android-base/errors.h>
 #include <android-base/stringprintf.h>
 #include <android/media/IAudioPolicyService.h>
+#include <audio_utils/CommandThread.h>
 #include <audiomanager/IAudioManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
@@ -282,14 +283,22 @@ class DevicesFactoryHalCallbackImpl : public DevicesFactoryHalCallback {
         // Start a detached thread to execute notification in parallel.
         // This is done to prevent mutual blocking of audio_flinger and
         // audio_policy services during system initialization.
-        std::thread notifier([]() {
+        AudioFlinger::getAsyncCallbackThread().add("onNewAudioModulesAvailable", []() {
             AudioSystem::onNewAudioModulesAvailable();
         });
-        notifier.detach();
     }
 };
 
 // ----------------------------------------------------------------------------
+
+// static
+audio_utils::CommandThread& AudioFlinger::getAsyncCallbackThread()
+{
+    [[clang::no_destroy]] static audio_utils::CommandThread commandThread(
+            "AF_AsyncCallback",
+            audio_utils::nice_to_unified_priority(ANDROID_PRIORITY_AUDIO));
+    return commandThread;
+}
 
 void AudioFlinger::instantiate() {
     sp<IServiceManager> sm(defaultServiceManager());
@@ -2291,6 +2300,7 @@ void AudioFlinger::NotificationClient::onStateChanged(
     if (state == IBinder::FrozenStateChangeCallback::State::FROZEN) {
         frozen = true;
         fstring = "frozen";
+        mFreezeTime = systemTime(SYSTEM_TIME_MONOTONIC);
     } else if (state == IBinder::FrozenStateChangeCallback::State::UNFROZEN) {
         frozen = false;
         fstring = "unfrozen";
@@ -2351,6 +2361,22 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
     // TODO pass wrapped object around
     adjAttributionSource = std::move(validatedAttrSource).unwrapInto();
 
+    sp<NotificationClient> notificationClient; // acquire notificationClient outside of AF lock.
+
+    auto checkFrozen = [&](const char* where, sp<NotificationClient> nc) {
+        if (!nc) return false;
+
+        const auto [frozen, freezeTime] = nc->getFrozenStatus();
+        const int deltaMs = (systemTime(SYSTEM_TIME_MONOTONIC) - freezeTime)
+                / NANOS_PER_MILLISECOND;
+        if (frozen) {
+            ALOGW("createRecord: record request denied for pid %d at %s - frozen for %d ms",
+                    adjAttributionSource.pid, where, deltaMs);
+            lStatus = PERMISSION_DENIED;
+        }
+        return frozen;
+    };
+
     // further format checks are performed by createRecordTrack_l()
     if (!audio_is_valid_format(input.config.format)) {
         ALOGE("createRecord() invalid format %#x", input.config.format);
@@ -2377,6 +2403,16 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
     output.flags = input.flags;
 
     client = registerClient(adjAttributionSource.pid, adjAttributionSource.uid);
+    {
+        audio_utils::lock_guard _cl(clientMutex());
+        if (const auto it = mNotificationClients.find(callingPid);
+             it != mNotificationClients.end()) {
+             notificationClient = it->second;
+        }
+    }
+
+    // Check to see if we are frozen.
+    if (checkFrozen("begin", notificationClient)) goto Exit; // lStatus reads PERMISSION_DENIED.
 
     // Not a conventional loop, but a retry loop for at most two iterations total.
     // Try first maybe with FAST flag then try again without FAST flag if that fails.
@@ -2429,6 +2465,10 @@ status_t AudioFlinger::createRecord(const media::CreateRecordRequest& _input,
                                                   input.clientInfo.clientTid,
                                                   &lStatus, portId, input.maxSharedAudioHistoryMs);
         LOG_ALWAYS_FATAL_IF((lStatus == NO_ERROR) && (recordTrack == 0));
+
+        // Double checked atomic rollback.
+        if (checkFrozen("end", notificationClient)) goto Exit; // lStatus reads PERMISSION_DENIED.
+
 
         // lStatus == BAD_TYPE means FAST flag was rejected: request a new input from
         // audio policy manager without FAST constraint

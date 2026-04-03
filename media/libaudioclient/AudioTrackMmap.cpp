@@ -249,6 +249,16 @@ void AudioTrackMmap::flush() {
     mState = STATE_FLUSHED;
 }
 
+status_t AudioTrackMmap::flushFromFrame(
+        android::media::audio::common::FlushFromFrameAccuracy accuracy,
+        int64_t requestedPosition,
+        int64_t *actualFlushedPosition) {
+    AutoMutex lock(mLock);
+    *actualFlushedPosition = requestedPosition;
+    return AAudioConvert_aaudioToAndroidStatus(mStream->flushFromFrame(
+            AAudioConvert_androidToAAudioFlushFromAccuracy(accuracy), actualFlushedPosition));
+}
+
 ssize_t AudioTrackMmap::getBufferSizeInFrames() {
     AutoMutex lock(mLock);
     return mStream->getBufferSize();
@@ -419,7 +429,9 @@ nsecs_t AudioTrackMmap::processAudioBuffer() {
         }
     }
     audio_utils::unique_lock ul(mMmapCbMutex);
-    mMmapCbCond.wait(ul);
+    mMmapCbCond.wait(ul, [this]() REQUIRES(mMmapCbMutex) {
+        return !mCbEvents.empty() || mStoppingCallback;
+    });
     while (!mCbEvents.empty()) {
         const auto& event = mCbEvents.front();
         switch (event.mEvent) {
@@ -464,6 +476,10 @@ void AudioTrackMmap::stopAndJoinCallbacks() {
     }
     if (mAudioTrackThread != nullptr) {
         mAudioTrackThread->requestExit();
+        {
+            std::lock_guard _l(mMmapCbMutex);
+            mStoppingCallback = true;
+        }
         mMmapCbCond.notify_one();
         mAudioTrackThread->requestExitAndWait();
         mAudioTrackThread.clear();
