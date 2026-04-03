@@ -75,8 +75,7 @@ status_t AudioStreamOut::getPresentationPosition(uint64_t *frames, struct timesp
         return status;
     }
 
-    if (audioflinger::EffectConfiguration::isHidl() &&
-        mHalFormatHasProportionalFrames &&
+    if (mHalFormatHasProportionalFrames &&
             (flags & AUDIO_OUTPUT_FLAG_DIRECT) == AUDIO_OUTPUT_FLAG_DIRECT) {
 // QTI_BEGIN: 2024-11-26: Audio: Revert "av: Fix frames consumed for pcm during flush scenarios"
         *frames = halPosition / mRateMultiplier;
