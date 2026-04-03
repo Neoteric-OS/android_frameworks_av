@@ -5587,7 +5587,6 @@ bool PlaybackThread::waitingAsyncCallback()
     return waitingAsyncCallback_l();
 }
 
-// shared by MIXER and DIRECT, overridden by DUPLICATING
 void PlaybackThread::threadLoop_standby()
 {
     mLocalLog.log("threadLoop_standby");
@@ -7353,6 +7352,12 @@ void DirectOutputThread::threadLoop_exit()
         }
     }
     PlaybackThread::threadLoop_exit();
+}
+
+void DirectOutputThread::threadLoop_standby()
+{
+    PlaybackThread::threadLoop_standby();
+    mMonotonicFrameCounter.onFlush();  // reset monotonic counter
 }
 
 // must be called with thread mutex locked
