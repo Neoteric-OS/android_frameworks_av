@@ -1870,7 +1870,6 @@ protected:
     void threadLoop_mix() final REQUIRES(ThreadBase_ThreadLoop);
     void threadLoop_sleepTime() final REQUIRES(ThreadBase_ThreadLoop);
     void threadLoop_exit() override REQUIRES(ThreadBase_ThreadLoop);
-    void threadLoop_standby() override REQUIRES(ThreadBase_ThreadLoop);
     bool shouldStandby_l() final REQUIRES(mutex());
 
     void onAddNewTrack_l() final REQUIRES(mutex());

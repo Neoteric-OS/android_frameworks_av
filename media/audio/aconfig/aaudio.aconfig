@@ -12,4 +12,11 @@ flag {
     description: "Enable offload support in AAudio."
     bug: "372041799"
 }
+
+flag {
+    name: "sample_rate_conversion"
+    namespace: "media_audio"
+    description: "Enable the AAudio sample rate converter."
+    bug: "219533889"
+}
 # go/keep-sorted end
