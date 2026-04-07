@@ -30,6 +30,7 @@
 #include <afutils/FallibleLockGuard.h>
 #include <afutils/Vibrator.h>
 #include <android/media/BnMmapStream.h>
+#include <android/binder_to_string.h>
 #include <audio_utils/MelProcessor.h>
 #include <audio_utils/Metadata.h>
 #include <audio_utils/Time.h>
@@ -122,6 +123,7 @@ namespace audioserver_flags = com::android::media::audioserver;
 namespace android {
 
 using audioflinger::SyncEvent;
+using HardeningOverride = media::IAudioPolicyService::HardeningOverride;
 using media::IEffectClient;
 using content::AttributionSourceState;
 
@@ -1283,6 +1285,8 @@ void ThreadBase::resizeInputBuffer_l(int32_t /* maxSharedAudioHistoryMs */)
 
 void ThreadBase::PMDeathRecipient::binderDied(const wp<IBinder>& /* who */)
 {
+    audio_utils::set_priority_for_binder_callback(__func__);
+
     sp<ThreadBase> thread = mThread.promote();
     if (thread != 0) {
         thread->clearPowerManager();
@@ -1758,6 +1762,17 @@ void ThreadBase::disconnectEffectHandle(IAfEffectHandle* handle,
     }
 }
 
+std::vector<audio_port_handle_t> ThreadBase::invalidateTracksForPid_l(pid_t pid) {
+    std::vector<audio_port_handle_t> portIds;
+    for (const auto& t : mTracks) {
+        if (t->creatorPid() == pid && t->isExternalTrack()) {
+            t->invalidate();
+            portIds.push_back(t->portId());
+        }
+    }
+    return portIds;
+}
+
 void ThreadBase::onEffectEnable(const sp<IAfEffectModule>& effect) {
     if (isOffloadOrMmap() || mType == DIRECT) {
         audio_utils::lock_guard _l(mutex());
@@ -2076,7 +2091,9 @@ void ThreadBase::broadcast_l()
 // static
 audio_utils::CommandThread& ThreadBase::getAsyncCommandThread()
 {
-    [[clang::no_destroy]] static audio_utils::CommandThread commandThread{};
+    [[clang::no_destroy]] static audio_utils::CommandThread commandThread(
+            "ThreadBaseAsyncCommand",
+            audio_utils::nice_to_unified_priority(ANDROID_PRIORITY_URGENT_AUDIO));
     return commandThread;
 }
 
@@ -5894,6 +5911,11 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                         portMute = track->getPortVolume() == 0.f;
                         portVolumeMute = track->getPortMute();
                     }
+                    bool restricted = track->isPlaybackRestrictedControl();
+                    if (restricted &&
+                        mAfThreadCallback->getHardeningOverride() == HardeningOverride::THROW) {
+                        track->poison();
+                    }
                     track->processMuteEvent(*amn,
                             /*muteState=*/{/*muteFromMasterMute*/ masterVolume == 0.f,
                                            /*muteFromStreamVolume*/ portMute,
@@ -5902,8 +5924,7 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                                            /*muteFromClientVolume*/ vlf == 0.f && vrf == 0.f,
                                            /*muteFromVolumeShaper*/ vh == 0.f,
                                            /*muteFromPortVolume*/ portVolumeMute,
-                                           /*muteFromOpAudioControl*/
-                                               track->isPlaybackRestrictedControl()});
+                                           /*muteFromOpAudioControl*/ restricted});
                 }
                 vlf *= volume;
                 vrf *= volume;
@@ -6112,6 +6133,11 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                         getPortMute = track->getPortMute();
 
                     }
+                    bool restricted = track->isPlaybackRestrictedControl();
+                    if (restricted &&
+                        mAfThreadCallback->getHardeningOverride() == HardeningOverride::THROW) {
+                        track->poison();
+                    }
                     track->processMuteEvent(*amn,
                             /*muteState=*/{/*muteFromMasterMute*/ masterVolume == 0.f,
                                            /*muteFromStreamVolume*/ portMute,
@@ -6121,8 +6147,7 @@ PlaybackThread::mixer_state MixerThread::prepareTracks_l(
                                            /*muteFromClientVolume*/ vlf == 0.f && vrf == 0.f,
                                            /*muteFromVolumeShaper*/ vh == 0.f,
                                            /*muteFromPortVolume*/ getPortMute,
-                                           /*muteFromOpAudioControl*/
-                                                   track->isPlaybackRestrictedControl()});
+                                           /*muteFromOpAudioControl*/ restricted});
                 }
                 // now apply the master volume and stream type volume and shaper volume
                 vlf *= v * vh;
@@ -6892,6 +6917,10 @@ void DirectOutputThread::processVolume_l(const sp<IAfTrack>& track, bool lastTra
             portMute = track->getPortVolume() == 0.f;
             portVolumeMute = track->getPortMute();
         }
+        bool restricted = track->isPlaybackRestrictedControl();
+        if (restricted && mAfThreadCallback->getHardeningOverride() == HardeningOverride::THROW) {
+            track->poison();
+        }
         track->processMuteEvent(*amn,
                 /*muteState=*/{/*muteFromMasterMute*/ mMasterMute,
                                /*muteFromStreamVolume*/ portMute,
@@ -6900,8 +6929,7 @@ void DirectOutputThread::processVolume_l(const sp<IAfTrack>& track, bool lastTra
                                /*muteFromClientVolume*/ clientVolumeMute,
                                /*muteFromVolumeShaper*/ shaperVolume == 0.f,
                                /*muteFromPortVolume*/ portVolumeMute,
-                               /*muteFromOpAudioControl*/
-                                       track->isPlaybackRestrictedControl()});
+                               /*muteFromOpAudioControl*/ restricted});
 
         track->maybeLogPlaybackHardening(*amn);
     }
@@ -8560,6 +8588,30 @@ void RecordThread::preExit()
     mStartStopCV.notify_all();
 }
 
+void RecordThread::onClientFrozen(pid_t pid)
+{
+    if (!property_get_bool("persist.audio.record_freeze_invalidate", true)) {
+        return;
+    }
+    // We must delay the invalidation until after the freeze transition
+    // to prevent creating excessive client activity during transition.
+    static constexpr auto kFreezeDelay = std::chrono::milliseconds(100);
+    const auto wpThis = wp<RecordThread>::fromExisting(this);
+    getAsyncCommandThread().add(
+            std::string("RecordThread::onClientFrozen-").append(mThreadName),
+            [wpThis, pid]() {
+                const auto recordThread = wpThis.promote();
+                if (recordThread) {
+                    audio_utils::lock_guard lg(recordThread->mutex());
+                    const auto portIds = recordThread->invalidateTracksForPid_l(pid);
+                    ALOGD_IF(!portIds.empty(), "onClientFrozen(%d): "
+                            "portIds %s invalidated for frozen pid %d",
+                            recordThread->id(),
+                            internal::ToString(portIds).c_str(), pid);
+                }
+            }, kFreezeDelay);
+}
+
 bool RecordThread::threadLoop()
 {
     nsecs_t lastWarning = 0;
@@ -8592,9 +8644,6 @@ reacquire_wakelock:
 
         // reference to the (first and only) active fast track
         sp<IAfRecordTrack> fastTrack;
-
-        // reference to a fast track which is about to be removed
-        sp<IAfRecordTrack> fastTrackToRemove;
 
         bool silenceFastCapture = false;
 
@@ -8632,18 +8681,15 @@ reacquire_wakelock:
 
             bool doBroadcast = false;
             bool allStopped = true;
-            for (auto it = mActiveTracks.begin() ; it != mActiveTracks.end(); ) {
-                if (activeTrack) {  // ensure track release is outside lock.
-                    oldActiveTracks.emplace_back(std::move(activeTrack));
-                }
-                activeTrack = (*it)->asIAfRecordTrack();
-                if (activeTrack->isTerminated()) {
-                    if (activeTrack->isFastTrack()) {
-                        ALOG_ASSERT(fastTrackToRemove == 0);
-                        fastTrackToRemove = activeTrack;
-                    }
-                    removeTrack_l(activeTrack);
-                    it = mActiveTracks.erase(it);
+
+            std::vector<std::pair<sp<IAfRecordTrack>,
+                                  bool /* fromTracksToo */>> activeTracksToRemove;
+            for (const auto& track: mActiveTracks) {
+                activeTrack = track->asIAfRecordTrack();
+                oldActiveTracks.emplace_back(activeTrack);
+
+                if (activeTrack->isTerminated() || activeTrack->isInvalid()) {
+                    activeTracksToRemove.emplace_back(activeTrack, /* fromTracksToo */ true);
                     continue;
                 }
 
@@ -8651,20 +8697,13 @@ reacquire_wakelock:
                 switch (activeTrackState) {
 
                 case IAfTrackBase::PAUSING:
-                    it = mActiveTracks.erase(it);
+                    activeTracksToRemove.emplace_back(activeTrack, /* fromTracksToo */ false);
                     activeTrack->setState(IAfTrackBase::PAUSED);
-                    if (activeTrack->isFastTrack()) {
-                        ALOGV("%s fast track is paused, thus removed from active list", __func__);
-                        // Keep a ref on fast track to wait for FastCapture thread to get updated
-                        // state before potential track removal
-                        fastTrackToRemove = activeTrack;
-                    }
                     doBroadcast = true;
                     continue;
 
                 case IAfTrackBase::STARTING_1:
                     sleepUs = 10000;
-                    ++it;
                     allStopped = false;
                     continue;
 
@@ -8715,18 +8754,20 @@ reacquire_wakelock:
                     }
                     if (invalidate) {
                         activeTrack->invalidate();
-                        fastTrackToRemove = activeTrack;
-                        removeTrack_l(activeTrack);
-                        it = mActiveTracks.erase(it);
+                        activeTracksToRemove.emplace_back(activeTrack, /* fromTracksToo */ true);
                         continue;
                     }
                     fastTrack = activeTrack;
                 }
 
                 activeTracks.push_back(activeTrack);
-                ++it;
             }
 
+            // update the active track list.
+            for (const auto& [track, fromTracksToo] : activeTracksToRemove) {
+                mActiveTracks.remove(track);
+                if (fromTracksToo) removeTrack_l(track);
+            }
             mActiveTracks.updatePowerState_l(this);
 
             // check if traces have been enabled.
@@ -8829,9 +8870,6 @@ reacquire_wakelock:
 #endif
             }
         }
-
-        // now run the fast track destructor with thread mutex unlocked
-        fastTrackToRemove.clear();
 
         // Read from HAL to keep up with fastest client if multiple active tracks, not slowest one.
         // Only the client(s) that are too slow will overrun. But if even the fastest client is too
@@ -10921,10 +10959,14 @@ status_t MmapThread::startTrack(audio_port_handle_t portId)
         // force volume update when a new track is added
         mHalVolFloat = -1.0f;
     } else {
-        track->asIAfMmapTrack()->setSilenced_l(isClientSilenced_l(portId));
-        for (const auto& t : mActiveMmapTracksView) {
-            if (t->isSilenced_l() && t->uid() != track->uid()) {
-                t->invalidate();
+        const bool silenced = isClientSilenced_l(portId);
+        track->asIAfMmapTrack()->setSilenced_l(silenced);
+        // Only invalidate silenced MMAP tracks when a non-silenced track is started.
+        if (!silenced) {
+            for (const auto& t : mActiveMmapTracksView) {
+                if (t->isSilenced_l() && t->uid() != track->uid()) {
+                    t->invalidate();
+                }
             }
         }
     }
@@ -10999,6 +11041,22 @@ status_t MmapThread::stopTrack(audio_port_handle_t portId)
     return NO_ERROR;
 }
 
+void MmapThread::releaseAllTracks() {
+    audio_utils::unique_lock ul {mutex()};
+    auto tracks = mTracks;
+    auto threadPortId = mPortId;
+    ul.unlock();
+    for (auto& track : tracks) {
+        // The portId equals to mPortId. In that case, any track id must not be the same
+        // as portId. Otherwise, there will be endless recursive loop.
+        LOG_ALWAYS_FATAL_IF(threadPortId == track->portId(),
+                            "The track port id must not be the same as thread port id");
+        releaseTrack(track->portId());
+    }
+    // DO NOT relock as our copy of track can be the last copy, the track dtor
+    // should be run without lock to prevent join deadlock
+}
+
 status_t MmapThread::releaseTrack(audio_port_handle_t portId)
 {
     ALOGV("%s handle %d", __func__, portId);
@@ -11009,20 +11067,30 @@ status_t MmapThread::releaseTrack(audio_port_handle_t portId)
         return NO_INIT;
     }
 
-    auto track = ThreadBase::getTrackById_l(portId);
-    if (track == nullptr) {
-        ALOGE("%s(%d), cannot find the track", __func__, portId);
-        return NAME_NOT_FOUND;
-    }
-
-    if (mActiveTracks.count(track) != 0) {
+    if (portId == mPortId) {
+        // If the portId is the same as thread's port id, the whole aaudio stream is gone. It is
+        // better for audioflinger to stop and release all active tracks.
         ul.unlock();
-        stopTrack(portId);
-        ul.lock();
-    }
-    mTracks.remove(track);
+        releaseAllTracks();
+    } else {
+        auto track = ThreadBase::getTrackById_l(portId);
+        if (track == nullptr) {
+            ALOGE("%s(%d), cannot find the track", __func__, portId);
+            return NAME_NOT_FOUND;
+        }
 
-    ul.unlock();
+        if (mActiveTracks.count(track) != 0) {
+            ul.unlock();
+            stopTrack(portId);
+            ul.lock();
+        }
+        mTracks.remove(track);
+        // Unlock in case our copy of track is the last copy. The track destructor should be
+        // run without lock to avoid join deadlock.
+        ul.unlock();
+    }
+
+    LOG_ALWAYS_FATAL_IF(ul.owns_lock(), "Must not own lock when releasing");
     if (isOutput()) {
         AudioSystem::releaseOutput(portId);
     } else {

@@ -868,7 +868,10 @@ GraphicView2MediaImageConverter::GraphicView2MediaImageConverter(
 // QTI_BEGIN: 2025-02-18: Video: Codec2: Disable buffer wrapping for 64 bit build
 #if defined(__aarch64__)
     // Temporarily disable wrapping for 64 bit
-    tryWrapping = false;
+    // adding below check to enable tryWrapping for non-zero top,left offset
+    if (view.crop().left == 0 && view.crop().top == 0) {
+        tryWrapping = false;
+    }
 #endif
 
 // QTI_END: 2025-02-18: Video: Codec2: Disable buffer wrapping for 64 bit build
