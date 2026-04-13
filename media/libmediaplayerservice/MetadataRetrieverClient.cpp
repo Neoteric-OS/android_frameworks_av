@@ -59,12 +59,6 @@ MetadataRetrieverClient::MetadataRetrieverClient(pid_t pid)
 {
     ALOGV("MetadataRetrieverClient constructor pid(%d)", pid);
     mPid = pid;
-// QTI_BEGIN: 2023-06-21: Video: libmediaplayerservice: Enable perfboost during heif decode
-    // Trigger Perf boost to support faster HEIF decoding. Set the duration
-    // to indefinite. This perflock will be released when MetadataRetrieverClient
-    // is released.
-    mPerfBoost = std::make_unique<HeifPerfBoost>(true, 0);
-// QTI_END: 2023-06-21: Video: libmediaplayerservice: Enable perfboost during heif decode
     mAlbumArt = NULL;
     mRetriever = NULL;
 }
@@ -203,6 +197,13 @@ status_t MetadataRetrieverClient::setDataSource(
 {
     ALOGV("setDataSource(IDataSource)");
     Mutex::Autolock lock(mLock);
+
+    if (mime && strcasecmp(mime, "image/heif") == 0) {
+        // Trigger Perf boost to support faster HEIF decoding. Set the duration
+        // to indefinite. This perflock will be released when MetadataRetrieverClient
+        // is released.
+        mPerfBoost = std::make_unique<HeifPerfBoost>(true, 0);
+    }
 
     sp<DataSource> dataSource = CreateDataSourceFromIDataSource(source);
     player_type playerType =
