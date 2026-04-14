@@ -3216,12 +3216,22 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             // one being selected for this output
             std::map<audio_io_handle_t, DeviceVector> outputsToReopen;
             uint32_t delayMs = outputDesc->latency()*2;
+            // see getNewOutputDevices -- output activity on these streams are special: they affect
+            // the routing on other outputs. For example, ALARM activity on primary results in media
+            // playback on deep buffer routing to a2dp+speaker. As such, when stopping the alarm
+            // output, we must re-evaluate routing (on the same module) on all other outputs.
+            const auto mostRecentStrat =
+                    outputDesc->getMostRecentStrategy(std::numeric_limits<int32_t>::max());
+            const bool forceReeval =
+                    mostRecentStrat == streamToStrategy(AUDIO_STREAM_ALARM, clientUid) ||
+                    mostRecentStrat ==
+                            streamToStrategy(AUDIO_STREAM_ENFORCED_AUDIBLE, clientUid);
             for (size_t i = 0; i < mOutputs.size(); i++) {
                 sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
                 if (desc != outputDesc &&
                         desc->isActive() &&
                         outputDesc->sharesHwModuleWith(desc) &&
-                        (newDevices != desc->devices())) {
+                        (newDevices != desc->devices() || forceReeval)) {
                     DeviceVector newDevices2 = getNewOutputDevices(desc, false /*fromCache*/);
                     bool force = desc->devices() != newDevices2;
 
@@ -10632,13 +10642,14 @@ status_t AudioPolicyManager::useMmapForPcmOffload(bool* result) {
     char buf[PROPERTY_VALUE_MAX] = {};
     *result = false;
 
+    // TODO: b/479291234, change default value to true when fully tested.
     if (const auto mmapOffloadProfile = mHwModules.getCompatibleProfile(
                 mmapOffloadFlags, false /*isInput*/);
             mmapOffloadProfile == nullptr) {
         // If MMAP offload is not supported, never use MMAP for PCM offload via AudioTrack
         ALOGD("%s: do not prefer mmap pcm offload as mmap pcm offload is not supported", __func__);
         *result = false;
-    } else if (!property_get_bool(preferMmapPcmOffloadSysProp, true /* default_value */)) {
+    } else if (!property_get_bool(preferMmapPcmOffloadSysProp, false /* default_value */)) {
         // If persist.media.audio.prefer_mmap_pcm_offload is false, never use MMAP for
         // PCM offload via AudioTrack
         ALOGD("%s: do not prefer mmap pcm offload as by %s is false",
