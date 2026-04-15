@@ -13,10 +13,13 @@ flag {
 }
 
 flag {
-  name: "ahardware_buffer_fetch_flag"
+  name: "ahardware_buffer_fetch_bugfix"
   namespace: "codec_fwk"
-  description: "Feature flag to enabling ahardwarebuffer graphic buffer fetch"
+  description: "Feature flag to enabling ahardwarebuffer graphic buffer fetch (Bugfix)"
   bug: "456253311"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
 }
 
 flag {
@@ -45,24 +48,10 @@ flag {
 }
 
 flag {
-  name: "codec_availability"
-  namespace: "codec_fwk"
-  description: "Feature flag for codec availability HAL API support"
-  bug: "363282971"
-}
-
-flag {
   name: "codec_availability_metrics"
   namespace: "codec_fwk"
   description: "Feature flag for codec availability metrics collection"
   bug: "402463766"
-}
-
-flag {
-  name: "codec_availability_support"
-  namespace: "codec_fwk"
-  description: "Feature flag for codec availability HAL API implementation"
-  bug: "363282971"
 }
 
 flag {
@@ -361,14 +350,6 @@ flag {
   namespace: "codec_fwk"
   description: "Feature flag for Android support for VVC Content"
   bug: "426238242"
-  is_exported: true
-}
-
-flag {
-  name: "xhe_aac_encoder"
-  namespace: "codec_fwk"
-  description: "Feature flag for xHE-AAC encoder APIs"
-  bug: "449005879"
   is_exported: true
 }
 # go/keep-sorted end

@@ -35,6 +35,10 @@ public:
     void stop() final;
     void pause() final;
     void flush() final;
+    status_t flushFromFrame(
+            android::media::audio::common::FlushFromFrameAccuracy accuracy,
+            int64_t requestedPosition,
+            int64_t* actualFlushedPosition) final;
     status_t setVolume(float left, float right) final;
     ssize_t getBufferSizeInFrames() final;
     ssize_t setBufferSizeInFrames(size_t size) final;
@@ -108,6 +112,7 @@ private:
     std::mutex mMmapCbMutex;
     std::condition_variable mMmapCbCond;
     std::deque<CallbackEvent> mCbEvents GUARDED_BY(mMmapCbMutex);
+    bool mStoppingCallback GUARDED_BY(mMmapCbMutex){false};
 };
 
 } // namespace android

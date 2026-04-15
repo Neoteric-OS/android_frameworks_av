@@ -531,7 +531,7 @@ public:
 
     void broadcast_l() final REQUIRES(mutex());
 
-    void asyncBroadcast() final;
+    void asyncBroadcast(std::chrono::nanoseconds delay = std::chrono::nanoseconds(0)) final;
 
     bool isTimestampCorrectionEnabled_l() const override REQUIRES(mutex()) { return false; }
 
@@ -559,10 +559,8 @@ public:
     void onEffectEnable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
     void onEffectDisable(const sp<IAfEffectModule>& effect) final EXCLUDES_ThreadBase_Mutex;
 
-    void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) override
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
-    void stopMelComputation_l() override
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
+    void asyncStartMelComputation(const sp<audio_utils::MelProcessor>& processor) final;
+    void asyncStopMelComputation() final;
 
     audio_utils::DeferredExecutor& getThreadloopExecutor() override {
         return mThreadloopExecutor;
@@ -653,6 +651,12 @@ protected:
             REQUIRES(mutex(), ThreadBase_ThreadLoop) {
                                 return INVALID_OPERATION;
                             }
+
+    // Safe to call without locks as it only interacts with atomic or internally locked members.
+    virtual void startMelComputation(const sp<audio_utils::MelProcessor>& processor)
+            EXCLUDES_ThreadBase_Mutex;
+    virtual void stopMelComputation() EXCLUDES_ThreadBase_Mutex;
+
 public:
 // TODO(b/291317898) organize with publics
    product_strategy_t getStrategyForStream(audio_stream_type_t stream, uid_t uid) const;
@@ -1058,6 +1062,11 @@ protected:
     // Threads, so do not do compute heavy operations on it.
     static audio_utils::CommandThread& getAsyncCommandThread();
 
+    // AsyncCallbackThread is a singleton thread used for handling client
+    // callbacks.  As a single thread, it avoids messages being sent
+    // out of order.
+    static audio_utils::CommandThread& getAsyncCallbackThread();
+
     private:
     void dumpBase_l(int fd, const Vector<String16>& args) REQUIRES(mutex());
     void dumpEffectChains_l(int fd, const Vector<String16>& args) REQUIRES(mutex());
@@ -1230,21 +1239,9 @@ public:
     sp<StreamHalInterface> stream() const final;
 
     // suspend(), restore(), and isSuspended() are implemented atomically.
-    void suspend() final { ++mSuspended; }
-    void restore() final {
-        // if restore() is done without suspend(), get back into
-        // range so that the next suspend() will operate correctly
-        while (true) {
-            int32_t suspended = mSuspended;
-            if (suspended <= 0) {
-                ALOGW("%s: invalid mSuspended %d <= 0", __func__, suspended);
-                return;
-            }
-            const int32_t desired = suspended - 1;
-            if (mSuspended.compare_exchange_weak(suspended, desired)) return;
-        }
-    }
-    bool isSuspended() const final { return mSuspended > 0; }
+    void suspend() final { mSuspended.store(true); }
+    void restore() final { mSuspended.store(false); }
+    bool isSuspended() const final { return mSuspended.load(); }
 
     String8 getParameters(const String8& keys) EXCLUDES_ThreadBase_Mutex;
 
@@ -1342,11 +1339,6 @@ public:
                     return INVALID_OPERATION;
                 }
 
-    void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) override
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
-    void stopMelComputation_l() override
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
-
     void setStandby() final EXCLUDES_ThreadBase_Mutex {
         audio_utils::lock_guard _l(mutex());
                     setStandby_l();
@@ -1388,6 +1380,10 @@ public:
     }
 
 protected:
+    void startMelComputation(const sp<audio_utils::MelProcessor>& processor) override
+            EXCLUDES_ThreadBase_Mutex;
+    void stopMelComputation() override EXCLUDES_ThreadBase_Mutex;
+
     // updated by readOutputParameters_l()
     size_t                          mNormalFrameCount;  // normal mixer and effects
 
@@ -1478,12 +1474,11 @@ protected:
     // Size of mPostSpatializerBuffer in bytes
     size_t mPostSpatializerBufferSize GUARDED_BY(mutex());
 
-    // suspend count, > 0 means suspended.  While suspended, the thread continues to pull from
-    // tracks and mix, but doesn't write to HAL.  A2DP and SCO HAL implementations can't handle
-    // concurrent use of both of them, so Audio Policy Service suspends one of the threads to
-    // workaround that restriction.
-    // 'volatile' means accessed via atomic operations and no lock.
-    std::atomic<int32_t> mSuspended;
+    // While suspended, the thread continues to pull from
+    // tracks and mix, but doesn't write to HAL (the output is standby).
+    // We suspend when outputs patches are cleared in the case the HAL doesn't handle the cleared
+    // patch similar to standby on an existing patch.
+    std::atomic<bool> mSuspended;
 
     int64_t                         mBytesWritten;
     std::atomic<int64_t> mFramesWritten;  // not reset on standby
@@ -2530,11 +2525,6 @@ public:
     status_t getPlaybackParameters(media::audio::common::AudioPlaybackRate* rate)
             final EXCLUDES_ThreadBase_Mutex;
 
-    void startMelComputation_l(const sp<audio_utils::MelProcessor>& processor) final
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
-    void stopMelComputation_l() final
-            REQUIRES(audio_utils::AudioFlinger_Mutex);
-
     sp<VolumeInterface> asVolumeInterface() final {
        return static_cast<VolumeInterface*>(this);
     }
@@ -2542,6 +2532,10 @@ public:
     void onWakeUp();
 
 protected:
+    void startMelComputation(const sp<audio_utils::MelProcessor>& processor) override
+            EXCLUDES_ThreadBase_Mutex;
+    void stopMelComputation() override EXCLUDES_ThreadBase_Mutex;
+
     void dumpInternals_l(int fd, const Vector<String16>& args) final REQUIRES(mutex());
 
     audio_stream_type_t mStreamType GUARDED_BY(mutex());

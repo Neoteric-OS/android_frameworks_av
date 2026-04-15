@@ -28,6 +28,7 @@
 #include <android-base/stringprintf.h>
 #include <audio_utils/clock.h>
 #include <audio_utils/primitives.h>
+#include <audiomanager/IAudioManager.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <media/AudioTrack.h>
@@ -64,6 +65,7 @@ namespace android {
 
 using media::VolumeShaper;
 using android::content::AttributionSourceState;
+using android::media::audio::common::FlushFromFrameAccuracy;
 
 // TODO: Move to a separate .h
 
@@ -1137,6 +1139,37 @@ void AudioTrack::pause()
 // QTI_END: 2014-03-06: Audio: AudioTrack: When paused, return cached playback position
 }
 
+status_t AudioTrack::flushFromFrame(
+        FlushFromFrameAccuracy accuracy,
+        int64_t requestedPosition,
+        int64_t* actualFlushedPosition) {
+    if (mAudioTrack == nullptr) {
+        return NO_INIT;
+    }
+    if (accuracy != FlushFromFrameAccuracy::EXACT &&
+        accuracy != FlushFromFrameAccuracy::BEST_EFFORT) {
+        return BAD_VALUE;
+    }
+    const auto writtenFrameCount = getWrittenFramesCount();
+    if (requestedPosition < 0 || requestedPosition > writtenFrameCount) {
+        return BAD_VALUE;
+    }
+    if (requestedPosition == writtenFrameCount) {
+        *actualFlushedPosition = writtenFrameCount;
+        return NO_ERROR;
+    }
+    if (accuracy == FlushFromFrameAccuracy::EXACT) {
+        AudioTimestamp timestamp{};
+        if (getTimestamp(timestamp) != OK || requestedPosition < timestamp.mPosition) {
+            return BAD_VALUE;
+        }
+    }
+    // Dummy implementation. Need to call to the HAL.
+    // Currently always return the written frame count as the flushed or suggested position.
+    *actualFlushedPosition = writtenFrameCount;
+    return accuracy == FlushFromFrameAccuracy::EXACT ? BAD_VALUE : NO_ERROR;
+}
+
 status_t AudioTrack::setVolume(float left, float right)
 {
     // This duplicates a test by AudioTrack JNI, but that is not the only caller
@@ -1935,6 +1968,14 @@ status_t AudioTrack::createTrack_l()
                   convertTransferToText(mTransfer));
             mFlags = (audio_output_flags_t) (mFlags & ~AUDIO_OUTPUT_FLAG_FAST);
         }
+    }
+
+    if (auto binder = defaultServiceManager()->checkService(String16("audio"));
+            binder != nullptr && mAttributes.usage == AUDIO_USAGE_ALARM) {
+        // Barrier to ensure package/permission updates propagate to audioserver
+        // Must be client-side
+        interface_cast<IAudioManager>(binder)->getNativeInterface()->permissionUpdateBarrier(
+                /*forRecord=*/false);
     }
 
     IAudioFlinger::CreateTrackInput input;

@@ -114,13 +114,8 @@ using H2BGraphicBufferProducer2 = ::android::hardware::graphics::bufferqueue::
         V2_0::utils::H2BGraphicBufferProducer;
 using ::android::hardware::media::c2::V1_2::SurfaceSyncObj;
 
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
-using AidlGraphicBufferAllocator = ::aidl::android::hardware::media::c2::
-        implementation::GraphicBufferAllocator;
-#else
 using AidlGraphicBufferAllocator =
         ::aidl::android::hardware::media::c2::implementation::LegacyGraphicBufferAllocator;
-#endif
 
 namespace bufferpool2_aidl = ::aidl::android::hardware::media::bufferpool2;
 namespace bufferpool_hidl = ::android::hardware::media::bufferpool::V2_0;
@@ -2199,13 +2194,8 @@ public:
             mCurrentInterface.reset();
         }
         // TODO: integrate initial value with CCodec/CCodecBufferChannel
-#if COM_ANDROID_GRAPHICS_LIBGUI_FLAGS(WB_MEDIA_MIGRATION)
-        mCurrent =
-                AidlGraphicBufferAllocator::CreateGraphicBufferAllocator(3 /* maxDequeueCount */);
-#else
         mCurrent = AidlGraphicBufferAllocator::CreateLegacyGraphicBufferAllocator(
                 3 /* maxDequeueCount */);
-#endif
         mCurrentInterface = std::make_shared<C2IgbaInterfaceImpl>(
                 c2_aidl::IGraphicBufferAllocator::fromBinder(mCurrent->asBinder()));
         ALOGD("GraphicBufferAllocator created");
@@ -3640,12 +3630,10 @@ c2_status_t Codec2Client::Component::stop() {
 
 c2_status_t Codec2Client::Component::reset() {
     if (mApexBase) {
+        // ApexHandler::stop() resets the underlying component
         mApexHandler->stop();
-        if (__builtin_available(android 36, *)) {
-            return (c2_status_t)ApexCodec_Component_reset(mApexBase);
-        } else {
-            return C2_OMITTED;
-        }
+        // stop() may return C2_BAD_STATE, but it's OK.
+        return C2_OK;
     }
     if (mAidlBase) {
         ::ndk::ScopedAStatus transStatus = mAidlBase->reset();
@@ -3666,12 +3654,10 @@ c2_status_t Codec2Client::Component::reset() {
 
 c2_status_t Codec2Client::Component::release() {
     if (mApexBase) {
+        // ApexHandler::stop() resets the underlying component
         mApexHandler->stop();
-        if (__builtin_available(android 36, *)) {
-            return (c2_status_t)ApexCodec_Component_reset(mApexBase);
-        } else {
-            return C2_OMITTED;
-        }
+        // stop() may return C2_BAD_STATE, but it's OK.
+        return C2_OK;
     }
     if (mAidlBase) {
         std::shared_ptr<AidlGraphicBufferAllocator> gba =
