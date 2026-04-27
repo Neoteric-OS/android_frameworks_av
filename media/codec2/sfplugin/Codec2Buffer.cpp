@@ -101,7 +101,6 @@ void Codec2Buffer::setImageData(const sp<ABuffer> &imageData) {
 }
 
 // LocalLinearBuffer
-// QTI_BEGIN: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 std::shared_ptr<C2Buffer> LocalLinearMetadataBuffer::asC2Buffer() {
     return mBufferRef;
 }
@@ -109,7 +108,6 @@ std::shared_ptr<C2Buffer> LocalLinearMetadataBuffer::asC2Buffer() {
 void LocalLinearMetadataBuffer::clearC2BufferRefs() {
     mBufferRef.reset();
 }
-// QTI_END: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 
 bool LocalLinearBuffer::canCopy(const std::shared_ptr<C2Buffer> &buffer) const {
     return canCopyLinear(buffer);
@@ -119,7 +117,6 @@ bool LocalLinearBuffer::copy(const std::shared_ptr<C2Buffer> &buffer) {
     return copyLinear(buffer);
 }
 
-// QTI_BEGIN: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 // LocalLinearMetadataBuffer
 
 bool LocalLinearMetadataBuffer::canCopy(const std::shared_ptr<C2Buffer> &buffer) const {
@@ -150,7 +147,6 @@ bool LocalLinearMetadataBuffer::copy(const std::shared_ptr<C2Buffer> &buffer) {
     return true;
 }
 
-// QTI_END: 2021-06-01: Video: EXPERIMENTAL: CCodec: Add metadata buffer support for linear output buffers
 // DummyContainerBuffer
 
 static uint8_t sDummyByte[1] = { 0 };
