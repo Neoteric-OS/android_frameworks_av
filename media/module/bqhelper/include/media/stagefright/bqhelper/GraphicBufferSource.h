@@ -28,9 +28,7 @@
 #include <media/stagefright/foundation/ALooper.h>
 #include <media/stagefright/bqhelper/ComponentWrapper.h>
 #include <android/hardware/graphics/bufferqueue/1.0/IGraphicBufferProducer.h>
-// QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 #include <android/hardware/graphics/bufferqueue/2.0/IGraphicBufferProducer.h>
-// QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
 
 namespace android {
 
@@ -107,13 +105,11 @@ public:
     sp<::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer>
         getHGraphicBufferProducer_V1_0() const;
 
-// QTI_BEGIN: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     // Returns the handle to the bufferqueue HAL producer side of the BufferQueue.
     // Buffers queued on this will be received by GraphicBufferSource.
     sp<::android::hardware::graphics::bufferqueue::V2_0::IGraphicBufferProducer>
         getHGraphicBufferProducer() const;
 
-// QTI_END: 2025-12-17: Video: av: Added missing QTI changes in GraphicBufferSource
     // This is called when component transitions to running state, which means
     // we can start handing it buffers.  If we already have buffers of data
     // sitting in the BufferQueue, this will send them to the codec.

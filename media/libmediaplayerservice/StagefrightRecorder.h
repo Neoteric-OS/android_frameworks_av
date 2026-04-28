@@ -180,9 +180,9 @@ protected:
     double mCaptureFps;
     int64_t mTimeBetweenCaptureUs;
     sp<CameraSourceTimeLapse> mCameraSourceTimeLapse;
-// QTI_BEGIN: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
+// QTI_BEGIN: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     sp<CameraSource> mCameraSource;
-// QTI_END: 2018-05-17: Video: stagefright: Fix recording issues when EIS enabled
+// QTI_END: 2018-05-17: Camera: stagefright: Fix recording issues when EIS enabled
     String8 mParams;
 
     MetadataBufferType mMetaDataStoredInVideoBuffers;

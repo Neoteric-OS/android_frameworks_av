@@ -23,9 +23,7 @@
 #include <memory>
 #include <vector>
 #include <span>
-// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
 #include <mutex>
-// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
 
 #include <C2Buffer.h>
 #include <C2Component.h>
@@ -325,9 +323,7 @@ private:
 
     void feedInputBufferIfAvailable();
     void feedInputBufferIfAvailableInternal();
-// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     void queueDummyWork();
-// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     status_t queueInputBufferInternal(sp<MediaCodecBuffer> buffer,
                                       std::shared_ptr<C2LinearBlock> encryptedBlock = nullptr,
                                       std::vector<std::shared_ptr<C2Info>> c2Infos = {},
@@ -449,15 +445,11 @@ private:
     std::atomic_bool mInputMetEos;
     std::once_flag mRenderWarningFlag;
 
-// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     // Timestamp of last pipeline activity: either a successful input buffer queue or a render/release
     // of output buffer. Used to detect pipeline stall and trigger queueDummyWork.
     uint64_t mLastPipelineActiveTs;
     std::mutex mTsLock;
-// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
-// QTI_BEGIN: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
     bool mIsHWDecoder;
-// QTI_END: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
 
     sp<ICrypto> mCrypto;
     sp<IDescrambler> mDescrambler;
