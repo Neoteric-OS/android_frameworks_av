@@ -3216,12 +3216,22 @@ status_t AudioPolicyManager::stopSource(const sp<SwAudioOutputDescriptor>& outpu
             // one being selected for this output
             std::map<audio_io_handle_t, DeviceVector> outputsToReopen;
             uint32_t delayMs = outputDesc->latency()*2;
+            // see getNewOutputDevices -- output activity on these streams are special: they affect
+            // the routing on other outputs. For example, ALARM activity on primary results in media
+            // playback on deep buffer routing to a2dp+speaker. As such, when stopping the alarm
+            // output, we must re-evaluate routing (on the same module) on all other outputs.
+            const auto mostRecentStrat =
+                    outputDesc->getMostRecentStrategy(std::numeric_limits<int32_t>::max());
+            const bool forceReeval =
+                    mostRecentStrat == streamToStrategy(AUDIO_STREAM_ALARM, clientUid) ||
+                    mostRecentStrat ==
+                            streamToStrategy(AUDIO_STREAM_ENFORCED_AUDIBLE, clientUid);
             for (size_t i = 0; i < mOutputs.size(); i++) {
                 sp<SwAudioOutputDescriptor> desc = mOutputs.valueAt(i);
                 if (desc != outputDesc &&
                         desc->isActive() &&
                         outputDesc->sharesHwModuleWith(desc) &&
-                        (newDevices != desc->devices())) {
+                        (newDevices != desc->devices() || forceReeval)) {
                     DeviceVector newDevices2 = getNewOutputDevices(desc, false /*fromCache*/);
                     bool force = desc->devices() != newDevices2;
 
@@ -5020,6 +5030,32 @@ void AudioPolicyManager::updateCallAndOutputRouting(bool forceVolumeReeval, uint
         // Only apply special touch sound delay once
         delayMs = 0;
     }
+    bool willRouteToSco = false;
+    for (size_t i = 0; i < mOutputs.size(); i++) {
+        sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
+        DeviceVector newDevices = getNewOutputDevices(outputDesc, true /*fromCache*/);
+        if (std::any_of(newDevices.begin(), newDevices.end(), [](const auto& x) {
+                return audio_is_bluetooth_out_sco_device(x->type());
+            })) {
+            willRouteToSco = true;
+            break;
+        }
+    }
+
+    if (willRouteToSco) {
+        for (size_t i = 0; i < mOutputs.size(); i++) {
+            sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
+            if (outputDesc == mPrimaryOutput) continue;
+            const auto oldDevices = outputDesc->devices();
+            if (std::any_of(oldDevices.begin(), oldDevices.end(), [](const auto&x) {
+                            return audio_is_a2dp_out_device(x->type());
+                        })) {
+                ALOGI("%s clearing A2DP patch preemptively %d", __func__, outputDesc->mIoHandle);
+                resetOutputDevice(outputDesc, /* delayMs= */ 0, nullptr);
+            }
+        }
+    }
+
     std::map<audio_io_handle_t, DeviceVector> outputsToReopen;
     for (size_t i = 0; i < mOutputs.size(); i++) {
         sp<SwAudioOutputDescriptor> outputDesc = mOutputs.valueAt(i);
@@ -10606,13 +10642,14 @@ status_t AudioPolicyManager::useMmapForPcmOffload(bool* result) {
     char buf[PROPERTY_VALUE_MAX] = {};
     *result = false;
 
+    // TODO: b/479291234, change default value to true when fully tested.
     if (const auto mmapOffloadProfile = mHwModules.getCompatibleProfile(
                 mmapOffloadFlags, false /*isInput*/);
             mmapOffloadProfile == nullptr) {
         // If MMAP offload is not supported, never use MMAP for PCM offload via AudioTrack
         ALOGD("%s: do not prefer mmap pcm offload as mmap pcm offload is not supported", __func__);
         *result = false;
-    } else if (!property_get_bool(preferMmapPcmOffloadSysProp, true /* default_value */)) {
+    } else if (!property_get_bool(preferMmapPcmOffloadSysProp, false /* default_value */)) {
         // If persist.media.audio.prefer_mmap_pcm_offload is false, never use MMAP for
         // PCM offload via AudioTrack
         ALOGD("%s: do not prefer mmap pcm offload as by %s is false",
