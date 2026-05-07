@@ -100,7 +100,9 @@ int main(int argc __unused, char **argv __unused)
     signal(SIGPIPE, SIG_IGN);
 
         // TODO whether it should be part of audioserver
+#ifndef TARGET_IS_QLMD
     instantiateVRAudioServer();
+#endif
 
     // Make sure IHAVE is registered before AudioFlinger
     registerIHalAdapterVendorExtension();
