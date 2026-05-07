@@ -26,6 +26,7 @@ cc_binary {
         "libaaudioservice_dependencies",
         "libaudioflinger_dependencies",
         "libaudiopolicyservice_dependencies",
+        "qcomfeatureconfig_cc_defaults",
     ],
 
     static_libs: [
