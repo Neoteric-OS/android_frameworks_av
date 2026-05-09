@@ -1285,6 +1285,7 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
         meta->setBuffer("mpeg-user-data", mpegUserData);
     }
 
+// QTI_BEGIN: 2019-10-20: Video: stagefright: Set HDR10+ sample metadata to codec
     const void *hdr10PlusInfo;
     size_t hdr10PlusInfoLength;
     if (mb->meta_data().findData(
@@ -1293,6 +1294,7 @@ sp<ABuffer> NuPlayer::GenericSource::mediaBufferToABuffer(
         meta->setBuffer("hdr10-plus-info", hdr10PlusData);
     }
 
+// QTI_END: 2019-10-20: Video: stagefright: Set HDR10+ sample metadata to codec
     mb->release();
     mb = NULL;
 

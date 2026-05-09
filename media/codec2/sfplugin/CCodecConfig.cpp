@@ -1442,6 +1442,7 @@ sp<AMessage> CCodecConfig::getFormatForDomain(const ReflectedParamUpdater::Dict&
         if (it == mVendorParams.end()) {
             continue;
         }
+// QTI_BEGIN: 2021-08-21: Video: Codec2: don't save some vendor configs in output format
         if (!input && key.find("vendor.qti-ext-vpp") == 0) {
             // these vendor params are only used for configuration, no need to be
             // saved in mOutputFormat. the mOutputFormat(AMessage) has max size
@@ -1449,6 +1450,7 @@ sp<AMessage> CCodecConfig::getFormatForDomain(const ReflectedParamUpdater::Dict&
             ALOGV("Skip %s", key.c_str());
             continue;
         }
+// QTI_END: 2021-08-21: Video: Codec2: don't save some vendor configs in output format
         C2Param::Index index = it->second->index();
         if (mSubscribedIndices.count(index) == 0) {
             continue;
@@ -1644,6 +1646,7 @@ sp<AMessage> CCodecConfig::getFormatForDomain(const ReflectedParamUpdater::Dict&
         }
 
         if (mInputSurface) {
+// QTI_BEGIN: 2022-03-08: Video: codec2: use color info from hal for encoder output
             bool useDataspace = true;
             if((mDomain & IS_ENCODER) && (portDomain & IS_OUTPUT)) {
                 int32_t standard,transfer,range;
@@ -1656,7 +1659,9 @@ sp<AMessage> CCodecConfig::getFormatForDomain(const ReflectedParamUpdater::Dict&
                         useDataspace = false;
                     }
                 }
+// QTI_END: 2022-03-08: Video: codec2: use color info from hal for encoder output
             }
+// QTI_BEGIN: 2022-03-08: Video: codec2: use color info from hal for encoder output
             if(useDataspace) {
                 android_dataspace dataspace = mInputSurface->getDataspace();
                 ColorUtils::convertDataSpaceToV0(dataspace);
@@ -1672,6 +1677,7 @@ sp<AMessage> CCodecConfig::getFormatForDomain(const ReflectedParamUpdater::Dict&
                     msg->setInt32(KEY_COLOR_TRANSFER, transfer);
                 }
                 msg->setInt32("android._dataspace", dataspace);
+// QTI_END: 2022-03-08: Video: codec2: use color info from hal for encoder output
             }
         }
 
