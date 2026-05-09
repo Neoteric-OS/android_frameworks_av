@@ -616,6 +616,7 @@ void Component::initListener(const sp<Component>& self) {
     if (res != C2_OK) {
         mInit = res;
     }
+// QTI_BEGIN: 2022-01-12: Video: Codec2: Detect and release component if the client process terminates
 
     struct ListenerDeathRecipient : public HwDeathRecipient {
         ListenerDeathRecipient(const wp<Component>& comp)
@@ -628,8 +629,10 @@ void Component::initListener(const sp<Component>& self) {
                 ) override {
             auto strongComponent = mComponent.promote();
             if (strongComponent) {
+// QTI_END: 2022-01-12: Video: Codec2: Detect and release component if the client process terminates
                 LOG(INFO) << "Client died ! notify and release the component !!";
                 strongComponent->onDeathReceived();
+// QTI_BEGIN: 2022-01-12: Video: Codec2: Detect and release component if the client process terminates
             } else {
                 LOG(ERROR) << "Client died ! no component to release !!";
             }
@@ -647,6 +650,7 @@ void Component::initListener(const sp<Component>& self) {
     if (!static_cast<bool>(transStatus)) {
         LOG(DEBUG) << "Listener linkToDeath() call failed.";
     }
+// QTI_END: 2022-01-12: Video: Codec2: Detect and release component if the client process terminates
 }
 
 Component::~Component() {
