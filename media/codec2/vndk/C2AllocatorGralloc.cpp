@@ -1122,11 +1122,13 @@ c2_status_t _setMetadataToGralloc4HandleImpl(
         ColorUtils::convertDataSpaceToV0(dataSpace);
     }
 #else
+// QTI_BEGIN: 2025-09-23: Video: vndk: remove dataspace_v0_partial flag and force enable conversion
     //if (android::media::codec::provider_->dataspace_v0_partial()) {
     //    ColorUtils::convertDataSpaceToV0(dataSpace);
     //}
     // Todo: WA: Force enable behavior
     ColorUtils::convertDataSpaceToV0(dataSpace);
+// QTI_END: 2025-09-23: Video: vndk: remove dataspace_v0_partial flag and force enable conversion
 #endif
     status_t status = mapper.setDataspace(bufferHandle, static_cast<ui::Dataspace>(dataSpace));
     if (status != OK) {

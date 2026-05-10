@@ -2565,9 +2565,11 @@ void MediaPlayerService::AudioOutput::close()
     ALOGV("close");
     sp<AudioTrack> track;
     {
+// QTI_BEGIN: 2022-02-17: Audio: libmediaplayerservice: Explicitly force callbacks to stop running
         if (mTrack != 0) {
             mTrack->stopAndJoinCallbacks();
         }
+// QTI_END: 2022-02-17: Audio: libmediaplayerservice: Explicitly force callbacks to stop running
         Mutex::Autolock lock(mLock);
         track = mTrack;
     }
