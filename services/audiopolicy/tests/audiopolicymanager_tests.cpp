@@ -4383,7 +4383,7 @@ INSTANTIATE_TEST_CASE_P(AudioPolicyManagerOutputMixPortForAttrSelection,
                         AUDIO_FORMAT_PCM_FLOAT, AudioPolicyManagerTest::k384000SamplingRate),
                 std::make_tuple("deep buffer", nullptr, AUDIO_OUTPUT_FLAG_DEEP_BUFFER,
                         AUDIO_FORMAT_PCM_16_BIT, AudioPolicyManagerTest::k48000SamplingRate),
-                std::make_tuple("deep buffer", nullptr, AUDIO_OUTPUT_FLAG_DEEP_BUFFER,
+                std::make_tuple("direct", nullptr, AUDIO_OUTPUT_FLAG_DEEP_BUFFER,
                         AUDIO_FORMAT_PCM_FLOAT, AudioPolicyManagerTest::k384000SamplingRate),
                 std::make_tuple("compressed_offload", nullptr,
                         (audio_output_flags_t)(AUDIO_OUTPUT_FLAG_COMPRESS_OFFLOAD |
