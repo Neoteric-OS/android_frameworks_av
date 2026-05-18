@@ -406,9 +406,7 @@ CCodecBufferChannel::CCodecBufferChannel(const std::shared_ptr<CCodecCallback>& 
       mRenderingDepth(3u),
       mMetaMode(MODE_NONE),
       mInputMetEos(false),
-// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
       mLastPipelineActiveTs(0u),
-// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
 // QTI_BEGIN: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
       mIsHWDecoder(false),
 // QTI_END: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
@@ -1482,9 +1480,9 @@ void CCodecBufferChannel::feedInputBufferIfAvailable() {
 // QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
 
     // limit this WA to qc hw decoder only
+// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     // mLastPipelineActiveTs is updated when input buffer is queued (here) or output buffer is
     // rendered/released. If elapsed time exceeds threshold, pipeline may be stalled.
-// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
 // QTI_BEGIN: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
     if (mIsHWDecoder) {
 // QTI_END: 2022-04-26: Video: CCodec: Use pipelineRoom only for HW decoder
@@ -1492,7 +1490,9 @@ void CCodecBufferChannel::feedInputBufferIfAvailable() {
         std::lock_guard<std::mutex> tsLock(mTsLock);
         uint64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
                 PipelineWatcher::Clock::now().time_since_epoch()).count();
+// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
         if (now - mLastPipelineActiveTs > kPipelinePausedTimeoutMs) {
+// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
             ALOGV("[WA] long time elapsed since last input queued, let's queue a specific work to "
                     "HAL to notify something");
             queueDummyWork();
@@ -1555,7 +1555,9 @@ void CCodecBufferChannel::feedInputBufferIfAvailableInternal() {
 
         {
             std::lock_guard<std::mutex> tsLock(mTsLock);
+// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
             mLastPipelineActiveTs = std::chrono::duration_cast<std::chrono::milliseconds>(
+// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
                     PipelineWatcher::Clock::now().time_since_epoch()).count();
         }
 
@@ -2745,7 +2747,9 @@ status_t CCodecBufferChannel::requestInitialInputBuffers(
 // QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
     if (!clientInputBuffers.empty()) {
         std::lock_guard<std::mutex> tsLock(mTsLock);
+// QTI_END: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
         mLastPipelineActiveTs = std::chrono::duration_cast<std::chrono::milliseconds>(
+// QTI_BEGIN: 2021-03-29: Video: [WA] Codec2: queue a empty work to HAL to wake up allocation thread
                 PipelineWatcher::Clock::now().time_since_epoch()).count();
     }
 

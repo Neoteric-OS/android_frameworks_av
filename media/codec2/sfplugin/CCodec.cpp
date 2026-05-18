@@ -85,6 +85,9 @@ typedef CCodecConfig Config;
 
 namespace {
 
+constexpr size_t kMaxClientInputBufferSize = 100 * 1024 * 1024;  // 100MB
+constexpr size_t kMinClientInputBufferSize = 4;  // 4B
+
 class CCodecWatchdog : public AHandler {
 private:
     enum {
@@ -1862,6 +1865,9 @@ void CCodec::configure(const sp<AMessage> &msg) {
         // at times specify too small size. Instead, mimic the behavior from OMX, where the
         // client specified size is only used to ask for bigger buffers than component suggested
         // size.
+        // NOTE: For video, client value is validated against defined size thresold.If valid and
+        // smaller than component provided size, client value is used; otherwise component value
+        // is used.
         int32_t clientInputSize = 0;
         bool clientSpecifiedInputSize =
             msg->findInt32(KEY_MAX_INPUT_SIZE, &clientInputSize) && clientInputSize > 0;
@@ -1876,11 +1882,19 @@ void CCodec::configure(const sp<AMessage> &msg) {
         }
 
         // verify that CSD fits into this size (if defined)
+        bool clientValueValid = true;
         if ((config->mDomain & Config::IS_DECODER) && maxInputSize.value > 0) {
             sp<ABuffer> csd;
             for (size_t ix = 0; msg->findBuffer(StringPrintf("csd-%zu", ix).c_str(), &csd); ++ix) {
-                if (csd && csd->size() > maxInputSize.value) {
-                    maxInputSize.value = csd->size();
+                if (csd) {
+                    // Always ensure component value fits CSD
+                    if (csd->size() > maxInputSize.value) {
+                        maxInputSize.value = csd->size();
+                    }
+                    // If client specified a value, validate it against CSD too
+                    if (clientSpecifiedInputSize && csd->size() > (uint32_t)clientInputSize) {
+                        clientValueValid = false;
+                    }
                 }
             }
         }
@@ -1888,16 +1902,36 @@ void CCodec::configure(const sp<AMessage> &msg) {
         // TODO: do this based on component requiring linear allocator for input
         if ((config->mDomain & Config::IS_DECODER) || (config->mDomain & Config::IS_AUDIO)) {
             if (clientSpecifiedInputSize) {
-                // Warn that we're overriding client's max input size if necessary.
-                if ((uint32_t)clientInputSize < maxInputSize.value) {
-                    ALOGD("client requested max input size %d, which is smaller than "
-                          "what component recommended (%u); overriding with component "
-                          "recommendation.", clientInputSize, maxInputSize.value);
-                    ALOGW("This behavior is subject to change. It is recommended that "
-                          "app developers double check whether the requested "
-                          "max input size is in reasonable range.");
+                if ((config->mDomain & Config::IS_VIDEO)) {
+                    if (clientInputSize < kMinClientInputBufferSize || clientInputSize > kMaxClientInputBufferSize) {
+                        ALOGW("Client maxInputSize (%d) unreasonably small or unreasonably large; using component value",
+                              clientInputSize);
+                        clientValueValid = false;
+                    }
+                    if (clientValueValid) {
+                        // Use client value - it's more accurate
+                        if ((uint32_t)clientInputSize < maxInputSize.value) {
+                            ALOGD("Using client maxInputSize (%d) which is smaller than "
+                                "component's fixed baseline (%u)",
+                                clientInputSize, maxInputSize.value);
+                            maxInputSize.value = align(clientInputSize, 256);
+                        }
+                    } else {
+                        // Fall back to component value
+                        ALOGW("Client maxInputSize validation failed; using component value (%u)",
+                            maxInputSize.value);
+                    }
                 } else {
-                    maxInputSize.value = clientInputSize;
+                    if ((uint32_t)clientInputSize < maxInputSize.value) {
+                        ALOGD("client requested max input size %d, which is smaller than "
+                              "what component recommended (%u); overriding with component "
+                              "recommendation.", clientInputSize, maxInputSize.value);
+                        ALOGW("This behavior is subject to change. It is recommended that "
+                              "app developers double check whether the requested "
+                              "max input size is in reasonable range.");
+                    } else {
+                        maxInputSize.value = clientInputSize;
+                    }
                 }
             }
             // Pass max input size on input format to the buffer channel (if supplied by the
