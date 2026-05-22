@@ -432,7 +432,81 @@ status_t MediaCodecSource::read(
     return output->mErrorCode;
 }
 
+// QTI_BEGIN: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+// Named metadata key for the EncoderOutputBufferHolder stored in MediaBuffer::meta_data().
+// MetaDataBase only provides setPointer/findPointer, so the holder is stored as a raw pointer
+// with lifetime managed via incStrong/decStrong (see CB_OUTPUT_AVAILABLE and signalBufferReturned).
+static constexpr uint32_t kKeyEncoderOutputBufferHolder = 'eobi';
+
+// Keeps the encoder output buffer alive and carries the slot index + encoder reference
+// for deferred releaseOutputBuffer() in signalBufferReturned().
+//
+// Design notes:
+//  - mEncoder is captured at construction time (on the looper thread) to avoid
+//    cross-thread access to MediaCodecSource::mEncoder from signalBufferReturned()
+//    (writer thread), eliminating the TOCTOU race present when reading mEncoder
+//    directly from the writer thread.
+//  - releaseOnce() is idempotent.  The destructor calls it as a safety net so that
+//    releaseOutputBuffer() is always invoked even on error/stop paths that drain
+//    the output queue without going through signalBufferReturned().
+//  - mReleased does not need to be std::atomic: releaseOnce() is called either from
+//    signalBufferReturned() (which holds a local sp<> keeping the object alive and
+//    preventing the destructor from running concurrently) or from the destructor when
+//    the last sp<> is released.  These two paths are mutually exclusive by the
+//    sp<>/RefBase ref-counting contract, so a plain bool is sufficient.
+struct EncoderOutputBufferHolder : public RefBase {
+    EncoderOutputBufferHolder(const sp<MediaCodecBuffer>& outbuf,
+                               int32_t index,
+                               const sp<MediaCodec>& encoder)
+        : mOutbuf(outbuf), mIndex(index), mEncoder(encoder), mReleased(false) {}
+
+    // Idempotent: safe to call from signalBufferReturned() and from the destructor.
+    void releaseOnce() {
+        if (!mReleased && mEncoder != nullptr) {
+            mReleased = true;
+            ALOGV("[eobi] releaseOutputBuffer slot=%d", mIndex);
+            mEncoder->releaseOutputBuffer(mIndex);
+        }
+    }
+
+    ~EncoderOutputBufferHolder() override {
+        // Safety net: if signalBufferReturned() was never called (e.g. error/stop path
+        // drains mOutput.mBufferQueue), release the encoder slot here so it is never
+        // permanently occupied.
+        if (!mReleased) {
+            ALOGW("[eobi] destructor safety-net: signalBufferReturned() was not called, "
+                  "releasing slot=%d now", mIndex);
+        }
+        releaseOnce();
+    }
+
+    sp<MediaCodecBuffer> mOutbuf;   // keeps encoder output buffer alive until writer is done
+    int32_t              mIndex;    // encoder output slot index for releaseOutputBuffer()
+    sp<MediaCodec>       mEncoder;  // captured at creation; avoids cross-thread mEncoder access
+    bool                 mReleased; // guards against double-release (see note above)
+};
+// QTI_END: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+
 void MediaCodecSource::signalBufferReturned(MediaBufferBase *buffer) {
+// QTI_BEGIN: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+    // Release the encoder output buffer now that the writer is done with the data.
+    // MetaDataBase only provides setPointer/findPointer (no setObject/findObject), so we
+    // use findPointer to retrieve the raw pointer stored at buffer creation time.
+    // The matching decStrong() below balances the incStrong() done at creation.
+    // releaseOnce() is called before decStrong() so the encoder slot is freed first;
+    // decStrong() then drops the ref count to 0, triggering the destructor which calls
+    // releaseOnce() again — but mReleased is already true, so it is a no-op.
+    void *ptr = nullptr;
+    if (buffer->meta_data().findPointer(kKeyEncoderOutputBufferHolder, &ptr) && ptr != nullptr) {
+        EncoderOutputBufferHolder *holder = static_cast<EncoderOutputBufferHolder*>(ptr);
+        ALOGV("[eobi] signalBufferReturned: releasing holder for slot=%d", holder->mIndex);
+        holder->releaseOnce();
+        holder->decStrong(nullptr);
+        // mOutbuf is released here (ref count reaches 0 → destructor runs → mOutbuf sp<> cleared).
+    } else {
+        ALOGW("[eobi] signalBufferReturned: no EncoderOutputBufferHolder found in buffer metadata");
+    }
+// QTI_END: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
     buffer->setObserver(0);
     buffer->release();
 }
@@ -742,6 +816,13 @@ void MediaCodecSource::signalEOS(status_t err) {
         if (!reachedEOS) {
             ALOGV("encoder (%s) reached EOS", mIsVideo ? "video" : "audio");
             // release all unread media buffers
+// QTI_BEGIN: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+            if (!output->mBufferQueue.empty()) {
+                ALOGD("[eobi] signalEOS: draining %zu queued buffer(s) with err=0x%x; "
+                      "EncoderOutputBufferHolder slots will be released via signalBufferReturned()",
+                      output->mBufferQueue.size(), err);
+            }
+// QTI_END: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
             for (List<MediaBufferBase*>::iterator it = output->mBufferQueue.begin();
                     it != output->mBufferQueue.end(); it++) {
                 (*it)->release();
@@ -1071,7 +1152,22 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             }
 
 // QTI_BEGIN: 2018-03-05: Audio: PPR1.180227.001_AOSP_Merge.
-            MediaBuffer *mbuf = new MediaBuffer(outbuf->size());
+// QTI_BEGIN: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+            // Wrap outbuf data directly to avoid malloc() + memcpy() at MediaCodecSource layer.
+            // EncoderOutputBufferHolder keeps outbuf alive, carries the slot index and a
+            // captured sp<MediaCodec> for deferred releaseOutputBuffer() in signalBufferReturned().
+            // incStrong() adds one strong reference; the matching decStrong() is in
+            // signalBufferReturned().  MetaDataBase only provides setPointer/findPointer, so we
+            // store the raw pointer and manage lifetime manually via incStrong/decStrong.
+            // Note: setPointer is called on mbuf->meta_data() directly (MetaDataBase&) before
+            // the 'meta' copy below, so the key is present in mbuf's own metadata and will be
+            // found by signalBufferReturned() via buffer->meta_data().findPointer().
+            EncoderOutputBufferHolder *holder =
+                    new EncoderOutputBufferHolder(outbuf, index, mEncoder);
+            holder->incStrong(nullptr);
+            MediaBuffer *mbuf = new MediaBuffer(outbuf->data(), outbuf->size());
+            mbuf->meta_data().setPointer(kKeyEncoderOutputBufferHolder, holder);
+// QTI_END: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
             sp<MetaData> meta = new MetaData(mbuf->meta_data());
 // QTI_END: 2018-03-05: Audio: PPR1.180227.001_AOSP_Merge.
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
@@ -1131,15 +1227,16 @@ void MediaCodecSource::onMessageReceived(const sp<AMessage> &msg) {
             if (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME) {
                 mbuf->meta_data().setInt32(kKeyIsSyncFrame, true);
             }
-            memcpy(mbuf->data(), outbuf->data(), outbuf->size());
+// QTI_BEGIN: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
+            // memcpy removed: data is mapped directly from encoder output buffer.
+            // releaseOutputBuffer() is deferred to signalBufferReturned().
+// QTI_END: 2026-03-02: Video: CCodec: Avoid memcpy for encoder output buffers in MediaCodecSource
 
             {
                 Mutexed<Output>::Locked output(mOutput);
                 output->mBufferQueue.push_back(mbuf);
                 output->mCond.signal();
             }
-
-            mEncoder->releaseOutputBuffer(index);
        } else if (cbID == MediaCodec::CB_ERROR) {
             status_t err;
             CHECK(msg->findInt32("err", &err));
