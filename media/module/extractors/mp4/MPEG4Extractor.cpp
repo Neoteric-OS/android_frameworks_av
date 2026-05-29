@@ -7712,6 +7712,10 @@ static bool isCompatibleBrand(uint32_t fourcc) {
     static const uint32_t kCompatibleBrands[] = {
         FOURCC("isom"),
         FOURCC("iso2"),
+        FOURCC("iso3"),
+        FOURCC("iso4"),
+        FOURCC("iso5"),
+        FOURCC("iso6"),
         FOURCC("avc1"),
         FOURCC("hvc1"),
         FOURCC("hev1"),
