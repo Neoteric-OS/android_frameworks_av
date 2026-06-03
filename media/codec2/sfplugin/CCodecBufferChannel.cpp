@@ -2602,10 +2602,6 @@ status_t CCodecBufferChannel::start(
     // about buffers from the previous generation do not interfere with the
     // newly initialized pipeline capacity.
     if (inputFormat || outputFormat) {
-        mFlush.lock()->delayAfter.clear();
-// QTI_BEGIN: 2020-09-06: Video: CCodec: Do not update pipeline-watcher capacity when resuming
-        ALOGD("[%s] start: updating output delay %u", mName, outputDelayValue);
-// QTI_END: 2020-09-06: Video: CCodec: Do not update pipeline-watcher capacity when resuming
         Mutexed<PipelineWatcher>::Locked watcher(mPipelineWatcher);
         watcher->inputDelay(inputDelayValue)
                 .pipelineDelay(pipelineDelayValue)
@@ -2613,19 +2609,9 @@ status_t CCodecBufferChannel::start(
                 .smoothnessFactor(kSmoothnessFactor)
                 .tunneled(mTunneled);
         watcher->flush();
-    } else {
-        Mutexed<Flush>::Locked flush(mFlush);
-        flush->delayAfter.clear();
-        auto pushIfValid = [&flush](const C2Param &p) {
-            if (p) {
-                flush->delayAfter.push_back(C2Param::Copy(p));
-            }
-        };
-        pushIfValid(reorderDepth);
-        pushIfValid(reorderKey);
-        pushIfValid(inputDelay);
-        pushIfValid(pipelineDelay);
-        pushIfValid(outputDelay);
+// QTI_BEGIN: 2020-09-06: Video: CCodec: Do not update pipeline-watcher capacity when resuming
+        ALOGD("[%s] start: updating output delay %u", mName, outputDelayValue);
+// QTI_END: 2020-09-06: Video: CCodec: Do not update pipeline-watcher capacity when resuming
     }
 
     mInputMetEos = false;
@@ -2701,20 +2687,20 @@ status_t CCodecBufferChannel::requestInitialInputBuffers(
         return UNKNOWN_ERROR;
     }
 
-    std::list<std::unique_ptr<C2Work>> flushedCodecInitData;
-    mFlush.lock()->codecInitData.swap(flushedCodecInitData);
-    if (!flushedCodecInitData.empty()) {
+    std::list<std::unique_ptr<C2Work>> flushedConfigs;
+    mFlushedConfigs.lock()->swap(flushedConfigs);
+    if (!flushedConfigs.empty()) {
         {
             Mutexed<PipelineWatcher>::Locked watcher(mPipelineWatcher);
             PipelineWatcher::Clock::time_point now = PipelineWatcher::Clock::now();
-            for (const std::unique_ptr<C2Work> &work : flushedCodecInitData) {
+            for (const std::unique_ptr<C2Work> &work : flushedConfigs) {
                 watcher->onWorkQueued(
                         work->input.ordinal.frameIndex.peeku(),
                         std::vector(work->input.buffers),
                         now);
             }
         }
-        err = std::atomic_load(&mComponent)->queue(&flushedCodecInitData);
+        err = std::atomic_load(&mComponent)->queue(&flushedConfigs);
         if (err != C2_OK) {
             ALOGW("[%s] Error while queueing a flushed config", mName);
             return UNKNOWN_ERROR;
@@ -2827,7 +2813,7 @@ void CCodecBufferChannel::release() {
 
 void CCodecBufferChannel::flush(const std::list<std::unique_ptr<C2Work>> &flushedWork) {
     ALOGV("[%s] flush", mName);
-    std::list<std::unique_ptr<C2Work>> codecInitData;
+    std::list<std::unique_ptr<C2Work>> configs;
     mInput.lock()->lastFlushIndex = mFrameIndex.load(std::memory_order_relaxed);
     {
         Mutexed<PipelineWatcher>::Locked watcher(mPipelineWatcher);
@@ -2840,7 +2826,7 @@ void CCodecBufferChannel::flush(const std::list<std::unique_ptr<C2Work>> &flushe
             if (work->input.buffers.empty()
                     || work->input.buffers.front() == nullptr
                     || work->input.buffers.front()->data().linearBlocks().empty()) {
-                ALOGD("[%s] no linear codec init data found", mName);
+                ALOGD("[%s] no linear codec config data found", mName);
                 watcher->onWorkDone(frameIndex);
                 continue;
             }
@@ -2860,12 +2846,12 @@ void CCodecBufferChannel::flush(const std::list<std::unique_ptr<C2Work>> &flushe
                     work->input.infoBuffers.begin(),
                     work->input.infoBuffers.end());
             copy->worklets.emplace_back(new C2Worklet);
-            codecInitData.push_back(std::move(copy));
+            configs.push_back(std::move(copy));
             watcher->onWorkDone(frameIndex);
-            ALOGV("[%s] stashed flushed codec init data", mName);
+            ALOGV("[%s] stashed flushed codec config data", mName);
         }
     }
-    mFlush.lock()->codecInitData.swap(codecInitData);
+    mFlushedConfigs.lock()->swap(configs);
     {
         Mutexed<Input>::Locked input(mInput);
         input->buffers->flush();
@@ -3010,16 +2996,6 @@ bool CCodecBufferChannel::handleWork(
         }
     }
 
-    {
-        Mutexed<Flush>::Locked flush(mFlush);
-        if (!flush->delayAfter.empty()) {
-            worklet->output.configUpdate.insert(
-                    worklet->output.configUpdate.end(),
-                    std::make_move_iterator(flush->delayAfter.begin()),
-                    std::make_move_iterator(flush->delayAfter.end()));
-            flush->delayAfter.clear();
-        }
-    }
     std::optional<uint32_t> newInputDelay, newPipelineDelay, newOutputDelay, newReorderDepth;
     std::optional<C2Config::ordinal_key_t> newReorderKey;
     bool needMaxDequeueBufferCountUpdate = false;
