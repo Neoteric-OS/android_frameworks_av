@@ -57,6 +57,8 @@
 #include <gui/DisplayInfo.h>
 #include <ui/StaticDisplayInfo.h>
 #include <ui/DynamicDisplayInfo.h>
+#include <gui/DisplayEventReceiver.h>
+#include <utils/Looper.h>
 
 #include <android-base/stringprintf.h>
 using ::android::base::StringPrintf;
@@ -118,6 +120,7 @@ NuPlayer::Decoder::Decoder(
 }
 
 NuPlayer::Decoder::~Decoder() {
+    teardownVsyncCallbacks();
     // Need to stop looper first since mCodec could be accessed on the mDecoderLooper.
     stopLooper();
     if (mCodec != NULL) {
@@ -356,6 +359,28 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
     mComponentName = mime;
     mComponentName.append(" decoder");
     ALOGV("[%s] onConfigure (surface=%p)", mComponentName.c_str(), mSurface.get());
+
+    // Extract resolution early for VSync decision
+    int32_t videoWidth = 0, videoHeight = 0;
+    bool shouldEnableVsync = false;
+    if (!mIsAudio) {
+        format->findInt32("width", &videoWidth);
+        format->findInt32("height", &videoHeight);
+
+        // Make VSync decision before codec creation
+        int32_t videoFrameRate = 0;
+        format->findInt32("frame-rate", &videoFrameRate);
+        if (videoWidth > 0 && videoHeight > 0) {
+            shouldEnableVsync = shouldEnableVsyncForVideo(mime, videoWidth, videoHeight, videoFrameRate);
+            if (shouldEnableVsync) {
+                ALOGI("[%s] Initializing VSync", mComponentName.c_str());
+                initializeVsyncCallbacks();
+            }
+            if (mRenderer != NULL) {
+                mRenderer->setVsyncMode(mVsyncModeEnabled.load(std::memory_order_acquire));
+            }
+        }
+    }
 
 // QTI_BEGIN: 2018-01-23: Audio: stagefright: Make classes customizable and add AV extensions
     mCodec = AVUtils::get()->createCustomComponentByName(mCodecLooper, mime.c_str(), false /* encoder */, format);
@@ -622,7 +647,11 @@ void NuPlayer::Decoder::onSetParameters(const sp<AMessage> &params) {
 }
 
 void NuPlayer::Decoder::onSetRenderer(const sp<Renderer> &renderer) {
+    std::lock_guard<std::mutex> lock(mVsyncMutex);
     mRenderer = renderer;
+    if (renderer != NULL && mVsyncModeEnabled.load(std::memory_order_acquire)) {
+        renderer->setVsyncMode(true);
+    }
 }
 
 void NuPlayer::Decoder::onResume(bool notifyComplete) {
@@ -688,6 +717,10 @@ void NuPlayer::Decoder::onShutdown(bool notifyComplete) {
 
     // if there is a pending resume request, notify complete now
     notifyResumeCompleteIfNecessary();
+
+    // Stop the VSync thread before releasing the codec so it cannot post
+    // with a null codec and trigger spurious handleError(NO_INIT) calls.
+    teardownVsyncCallbacks();
 
     if (mCodec != NULL) {
         err = mCodec->release();
@@ -1533,5 +1566,153 @@ void NuPlayer::Decoder::notifyResumeCompleteIfNecessary() {
     }
 }
 
-}  // namespace android
 
+// VSync decision function based on codec type and resolution
+bool NuPlayer::Decoder::shouldEnableVsyncForVideo(
+        const AString& mime,
+        int32_t width,
+        int32_t height,
+        int32_t frameRate) {
+
+    // Calculate total pixels
+    int64_t pixels = (int64_t)width * height;
+
+    bool isVideoCodec = (
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_HEVC, mime.c_str()) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_AV1, mime.c_str()) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_AVC, mime.c_str()) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_H263, mime.c_str()) ||
+        !strcasecmp(MEDIA_MIMETYPE_VIDEO_MPEG4, mime.c_str())
+    );
+
+    if (isVideoCodec && pixels <= 2073600 && frameRate > 0 && frameRate <= 30) {
+        ALOGD(" VSync callback support for (%dx%d) [%s] codec @ %dfps",
+              width, height, mime.c_str(), frameRate);
+        return true;
+    } else {
+        ALOGI(" VSync callback not supported for (%dx%d) [%s] codec @ %dfps",
+              width, height, mime.c_str(), frameRate);
+        return false;
+    }
+}
+
+// VSync initialization — enabled by default for eligible video sessions.
+// Controlled by debug.nuplayer.vsync_mode (default: true).
+void NuPlayer::Decoder::initializeVsyncCallbacks() {
+    // Check property to enable VSync mode
+    bool enableVsync = property_get_bool("debug.nuplayer.vsync_mode", true);
+    if (!enableVsync) {
+        return;
+    }
+    // Create DisplayEventReceiver for VSync events
+    mVsyncReceiver = std::make_unique<DisplayEventReceiver>();
+    status_t err = mVsyncReceiver->initCheck();
+    if (err != NO_ERROR) {
+        ALOGE("NuPlayerDecoder: Failed to initialize DisplayEventReceiver: %d", err);
+        mVsyncReceiver.reset();
+        return;
+    }
+
+    // Create Looper for VSync thread
+    mVsyncLooper = new Looper(false);
+    mVsyncLooper->addFd(
+            mVsyncReceiver->getFd(),
+            0,
+            Looper::EVENT_INPUT,
+            VsyncCallback,
+            this);
+
+    // Set VSync rate (1 = every VSync)
+    mVsyncReceiver->setVsyncRate(1);
+
+    // Start VSync thread
+    mVsyncModeEnabled.store(true, std::memory_order_release);
+    mVsyncThread = std::thread(&NuPlayer::Decoder::vsyncThreadLoop, this);
+
+    ALOGD("NuPlayerDecoder: VSync callbacks initialized successfully");
+}
+
+void NuPlayer::Decoder::teardownVsyncCallbacks() {
+    if (!mVsyncModeEnabled.load(std::memory_order_acquire)) {
+        return;
+    }
+    mVsyncModeEnabled.store(false, std::memory_order_release);
+    mVsyncLooper->wake();
+    if (mVsyncThread.joinable()) {
+        ALOGV("NuPlayerDecoder: Waiting for VSync thread to finish");
+        mVsyncThread.join();
+    }
+    mVsyncLooper->removeFd(mVsyncReceiver->getFd());
+    mVsyncLooper.clear();
+    mVsyncReceiver.reset();
+    ALOGV("NuPlayerDecoder: VSync resources cleaned up");
+}
+
+void NuPlayer::Decoder::vsyncThreadLoop() {
+    ALOGV("NuPlayerDecoder: VSync thread loop started");
+
+    while (mVsyncModeEnabled.load(std::memory_order_acquire)) {
+        int result = mVsyncLooper->pollAll(-1);
+
+        if (result == Looper::POLL_ERROR) {
+            ALOGE("NuPlayerDecoder: VSync looper poll error");
+            break;
+        }
+    }
+
+    ALOGV("NuPlayerDecoder: VSync thread loop ended");
+}
+
+int NuPlayer::Decoder::VsyncCallback(int /* fd */, int events, void* data) {
+    if (events & Looper::EVENT_INPUT) {
+        NuPlayer::Decoder* decoder = (NuPlayer::Decoder*)data;
+        decoder->processVsyncEvents();
+    }
+    return 1; // Keep the callback active
+}
+
+void NuPlayer::Decoder::processVsyncEvents() {
+    DisplayEventReceiver::Event events[8];
+    ssize_t n = mVsyncReceiver->getEvents(events, 8);
+
+    for (ssize_t i = 0; i < n; i++) {
+        const DisplayEventReceiver::Event& event = events[i];
+
+        if (event.header.type == DisplayEventType::DISPLAY_EVENT_VSYNC) {
+            int64_t vsyncTimestampNs = event.header.timestamp;
+            int64_t vsyncPeriodNs = event.vsync.vsyncData.frameInterval;
+
+            // Get the expected presentation time for this vsync
+            int64_t expectedPresentTimeNs =
+                event.vsync.vsyncData.preferredExpectedPresentationTime();
+
+            // Calculate VSync interval in milliseconds
+            float vsyncIntervalMs = vsyncPeriodNs / 1000000.0f;
+            ALOGV("NuPlayerDecoder: VSync event - timestamp: %" PRId64 " ns, "
+                  "expectedPresent: %" PRId64 " ns, interval: %.2f ms (%.1f Hz)",
+                  vsyncTimestampNs, expectedPresentTimeNs, vsyncIntervalMs,
+                  vsyncIntervalMs > 0.0f ? 1000.0f / vsyncIntervalMs : 0.0f);
+
+            // Notify renderer of VSync event with timing information
+            sp<Renderer> renderer;
+            {
+                std::lock_guard<std::mutex> lock(mVsyncMutex);
+                renderer = mRenderer;
+            }
+            if (renderer != NULL) {
+                sp<AMessage> msg = new AMessage(NuPlayer::Renderer::kWhatVsyncEvent, renderer);
+
+                // Pass vsync timing information to Renderer
+                msg->setInt64("expectedPresentTimeNs", expectedPresentTimeNs);
+                msg->setInt64("vsyncPeriodNs", vsyncPeriodNs);
+
+                msg->post();
+                ALOGV("NuPlayerDecoder: Notified renderer with vsync timing");
+            }
+        } else {
+            ALOGV("NuPlayerDecoder: Non-VSync event type: %d", event.header.type);
+        }
+    }
+}
+
+}  // namespace android

@@ -21,9 +21,15 @@
 
 #include "NuPlayerDecoderBase.h"
 
+#include <thread>
+#include <mutex>
+#include <atomic>
+
 namespace android {
 
 class MediaCodecBuffer;
+class DisplayEventReceiver;
+class Looper;
 
 struct NuPlayer::Decoder : public DecoderBase {
     Decoder(const sp<AMessage> &notify,
@@ -114,6 +120,14 @@ protected:
 
     float mVideoRenderFps;
 
+    // Simplified VSync infrastructure (disabled by default)
+    std::atomic<bool> mVsyncModeEnabled{false};
+    std::unique_ptr<DisplayEventReceiver> mVsyncReceiver;
+    sp<Looper> mVsyncLooper;
+    std::thread mVsyncThread;
+    // Mutex to protect mRenderer (read by VSync thread, written by decoder looper)
+    std::mutex mVsyncMutex;
+
     void handleError(int32_t err);
     bool handleAnInputBuffer(size_t index);
     bool handleAnOutputBuffer(
@@ -143,6 +157,13 @@ protected:
 
     void onReleaseCrypto(const sp<AMessage>& msg);
 
+    // VSync-Exclusive Buffer Processing Methods
+    bool shouldEnableVsyncForVideo(const AString& mime, int32_t width, int32_t height, int32_t frameRate);
+    void initializeVsyncCallbacks();
+    void teardownVsyncCallbacks();
+    void vsyncThreadLoop();
+    static int VsyncCallback(int fd, int events, void* data);
+    void processVsyncEvents();
     DISALLOW_EVIL_CONSTRUCTORS(Decoder);
 };
 
