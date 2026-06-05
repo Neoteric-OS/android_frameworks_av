@@ -463,26 +463,23 @@ void NuPlayer::Decoder::onConfigure(const sp<AMessage> &format) {
                     int32_t displayWidth = 0;
                     int32_t displayHeight = 0;
 
-                    // Get video source dimensions: To confirm if the video is playing in portrait mode or landscape mode.
+                    // Get raw video source dimensions
                     int32_t videoWidth = 0, videoHeight = 0;
                     if (format->findInt32("width", &videoWidth)
                             && format->findInt32("height", &videoHeight)
                             && videoWidth > 0 && videoHeight > 0) {
-                        int32_t rotation = 0;
-                        format->findInt32("rotation-degrees", &rotation);
-                        bool videoIsPortrait = ((rotation == 90 || rotation == 270)) ? (videoWidth > videoHeight): (videoHeight > videoWidth);
+                        bool videoIsPortrait = videoHeight > videoWidth;
                         bool displayIsPortrait = (activeMode->resolution.height > activeMode->resolution.width);
                         bool needsSwap = (videoIsPortrait != displayIsPortrait);
                         if (needsSwap) {
                             displayWidth = activeMode->resolution.height;
                             displayHeight = activeMode->resolution.width;
-                        }
-                        else {
+                        } else {
                             displayWidth = activeMode->resolution.width;
                             displayHeight = activeMode->resolution.height;
                         }
                         // Add displayWidth and displayHeight to vendor extension.
-                        if(videoWidth > displayWidth || videoHeight > displayHeight){
+                        if (videoWidth > displayWidth || videoHeight > displayHeight){
                             format->setInt32("vendor.qti-ext-down-scalar.output-width", displayWidth);
                             format->setInt32("vendor.qti-ext-down-scalar.output-height", displayHeight);
                         }
