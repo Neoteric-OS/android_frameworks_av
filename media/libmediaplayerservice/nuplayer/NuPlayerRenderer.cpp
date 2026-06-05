@@ -168,8 +168,12 @@ NuPlayer::Renderer::Renderer(
       mIsSeekonPause(false),
 // QTI_END: 2022-03-26: Video: nuplayer: proper handling of audio start latency for A/V sync
 // QTI_BEGIN: 2020-11-23: Video: Nuplayer: Use video render rate from video decoder
-      mVideoRenderFps(0.0f) {
+      mVideoRenderFps(0.0f),
 // QTI_END: 2020-11-23: Video: Nuplayer: Use video render rate from video decoder
+      mVsyncVideoModeEnabled(false),
+      mLastVsyncExpectedPresentTimeNs(-1),
+      mLastVsyncPeriodNs(-1),
+      mHasVsyncTiming(false) {
     CHECK(mediaClock != NULL);
     mPlaybackRate = mPlaybackSettings.mSpeed;
     mMediaClock->setPlaybackRate(mPlaybackRate);
@@ -193,6 +197,14 @@ NuPlayer::Renderer::~Renderer() {
     mVideoScheduler.clear();
     mNotify.clear();
     mAudioSink.clear();
+}
+
+void NuPlayer::Renderer::setVsyncMode(bool vsyncEnabled){
+    // Post to the Renderer looper so the write to mVsyncVideoModeEnabled
+    // happens on the same thread that reads it, avoiding a data race.
+    sp<AMessage> msg = new AMessage(kWhatSetVsyncMode, this);
+    msg->setInt32("vsyncEnabled", vsyncEnabled ? 1 : 0);
+    msg->post();
 }
 
 void NuPlayer::Renderer::queueBuffer(
@@ -889,6 +901,21 @@ void NuPlayer::Renderer::onMessageReceived(const sp<AMessage> &msg) {
             break;
         }
 
+        case kWhatVsyncEvent:
+        {
+            onVsyncEvent(msg);
+            break;
+        }
+
+        case kWhatSetVsyncMode:
+        {
+            int32_t vsyncEnabled;
+            CHECK(msg->findInt32("vsyncEnabled", &vsyncEnabled));
+            mVsyncVideoModeEnabled = (vsyncEnabled != 0);
+            ALOGD("Renderer: VSync mode %s", mVsyncVideoModeEnabled ? "enabled" : "disabled");
+            break;
+        }
+
         default:
             TRESPASS();
             break;
@@ -1522,6 +1549,17 @@ void NuPlayer::Renderer::postDrainVideoQueue() {
         mMediaClock->updateMaxTimeMedia(mediaTimeUs + kDefaultVideoFrameIntervalUs);
     }
 
+    // VSync-driven video drain system
+    // Only defer to VSync once the anchor time is established (i.e. after the
+    // first frame has been scheduled via the normal path).  Before that point
+    // we must let the normal scheduling path run so that the MediaClock anchor
+    // is set; otherwise the renderer stalls waiting for a VSync that will never
+    // trigger a drain because the video queue appears empty to onVsyncEvent().
+    if (mVsyncVideoModeEnabled && mHasVideo && mAnchorTimeMediaUs >= 0) {
+        // Anchor is set; defer all subsequent drains to the VSync callback.
+        return;
+    }
+
 // QTI_BEGIN: 2018-12-06: Video: NuPlayerRenderer: drain video queue without delay when video is late
     if (!mVideoSampleReceived || mediaTimeUs < mAudioFirstAnchorTimeMediaUs || getVideoLateByUs() > 40000) {
 // QTI_END: 2018-12-06: Video: NuPlayerRenderer: drain video queue without delay when video is late
@@ -1602,6 +1640,12 @@ void NuPlayer::Renderer::onDrainVideoQueue() {
         realTimeUs = getRealTimeUs(mediaTimeUs, nowUs);
     }
     realTimeUs = mVideoScheduler->schedule(realTimeUs * 1000) / 1000;
+    // If the frame targets a future VSync boundary, wait for the next VSync.
+    if (mVsyncVideoModeEnabled && mHasVsyncTiming
+            && realTimeUs > (mLastVsyncExpectedPresentTimeNs / 1000)) {
+        mDrainVideoQueuePending = false;
+        return;
+    }
 
     bool tooLate = false;
 
@@ -1950,6 +1994,13 @@ void NuPlayer::Renderer::onFlush(const sp<AMessage> &msg) {
         flushQueue(&mVideoQueue);
 
         mDrainVideoQueuePending = false;
+
+        // Invalidate stale VSync timing so post-seek drain decisions are not
+        // based on timestamps from before the seek.
+        mHasVsyncTiming = false;
+        mLastVsyncExpectedPresentTimeNs = -1;
+        mLastVsyncPeriodNs = -1;
+
 // QTI_BEGIN: 2023-02-27: Video: NuPlayer: don't clear preroll status if video buffer is not drained
         if (mVideoSampleReceived) {
             mVideoPrerollInprogress = false;
@@ -2075,6 +2126,7 @@ void NuPlayer::Renderer::onPause(bool forPreroll) {
 
     mDrainAudioQueuePending = false;
     mDrainVideoQueuePending = false;
+    mHasVsyncTiming = false;
 // QTI_BEGIN: 2018-04-13: Video: NuPlayer: DEBUG: Notify RENDERING_STARTED event after resume
     mVideoRenderingStarted = false; // force-notify NOTE_INFO MEDIA_INFO_RENDERING_START after resume
 // QTI_END: 2018-04-13: Video: NuPlayer: DEBUG: Notify RENDERING_STARTED event after resume
@@ -2554,4 +2606,59 @@ void NuPlayer::Renderer::setIsSeekonPause() {
 }
 
 // QTI_END: 2022-03-26: Video: nuplayer: proper handling of audio start latency for A/V sync
+
+void NuPlayer::Renderer::onVsyncEvent(const sp<AMessage> &msg) {
+    // Extract vsync timing information
+    int64_t expectedPresentTimeNs = -1;
+    int64_t vsyncPeriodNs = -1;
+
+    if (msg->findInt64("expectedPresentTimeNs", &expectedPresentTimeNs) &&
+        msg->findInt64("vsyncPeriodNs", &vsyncPeriodNs)) {
+
+        ALOGV("Stored vsync timing: expectedPresent=%" PRId64 " period=%" PRId64,
+              expectedPresentTimeNs, vsyncPeriodNs);
+    } else {
+        ALOGW("VSync event missing timing information");
+        mHasVsyncTiming = false;
+        return;
+    }
+
+    if (mVideoQueue.empty()) {
+        ALOGV("VSync event but video queue empty");
+        return;
+    }
+
+    if (mPaused || getSyncQueues()) {
+        ALOGV("VSync event skipped: paused=%d syncQueues=%d", mPaused, getSyncQueues());
+        return;
+    }
+
+    if (mDrainVideoQueuePending) {
+        // If VSync was skipped, the pending drain never fired and the frame
+        // is stuck. Detect this by checking if the new expectedPresentTime
+        // is more than one frame period ahead of the last one we stored —
+        // meaning at least one VSync tick was missed.
+        bool vsyncSkipped = mHasVsyncTiming && mLastVsyncPeriodNs > 0
+                && (expectedPresentTimeNs - mLastVsyncExpectedPresentTimeNs)
+                   > (mLastVsyncPeriodNs * 3 / 2);
+        if (!vsyncSkipped) {
+            ALOGV("VSync event: drain already in flight, skipping");
+            return;
+        }
+        ALOGV("VSync event: skipped VSync detected, clearing stale drain");
+        mDrainVideoQueuePending = false;
+    }
+
+    mLastVsyncExpectedPresentTimeNs = expectedPresentTimeNs;
+    mLastVsyncPeriodNs = vsyncPeriodNs;
+    mHasVsyncTiming = true;
+
+    sp<AMessage> drainMsg = new AMessage(kWhatDrainVideoQueue, this);
+    drainMsg->setInt32("drainGeneration", getDrainGeneration(false /* audio */));
+    drainMsg->post();
+    mDrainVideoQueuePending = true;
+
+    ALOGV("VSync event: posted drain video queue");
+}
+
 }  // namespace android
