@@ -86,7 +86,7 @@ typedef CCodecConfig Config;
 namespace {
 
 constexpr size_t kMaxClientInputBufferSize = 100 * 1024 * 1024;  // 100MB
-constexpr size_t kMinClientInputBufferSize = 4;  // 4B
+constexpr size_t kMinClientInputBufferSize = 100000;  // 100KB
 
 class CCodecWatchdog : public AHandler {
 private:
