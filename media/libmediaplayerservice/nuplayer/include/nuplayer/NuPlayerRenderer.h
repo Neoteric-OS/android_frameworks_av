@@ -115,6 +115,8 @@ struct NuPlayer::Renderer : public AHandler {
         kWhatVideoPrerollComplete     = 'vdpC',
 // QTI_END: 2019-07-01: Video: NuPlayer: Start renderer after video preroll is completed
         kWhatReleaseWakeLock          = 'adRL',
+        kWhatVsyncEvent          = 'vsyE',
+        kWhatSetVsyncMode        = 'sVsM',
     };
 
     enum AudioTearDownReason {
@@ -122,6 +124,7 @@ struct NuPlayer::Renderer : public AHandler {
         kDueToTimeout,
         kForceNonOffload,  // Restart only with non-offload.
     };
+    void setVsyncMode(bool vsyncEnabled);
 
 protected:
     virtual ~Renderer();
@@ -369,6 +372,18 @@ private:
 // QTI_BEGIN: 2020-11-23: Video: Nuplayer: Use video render rate from video decoder
     float mVideoRenderFps;
 // QTI_END: 2020-11-23: Video: Nuplayer: Use video render rate from video decoder
+
+    // VSync-driven video drain system
+    bool mVsyncVideoModeEnabled;
+
+    // Vsync timing information
+    int64_t mLastVsyncExpectedPresentTimeNs;
+    int64_t mLastVsyncPeriodNs;
+    bool mHasVsyncTiming;
+
+    // VSync event handler
+    void onVsyncEvent(const sp<AMessage> &msg);
+
 };
 
 } // namespace android
