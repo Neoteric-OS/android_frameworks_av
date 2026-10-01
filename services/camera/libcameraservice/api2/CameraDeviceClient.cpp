@@ -28,6 +28,7 @@
 #include <android/content/res/CameraCompatibilityInfo.h>
 #include <camera/CameraUtils.h>
 #include <camera/StringUtils.h>
+#include <camera/VendorTagDescriptor.h>
 #include <camera/camera2/CaptureRequest.h>
 #include <com_android_internal_camera_flags.h>
 #include <cutils/properties.h>
@@ -688,6 +689,7 @@ binder::Status CameraDeviceClient::submitRequestList(
 
         physicalSettingsList.begin()->metadata.update(ANDROID_REQUEST_OUTPUT_STREAMS,
                 &outputStreamIds[0], outputStreamIds.size());
+        setXiaomiClientName(physicalSettingsList.begin()->metadata);
 
         if (request.mIsReprocess) {
             physicalSettingsList.begin()->metadata.update(ANDROID_REQUEST_INPUT_STREAMS,
@@ -872,6 +874,27 @@ binder::Status CameraDeviceClient::endConfigure(int operatingMode,
     Mutex::Autolock icl(mBinderSerializationLock);
     return endConfigureLocked(operatingMode, sessionParams, startTimeMs, offlineStreamIds);
 
+}
+
+void CameraDeviceClient::setXiaomiClientName(CameraMetadata& metadata) {
+    if (mXiaomiClientNameTag == -1) {
+        mXiaomiClientNameTag = -2;
+        sp<VendorTagDescriptor> vTags = VendorTagDescriptor::getGlobalVendorTagDescriptor();
+        sp<VendorTagDescriptorCache> cache = VendorTagDescriptorCache::getGlobalVendorTagCache();
+        if ((vTags.get() == nullptr || vTags->getTagCount() <= 0) && cache.get()) {
+            cache->getVendorTagDescriptor(mDevice->getVendorTagId(), &vTags);
+        }
+        uint32_t tag;
+        if (vTags.get() &&
+                CameraMetadata::getTagFromName("com.xiaomi.sessionparams.clientName",
+                        vTags.get(), &tag) == OK) {
+            mXiaomiClientNameTag = tag;
+        }
+    }
+    if (mXiaomiClientNameTag < 0 || metadata.exists(mXiaomiClientNameTag)) return;
+    std::string clientName = getPackageName();
+    metadata.update(mXiaomiClientNameTag, reinterpret_cast<const uint8_t*>(clientName.c_str()),
+            clientName.size() + 1);
 }
 
 binder::Status CameraDeviceClient::endConfigureLocked(int operatingMode,

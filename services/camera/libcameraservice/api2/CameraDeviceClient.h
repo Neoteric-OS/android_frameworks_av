@@ -355,6 +355,9 @@ private:
     binder::Status checkPidStatus(const char* checkLocation);
     bool enforceRequestPermissions(CameraMetadata& metadata);
 
+    // Xiaomi HALs gate MIUI camera features, like variable aperture, on this client name tag.
+    void setXiaomiClientName(CameraMetadata& metadata);
+
     // Update an output configuration
     binder::Status updateOutputConfigurationLocked(int streamId,
             const hardware::camera2::params::OutputConfiguration &outputConfiguration,
@@ -436,6 +439,9 @@ private:
 
     // map high resolution camera id (logical / physical) -> list of stream ids configured
     std::unordered_map<std::string, std::unordered_set<int>> mHighResolutionCameraIdToStreamIdSet;
+
+    // com.xiaomi.sessionparams.clientName tag, -1 until resolved, -2 if the HAL lacks it.
+    int64_t mXiaomiClientNameTag = -1;
 
     // set of high resolution camera id (logical / physical)
     std::unordered_set<std::string> mHighResolutionSensors;
